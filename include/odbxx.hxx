@@ -299,6 +299,12 @@ namespace midas {
          return m_odb;
       }
 
+      odb &odb() {
+         if (m_tid != TID_KEY)
+            throw std::runtime_error("odb_get() called for non-key object");
+         return *m_odb;
+      }
+
       // overload stream out operator
       friend std::ostream &operator<<(std::ostream &output, u_odb &o) {
          std::string s = o;
@@ -446,7 +452,9 @@ namespace midas {
       odb(const char *v) : odb() {
          if (v[0] == '/') {
             std::string s(v);
-            pull_key(s);
+            if (!read_key(s))
+               throw std::runtime_error("ODB key \"" + s + "\" not found in ODB");
+
             if (m_tid == TID_KEY) {
                std::vector<std::string> name;
                m_num_values = get_subkeys(name);
@@ -601,6 +609,8 @@ namespace midas {
 
       void set_hkey(HNDLE hKey) { m_hKey = hKey; }
 
+      bool is_connected() { return m_hKey > 0; }
+
       int get_num_values() { return m_num_values; }
 
       void set_num_values(int n) { m_num_values = n; }
@@ -622,6 +632,8 @@ namespace midas {
       }
 
       void delete_key() {
+         init_hdb();
+
          // keep the name for debugging
          m_name = get_full_path();
 
@@ -689,7 +701,8 @@ namespace midas {
          else
             return TID_STRING;
       }
-         // Overload the Assignment Operators
+
+      // Overload the Assignment Operators
       template<typename T>
       const T &operator=(const T &v) {
          if (m_num_values == 0) {
@@ -781,6 +794,16 @@ namespace midas {
          else
             get(s); // forward to get(std::string)
          return s;
+      }
+
+      // overload conversion operator for const char *
+      operator const char *() {
+         std::string s;
+         if (m_tid == TID_KEY)
+            print(s, 0);
+         else
+            get(s); // forward to get(std::string)
+         return s.c_str();
       }
 
       // overload conversion operator for std::vector<T>
@@ -954,23 +977,47 @@ namespace midas {
 
       // overload arithmetic operators
       template<typename T>
-      T operator+(const T i) {
+      T operator+(T i) {
          if (m_num_values > 1)
             throw std::runtime_error("ODB key \"" + get_full_path() +
                                      "\" contains array which cannot be used in basic arithmetic operation.");
-         T s;
-         get(s);
-         return s + i;
+         if (std::is_same<T, midas::odb>::value) {
+            if (is_auto_refresh_read()) {
+               read();
+               i.read();
+            }
+            // adding two midas::odb objects is best done in double
+            double s1 = static_cast<double>(m_data[0]);
+            double s2 = static_cast<double>(i.m_data[0]);
+            return s1 + s2;
+         } else {
+            if (is_auto_refresh_read())
+               read();
+            T s = (T) m_data[0];
+            return s + i;
+         }
       }
 
       template<typename T>
-      T operator-(const T i) {
+      T operator-(T i) {
          if (m_num_values > 1)
             throw std::runtime_error("ODB key \"" + get_full_path() +
                                      "\" contains array which cannot be used in basic arithmetic operation.");
-         T s;
-         get(s);
-         return s - i;
+         if (std::is_same<T, midas::odb>::value) {
+            if (is_auto_refresh_read()) {
+               read();
+               i.read();
+            }
+            // subtracting two midas::odb objects is best done in double
+            double s1 = static_cast<double>(m_data[0]);
+            double s2 = static_cast<double>(i.m_data[0]);
+            return s1 - s2;
+         } else {
+            if (is_auto_refresh_read())
+               read();
+            T s = (T) m_data[0];
+            return s - i;
+         }
       }
 
       template<typename T>
@@ -978,8 +1025,9 @@ namespace midas {
          if (m_num_values > 1)
             throw std::runtime_error("ODB key \"" + get_full_path() +
                                      "\" contains array which cannot be used in basic arithmetic operation.");
-         T s;
-         get(s);
+         if (is_auto_refresh_read())
+            read();
+         T s = (T) m_data[0];
          return s * i;
       }
 
@@ -988,12 +1036,15 @@ namespace midas {
          if (m_num_values > 1)
             throw std::runtime_error("ODB key \"" + get_full_path() +
                                      "\" contains array which cannot be used in basic arithmetic operation.");
-         T s;
-         get(s);
+         if (is_auto_refresh_read())
+            read();
+         T s = (T) m_data[0];
          return s / i;
       }
 
       odb &operator++() {
+         if (is_auto_refresh_read())
+            read();
          for (int i = 0; i < m_num_values; i++)
             m_data[i].add(1, false);
          write();
@@ -1003,6 +1054,8 @@ namespace midas {
       odb operator++(int) {
          // create temporary object
          odb o(this);
+         if (is_auto_refresh_read())
+            read();
          for (int i = 0; i < m_num_values; i++)
             m_data[i].add(1, false);
          write();
@@ -1010,6 +1063,8 @@ namespace midas {
       }
 
       odb &operator--() {
+         if (is_auto_refresh_read())
+            read();
          for (int i = 0; i < m_num_values; i++)
             m_data[i].add(-1, false);
          write();
@@ -1019,6 +1074,8 @@ namespace midas {
       odb operator--(int) {
          // create temporary object
          odb o(this);
+         if (is_auto_refresh_read())
+            read();
          for (int i = 0; i < m_num_values; i++)
             m_data[i].add(-1, false);
          write();
@@ -1026,6 +1083,8 @@ namespace midas {
       }
 
       odb &operator+=(double d) {
+         if (is_auto_refresh_read())
+            read();
          for (int i = 0; i < m_num_values; i++)
             m_data[i].add(d, false);
          write();
@@ -1033,6 +1092,8 @@ namespace midas {
       }
 
       odb &operator-=(double d) {
+         if (is_auto_refresh_read())
+            read();
          for (int i = 0; i < m_num_values; i++)
             m_data[i].add(-d, false);
          write();
@@ -1040,6 +1101,8 @@ namespace midas {
       }
 
       odb &operator*=(double d) {
+         if (is_auto_refresh_read())
+            read();
          for (int i = 0; i < m_num_values; i++)
             m_data[i].mult(d, false);
          write();
@@ -1047,6 +1110,8 @@ namespace midas {
       }
 
       odb &operator/=(double d) {
+         if (is_auto_refresh_read())
+            read();
          if (d == 0)
             throw std::runtime_error("Division by zero");
          for (int i = 0; i < m_num_values; i++)
@@ -1054,6 +1119,37 @@ namespace midas {
          write();
          return *this;
       }
+
+      // overload comparison operators
+      template<typename T>
+      friend bool operator== (const midas::odb & o, const T &d);
+      template<typename T>
+      friend bool operator== (const T &d, const midas::odb & o);
+
+      template<typename T>
+      friend bool operator!= (const midas::odb & o, const T &d);
+      template<typename T>
+      friend bool operator!= (const T &d, const midas::odb & o);
+
+      template<typename T>
+      friend bool operator< (const midas::odb & o, const T &d);
+      template<typename T>
+      friend bool operator< (const T &d, const midas::odb & o);
+
+      template<typename T>
+      friend bool operator<= (const midas::odb & o, const T &d);
+      template<typename T>
+      friend bool operator<= (const T &d, const midas::odb & o);
+
+      template<typename T>
+      friend bool operator> (const midas::odb & o, const T &d);
+      template<typename T>
+      friend bool operator> (const T &d, const midas::odb & o);
+
+      template<typename T>
+      friend bool operator>= (const midas::odb & o, const T &d);
+      template<typename T>
+      friend bool operator>= (const T &d, const midas::odb & o);
 
       std::string print() {
          std::string s;
@@ -1174,7 +1270,7 @@ namespace midas {
       }
 
       // obtain key definition from ODB and allocate local data array
-      bool pull_key(std::string &path) {
+      bool read_key(std::string &path) {
          init_hdb();
 
          int status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
@@ -1230,12 +1326,12 @@ namespace midas {
             return true;
          } else {
             KEY key;
-            if (m_tid == 0 && write_defaults) // auto-create subdir
-               m_tid = TID_KEY;
             status = db_get_key(m_hDB, m_hKey, &key);
             if (status != DB_SUCCESS)
                throw std::runtime_error("db_get_key for ODB key \"" + path +
                                         "\" failed with status " + std::to_string(status));
+            if (m_tid == 0)
+               m_tid = key.type;
 
             // check for correct type
             if (m_tid > 0 && m_tid != (int) key.type) {
@@ -1614,7 +1710,25 @@ namespace midas {
          if (!name.empty())
             m_name = name;
          path += "/" + m_name;
-         bool created = write_key(path, write_defaults);
+
+         bool created = false;
+         if (read_key(path)) {
+            if (m_tid == TID_KEY) {
+               std::vector<std::string> name;
+               m_num_values = get_subkeys(name);
+               delete[] m_data;
+               m_data = new midas::u_odb[m_num_values]{};
+               for (int i = 0; i < m_num_values; i++) {
+                  std::string k(path);
+                  k += "/" + name[i];
+                  midas::odb *o = new midas::odb(k.c_str());
+                  m_data[i].set_tid(TID_KEY);
+                  m_data[i].set_parent(this);
+                  m_data[i].set(o);
+               }
+            }
+         } else
+            created = write_key(path, write_defaults);
 
          // correct wrong parent ODB from initializer_list
          for (int i = 0; i < m_num_values; i++)
@@ -1652,6 +1766,75 @@ namespace midas {
          db_watch(m_hDB, m_hKey, midas::odb::watch_callback, this);
       }
    };
+
+   //-----------------------------------------------
+
+   // overload comparison operators
+   template<typename T>
+   bool operator== (const midas::odb & o, const T &d) {
+      T v = (T) o.m_data[0];
+      return v == d;
+   }
+   template<typename T>
+   bool operator== (const T &d, const midas::odb & o) {
+      T v = (T) o.m_data[0];
+      return d == v;
+   }
+
+   template<typename T>
+   bool operator!= (const midas::odb & o, const T &d) {
+      T v = (T) o.m_data[0];
+      return v != d;
+   }
+   template<typename T>
+   bool operator!= (const T &d, const midas::odb & o) {
+      T v = (T) o.m_data[0];
+      return d != v;
+   }
+
+   template<typename T>
+   bool operator< (const midas::odb & o, const T &d) {
+      T v = (T) o.m_data[0];
+      return v < d;
+   }
+   template<typename T>
+   bool operator< (const T &d, const midas::odb & o) {
+      T v = (T) o.m_data[0];
+      return d < v;
+   }
+
+   template<typename T>
+   bool operator<= (const midas::odb & o, const T &d) {
+      T v = (T) o.m_data[0];
+      return v <= d;
+   }
+   template<typename T>
+   bool operator<= (const T &d, const midas::odb & o) {
+      T v = (T) o.m_data[0];
+      return d <= v;
+   }
+
+   template<typename T>
+   bool operator> (const midas::odb & o, const T &d) {
+      T v = (T) o.m_data[0];
+      return v > d;
+   }
+   template<typename T>
+   bool operator> (const T &d, const midas::odb & o) {
+      T v = (T) o.m_data[0];
+      return d > v;
+   }
+
+   template<typename T>
+   bool operator>= (const midas::odb & o, const T &d) {
+      T v = (T) o.m_data[0];
+      return v >= d;
+   }
+   template<typename T>
+   bool operator>= (const T &d, const midas::odb & o) {
+      T v = (T) o.m_data[0];
+      return d >= v;
+   }
 
    //-----------------------------------------------
 
