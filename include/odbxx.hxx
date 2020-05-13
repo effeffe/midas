@@ -843,7 +843,11 @@ namespace midas {
 
       // overload stream out operator
       friend std::ostream &operator<<(std::ostream &output, odb &o) {
-         std::string s = static_cast<std::string>(o);
+         std::string s;
+         if (o.m_tid == TID_KEY)
+            o.print(s, 0);
+         else
+            o.get(s);
          output << s;
          return output;
       };
@@ -1648,7 +1652,7 @@ namespace midas {
                   for (int i = 0; i < m_num_values; i++) {
                      std::string d;
                      m_data[i].get(d);
-                     if (d.size() + 1 > size)
+                     if ((int)d.size() + 1 > size)
                         size = d.size() + 1;
                   }
                   // round up to multiples of 32
