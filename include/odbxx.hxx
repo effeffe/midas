@@ -15,6 +15,7 @@
 #include <bitset>
 
 #include "midas.h"
+// #include "mleak.hxx" // un-comment for memory leak debugging
 
 /*------------------------------------------------------------------*/
 
@@ -371,13 +372,13 @@ namespace midas {
 
       // Default constructor
       odb() :
-              m_flags{odb_flags::AUTO_REFRESH_READ | odb_flags::AUTO_REFRESH_WRITE},
-              m_tid{0},
-              m_data{nullptr},
-              m_name{},
-              m_num_values{0},
-              m_last_index{-1},
-              m_hKey{} {}
+         m_flags{odb_flags::AUTO_REFRESH_READ | odb_flags::AUTO_REFRESH_WRITE},
+         m_tid{0},
+         m_data{nullptr},
+         m_name{},
+         m_num_values{0},
+         m_last_index{-1},
+         m_hKey{} {}
 
       // Destructor
       ~odb() {

@@ -12,8 +12,8 @@
 #include <array>
 #include <functional>
 
-#include "odbxx.hxx"
 #include "midas.h"
+#include "odbxx.hxx"
 
 /*------------------------------------------------------------------*/
 
@@ -24,21 +24,21 @@ int main() {
 
    // create ODB structure...
    midas::odb o = {
-           {"Int32 Key", 42},
-           {"Bool Key", true},
-           {"Subdir", {
-              {"Int32 key", 123 },
-              {"Double Key", 1.2},
-              {"Subsub", {
-                 {"Float key", 1.2f},     // floats must be explicitly specified
-                 {"String Key", "Hello"},
-              }}
-           }},
-           {"Int Array", {1, 2, 3}},
-           {"Double Array", {1.2, 2.3, 3.4}},
-           {"String Array", {"Hello1", "Hello2", "Hello3"}},
-           {"Large Array", std::array<int, 10>{} },   // array with explicit size
-           {"Large String", std::string(63, '\0') },  // string with explicit size
+      {"Int32 Key", 42},
+      {"Bool Key", true},
+      {"Subdir", {
+         {"Int32 key", 123 },
+         {"Double Key", 1.2},
+         {"Subsub", {
+            {"Float key", 1.2f},     // floats must be explicitly specified
+            {"String Key", "Hello"},
+         }}
+      }},
+      {"Int Array", {1, 2, 3}},
+      {"Double Array", {1.2, 2.3, 3.4}},
+      {"String Array", {"Hello1", "Hello2", "Hello3"}},
+      {"Large Array", std::array<int, 10>{} },   // array with explicit size
+      {"Large String", std::string(63, '\0') },  // string with explicit size
    };
 
    // ...and push it to ODB. If keys are present in the
