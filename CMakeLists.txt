@@ -128,6 +128,22 @@ endif ()
 endif (NO_SSL)
 
 #
+# Optional libcurl support for mlogger
+#
+if (NO_CURL)
+   message(STATUS "MIDAS: libcurl mlogger support is disabled via NO_LIBCURL")
+else (NO_CURL)
+   find_package(CURL)
+   if (CURL_FOUND)
+      message(STATUS "MIDAS: Found LibCURL version " ${CURL_VERSION_STRING})
+      add_compile_options(-DHAVE_CURL)
+      set(LIBS ${LIBS} -lcurl)
+   else ()
+      message(STATUS "MIDAS: LibCURL not found")
+   endif ()
+endif (NO_CURL)
+
+#
 # Optional MBEDTLS SSL support for mhttpd
 #
 if (NO_MBEDTLS)
@@ -294,6 +310,7 @@ set(libsrc
    src/history_common
    src/history_odbc
    src/history_schema
+   src/history_image
    src/lz4
    src/lz4frame
    src/lz4hc
@@ -342,12 +359,18 @@ target_include_directories(objlib PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
 if (OPENSSL_FOUND)
    target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
 endif ()
+if (CURL_FOUND)
+   target_include_directories(objlib PRIVATE ${CURL_INCLUDE_DIR})
+endif ()
 
 target_include_directories(objlib-c-compat PUBLIC ${SYSINC_DIR})
 target_include_directories(objlib-c-compat PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
 target_include_directories(objlib-c-compat PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
 if (OPENSSL_FOUND)
    target_include_directories(objlib-c-compat PRIVATE ${OPENSSL_INCLUDE_DIR})
+endif ()
+if (CURL_FOUND)
+   target_include_directories(objlib PRIVATE ${CURL_INCLUDE_DIR})
 endif ()
 
 # midas include is public so all programs linking to libmidas will inherit this
