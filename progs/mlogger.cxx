@@ -295,7 +295,8 @@ void receive_event(HNDLE hBuf, HNDLE request_id, EVENT_HEADER * pheader, void *p
 INT log_write(LOG_CHN * log_chn, EVENT_HEADER * pheader);
 void log_system_history(HNDLE hDB, HNDLE hKey, void *info);
 int log_generate_file_name(LOG_CHN *log_chn);
-extern void log_image_history();
+extern void start_image_history();
+extern void stop_image_history();
 
 /*== common code FAL/MLOGGER start =================================*/
 
@@ -6212,6 +6213,9 @@ int main(int argc, char *argv[])
    /* initialize ss_getchar() */
    ss_getchar(0);
 
+   /* start image history threads */
+   start_image_history();
+
    do {
       msg = cm_yield(1000);
 
@@ -6236,7 +6240,7 @@ int main(int argc, char *argv[])
       maybe_flush_history(ss_time());
 
       /* maybe save image history */
-      log_image_history();
+      //log_image_history();
 
       /* check for auto restart */
       if (auto_restart && ss_time() > auto_restart) {
@@ -6275,6 +6279,9 @@ int main(int argc, char *argv[])
 
    /* close history logging */
    close_history();
+
+   /* stop image history threads */
+   stop_image_history();
 
    cm_disconnect_experiment();
 
