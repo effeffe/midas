@@ -568,59 +568,55 @@ namespace midas {
 //         m_tid = m_data[0].get_tid();
 //      }
 
-      // Setters and Getters
-      static void set_debug(bool flag) { m_debug = flag; }
+      // Static functions
 
+      static void set_debug(bool flag) { m_debug = flag; }
       static bool get_debug() { return m_debug; }
 
-      void set_flags(uint32_t f) { m_flags = f; }
+      static int create(const char *name, int type = TID_KEY) {
+         init_hdb();
+         int status = db_create_key(m_hDB, 0, name, type);
+         return status;
+      }
 
+      // Setters and Getters
+
+      void set_flags(uint32_t f) { m_flags = f; }
       uint32_t get_flags() { return static_cast<uint32_t>(m_flags.to_ulong()); }
 
       bool is_preserve_string_size() const { return m_flags[odb_flags::PRESERVE_STRING_SIZE]; }
-
       void set_preserve_string_size(bool f) { m_flags[odb_flags::PRESERVE_STRING_SIZE] = f; }
 
       bool is_auto_refresh_read() const { return m_flags[odb_flags::AUTO_REFRESH_READ]; }
-
       void set_auto_refresh_read(bool f) { m_flags[odb_flags::AUTO_REFRESH_READ] = f; }
 
       bool is_auto_refresh_write() const { return m_flags[odb_flags::AUTO_REFRESH_WRITE]; }
-
       void set_auto_refresh_write(bool f) { m_flags[odb_flags::AUTO_REFRESH_WRITE] = f; }
 
       bool is_dirty() const { return m_flags[odb_flags::DIRTY]; }
-
       void set_dirty(bool f) { m_flags[odb_flags::DIRTY] = f; }
 
       bool is_auto_create() const { return m_flags[odb_flags::AUTO_CREATE]; }
-
       void set_auto_create(bool f) { m_flags[odb_flags::AUTO_CREATE] = f; }
 
       bool is_deleted() const { return m_flags[odb_flags::DELETED]; }
-
       void set_deleted(bool f) { m_flags[odb_flags::DELETED] = f; }
 
       int get_tid() { return m_tid; }
-
       void set_tid(int tid) { m_tid = tid; }
 
       HNDLE get_hkey() { return m_hKey; }
-
       void set_hkey(HNDLE hKey) { m_hKey = hKey; }
 
       bool is_connected() { return m_hKey > 0; }
 
       int get_num_values() { return m_num_values; }
-
       void set_num_values(int n) { m_num_values = n; }
 
       int get_last_index() { return m_last_index; }
-
       void set_last_index(int i) { m_last_index = i; }
 
       std::string get_name() { return m_name; }
-
       void set_name(std::string s) { m_name = s; }
 
       u_odb &get_mdata(int index = 0) { return m_data[index]; }
@@ -1241,7 +1237,7 @@ namespace midas {
       }
 
       // initialize m_hDB, internal use only
-      void init_hdb() {
+      static void init_hdb() {
          if (m_hDB == 0)
             cm_get_experiment_database(&m_hDB, nullptr);
          if (m_hDB == 0)
@@ -1716,23 +1712,26 @@ namespace midas {
          path += "/" + m_name;
 
          bool created = false;
-         if (read_key(path)) {
-            if (m_tid == TID_KEY) {
-               std::vector<std::string> name;
-               m_num_values = get_subkeys(name);
-               delete[] m_data;
-               m_data = new midas::u_odb[m_num_values]{};
-               for (int i = 0; i < m_num_values; i++) {
-                  std::string k(path);
-                  k += "/" + name[i];
-                  midas::odb *o = new midas::odb(k.c_str());
-                  m_data[i].set_tid(TID_KEY);
-                  m_data[i].set_parent(this);
-                  m_data[i].set(o);
+         if (m_num_values > 0)
+            created =  write_key(path, write_defaults);
+         else {
+            if (read_key(path)) {
+               if (m_tid == TID_KEY) {
+                  std::vector<std::string> name;
+                  m_num_values = get_subkeys(name);
+                  delete[] m_data;
+                  m_data = new midas::u_odb[m_num_values]{};
+                  for (int i = 0; i < m_num_values; i++) {
+                     std::string k(path);
+                     k += "/" + name[i];
+                     midas::odb *o = new midas::odb(k.c_str());
+                     m_data[i].set_tid(TID_KEY);
+                     m_data[i].set_parent(this);
+                     m_data[i].set(o);
+                  }
                }
             }
-         } else
-            created = write_key(path, write_defaults);
+         }
 
          // correct wrong parent ODB from initializer_list
          for (int i = 0; i < m_num_values; i++)
