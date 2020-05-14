@@ -378,7 +378,7 @@ namespace midas {
 
       // Default constructor
       odb() :
-         m_flags{odb_flags::AUTO_REFRESH_READ | odb_flags::AUTO_REFRESH_WRITE},
+         m_flags{(1<<odb_flags::AUTO_REFRESH_READ) | (1<<odb_flags::AUTO_REFRESH_WRITE)},
          m_tid{0},
          m_data{nullptr},
          m_name{},
@@ -525,15 +525,8 @@ namespace midas {
          m_tid = m_data[0].get_tid();
       }
 
-      // Constructor with string
-      odb(const std::string &s) : odb() {
-         m_num_values = 1;
-         m_data = new u_odb[1]{};
-         m_data[0].set_tid(TID_STRING);
-         m_data[0].set_parent(this);
-         m_data[0].set(s);
-         m_tid = m_data[0].get_tid();
-      }
+      // Forward std::string constructor to (const char *) constructor
+      odb(const std::string &s) : odb(s.c_str()) {}
 
       // Constructor with const char * array
       odb(std::initializer_list<const char *> list) : odb() {
@@ -585,19 +578,31 @@ namespace midas {
       uint32_t get_flags() { return static_cast<uint32_t>(m_flags.to_ulong()); }
 
       bool is_preserve_string_size() const { return m_flags[odb_flags::PRESERVE_STRING_SIZE]; }
-      void set_preserve_string_size(bool f) { m_flags[odb_flags::PRESERVE_STRING_SIZE] = f; }
+      void set_preserve_string_size(bool f) {
+         m_flags[odb_flags::PRESERVE_STRING_SIZE] = f;
+         set_flags_recursively(get_flags());
+      }
 
       bool is_auto_refresh_read() const { return m_flags[odb_flags::AUTO_REFRESH_READ]; }
-      void set_auto_refresh_read(bool f) { m_flags[odb_flags::AUTO_REFRESH_READ] = f; }
+      void set_auto_refresh_read(bool f) {
+         m_flags[odb_flags::AUTO_REFRESH_READ] = f;
+         set_flags_recursively(get_flags());
+      }
 
       bool is_auto_refresh_write() const { return m_flags[odb_flags::AUTO_REFRESH_WRITE]; }
-      void set_auto_refresh_write(bool f) { m_flags[odb_flags::AUTO_REFRESH_WRITE] = f; }
+      void set_auto_refresh_write(bool f) {
+         m_flags[odb_flags::AUTO_REFRESH_WRITE] = f;
+         set_flags_recursively(get_flags());
+      }
 
       bool is_dirty() const { return m_flags[odb_flags::DIRTY]; }
       void set_dirty(bool f) { m_flags[odb_flags::DIRTY] = f; }
 
       bool is_auto_create() const { return m_flags[odb_flags::AUTO_CREATE]; }
-      void set_auto_create(bool f) { m_flags[odb_flags::AUTO_CREATE] = f; }
+      void set_auto_create(bool f) {
+         m_flags[odb_flags::AUTO_CREATE] = f;
+         set_flags_recursively(get_flags());
+      }
 
       bool is_deleted() const { return m_flags[odb_flags::DELETED]; }
       void set_deleted(bool f) { m_flags[odb_flags::DELETED] = f; }
@@ -625,6 +630,14 @@ namespace midas {
          char str[256];
          db_get_path(m_hDB, m_hKey, str, sizeof(str));
          return str;
+      }
+
+      void set_flags_recursively(uint32_t f) {
+         m_flags = f;
+         if (m_tid == TID_KEY) {
+            for (int i=0 ; i<m_num_values ; i++)
+               m_data[i].get_odb()->set_flags_recursively(f);
+         }
       }
 
       void delete_key() {
