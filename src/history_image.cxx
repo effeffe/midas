@@ -36,29 +36,35 @@ void log_image_history() {
       if (h.get_num_values() == 0)
          throw std::runtime_error("");
    } catch(std::exception& e) {
-      // create default image tree
-      midas::odb hd = {
-         {"Demo", {
-            {"Name", "Demo Camera"},
-            {"URL", "https://localhost:8000/image.jpg"},
-            {"Period", 60},
-            {"Last fetch", 0},
-            {"Storage hours", 72}}
-         }
-      };
-      hd.connect("/History/Images", true);
+      // create "Demo" image
+      midas::odb::create("/History/Images/Demo", TID_KEY);
       h.connect("/History/Images");
    }
 
-   std::string s = h["Demo"]["Name"];
    midas::odb::set_debug(false);
 
    // loop over all cameras
-   for (auto &c: h) {
-      midas::odb& ic = c.odb();
+   for (auto &ic: h) {
 
-      if (ss_time() > ic["Last fetch"] + ic["Period"]) {
-         std::string name = ic["Name"];
+      // write default values if not present (ODB has precedence)
+      midas::odb c = {
+         {"Name", "Demo Camera"},
+         {"Enabled", false},
+         {"URL", "https://localhost:8000/image.jpg"},
+         {"Period", 60},
+         {"Last fetch", 0},
+         {"Storage hours", 72},
+         {"Error interval (s)", 60},
+         {"Last error", 0}
+      };
+      c.connect(ic.odb().get_full_path());
+
+      if (!c["Enabled"])
+         continue;
+
+      if (ss_time() > c["Last fetch"] + c["Period"]) {
+         std::string name = c["Name"];
+         std::string url = c["URL"];
          std::cout << "Fetching " << name << std::endl;
 
          midas::odb d("/Logger/Data dir");
@@ -81,19 +87,39 @@ void log_image_history() {
 
          curl_global_init(CURL_GLOBAL_DEFAULT);
          CURL *conn = curl_easy_init();
-         curl_easy_setopt(conn, CURLOPT_URL, static_cast<const char*>(ic["URL"]));
+         curl_easy_setopt(conn, CURLOPT_URL, url.c_str());
          curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, write_data);
          curl_easy_setopt(conn, CURLOPT_VERBOSE, 0L);
          auto f = fopen(filename.c_str(), "wb");
          if (f) {
             curl_easy_setopt(conn, CURLOPT_WRITEDATA, f);
-            curl_easy_perform(conn);
+            curl_easy_setopt(conn, CURLOPT_TIMEOUT, 10L);
+            int status = curl_easy_perform(conn);
             fclose(f);
+            std::string error;
+            if (status == CURLE_COULDNT_CONNECT) {
+               error = "Cannot connect to camera \"" + name + "\" at " + url + ", please check camera power and URL";
+            } else if (status != CURLE_OK) {
+               error = "Error fetching image from camera \"" + name + "\", curl status " + std::to_string(status);
+            } else {
+               long http_code = 0;
+               curl_easy_getinfo(conn, CURLINFO_RESPONSE_CODE, &http_code);
+               if (http_code != 200)
+                  error = "Error fetching image from camera \"" + name + "\", http error status " +
+                          std::to_string(http_code);
+            }
+            if (!error.empty()) {
+               if (ss_time() > c["Last error"] + c["Error interval (s)"]) {
+                  cm_msg(MERROR, "log_image_history", "%s", error.c_str());
+                  c["Last error"] = ss_time();
+               }
+            }
+
          }
          curl_easy_cleanup(conn);
          curl_global_cleanup();
 
-         ic["Last fetch"] = ss_time();
+         c["Last fetch"] = ss_time();
       }
    }
 }
