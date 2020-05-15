@@ -98,9 +98,6 @@ int main() {
    oi.read();                       // this does manual read
    std::cout << oi << std::endl;
 
-   midas::odb ox("/Test/Settings/OTF");
-   ox.delete_key();
-
    // create ODB entries on-the-fly
    midas::odb ot;
    ot.connect("/Test/Settings/OTF", true);   // this forces /Test/OTF to be created if not already there

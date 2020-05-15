@@ -32,6 +32,41 @@ static size_t write_data(void *ptr, size_t size, size_t nmemb, void *stream)
 static std::vector<std::thread> _image_threads;
 static bool stop_all_threads = false;
 
+int mkpath(const char *dir, mode_t mode)
+{
+   struct stat sb;
+
+   if (!dir) {
+      errno = EINVAL;
+      return 1;
+   }
+
+   if (!stat(dir, &sb))
+      return 0;
+   char *p = (char *)malloc(strlen(dir)+1);
+   strncpy(p, dir, strlen(dir)+1);
+   *strrchr(p, '/') = 0;
+   mkpath(p, mode);
+   free(p);
+
+   return mkdir(dir, mode);
+}
+
+std::string history_dir() {
+   static std::string dir;
+
+   if (dir.empty()) {
+      midas::odb l("/Logger");
+      if (l.is_subkey("History dir"))
+         dir = l["History dir"];
+      else
+         dir = l["Data dir"];
+      if (dir.back() != '/')
+         dir += "/";
+   }
+   return dir;
+}
+
 void image_thread(std::string name) {
    DWORD last_check_delete = 0;
    midas::odb o("/History/Images/"+name);
@@ -42,8 +77,7 @@ void image_thread(std::string name) {
       // check for old files
       if (ss_time() > last_check_delete + 60 && o["Storage hours"] > 0) {
 
-         midas::odb ldir("/Logger/Data dir");
-         std::string path = ldir;
+         std::string path = history_dir();
          path += name;
 
          char *flist;
@@ -76,10 +110,10 @@ void image_thread(std::string name) {
 
       if (ss_time() > o["Last fetch"] + o["Period"]) {
          std::string url = o["URL"];
-         midas::odb d("/Logger/Data dir");
-         std::string filename = d;
-         filename += name;
-         mkdir(filename.c_str(), 0755);
+         std::string filename = history_dir() + name;
+         int status = mkpath(filename.c_str(), 0755);
+         if (status)
+            cm_msg(MERROR, "image_thread", "Cannot create directory \"%s\": %s", filename.c_str(), strerror(errno));
 
          time_t now = time(nullptr);
          tm *ltm = localtime(&now);
