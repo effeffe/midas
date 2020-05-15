@@ -9,12 +9,14 @@
 
 #include <string>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <initializer_list>
 #include <cstring>
 #include <bitset>
 
 #include "midas.h"
+#include "mexcept.hxx"
 // #include "mleak.hxx" // un-comment for memory leak debugging
 
 /*------------------------------------------------------------------*/
@@ -113,7 +115,7 @@ namespace midas {
             delete m_string;
             m_string = new std::string(std::to_string(v));
          } else
-            throw std::runtime_error("Invalid type ID " + std::to_string(m_tid));
+            mthrow("Invalid type ID " + std::to_string(m_tid));
       }
 
       void set_string(std::string s) {
@@ -127,13 +129,13 @@ namespace midas {
 
       void set(odb *v) {
          if (m_tid != TID_KEY)
-            throw std::runtime_error("Subkey can only be assigned to ODB key");
+            mthrow("Subkey can only be assigned to ODB key");
          m_odb = v;
       }
 
       void set_odb(odb *v) {
          if (m_tid != TID_KEY)
-            throw std::runtime_error("Subkey can only be assigned to ODB key");
+            mthrow("Subkey can only be assigned to ODB key");
          m_odb = v;
       }
 
@@ -160,7 +162,7 @@ namespace midas {
             delete m_string;
             m_string = new std::string(v);
          } else
-            throw std::runtime_error("Invalid type ID " + std::to_string(m_tid));
+            mthrow("Invalid type ID " + std::to_string(m_tid));
       }
 
       void set(const char *v) {
@@ -220,7 +222,7 @@ namespace midas {
 
       u_odb &operator/=(double d) {
          if (d == 0)
-            throw std::runtime_error("Division by zero");
+            mthrow("Division by zero");
          mult(1 / d);
          return *this;
       }
@@ -279,7 +281,7 @@ namespace midas {
          else if (m_tid == TID_DOUBLE)
             return (T) m_double;
          else
-            throw std::runtime_error("Invalid type ID %s" + std::to_string(m_tid));
+            mthrow("Invalid type ID %s" + std::to_string(m_tid));
       }
 
       // get function for string
@@ -295,13 +297,13 @@ namespace midas {
       // get_function for keys
       odb *get_podb() {
          if (m_tid != TID_KEY)
-            throw std::runtime_error("odb_get() called for non-key object");
+            mthrow("odb_get() called for non-key object");
          return m_odb;
       }
 
       odb &get_odb() {
          if (m_tid != TID_KEY)
-            throw std::runtime_error("odb_get() called for non-key object");
+            mthrow("odb_get() called for non-key object");
          return *m_odb;
       }
 
@@ -378,7 +380,7 @@ namespace midas {
 
       // Default constructor
       odb() :
-         m_flags{(1<<odb_flags::AUTO_REFRESH_READ) | (1<<odb_flags::AUTO_REFRESH_WRITE)},
+         m_flags{(1 << odb_flags::AUTO_REFRESH_READ) | (1 << odb_flags::AUTO_REFRESH_WRITE)},
          m_tid{0},
          m_data{nullptr},
          m_name{},
@@ -454,7 +456,7 @@ namespace midas {
          if (v[0] == '/') {
             std::string s(v);
             if (!read_key(s))
-               throw std::runtime_error("ODB key \"" + s + "\" not found in ODB");
+               mthrow("ODB key \"" + s + "\" not found in ODB");
 
             if (m_tid == TID_KEY) {
                std::vector<std::string> name;
@@ -565,6 +567,7 @@ namespace midas {
       // Static functions
 
       static void set_debug(bool flag) { m_debug = flag; }
+
       static bool get_debug() { return m_debug; }
 
       static int create(const char *name, int type = TID_KEY) {
@@ -576,53 +579,65 @@ namespace midas {
       // Setters and Getters
 
       void set_flags(uint32_t f) { m_flags = f; }
+
       uint32_t get_flags() { return static_cast<uint32_t>(m_flags.to_ulong()); }
 
       bool is_preserve_string_size() const { return m_flags[odb_flags::PRESERVE_STRING_SIZE]; }
+
       void set_preserve_string_size(bool f) {
          m_flags[odb_flags::PRESERVE_STRING_SIZE] = f;
          set_flags_recursively(get_flags());
       }
 
       bool is_auto_refresh_read() const { return m_flags[odb_flags::AUTO_REFRESH_READ]; }
+
       void set_auto_refresh_read(bool f) {
          m_flags[odb_flags::AUTO_REFRESH_READ] = f;
          set_flags_recursively(get_flags());
       }
 
       bool is_auto_refresh_write() const { return m_flags[odb_flags::AUTO_REFRESH_WRITE]; }
+
       void set_auto_refresh_write(bool f) {
          m_flags[odb_flags::AUTO_REFRESH_WRITE] = f;
          set_flags_recursively(get_flags());
       }
 
       bool is_dirty() const { return m_flags[odb_flags::DIRTY]; }
+
       void set_dirty(bool f) { m_flags[odb_flags::DIRTY] = f; }
 
       bool is_auto_create() const { return m_flags[odb_flags::AUTO_CREATE]; }
+
       void set_auto_create(bool f) {
          m_flags[odb_flags::AUTO_CREATE] = f;
          set_flags_recursively(get_flags());
       }
 
       bool is_deleted() const { return m_flags[odb_flags::DELETED]; }
+
       void set_deleted(bool f) { m_flags[odb_flags::DELETED] = f; }
 
       int get_tid() { return m_tid; }
+
       void set_tid(int tid) { m_tid = tid; }
 
       HNDLE get_hkey() { return m_hKey; }
+
       void set_hkey(HNDLE hKey) { m_hKey = hKey; }
 
       bool is_connected() { return m_hKey > 0; }
 
       int get_num_values() { return m_num_values; }
+
       void set_num_values(int n) { m_num_values = n; }
 
       int get_last_index() { return m_last_index; }
+
       void set_last_index(int i) { m_last_index = i; }
 
       std::string get_name() { return m_name; }
+
       void set_name(std::string s) { m_name = s; }
 
       u_odb &get_mdata(int index = 0) { return m_data[index]; }
@@ -636,7 +651,7 @@ namespace midas {
       void set_flags_recursively(uint32_t f) {
          m_flags = f;
          if (m_tid == TID_KEY) {
-            for (int i=0 ; i<m_num_values ; i++)
+            for (int i = 0; i < m_num_values; i++)
                m_data[i].get_odb().set_flags_recursively(f);
          }
       }
@@ -650,8 +665,8 @@ namespace midas {
          // delete key in ODB
          int status = db_delete_key(m_hDB, m_hKey, FALSE);
          if (status != DB_SUCCESS && status != DB_INVALID_HANDLE)
-            throw std::runtime_error("db_delete_key for ODB key \"" + get_full_path() +
-                                     "\" returnd error code " + std::to_string(status));
+            mthrow("db_delete_key for ODB key \"" + get_full_path() +
+                   "\" returnd error code " + std::to_string(status));
 
          // invalidate this object
          delete[] m_data;
@@ -880,17 +895,17 @@ namespace midas {
                m_tid = TID_KEY;
                int status = db_create_key(m_hDB, 0, m_name.c_str(), m_tid);
                if (status != DB_SUCCESS && status != DB_CREATED && status != DB_KEY_EXIST)
-                  throw std::runtime_error("Cannot create ODB key \"" + m_name + "\", status" + std::to_string(status));
+                  mthrow("Cannot create ODB key \"" + m_name + "\", status" + std::to_string(status));
                db_find_key(m_hDB, 0, m_name.c_str(), &m_hKey);
                // strip path from name
                if (m_name.find_last_of('/') != std::string::npos)
                   m_name = m_name.substr(m_name.find_last_of('/') + 1);
             } else
-               throw std::runtime_error("Invalid key \"" + m_name + "\" does not have subkeys");
+               mthrow("Invalid key \"" + m_name + "\" does not have subkeys");
 
          }
          if (m_tid != TID_KEY)
-            throw std::runtime_error("ODB key \"" + get_full_path() + "\" does not have subkeys");
+            mthrow("ODB key \"" + get_full_path() + "\" does not have subkeys");
 
          std::string first = str;
          std::string tail{};
@@ -922,7 +937,7 @@ namespace midas {
                o->set_flags(get_flags());
                m_data[i].set(o);
             } else
-               throw std::runtime_error(
+               mthrow(
                        "ODB key \"" + get_full_path() + "\" does not contain subkey \"" + first + "\"");
          }
          if (!tail.empty())
@@ -959,9 +974,9 @@ namespace midas {
       template<typename T>
       T get() {
          if (m_num_values > 1)
-            throw std::runtime_error("ODB key \"" + get_full_path() +
-                                     "[0..." + std::to_string(m_num_values - 1) +
-                                     "]\" contains array. Please assign to std::vector.");
+            mthrow("ODB key \"" + get_full_path() +
+                   "[0..." + std::to_string(m_num_values - 1) +
+                   "]\" contains array. Please assign to std::vector.");
          if (is_auto_refresh_read())
             read();
          return (T) m_data[0];
@@ -971,7 +986,7 @@ namespace midas {
       template<typename T>
       void get(T &v) {
          if (m_num_values > 1)
-            throw std::runtime_error(
+            mthrow(
                     "ODB key \"" + get_full_path() + "\" contains array. Please assign to std::vector.");
          if (is_auto_refresh_read())
             read();
@@ -1007,8 +1022,8 @@ namespace midas {
       template<typename T>
       T operator+(T i) {
          if (m_num_values > 1)
-            throw std::runtime_error("ODB key \"" + get_full_path() +
-                                     "\" contains array which cannot be used in basic arithmetic operation.");
+            mthrow("ODB key \"" + get_full_path() +
+                   "\" contains array which cannot be used in basic arithmetic operation.");
          if (std::is_same<T, midas::odb>::value) {
             if (is_auto_refresh_read()) {
                read();
@@ -1029,8 +1044,8 @@ namespace midas {
       template<typename T>
       T operator-(T i) {
          if (m_num_values > 1)
-            throw std::runtime_error("ODB key \"" + get_full_path() +
-                                     "\" contains array which cannot be used in basic arithmetic operation.");
+            mthrow("ODB key \"" + get_full_path() +
+                   "\" contains array which cannot be used in basic arithmetic operation.");
          if (std::is_same<T, midas::odb>::value) {
             if (is_auto_refresh_read()) {
                read();
@@ -1051,8 +1066,8 @@ namespace midas {
       template<typename T>
       T operator*(const T i) {
          if (m_num_values > 1)
-            throw std::runtime_error("ODB key \"" + get_full_path() +
-                                     "\" contains array which cannot be used in basic arithmetic operation.");
+            mthrow("ODB key \"" + get_full_path() +
+                   "\" contains array which cannot be used in basic arithmetic operation.");
          if (is_auto_refresh_read())
             read();
          T s = (T) m_data[0];
@@ -1062,8 +1077,8 @@ namespace midas {
       template<typename T>
       T operator/(const T i) {
          if (m_num_values > 1)
-            throw std::runtime_error("ODB key \"" + get_full_path() +
-                                     "\" contains array which cannot be used in basic arithmetic operation.");
+            mthrow("ODB key \"" + get_full_path() +
+                   "\" contains array which cannot be used in basic arithmetic operation.");
          if (is_auto_refresh_read())
             read();
          T s = (T) m_data[0];
@@ -1141,7 +1156,7 @@ namespace midas {
          if (is_auto_refresh_read())
             read();
          if (d == 0)
-            throw std::runtime_error("Division by zero");
+            mthrow("Division by zero");
          for (int i = 0; i < m_num_values; i++)
             m_data[i].mult(1 / d, false);
          write();
@@ -1150,34 +1165,40 @@ namespace midas {
 
       // overload comparison operators
       template<typename T>
-      friend bool operator== (const midas::odb & o, const T &d);
-      template<typename T>
-      friend bool operator== (const T &d, const midas::odb & o);
+      friend bool operator==(const midas::odb &o, const T &d);
 
       template<typename T>
-      friend bool operator!= (const midas::odb & o, const T &d);
-      template<typename T>
-      friend bool operator!= (const T &d, const midas::odb & o);
+      friend bool operator==(const T &d, const midas::odb &o);
 
       template<typename T>
-      friend bool operator< (const midas::odb & o, const T &d);
-      template<typename T>
-      friend bool operator< (const T &d, const midas::odb & o);
+      friend bool operator!=(const midas::odb &o, const T &d);
 
       template<typename T>
-      friend bool operator<= (const midas::odb & o, const T &d);
-      template<typename T>
-      friend bool operator<= (const T &d, const midas::odb & o);
+      friend bool operator!=(const T &d, const midas::odb &o);
 
       template<typename T>
-      friend bool operator> (const midas::odb & o, const T &d);
-      template<typename T>
-      friend bool operator> (const T &d, const midas::odb & o);
+      friend bool operator<(const midas::odb &o, const T &d);
 
       template<typename T>
-      friend bool operator>= (const midas::odb & o, const T &d);
+      friend bool operator<(const T &d, const midas::odb &o);
+
       template<typename T>
-      friend bool operator>= (const T &d, const midas::odb & o);
+      friend bool operator<=(const midas::odb &o, const T &d);
+
+      template<typename T>
+      friend bool operator<=(const T &d, const midas::odb &o);
+
+      template<typename T>
+      friend bool operator>(const midas::odb &o, const T &d);
+
+      template<typename T>
+      friend bool operator>(const T &d, const midas::odb &o);
+
+      template<typename T>
+      friend bool operator>=(const midas::odb &o, const T &d);
+
+      template<typename T>
+      friend bool operator>=(const T &d, const midas::odb &o);
 
       std::string print() {
          std::string s;
@@ -1269,7 +1290,7 @@ namespace midas {
          if (m_hDB == 0)
             cm_get_experiment_database(&m_hDB, nullptr);
          if (m_hDB == 0)
-            throw std::runtime_error("Please call cm_connect_experiment() befor accessing the ODB");
+            mthrow("Please call cm_connect_experiment() befor accessing the ODB");
       }
 
       // get number of subkeys in ODB, return number and vector of names
@@ -1277,7 +1298,7 @@ namespace midas {
          if (m_tid != TID_KEY)
             return 0;
          if (m_hKey == 0)
-            throw std::runtime_error("get_subkeys called with invalid m_hKey for ODB key \"" + m_name + "\"");
+            mthrow("get_subkeys called with invalid m_hKey for ODB key \"" + m_name + "\"");
 
          // count number of subkeys in ODB
          std::vector<HNDLE> hlist;
@@ -1308,13 +1329,13 @@ namespace midas {
          KEY key;
          status = db_get_key(m_hDB, m_hKey, &key);
          if (status != DB_SUCCESS)
-            throw std::runtime_error("db_get_key for ODB key \"" + path +
-                                     "\" failed with status " + std::to_string(status));
+            mthrow("db_get_key for ODB key \"" + path +
+                   "\" failed with status " + std::to_string(status));
 
          // check for correct type if given as parameter
          if (m_tid > 0 && m_tid != (int) key.type)
-            throw std::runtime_error("ODB key \"" + get_full_path() +
-                                     "\" has differnt type than specified");
+            mthrow("ODB key \"" + get_full_path() +
+                   "\" has differnt type than specified");
 
          if (m_debug)
             std::cout << "Get definition for ODB key \"" + get_full_path() + "\"" << std::endl;
@@ -1343,21 +1364,21 @@ namespace midas {
             if (m_tid > 0 && m_tid < TID_LAST) {
                status = db_create_key(m_hDB, 0, path.c_str(), m_tid);
                if (status != DB_SUCCESS)
-                  throw std::runtime_error("ODB key \"" + path + "\" cannot be created");
+                  mthrow("ODB key \"" + path + "\" cannot be created");
                status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
                if (status != DB_SUCCESS)
-                  throw std::runtime_error("ODB key \"" + path + "\" not found after creation");
+                  mthrow("ODB key \"" + path + "\" not found after creation");
                if (m_debug)
                   std::cout << "Created ODB key " + get_full_path() << std::endl;
             } else
-               throw std::runtime_error("ODB key \"" + path + "\" cannot be found");
+               mthrow("ODB key \"" + path + "\" cannot be found");
             return true;
          } else {
             KEY key;
             status = db_get_key(m_hDB, m_hKey, &key);
             if (status != DB_SUCCESS)
-               throw std::runtime_error("db_get_key for ODB key \"" + path +
-                                        "\" failed with status " + std::to_string(status));
+               mthrow("db_get_key for ODB key \"" + path +
+                      "\" failed with status " + std::to_string(status));
             if (m_tid == 0)
                m_tid = key.type;
 
@@ -1367,20 +1388,20 @@ namespace midas {
                   // delete and recreate key
                   status = db_delete_key(m_hDB, m_hKey, false);
                   if (status != DB_SUCCESS)
-                     throw std::runtime_error("db_delete_key for ODB key \"" + path +
-                                              "\" failed with status " + std::to_string(status));
+                     mthrow("db_delete_key for ODB key \"" + path +
+                            "\" failed with status " + std::to_string(status));
                   status = db_create_key(m_hDB, 0, path.c_str(), m_tid);
                   if (status != DB_SUCCESS)
-                     throw std::runtime_error("ODB key \"" + path + "\" cannot be created");
+                     mthrow("ODB key \"" + path + "\" cannot be created");
                   status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
                   if (status != DB_SUCCESS)
-                     throw std::runtime_error("ODB key \"" + path + "\" not found after creation");
+                     mthrow("ODB key \"" + path + "\" not found after creation");
                   if (m_debug)
                      std::cout << "Re-created ODB key \"" + get_full_path() << "\" with different type" << std::endl;
                } else
                   // abort
-                  throw std::runtime_error("ODB key \"" + get_full_path() +
-                                           "\" has differnt type than specified");
+                  mthrow("ODB key \"" + get_full_path() +
+                         "\" has differnt type than specified");
             } else if (m_debug)
                std::cout << "Validated ODB key \"" + get_full_path() + "\"" << std::endl;
 
@@ -1393,13 +1414,13 @@ namespace midas {
       void read() {
          // check if deleted
          if (is_deleted())
-            throw std::runtime_error("ODB key \"" + m_name + "\" cannot be pulled because it has been deleted");
+            mthrow("ODB key \"" + m_name + "\" cannot be pulled because it has been deleted");
 
          if (m_hKey == 0)
             return; // needed to print un-connected objects
 
          if (m_tid == 0)
-            throw std::runtime_error("Read of invalid ODB key \"" + m_name + "\"");
+            mthrow("Read of invalid ODB key \"" + m_name + "\"");
 
          int status{};
          if (m_tid == TID_STRING) {
@@ -1471,7 +1492,7 @@ namespace midas {
                else if (m_tid == TID_STRING)
                   m_data[i].set(std::string(static_cast<const char *>(p)));
                else
-                  throw std::runtime_error("Invalid type ID " + std::to_string(m_tid));
+                  mthrow("Invalid type ID " + std::to_string(m_tid));
 
                p = static_cast<char *>(p) + rpc_tid_size(m_tid);
             }
@@ -1479,8 +1500,8 @@ namespace midas {
          }
 
          if (status != DB_SUCCESS)
-            throw std::runtime_error("db_get_data for ODB key \"" + get_full_path() +
-                                     "\" failed with status " + std::to_string(status));
+            mthrow("db_get_data for ODB key \"" + get_full_path() +
+                   "\" failed with status " + std::to_string(status));
          if (m_debug) {
             if (m_tid == TID_KEY) {
                std::cout << "Get ODB key \"" + get_full_path() + "[0..." +
@@ -1503,7 +1524,7 @@ namespace midas {
             return; // needed to print un-connected objects
 
          if (m_tid == 0)
-            throw std::runtime_error("Pull of invalid ODB key \"" + m_name + "\"");
+            mthrow("Pull of invalid ODB key \"" + m_name + "\"");
 
          int status{};
          if (m_tid == TID_STRING) {
@@ -1543,14 +1564,14 @@ namespace midas {
             else if (m_tid == TID_STRING)
                m_data[index].set(std::string(static_cast<const char *>(p)));
             else
-               throw std::runtime_error("Invalid type ID " + std::to_string(m_tid));
+               mthrow("Invalid type ID " + std::to_string(m_tid));
 
             free(buffer);
          }
 
          if (status != DB_SUCCESS)
-            throw std::runtime_error("db_get_data for ODB key \"" + get_full_path() +
-                                     "\" failed with status " + std::to_string(status));
+            mthrow("db_get_data for ODB key \"" + get_full_path() +
+                   "\" failed with status " + std::to_string(status));
          if (m_debug) {
             std::string s;
             m_data[index].get(s);
@@ -1566,13 +1587,13 @@ namespace midas {
             if (is_auto_create()) {
                int status = db_create_key(m_hDB, 0, m_name.c_str(), m_tid);
                if (status != DB_SUCCESS && status != DB_CREATED && status != DB_KEY_EXIST)
-                  throw std::runtime_error("Cannot create ODB key \"" + m_name + "\", status" + std::to_string(status));
+                  mthrow("Cannot create ODB key \"" + m_name + "\", status" + std::to_string(status));
                db_find_key(m_hDB, 0, m_name.c_str(), &m_hKey);
                // strip path from name
                if (m_name.find_last_of('/') != std::string::npos)
                   m_name = m_name.substr(m_name.find_last_of('/') + 1);
             } else
-               throw std::runtime_error("Write of un-connected ODB key \"" + m_name + "\" not possible");
+               mthrow("Write of un-connected ODB key \"" + m_name + "\" not possible");
          }
 
          // don't write keys
@@ -1616,8 +1637,8 @@ namespace midas {
             }
          }
          if (status != DB_SUCCESS)
-            throw std::runtime_error("db_set_data for ODB key \"" + get_full_path() +
-                                     "\" failed with status " + std::to_string(status));
+            mthrow("db_set_data for ODB key \"" + get_full_path() +
+                   "\" failed with status " + std::to_string(status));
       }
 
       // write all members of an array to the ODB
@@ -1625,7 +1646,7 @@ namespace midas {
 
          // check if deleted
          if (is_deleted())
-            throw std::runtime_error("ODB key \"" + m_name + "\" cannot be written because it has been deleted");
+            mthrow("ODB key \"" + m_name + "\" cannot be written because it has been deleted");
 
          // write subkeys
          if (m_tid == TID_KEY) {
@@ -1635,11 +1656,11 @@ namespace midas {
          }
 
          if (m_tid < 1 || m_tid >= TID_LAST)
-            throw std::runtime_error("Invalid TID for ODB key \"" + get_full_path() + "\"");
+            mthrow("Invalid TID for ODB key \"" + get_full_path() + "\"");
 
          if (m_hKey == 0 && !is_auto_create())
-            throw std::runtime_error("Writing ODB key \"" + m_name +
-                                     "\" is not possible because of invalid key handle");
+            mthrow("Writing ODB key \"" + m_name +
+                   "\" is not possible because of invalid key handle");
 
          // if index operator [] returned previously a certain index, write only this one
          if (m_last_index != -1) {
@@ -1657,13 +1678,13 @@ namespace midas {
             if (is_auto_create()) {
                int status = db_create_key(m_hDB, 0, m_name.c_str(), m_tid);
                if (status != DB_SUCCESS && status != DB_CREATED && status != DB_KEY_EXIST)
-                  throw std::runtime_error("Cannot create ODB key \"" + m_name + "\", status" + std::to_string(status));
+                  mthrow("Cannot create ODB key \"" + m_name + "\", status" + std::to_string(status));
                db_find_key(m_hDB, 0, m_name.c_str(), &m_hKey);
                // strip path from name
                if (m_name.find_last_of('/') != std::string::npos)
                   m_name = m_name.substr(m_name.find_last_of('/') + 1);
             } else
-               throw std::runtime_error("Write of un-connected ODB key \"" + m_name + "\" not possible");
+               mthrow("Write of un-connected ODB key \"" + m_name + "\" not possible");
          }
 
          int status{};
@@ -1676,7 +1697,7 @@ namespace midas {
                   for (int i = 0; i < m_num_values; i++) {
                      std::string d;
                      m_data[i].get(d);
-                     if ((int)d.size() + 1 > size)
+                     if ((int) d.size() + 1 > size)
                         size = d.size() + 1;
                   }
                   // round up to multiples of 32
@@ -1727,8 +1748,8 @@ namespace midas {
          }
 
          if (status != DB_SUCCESS)
-            throw std::runtime_error("db_set_data for ODB key \"" + get_full_path() +
-                                     "\" failed with status " + std::to_string(status));
+            mthrow("db_set_data for ODB key \"" + get_full_path() +
+                   "\" failed with status " + std::to_string(status));
       }
 
       // write function with separated path and key name
@@ -1740,8 +1761,8 @@ namespace midas {
          path += "/" + m_name;
 
          bool created = false;
-         if (m_num_values > 0)
-            created =  write_key(path, write_defaults);
+         if (m_num_values > 0  || write_defaults)
+            created = write_key(path, write_defaults);
          else {
             if (read_key(path)) {
                if (m_tid == TID_KEY) {
@@ -1791,8 +1812,8 @@ namespace midas {
 
       void watch(std::function<void(midas::odb &)> f) {
          if (m_hKey == 0)
-            throw std::runtime_error("watch() called for ODB key \"" + m_name +
-                                     "\" which is not connected to ODB");
+            mthrow("watch() called for ODB key \"" + m_name +
+                   "\" which is not connected to ODB");
          m_watch_callback = f;
          db_watch(m_hDB, m_hKey, midas::odb::watch_callback, this);
       }
@@ -1802,7 +1823,7 @@ namespace midas {
 
    // overload comparison operators
    template<typename T>
-   bool operator== (const midas::odb & o, const T &d) {
+   bool operator==(const midas::odb &o, const T &d) {
       // the operator needs a "const midas::odb" reference,
       // so we have to make a non-const copy
       T v;
@@ -1810,8 +1831,9 @@ namespace midas {
       oc.get(v);
       return v == d;
    }
+
    template<typename T>
-   bool operator== (const T &d, const midas::odb & o) {
+   bool operator==(const T &d, const midas::odb &o) {
       T v;
       midas::odb oc(o);
       oc.get(v);
@@ -1819,14 +1841,15 @@ namespace midas {
    }
 
    template<typename T>
-   bool operator!= (const midas::odb & o, const T &d) {
+   bool operator!=(const midas::odb &o, const T &d) {
       T v;
       midas::odb oc(o);
       oc.get(v);
       return v != d;
    }
+
    template<typename T>
-   bool operator!= (const T &d, const midas::odb & o) {
+   bool operator!=(const T &d, const midas::odb &o) {
       T v;
       midas::odb oc(o);
       oc.get(v);
@@ -1834,14 +1857,15 @@ namespace midas {
    }
 
    template<typename T>
-   bool operator< (const midas::odb & o, const T &d) {
+   bool operator<(const midas::odb &o, const T &d) {
       T v;
       midas::odb oc(o);
       oc.get(v);
       return v < d;
    }
+
    template<typename T>
-   bool operator< (const T &d, const midas::odb & o) {
+   bool operator<(const T &d, const midas::odb &o) {
       T v;
       midas::odb oc(o);
       oc.get(v);
@@ -1849,14 +1873,15 @@ namespace midas {
    }
 
    template<typename T>
-   bool operator<= (const midas::odb & o, const T &d) {
+   bool operator<=(const midas::odb &o, const T &d) {
       T v;
       midas::odb oc(o);
       oc.get(v);
       return v <= d;
    }
+
    template<typename T>
-   bool operator<= (const T &d, const midas::odb & o) {
+   bool operator<=(const T &d, const midas::odb &o) {
       T v;
       midas::odb oc(o);
       oc.get(v);
@@ -1864,14 +1889,15 @@ namespace midas {
    }
 
    template<typename T>
-   bool operator> (const midas::odb & o, const T &d) {
+   bool operator>(const midas::odb &o, const T &d) {
       T v;
       midas::odb oc(o);
       oc.get(v);
       return v > d;
    }
+
    template<typename T>
-   bool operator> (const T &d, const midas::odb & o) {
+   bool operator>(const T &d, const midas::odb &o) {
       T v;
       midas::odb oc(o);
       oc.get(v);
@@ -1879,14 +1905,15 @@ namespace midas {
    }
 
    template<typename T>
-   bool operator>= (const midas::odb & o, const T &d) {
+   bool operator>=(const midas::odb &o, const T &d) {
       T v;
       midas::odb oc(o);
       oc.get(v);
       return v >= d;
    }
+
    template<typename T>
-   bool operator>= (const T &d, const midas::odb & o) {
+   bool operator>=(const T &d, const midas::odb &o) {
       T v;
       midas::odb oc(o);
       oc.get(v);
@@ -1935,7 +1962,7 @@ namespace midas {
       else if (m_tid == TID_KEY) {
          m_odb->print(s, 0);
       } else
-         throw std::runtime_error("Invalid type ID " + std::to_string(m_tid));
+         mthrow("Invalid type ID " + std::to_string(m_tid));
    }
 
    //---- u_odb assignment and arithmetic operators overloads which call odb::write()
@@ -1972,8 +1999,8 @@ namespace midas {
       else if (m_tid == TID_DOUBLE)
          m_double += inc;
       else
-         throw std::runtime_error("Invalid arithmetic operation for ODB key \"" +
-                                  m_parent_odb->get_full_path() + "\"");
+         mthrow("Invalid arithmetic operation for ODB key \"" +
+                m_parent_odb->get_full_path() + "\"");
       if (write)
          m_parent_odb->write();
    }
@@ -1997,8 +2024,8 @@ namespace midas {
       else if (tid == TID_DOUBLE)
          m_double *= f;
       else
-         throw std::runtime_error("Invalid operation for ODB key \"" +
-                                  m_parent_odb->get_full_path() + "\"");
+         mthrow("Invalid operation for ODB key \"" +
+                m_parent_odb->get_full_path() + "\"");
       if (write)
          m_parent_odb->write();
    }
