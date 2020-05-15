@@ -171,9 +171,9 @@ void start_image_history() {
               {"Error interval (s)", 60},
               {"Last error",         0}
       };
-      c.connect(ic.odb().get_full_path());
+      c.connect(ic.get_odb().get_full_path());
 
-      std::string name = ic.odb().get_name();
+      std::string name = ic.get_odb().get_name();
       _image_threads.push_back(std::thread(image_thread, name));
    }
 }

@@ -118,7 +118,7 @@ int main() {
 
    // iterate over sub-keys
    for (auto& oit : o)
-      std::cout << oit.get_odb()->get_name() << std::endl;
+      std::cout << oit.get_odb().get_name() << std::endl;
 
    // print whole sub-tree
    std::cout << o.print() << std::endl;

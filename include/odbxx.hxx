@@ -293,13 +293,13 @@ namespace midas {
       void get(std::string &s);
 
       // get_function for keys
-      odb *get_odb() {
+      odb *get_podb() {
          if (m_tid != TID_KEY)
             throw std::runtime_error("odb_get() called for non-key object");
          return m_odb;
       }
 
-      odb &odb() {
+      odb &get_odb() {
          if (m_tid != TID_KEY)
             throw std::runtime_error("odb_get() called for non-key object");
          return *m_odb;
@@ -396,7 +396,7 @@ namespace midas {
             return po;
          if (po->m_tid == TID_KEY) {
             for (int i = 0; i < po->m_num_values; i++) {
-               midas::odb *pot = search_hkey(po->m_data[i].get_odb(), hKey);
+               midas::odb *pot = search_hkey(po->m_data[i].get_podb(), hKey);
                if (pot != nullptr)
                   return pot;
             }
@@ -636,7 +636,7 @@ namespace midas {
          m_flags = f;
          if (m_tid == TID_KEY) {
             for (int i=0 ; i<m_num_values ; i++)
-               m_data[i].get_odb()->set_flags_recursively(f);
+               m_data[i].get_odb().set_flags_recursively(f);
          }
       }
 
@@ -910,7 +910,7 @@ namespace midas {
 
          int i;
          for (i = 0; i < m_num_values; i++)
-            if (m_data[i].get_odb()->get_name() == first)
+            if (m_data[i].get_odb().get_name() == first)
                break;
          if (i == m_num_values) {
             if (is_auto_create()) {
@@ -935,9 +935,9 @@ namespace midas {
                        "ODB key \"" + get_full_path() + "\" does not contain subkey \"" + first + "\"");
          }
          if (!tail.empty())
-            return m_data[i].get_odb()->get_subkey(tail);
+            return m_data[i].get_odb().get_subkey(tail);
 
-         return *m_data[i].get_odb();
+         return *m_data[i].get_podb();
       }
 
       // get function for basic types
@@ -1189,7 +1189,7 @@ namespace midas {
             for (int i = 0; i < m_num_values; i++) {
                std::string v;
                // recursive call
-               m_data[i].get_odb()->print(v, indent + 1);
+               m_data[i].get_odb().print(v, indent + 1);
                s += v;
                if (i < m_num_values - 1)
                   s += ",\n";
@@ -1219,7 +1219,7 @@ namespace midas {
             s += "\"" + m_name + "\": {\n";
             for (int i = 0; i < m_num_values; i++) {
                std::string v;
-               m_data[i].get_odb()->dump(v, indent + 1);
+               m_data[i].get_odb().dump(v, indent + 1);
                s += v;
                if (i < m_num_values - 1)
                   s += ",\n";
@@ -1414,7 +1414,7 @@ namespace midas {
                }
             }
             for (int i = 0; i < m_num_values; i++)
-               m_data[i].get_odb()->read();
+               m_data[i].get_odb().read();
             status = DB_SUCCESS;
          } else {
             // resize local array if number of values has changed
@@ -1500,7 +1500,7 @@ namespace midas {
             m_data[index].set(str);
             free(str);
          } else if (m_tid == TID_KEY) {
-            m_data[index].get_odb()->read();
+            m_data[index].get_odb().read();
             status = DB_SUCCESS;
          } else {
             int size = rpc_tid_size(m_tid);
@@ -1615,7 +1615,7 @@ namespace midas {
          // write subkeys
          if (m_tid == TID_KEY) {
             for (int i = 0; i < m_num_values; i++)
-               m_data[i].get_odb()->write();
+               m_data[i].get_odb().write();
             return;
          }
 
@@ -1752,7 +1752,7 @@ namespace midas {
 
          if (m_tid == TID_KEY) {
             for (int i = 0; i < m_num_values; i++)
-               m_data[i].get_odb()->connect(get_full_path(), m_data[i].get_odb()->get_name(), write_defaults);
+               m_data[i].get_odb().connect(get_full_path(), m_data[i].get_odb().get_name(), write_defaults);
          } else if (created || write_defaults) {
             write();
          } else
