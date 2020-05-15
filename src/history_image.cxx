@@ -33,11 +33,43 @@ static std::vector<std::thread> _image_threads;
 static bool stop_all_threads = false;
 
 void image_thread(std::string name) {
-
+   DWORD last_check_delete = 0;
    midas::odb o("/History/Images/"+name);
 
    do {
       std::this_thread::sleep_for(std::chrono::seconds(1));
+
+      // check for old files
+      if (ss_time() > last_check_delete + 60 && o["Storage hours"] > 0) {
+
+         midas::odb ldir("/Logger/Data dir");
+         std::string path = ldir;
+         path += name;
+
+         char *flist;
+         int n = ss_file_find(path.c_str(), "??????_??????.*", &flist);
+         for (int i=0 ; i<n ; i++) {
+            char filename[MAX_STRING_LENGTH];
+            strncpy(filename, flist+i*MAX_STRING_LENGTH, MAX_STRING_LENGTH);
+            struct tm ti;
+            sscanf(filename, "%2d%2d%2d_%2d%2d%2d", &ti.tm_year, &ti.tm_mon,
+                   &ti.tm_mday, &ti.tm_hour, &ti.tm_min, &ti.tm_sec);
+            ti.tm_year += 100;
+            ti.tm_mon -= 1;
+            time_t ft = mktime(&ti);
+            if ((ss_time() - ft)/3600.0 > o["Storage hours"]) {
+               std::cout << "Delete file " << flist+i*MAX_STRING_LENGTH << " which is is " <<
+                  (ss_time()-ft)/3600.0 << " hours old." << std::endl;
+               int status = remove((path+"/"+filename).c_str());
+               if (status)
+                  cm_msg(MERROR, "image_thread", "Cannot remove file %s, status = %d", flist+i*MAX_STRING_LENGTH, status);
+            }
+
+         }
+         free(flist);
+
+         last_check_delete = ss_time();
+      }
 
       if (!o["Enabled"])
          continue;
@@ -60,7 +92,7 @@ void image_thread(std::string name) {
            std::setfill('0') << std::setw(2) << ltm->tm_hour <<
            std::setfill('0') << std::setw(2) << ltm->tm_min <<
            std::setfill('0') << std::setw(2) << ltm->tm_sec;
-         filename += "/" + s.str() + ".jpg";
+         filename += "/" + s.str() + url.substr(url.find_last_of('.'));
 
          CURL *conn = curl_easy_init();
          curl_easy_setopt(conn, CURLOPT_URL, url.c_str());
@@ -112,6 +144,7 @@ void start_image_history() {
    static midas::odb h;
 
    curl_global_init(CURL_GLOBAL_DEFAULT);
+   midas::odb::set_debug(false);
 
    try {
       if (!h.is_connected())
