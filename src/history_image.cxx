@@ -109,6 +109,7 @@ void image_thread(std::string name) {
          continue;
 
       if (ss_time() > o["Last fetch"] + o["Period"]) {
+         o["Last fetch"] = ss_time();
          std::string url = o["URL"];
          std::string filename = history_dir() + name;
          int status = mkpath(filename.c_str(), 0755);
@@ -159,8 +160,6 @@ void image_thread(std::string name) {
 
          }
          curl_easy_cleanup(conn);
-
-         o["Last fetch"] = ss_time();
       }
 
    } while (!stop_all_threads);
