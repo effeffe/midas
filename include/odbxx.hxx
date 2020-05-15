@@ -1803,67 +1803,93 @@ namespace midas {
    // overload comparison operators
    template<typename T>
    bool operator== (const midas::odb & o, const T &d) {
-      T v = (T) o.m_data[0];
+      // the operator needs a "const midas::odb" reference,
+      // so we have to make a non-const copy
+      T v;
+      midas::odb oc(o);
+      oc.get(v);
       return v == d;
    }
    template<typename T>
    bool operator== (const T &d, const midas::odb & o) {
-      T v = (T) o.m_data[0];
+      T v;
+      midas::odb oc(o);
+      oc.get(v);
       return d == v;
    }
 
    template<typename T>
    bool operator!= (const midas::odb & o, const T &d) {
-      T v = (T) o.m_data[0];
+      T v;
+      midas::odb oc(o);
+      oc.get(v);
       return v != d;
    }
    template<typename T>
    bool operator!= (const T &d, const midas::odb & o) {
-      T v = (T) o.m_data[0];
+      T v;
+      midas::odb oc(o);
+      oc.get(v);
       return d != v;
    }
 
    template<typename T>
    bool operator< (const midas::odb & o, const T &d) {
-      T v = (T) o.m_data[0];
+      T v;
+      midas::odb oc(o);
+      oc.get(v);
       return v < d;
    }
    template<typename T>
    bool operator< (const T &d, const midas::odb & o) {
-      T v = (T) o.m_data[0];
+      T v;
+      midas::odb oc(o);
+      oc.get(v);
       return d < v;
    }
 
    template<typename T>
    bool operator<= (const midas::odb & o, const T &d) {
-      T v = (T) o.m_data[0];
+      T v;
+      midas::odb oc(o);
+      oc.get(v);
       return v <= d;
    }
    template<typename T>
    bool operator<= (const T &d, const midas::odb & o) {
-      T v = (T) o.m_data[0];
+      T v;
+      midas::odb oc(o);
+      oc.get(v);
       return d <= v;
    }
 
    template<typename T>
    bool operator> (const midas::odb & o, const T &d) {
-      T v = (T) o.m_data[0];
+      T v;
+      midas::odb oc(o);
+      oc.get(v);
       return v > d;
    }
    template<typename T>
    bool operator> (const T &d, const midas::odb & o) {
-      T v = (T) o.m_data[0];
+      T v;
+      midas::odb oc(o);
+      oc.get(v);
       return d > v;
    }
 
    template<typename T>
    bool operator>= (const midas::odb & o, const T &d) {
-      T v = (T) o.m_data[0];
+      T v;
+      midas::odb oc(o);
+      oc.get(v);
       return v >= d;
    }
    template<typename T>
    bool operator>= (const T &d, const midas::odb & o) {
-      T v = (T) o.m_data[0];
+      T v;
+      midas::odb oc(o);
+      oc.get(v);
       return d >= v;
    }
 
