@@ -38,7 +38,7 @@ pipelines:
         name: Build on CentOS-8
         image: centos:centos8
         script:
-          - yum -y install diffutils make gcc gcc-c++ cmake git zlib-devel openssl-devel
+          - yum -y install diffutils make gcc gcc-c++ cmake git zlib-devel openssl-devel curl-devel
           - gcc -v
           - cmake --version
           - git submodule update --init
@@ -62,7 +62,7 @@ pipelines:
         image: ubuntu:20.04
         script:
           - apt-get update
-          - DEBIAN_FRONTEND=noninteractive apt-get -y install gcc g++ cmake git libssl-dev libz-dev
+          - DEBIAN_FRONTEND=noninteractive apt-get -y install gcc g++ cmake git libssl-dev libz-dev curl-devel
           - gcc -v
           - cmake --version
           - git submodule update --init
