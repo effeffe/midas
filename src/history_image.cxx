@@ -108,7 +108,7 @@ void image_thread(std::string name) {
       if (!o["Enabled"])
          continue;
 
-      if (ss_time() > o["Last fetch"] + o["Period"]) {
+      if (ss_time() >= o["Last fetch"] + o["Period"]) {
          o["Last fetch"] = ss_time();
          std::string url = o["URL"];
          std::string filename = history_dir() + name;
