@@ -3335,7 +3335,7 @@ INT root_book_bank(EVENT_TREE * et, HNDLE hKeyDef, int event_id, char *bank_name
 
 INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
 {
-   INT size, i;
+   INT i;
    char bank_name[32];
    BANK_HEADER *pbh;
    void *pdata;
@@ -3364,8 +3364,6 @@ INT root_write(LOG_CHN * log_chn, const EVENT_HEADER * pevent, INT evt_size)
    }
 
    TREE_STRUCT *ts = log_chn->root_tree_struct;
-
-   size = (INT) ts->f->GetBytesWritten();
 
   /*---- MIDAS format ----------------------------------------------*/
 
