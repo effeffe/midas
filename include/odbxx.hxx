@@ -428,7 +428,8 @@ namespace midas {
                m_data[i].set_string(o.m_data[i]);
             } else if (m_tid == TID_KEY) {
                // recursive call to create a copy of the odb object
-               m_data[i].set(new midas::odb(*o.m_data[i].get_odb()));
+               midas::odb *po = o.m_data[i].get_podb();
+               m_data[i].set(new midas::odb(*po));
             } else {
                // simply pass basic types
                m_data[i] = o.m_data[i];
@@ -805,16 +806,6 @@ namespace midas {
          return s;
       }
 
-      // overload conversion operator for const char *
-      operator const char *() {
-         std::string s;
-         if (m_tid == TID_KEY)
-            print(s, 0);
-         else
-            get(s); // forward to get(std::string)
-         return s.c_str();
-      }
-
       // overload conversion operator for std::vector<T>
       template<typename T>
       operator std::vector<T>() {
@@ -938,6 +929,30 @@ namespace midas {
             return m_data[i].get_odb().get_subkey(tail);
 
          return *m_data[i].get_podb();
+      }
+
+      bool is_subkey(std::string str) {
+         if (m_tid != TID_KEY)
+            return false;
+
+         std::string first = str;
+         std::string tail{};
+         if (str.find('/') != std::string::npos) {
+            first = str.substr(0, str.find('/'));
+            tail = str.substr(str.find('/') + 1);
+         }
+
+         int i;
+         for (i = 0; i < m_num_values; i++)
+            if (m_data[i].get_odb().get_name() == first)
+               break;
+         if (i == m_num_values)
+            return false;
+
+         if (!tail.empty())
+            return m_data[i].get_odb().is_subkey(tail);
+
+         return true;
       }
 
       // get function for basic types
