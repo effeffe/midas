@@ -7,6 +7,9 @@
 
 \********************************************************************/
 
+#ifndef _MEXCEPT_HXX
+#define _MEXCEPT_HXX
+
 #include <string>
 #include <iostream>
 #include <sstream>
@@ -62,3 +65,5 @@ public:
       return msg.c_str();
    }
 };
+
+#endif // _MEXCEPT_HXX

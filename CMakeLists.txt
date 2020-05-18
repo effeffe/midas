@@ -291,6 +291,7 @@ endif()
 set(libsrc
    src/midas
    src/odb
+   src/odbxx
    src/device_driver
    src/system
    src/alarm
