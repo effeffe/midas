@@ -278,7 +278,7 @@ endif()
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
    # >2GB file support
    add_definitions(-D_LARGEFILE64_SOURCE)
-   set(LIBS ${LIBS} -lpthread -lutil -lrt)
+   set(LIBS ${LIBS} -lpthread -lutil -lrt -ldl)
 endif()
 
 #####################################################################
