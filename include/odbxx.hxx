@@ -14,6 +14,7 @@
 #include <initializer_list>
 #include <cstring>
 #include <bitset>
+#include <functional>
 
 #include "midas.h"
 #include "mexcept.hxx"
