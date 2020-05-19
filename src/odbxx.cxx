@@ -73,7 +73,9 @@ namespace midas {
          if (m_num_values > 1)
             s += "[";
          std::string v;
-         get(v, m_tid == TID_STRING);
+         get(v, m_tid == TID_STRING || m_tid == TID_LINK);
+         if (m_tid == TID_LINK)
+            s += " -> ";
          s += v;
          if (m_num_values > 1)
             s += "]";
@@ -100,7 +102,7 @@ namespace midas {
          s += "}";
       } else {
          KEY key;
-         db_get_key(m_hDB, m_hKey, &key);
+         db_get_link(m_hDB, m_hKey, &key);
          s += "\"" + m_name + "/key\": ";
          s += "{ \"type\": " + std::to_string(m_tid) + ", ";
          s += "\"access_mode\": " + std::to_string(key.access_mode) + ", ";
@@ -111,7 +113,7 @@ namespace midas {
          if (m_num_values > 1)
             s += "[";
          std::string v;
-         get(v, m_tid == TID_STRING);
+         get(v, m_tid == TID_STRING || m_tid == TID_LINK);
          s += v;
          if (m_num_values > 1)
             s += "]";
@@ -150,7 +152,7 @@ namespace midas {
             int status = db_create_key(m_hDB, 0, m_name.c_str(), m_tid);
             if (status != DB_SUCCESS && status != DB_CREATED && status != DB_KEY_EXIST)
                mthrow("Cannot create ODB key \"" + m_name + "\", status" + std::to_string(status));
-            db_find_key(m_hDB, 0, m_name.c_str(), &m_hKey);
+            db_find_link(m_hDB, 0, m_name.c_str(), &m_hKey);
             if (m_debug)
                std::cout << "Created ODB key " + get_full_path() << std::endl;
             // strip path from name
@@ -213,11 +215,11 @@ namespace midas {
       int n = 0;
       for (int i = 0;; i++) {
          HNDLE h;
-         int status = db_enum_key(m_hDB, m_hKey, i, &h);
+         int status = db_enum_link(m_hDB, m_hKey, i, &h);
          if (status != DB_SUCCESS)
             break;
          KEY key;
-         db_get_key(m_hDB, h, &key);
+         db_get_link(m_hDB, h, &key);
          hlist.push_back(h);
          name.push_back(key.name);
          n = i + 1;
@@ -230,14 +232,14 @@ namespace midas {
    bool odb::read_key(std::string &path) {
       init_hdb();
 
-      int status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
+      int status = db_find_link(m_hDB, 0, path.c_str(), &m_hKey);
       if (status != DB_SUCCESS)
          return false;
 
       KEY key;
-      status = db_get_key(m_hDB, m_hKey, &key);
+      status = db_get_link(m_hDB, m_hKey, &key);
       if (status != DB_SUCCESS)
-         mthrow("db_get_key for ODB key \"" + path +
+         mthrow("db_get_link for ODB key \"" + path +
                 "\" failed with status " + std::to_string(status));
 
       // check for correct type if given as parameter
@@ -265,7 +267,7 @@ namespace midas {
 
    // create key in ODB if it does not exist, otherwise check key type
    bool odb::write_key(std::string &path, bool force_write) {
-      int status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
+      int status = db_find_link(m_hDB, 0, path.c_str(), &m_hKey);
       if (status != DB_SUCCESS) {
          if (m_tid == 0) // auto-create subdir
             m_tid = TID_KEY;
@@ -273,7 +275,7 @@ namespace midas {
             status = db_create_key(m_hDB, 0, path.c_str(), m_tid);
             if (status != DB_SUCCESS)
                mthrow("ODB key \"" + path + "\" cannot be created");
-            status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
+            status = db_find_link(m_hDB, 0, path.c_str(), &m_hKey);
             if (status != DB_SUCCESS)
                mthrow("ODB key \"" + path + "\" not found after creation");
             if (m_debug)
@@ -283,9 +285,9 @@ namespace midas {
          return true;
       } else {
          KEY key;
-         status = db_get_key(m_hDB, m_hKey, &key);
+         status = db_get_link(m_hDB, m_hKey, &key);
          if (status != DB_SUCCESS)
-            mthrow("db_get_key for ODB key \"" + path +
+            mthrow("db_get_link for ODB key \"" + path +
                    "\" failed with status " + std::to_string(status));
          if (m_tid == 0)
             m_tid = key.type;
@@ -301,7 +303,7 @@ namespace midas {
                status = db_create_key(m_hDB, 0, path.c_str(), m_tid);
                if (status != DB_SUCCESS)
                   mthrow("ODB key \"" + path + "\" cannot be created");
-               status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
+               status = db_find_link(m_hDB, 0, path.c_str(), &m_hKey);
                if (status != DB_SUCCESS)
                   mthrow("ODB key \"" + path + "\" not found after creation");
                if (m_debug)
@@ -331,12 +333,15 @@ namespace midas {
          mthrow("Read of invalid ODB key \"" + m_name + "\"");
 
       int status{};
-      if (m_tid == TID_STRING) {
+      if (m_tid == TID_STRING || m_tid == TID_LINK) {
          KEY key;
-         db_get_key(m_hDB, m_hKey, &key);
+         db_get_link(m_hDB, m_hKey, &key);
          char *str = (char *) malloc(key.total_size);
          int size = key.total_size;
-         status = db_get_data(m_hDB, m_hKey, str, &size, m_tid);
+         if (m_tid == TID_LINK)
+            status = db_get_link_data(m_hDB, m_hKey, str, &size, m_tid);
+         else
+            status = db_get_data(m_hDB, m_hKey, str, &size, m_tid);
          for (int i = 0; i < m_num_values; i++)
             m_data[i].set(str + i * key.item_size);
          free(str);
@@ -363,7 +368,7 @@ namespace midas {
       } else {
          // resize local array if number of values has changed
          KEY key;
-         status = db_get_key(m_hDB, m_hKey, &key);
+         status = db_get_link(m_hDB, m_hKey, &key);
          if (key.num_values != m_num_values) {
             delete[] m_data;
             m_num_values = key.num_values;
@@ -398,6 +403,8 @@ namespace midas {
             else if (m_tid == TID_DOUBLE)
                m_data[i].set(*static_cast<double *>(p));
             else if (m_tid == TID_STRING)
+               m_data[i].set(std::string(static_cast<const char *>(p)));
+            else if (m_tid == TID_LINK)
                m_data[i].set(std::string(static_cast<const char *>(p)));
             else
                mthrow("Invalid type ID " + std::to_string(m_tid));
@@ -435,9 +442,9 @@ namespace midas {
          mthrow("Pull of invalid ODB key \"" + m_name + "\"");
 
       int status{};
-      if (m_tid == TID_STRING) {
+      if (m_tid == TID_STRING || m_tid == TID_LINK) {
          KEY key;
-         db_get_key(m_hDB, m_hKey, &key);
+         db_get_link(m_hDB, m_hKey, &key);
          char *str = (char *) malloc(key.item_size);
          int size = key.item_size;
          status = db_get_data_index(m_hDB, m_hKey, str, &size, index, m_tid);
@@ -471,6 +478,8 @@ namespace midas {
             m_data[index].set(*static_cast<double *>(p));
          else if (m_tid == TID_STRING)
             m_data[index].set(std::string(static_cast<const char *>(p)));
+         else if (m_tid == TID_LINK)
+            m_data[index].set(std::string(static_cast<const char *>(p)));
          else
             mthrow("Invalid type ID " + std::to_string(m_tid));
 
@@ -496,7 +505,7 @@ namespace midas {
             int status = db_create_key(m_hDB, 0, m_name.c_str(), m_tid);
             if (status != DB_SUCCESS && status != DB_CREATED && status != DB_KEY_EXIST)
                mthrow("Cannot create ODB key \"" + m_name + "\", status" + std::to_string(status));
-            db_find_key(m_hDB, 0, m_name.c_str(), &m_hKey);
+            db_find_link(m_hDB, 0, m_name.c_str(), &m_hKey);
             if (m_debug)
                std::cout << "Created ODB key " + get_full_path() << std::endl;
             // strip path from name
@@ -511,9 +520,9 @@ namespace midas {
          return;
 
       int status{};
-      if (m_tid == TID_STRING) {
+      if (m_tid == TID_STRING || m_tid == TID_LINK) {
          KEY key;
-         db_get_key(m_hDB, m_hKey, &key);
+         db_get_link(m_hDB, m_hKey, &key);
          std::string s;
          m_data[index].get(s);
          if (m_num_values == 1) {
@@ -589,7 +598,7 @@ namespace midas {
             int status = db_create_key(m_hDB, 0, m_name.c_str(), m_tid);
             if (status != DB_SUCCESS && status != DB_CREATED && status != DB_KEY_EXIST)
                mthrow("Cannot create ODB key \"" + m_name + "\", status" + std::to_string(status));
-            db_find_key(m_hDB, 0, m_name.c_str(), &m_hKey);
+            db_find_link(m_hDB, 0, m_name.c_str(), &m_hKey);
             if (m_debug)
                std::cout << "Created ODB key " + get_full_path() << std::endl;
             // strip path from name
@@ -600,10 +609,10 @@ namespace midas {
       }
 
       int status{};
-      if (m_tid == TID_STRING) {
+      if (m_tid == TID_STRING || m_tid == TID_LINK) {
          if (is_preserve_string_size() || m_num_values > 1) {
             KEY key;
-            db_get_key(m_hDB, m_hKey, &key);
+            db_get_link(m_hDB, m_hKey, &key);
             if (key.item_size == 0 || key.total_size == 0) {
                int size = 1;
                for (int i = 0; i < m_num_values; i++) {
@@ -673,7 +682,7 @@ namespace midas {
       path += "/" + m_name;
 
       HNDLE hKey;
-      int status = db_find_key(m_hDB, 0, path.c_str(), &hKey);
+      int status = db_find_link(m_hDB, 0, path.c_str(), &hKey);
       bool key_exists = (status == DB_SUCCESS);
       bool created = false;
 
@@ -764,7 +773,7 @@ namespace midas {
    //---- u_odb implementations calling functions from odb
 
    u_odb::~u_odb() {
-      if (m_tid == TID_STRING)
+      if (m_tid == TID_STRING || m_tid == TID_LINK)
          delete m_string;
       else if (m_tid == TID_KEY)
          delete m_odb;
@@ -791,6 +800,8 @@ namespace midas {
       else if (m_tid == TID_DOUBLE)
          s = std::to_string(m_double);
       else if (m_tid == TID_STRING)
+         s = *m_string;
+      else if (m_tid == TID_LINK)
          s = *m_string;
       else if (m_tid == TID_KEY) {
          m_odb->print(s, 0);
@@ -907,7 +918,7 @@ namespace midas {
    }
    u_odb::operator const char *() {
       m_parent_odb->set_last_index(-1);
-      if (m_tid != TID_STRING)
+      if (m_tid != TID_STRING && m_tid != TID_LINK)
          mthrow("Only ODB string keys can be converted to \"const char *\"");
       return m_string->c_str();
    }

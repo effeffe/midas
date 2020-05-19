@@ -183,6 +183,9 @@ namespace midas {
          else if (m_tid == TID_STRING) {
             delete m_string;
             m_string = new std::string(v);
+         } else if (m_tid == TID_LINK) {
+            delete m_string;
+            m_string = new std::string(v);
          } else
             mthrow("Invalid type ID " + std::to_string(m_tid));
       }
@@ -445,7 +448,7 @@ namespace midas {
          for (int i = 0; i < m_num_values; i++) {
             m_data[i].set_tid(m_tid);
             m_data[i].set_parent(this);
-            if (m_tid == TID_STRING) {
+            if (m_tid == TID_STRING || m_tid == TID_LINK) {
                // set_string() creates a copy of our string
                m_data[i].set_string(o.m_data[i]);
             } else if (m_tid == TID_KEY) {
@@ -684,11 +687,11 @@ namespace midas {
             new_array[i] = m_data[i];
             if (m_tid == TID_KEY)
                m_data[i].set_odb(nullptr); // move odb*
-            if (m_tid == TID_STRING)
+            if (m_tid == TID_STRING || m_tid == TID_LINK)
                m_data[i].set_string_ptr(nullptr); // move std::string*
          }
          for (; i < size; i++) {
-            if (m_tid == TID_STRING)
+            if (m_tid == TID_STRING || m_tid == TID_LINK)
                new_array[i].set_string(""); // allocates new string
          }
          delete[] m_data;
