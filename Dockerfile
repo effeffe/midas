@@ -5,7 +5,7 @@ FROM rootproject/root-cc7
 
 # install required packages: root-cc7 requires yum
 RUN yum -y -qq update 
-RUN yum -y -qq install emacs
+RUN yum -y -qq install emacs curl-devel
 
 # clone midas
 RUN mkdir /midas
