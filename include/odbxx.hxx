@@ -426,6 +426,8 @@ namespace midas {
 
       static void watch_callback(int hDB, int hKey, int index, void *info) {
          midas::odb *po = static_cast<midas::odb *>(info);
+         if (po->m_data == nullptr)
+            mthrow("Callback received for a midas::odb object which went out of scope");
          midas::odb *poh = search_hkey(po, hKey);
          poh->m_last_index = index;
          po->m_watch_callback(*poh);
