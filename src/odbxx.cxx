@@ -805,8 +805,6 @@ namespace midas {
       return get<T>(); // forward to get<T>()
    }
 
-#define UNUSED(x) [&x]{}()
-
    // force instantiation of various types of assignment operator for linking
    void dummy() {
       u_odb u;
@@ -846,7 +844,7 @@ namespace midas {
       else if (m_tid == TID_INT32)
          m_int32 += inc;
       else if (m_tid == TID_FLOAT)
-         m_float += inc;
+         m_float += static_cast<float>(inc);
       else if (m_tid == TID_DOUBLE)
          m_double += inc;
       else

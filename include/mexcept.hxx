@@ -23,7 +23,7 @@
 // exceptions with line number and file name
 #define mthrow(arg) throw mexception(arg, __FILE__, __LINE__);
 
-class mexception : public std::runtime_error {
+class mexception : public std::runtime_error  {
    std::string msg;
 public:
    mexception(const std::string &arg, const char *file, int line) :
@@ -64,6 +64,11 @@ public:
    const char *what() const throw() {
       return msg.c_str();
    }
+
+   mexception(const mexception &ex) noexcept : std::runtime_error(ex.msg),msg(ex.msg) {};
 };
+
+static_assert(std::is_nothrow_copy_constructible<mexception>::value,
+              "mexception must be nothrow copy constructible");
 
 #endif // _MEXCEPT_HXX
