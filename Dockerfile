@@ -1,5 +1,10 @@
 # Dockerfile to build a standard midas container based on root-cc7
 # SR Feb. 2020
+#
+# Usage:
+#   $ docker pull drstefanritt/midas
+#   $ docker run -it drstefanritt/midas /bin/bash
+#
 
 FROM rootproject/root-cc7
 
