@@ -333,6 +333,7 @@ namespace midas {
 
    //-----------------------------------------------
 
+   // bit in odb::m_flags
    enum odb_flags {
       AUTO_REFRESH_READ = 0,
       AUTO_REFRESH_WRITE,
@@ -340,6 +341,11 @@ namespace midas {
       AUTO_CREATE,
       DIRTY,
       DELETED
+   };
+
+   // flags used in connect()
+   enum flags {
+      WRITE_DEFAULTS = (1u<<0u),
    };
 
    //================================================================
@@ -395,7 +401,9 @@ namespace midas {
 
       // Default constructor
       odb() :
-              m_flags{(1 << odb_flags::AUTO_REFRESH_READ) | (1 << odb_flags::AUTO_REFRESH_WRITE)},
+              m_flags{(1 << odb_flags::AUTO_REFRESH_READ) |
+                      (1 << odb_flags::AUTO_REFRESH_WRITE) |
+                      (1 << odb_flags::AUTO_CREATE)},
               m_tid{0},
               m_data{nullptr},
               m_name{},
@@ -1119,8 +1127,8 @@ namespace midas {
             mthrow("Please call cm_connect_experiment() befor accessing the ODB");
       }
 
-      void connect(std::string path, std::string name, bool write_defaults);
-      void connect(std::string str, bool write_defaults = false);
+      void connect(std::string path, std::string name, uint32_t flags);
+      void connect(std::string str, uint32_t flags = 0);
       bool is_subkey(std::string str);
       odb &get_subkey(std::string str);
       int get_subkeys(std::vector<std::string> &name);
