@@ -343,11 +343,6 @@ namespace midas {
       DELETED
    };
 
-   // flags used in connect()
-   enum flags {
-      WRITE_DEFAULTS = (1u<<0u),
-   };
-
    //================================================================
    // the odb object holds an ODB entry with name, type,
    // hKey and array of u_odb values
@@ -1127,8 +1122,8 @@ namespace midas {
             mthrow("Please call cm_connect_experiment() befor accessing the ODB");
       }
 
-      void connect(std::string path, std::string name, uint32_t flags);
-      void connect(std::string str, uint32_t flags = 0);
+      void connect(std::string path, std::string name, bool write_defaults);
+      void connect(std::string str, bool write_defaults = false);
       bool is_subkey(std::string str);
       odb &get_subkey(std::string str);
       int get_subkeys(std::vector<std::string> &name);

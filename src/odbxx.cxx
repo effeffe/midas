@@ -665,7 +665,7 @@ namespace midas {
    }
 
    // write function with separated path and key name
-   void odb::connect(std::string path, std::string name, uint32_t flags) {
+   void odb::connect(std::string path, std::string name, bool write_defaults) {
       init_hdb();
 
       if (!name.empty())
@@ -675,11 +675,10 @@ namespace midas {
       HNDLE hKey;
       int status = db_find_key(m_hDB, 0, path.c_str(), &hKey);
       bool key_exists = (status == DB_SUCCESS);
-      bool force_write = (flags & flags::WRITE_DEFAULTS) > 0;
       bool created = false;
 
-      if (!key_exists || force_write)
-         created = write_key(path, force_write);
+      if (!key_exists || write_defaults)
+         created = write_key(path, write_defaults);
       else {
          if (read_key(path)) {
             if (m_tid == TID_KEY) {
@@ -705,15 +704,15 @@ namespace midas {
 
       if (m_tid == TID_KEY) {
          for (int i = 0; i < m_num_values; i++)
-            m_data[i].get_odb().connect(get_full_path(), m_data[i].get_odb().get_name(), flags);
-      } else if (created || force_write) {
+            m_data[i].get_odb().connect(get_full_path(), m_data[i].get_odb().get_name(), write_defaults);
+      } else if (created || write_defaults) {
          write();
       } else
          read();
    }
 
    // send key definitions and data with optional subkeys to certain path in ODB
-   void odb::connect(std::string str, uint32_t flags) {
+   void odb::connect(std::string str, bool write_defaults) {
       std::string name;
       std::string path;
       if (str.find_last_of('/') == std::string::npos) {
@@ -724,7 +723,7 @@ namespace midas {
          path = str.substr(0, str.find_last_of('/'));
       }
 
-      connect(path, name, flags);
+      connect(path, name, write_defaults);
    }
 
    void odb::delete_key() {
