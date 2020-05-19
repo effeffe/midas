@@ -251,9 +251,37 @@ namespace midas {
          std::cout << "Get definition for ODB key \"" + get_full_path() + "\"" << std::endl;
 
       m_tid = key.type;
-      m_num_values = key.num_values;
       m_name = key.name;
-      if (m_tid != TID_KEY) {
+      if (m_tid == TID_KEY) {
+
+         // merge ODB keys with local keys
+         for (int i = 0; i < m_num_values; i++) {
+            std::string k(path);
+            k += "/" + m_data[i].get_odb().get_name();
+            HNDLE h;
+            status = db_find_link(m_hDB, 0, k.c_str(), &h);
+            if (status != DB_SUCCESS) {
+               // if key does not exist in ODB write it
+               m_data[i].get_odb().write_key(k, true);
+               m_data[i].get_odb().write();
+            }
+         }
+
+         // read back everything from ODB
+         std::vector<std::string> name;
+         m_num_values = get_subkeys(name);
+         delete[] m_data;
+         m_data = new midas::u_odb[m_num_values]{};
+         for (int i = 0; i < m_num_values; i++) {
+            std::string k(path);
+            k += "/" + name[i];
+            midas::odb *o = new midas::odb(k.c_str());
+            m_data[i].set_tid(TID_KEY);
+            m_data[i].set_parent(this);
+            m_data[i].set(o);
+         }
+      } else  {
+         m_num_values = key.num_values;
          delete[] m_data;
          m_data = new midas::u_odb[m_num_values]{};
          for (int i = 0; i < m_num_values; i++) {
@@ -688,24 +716,8 @@ namespace midas {
 
       if (!key_exists || write_defaults)
          created = write_key(path, write_defaults);
-      else {
-         if (read_key(path)) {
-            if (m_tid == TID_KEY) {
-               std::vector<std::string> name;
-               m_num_values = get_subkeys(name);
-               delete[] m_data;
-               m_data = new midas::u_odb[m_num_values]{};
-               for (int i = 0; i < m_num_values; i++) {
-                  std::string k(path);
-                  k += "/" + name[i];
-                  midas::odb *o = new midas::odb(k.c_str());
-                  m_data[i].set_tid(TID_KEY);
-                  m_data[i].set_parent(this);
-                  m_data[i].set(o);
-               }
-            }
-         }
-      }
+      else
+         read_key(path);
 
       // correct wrong parent ODB from initializer_list
       for (int i = 0; i < m_num_values; i++)
