@@ -88,12 +88,29 @@ namespace midas {
       int get_tid() { return m_tid; }
 
       // Overload the Assignment Operators
-      template<typename T>
-      T operator=(T v);
+      uint8_t operator=(uint8_t v);
+      int8_t operator=(int8_t v);
+      uint16_t operator=(uint16_t v);
+      int16_t operator=(int16_t v);
+      uint32_t operator=(uint32_t v);
+      int32_t operator=(int32_t v);
+      bool operator=(bool v);
+      float operator=(float v);
+      double operator=(double v);
+      const char *operator=(const char *v);
 
       // Overload the Conversion Operators
-      template<typename T>
-      operator T();
+      operator uint8_t();
+      operator int8_t();
+      operator uint16_t();
+      operator int16_t();
+      operator uint32_t();
+      operator int32_t();
+      operator bool();
+      operator float();
+      operator double();
+      operator std::string();
+      operator const char *();
 
       template<typename T>
       void set(T v) {
@@ -180,13 +197,6 @@ namespace midas {
       void add(double inc, bool push = true);
 
       void mult(double f, bool push = true);
-
-      // overload the conversion operator for std::string
-      operator std::string() {
-         std::string s;
-         get(s);
-         return s;
-      }
 
       // overlaod arithemetic operators
       u_odb &operator++(int) {
@@ -1229,6 +1239,7 @@ namespace midas {
       return d >= v;
    }
 
-}
+} // namespace midas
+
 
 #endif // _ODBXX_HXX

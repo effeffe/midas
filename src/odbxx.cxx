@@ -791,43 +791,116 @@ namespace midas {
 
    //---- u_odb assignment and arithmetic operators overloads which call odb::write()
 
-   template<typename T>
-   T u_odb::operator=(T v) {
+   // overload assignment operators
+   uint8_t u_odb::operator=(uint8_t v) {
       set(v);
-      m_parent_odb->write();
+      if (m_parent_odb)
+         m_parent_odb->write();
+      return v;
+   }
+   int8_t u_odb::operator=(int8_t v) {
+      set(v);
+      if (m_parent_odb)
+         m_parent_odb->write();
+      return v;
+   }
+   uint16_t u_odb::operator=(uint16_t v) {
+      set(v);
+      if (m_parent_odb)
+         m_parent_odb->write();
+      return v;
+   }
+   int16_t u_odb::operator=(int16_t v) {
+      set(v);
+      if (m_parent_odb)
+         m_parent_odb->write();
+      return v;
+   }
+   uint32_t u_odb::operator=(uint32_t v) {
+      set(v);
+      if (m_parent_odb)
+         m_parent_odb->write();
+      return v;
+   }
+   int32_t u_odb::operator=(int32_t v) {
+      set(v);
+      if (m_parent_odb)
+         m_parent_odb->write();
+      return v;
+   }
+   bool u_odb::operator=(bool v) {
+      set(v);
+      if (m_parent_odb)
+         m_parent_odb->write();
+      return v;
+   }
+   float u_odb::operator=(float v) {
+      set(v);
+      if (m_parent_odb)
+         m_parent_odb->write();
+      return v;
+   }
+   double u_odb::operator=(double v) {
+      set(v);
+      if (m_parent_odb)
+         m_parent_odb->write();
+      return v;
+   }
+   const char * u_odb::operator=(const char * v) {
+      set(v);
+      if (m_parent_odb)
+         m_parent_odb->write();
       return v;
    }
 
    // overload all standard conversion operators
-   template<typename T>
-   inline u_odb::operator T() {
+   u_odb::operator uint8_t() {
       m_parent_odb->set_last_index(-1);
-      return get<T>(); // forward to get<T>()
+      return get<uint8_t>();
    }
-
-   // force instantiation of various types of assignment operator for linking
-   void dummy() {
-      u_odb u;
-      u = static_cast<uint8_t>(0);
-      u = static_cast<int8_t>(0);
-      u = static_cast<uint16_t>(0);
-      u = static_cast<int16_t>(0);
-      u = static_cast<uint32_t>(0);
-      u = static_cast<int32_t>(0);
-      u = static_cast<bool>(false);
-      u = static_cast<float>(0);
-      u = static_cast<double>(0);
-      u = static_cast<const char *>(nullptr);
-      __attribute__((unused)) uint8_t uint8_v = u;
-      __attribute__((unused)) int8_t int8_v = u;
-      __attribute__((unused)) uint16_t uint16_v = u;
-      __attribute__((unused)) int16_t int16_v = u;
-      __attribute__((unused)) uint32_t uint32_v = u;
-      __attribute__((unused)) int32_t int32_v = u;
-      __attribute__((unused)) bool bool_v = u;
-      __attribute__((unused)) float float_v = u;
-      __attribute__((unused)) double double_v = u;
-      __attribute__((unused)) std::string s = u;
+   u_odb::operator int8_t() {
+         m_parent_odb->set_last_index(-1);
+      return get<int8_t>();
+   }
+   u_odb::operator uint16_t() {
+         m_parent_odb->set_last_index(-1);
+      return get<uint16_t>();
+   }
+   u_odb::operator int16_t() {
+         m_parent_odb->set_last_index(-1);
+      return get<int16_t>();
+   }
+   u_odb::operator uint32_t() {
+      m_parent_odb->set_last_index(-1);
+      return get<uint32_t>();
+   }
+   u_odb::operator int32_t() {
+      m_parent_odb->set_last_index(-1);
+      return get<int32_t>();
+   }
+   u_odb::operator bool() {
+      m_parent_odb->set_last_index(-1);
+      return get<bool>();
+   }
+   u_odb::operator float() {
+      m_parent_odb->set_last_index(-1);
+      return get<float>();
+   }
+   u_odb::operator double() {
+      m_parent_odb->set_last_index(-1);
+      return get<double>();
+   }
+   u_odb::operator std::string() {
+      m_parent_odb->set_last_index(-1);
+      std::string s;
+      get(s);
+      return s;
+   }
+   u_odb::operator const char *() {
+      m_parent_odb->set_last_index(-1);
+      if (m_tid != TID_STRING)
+         mthrow("Only ODB string keys can be converted to \"const char *\"");
+      return m_string->c_str();
    }
 
    void u_odb::add(double inc, bool write) {
