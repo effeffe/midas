@@ -111,6 +111,7 @@ namespace midas {
       operator double();
       operator std::string();
       operator const char *();
+      operator midas::odb &();
 
       template<typename T>
       void set(T v) {

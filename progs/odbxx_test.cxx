@@ -44,13 +44,14 @@ int main() {
    // ...and push it to ODB. If keys are present in the
    // ODB, their value is kept. If not, the default values
    // from above are copied to the ODB
-   o.connect("/Test/Settings", true);
+   o.connect("/Test/Settings");
 
    // alternatively, a structure can be created from an existing ODB subtree
    midas::odb o2("/Test/Settings/Subdir");
    std::cout << o2 << std::endl;
 
-   // retrieve, set, and change ODB value
+   // set, retrieve, and change ODB value
+   o["Int32 Key"] = 42;
    int i = o["Int32 Key"];
    o["Int32 Key"] = i+1;
    o["Int32 Key"]++;
@@ -58,19 +59,21 @@ int main() {
    std::cout << "Should be 57: " << o["Int32 Key"] << std::endl;
 
    // test with bool
+   o["Bool Key"] = false;
    o["Bool Key"] = !o["Bool Key"];
 
    // test with std::string
+   o["Subdir"]["Subsub"]["String Key"] = "Hello";
    std::string s = o["Subdir"]["Subsub"]["String Key"];
    s += " world!";
    o["Subdir"]["Subsub"]["String Key"] = s;
 
    // test with a vector
-   std::vector<int> v = o["Int Array"];
-   v[1] = 10;
-   o["Int Array"] = v;        // assign vector to ODB object
-   o["Int Array"][1] = 2;     // modify ODB object directly
-   i = o["Int Array"][1];     // read from ODB object
+   std::vector<int> v = o["Int Array"]; // read vector
+   std::fill(v.begin(), v.end(), 10);
+   o["Int Array"] = v;        // assign vector to ODB array
+   o["Int Array"][1] = 2;     // modify array element
+   i = o["Int Array"][1];     // read from array element
    o["Int Array"].resize(5);  // resize array
    o["Int Array"]++;          // increment all values of array
 
@@ -85,7 +88,7 @@ int main() {
    int sum = 0;
    for (int e : o["Int Array"])
       sum += e;
-   std::cout << "Sum should be 11: " << sum << std::endl;
+   std::cout << "Sum should be 47: " << sum << std::endl;
 
    // creat key from other key
    midas::odb oi(o["Int32 Key"]);
@@ -95,7 +98,7 @@ int main() {
    std::cout << oi << std::endl;    // each read access reads value from ODB
    oi.set_auto_refresh_read(false); // turn off auto refresh
    std::cout << oi << std::endl;    // this does not read value from ODB
-   oi.read();                       // this does manual read
+   oi.read();                       // this forces a manual read
    std::cout << oi << std::endl;
 
    // create ODB entries on-the-fly
@@ -114,8 +117,8 @@ int main() {
    std::cout << o.print() << std::endl;
 
    // iterate over sub-keys
-   for (auto& oit : o)
-      std::cout << oit.get_odb().get_name() << std::endl;
+   for (midas::odb& oit : o)
+      std::cout << oit.get_name() << std::endl;
 
    // print whole sub-tree
    std::cout << o.print() << std::endl;

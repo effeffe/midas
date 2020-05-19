@@ -902,6 +902,13 @@ namespace midas {
          mthrow("Only ODB string keys can be converted to \"const char *\"");
       return m_string->c_str();
    }
+   u_odb::operator midas::odb&() {
+      m_parent_odb->set_last_index(-1);
+      if (m_tid != TID_KEY)
+         mthrow("Only ODB directories can be converted to \"midas::odb &\"");
+      return *m_odb;
+   }
+
 
    void u_odb::add(double inc, bool write) {
       if (m_tid == TID_UINT8)
