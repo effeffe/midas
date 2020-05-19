@@ -85,13 +85,14 @@ void image_thread(std::string name) {
          for (int i=0 ; i<n ; i++) {
             char filename[MAX_STRING_LENGTH];
             strncpy(filename, flist+i*MAX_STRING_LENGTH, MAX_STRING_LENGTH);
-            struct tm ti;
+            struct tm ti{};
             sscanf(filename, "%2d%2d%2d_%2d%2d%2d", &ti.tm_year, &ti.tm_mon,
                    &ti.tm_mday, &ti.tm_hour, &ti.tm_min, &ti.tm_sec);
             ti.tm_year += 100;
             ti.tm_mon -= 1;
+            ti.tm_isdst = -1;
             time_t ft = mktime(&ti);
-            if ((ss_time() - ft)/3600.0 > o["Storage hours"]) {
+            if ((ss_time() - ft)/3600.0 >= o["Storage hours"]) {
                std::cout << "Delete file " << flist+i*MAX_STRING_LENGTH << " which is is " <<
                   (ss_time()-ft)/3600.0 << " hours old." << std::endl;
                int status = remove((path+"/"+filename).c_str());
@@ -127,7 +128,12 @@ void image_thread(std::string name) {
            std::setfill('0') << std::setw(2) << ltm->tm_hour <<
            std::setfill('0') << std::setw(2) << ltm->tm_min <<
            std::setfill('0') << std::setw(2) << ltm->tm_sec;
-         filename += "/" + s.str() + url.substr(url.find_last_of('.'));
+         filename += "/" + s.str();
+
+         if (o["Extension"] == std::string(""))
+            filename += "/" + s.str() + url.substr(url.find_last_of('.'));
+         else
+            filename += o["Extension"];
 
          CURL *conn = curl_easy_init();
          curl_easy_setopt(conn, CURLOPT_URL, url.c_str());
@@ -198,6 +204,7 @@ void start_image_history() {
               {"Name",               "Demo Camera"},
               {"Enabled",            false},
               {"URL",                "https://localhost:8000/image.jpg"},
+              {"Extension",          ".jpg"},
               {"Period",             60},
               {"Last fetch",         0},
               {"Storage hours",      72},

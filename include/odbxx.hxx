@@ -905,8 +905,7 @@ namespace midas {
       template<typename T>
       void get(T &v) {
          if (m_num_values > 1)
-            mthrow(
-                    "ODB key \"" + get_full_path() + "\" contains array. Please assign to std::vector.");
+            mthrow("ODB key \"" + get_full_path() + "\" contains array. Please assign to std::vector.");
          if (is_auto_refresh_read())
             read();
          v = (T) m_data[0];
