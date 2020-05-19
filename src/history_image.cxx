@@ -19,9 +19,9 @@
 #include "midas.h"
 #include "msystem.h"
 #include "odbxx.hxx"
-#include <curl/curl.h>
 
 #ifdef HAVE_CURL
+#include <curl/curl.h>
 
 static size_t write_data(void *ptr, size_t size, size_t nmemb, void *stream)
 {
@@ -214,6 +214,7 @@ void start_image_history() {
 #else // HAVE_CURL
 
 // no history image logging wihtout CURL library
-void log_image_history() {}
+void start_image_history() {}
+void stop_image_history() {}
 
 #endif
