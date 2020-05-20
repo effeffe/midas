@@ -892,6 +892,28 @@ namespace midas {
          return get_subkey(std::string(str));
       }
 
+      // overload the call operator
+      template <typename T>
+      odb& operator()(T v) {
+         if (m_tid == 0) {
+            if (m_num_values == 0) {
+               // initialize this
+               m_num_values = 1;
+               m_tid = detect_type(v);
+               m_data = new u_odb[1]{};
+               m_data[0].set_tid(m_tid);
+               m_data[0].set_parent(this);
+               m_data[0].set(v);
+               write();
+            } else {
+               for (int i = 0; i < m_num_values; i++)
+                  m_data[i].set(v);
+               write();
+            }
+         }
+         return *this;
+      }
+
       // get function for basic types
       template<typename T>
       T get() {

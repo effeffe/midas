@@ -110,6 +110,8 @@ int main() {
    ot["Int Array"] = std::array<int, 10>{};
    ot["Subdir"]["Int32 Key"] = 42;
    ot["String Array"] = std::vector<std::string>{"S1", "S2", "S3"};
+   i = ot["Int32 Key"](123);        // create key with default value
+   std::string s1 = ot["New String Key"](std::string("Hi")); // save for strings
    std::cout << ot << std::endl;
 
    o.read();                        // re-read the underlying ODB tree which got changed by above OTF code
