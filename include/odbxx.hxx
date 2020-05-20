@@ -376,6 +376,8 @@ namespace midas {
       static HNDLE m_hDB;
       // global debug flag for all instances
       static bool m_debug;
+      // global flag indicating that we are connected to the ODB
+      static bool m_connected_odb;
 
       // various parameters defined in odb_flags
       std::bitset<8> m_flags;
@@ -649,8 +651,6 @@ namespace midas {
 
       void set_hkey(HNDLE hKey) { m_hKey = hKey; }
 
-      bool is_connected() { return m_hKey > 0; }
-
       int get_num_values() { return m_num_values; }
 
       void set_num_values(int n) { m_num_values = n; }
@@ -666,6 +666,9 @@ namespace midas {
       u_odb &get_mdata(int index = 0) { return m_data[index]; }
 
       std::string get_full_path() {
+         if (!is_connected_odb())
+            return m_name;
+
          char str[256];
          db_get_path(m_hDB, m_hKey, str, sizeof(str));
          return str;
@@ -1124,7 +1127,9 @@ namespace midas {
             cm_get_experiment_database(&m_hDB, nullptr);
          if (m_hDB == 0)
             mthrow("Please call cm_connect_experiment() befor accessing the ODB");
+         m_connected_odb = true;
       }
+      static bool is_connected_odb() { return m_connected_odb; }
 
       void connect(std::string path, std::string name, bool write_defaults);
       void connect(std::string str, bool write_defaults = false);
