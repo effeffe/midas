@@ -529,6 +529,10 @@ endif
 
 CMAKEFLAGS:=
 
+ifdef NO_CURL
+CMAKEFLAGS+= -DNO_CURL=1
+endif
+
 ifdef NO_ROOT
 CMAKEFLAGS+= -DNO_ROOT=1
 endif
