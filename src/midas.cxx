@@ -2527,7 +2527,7 @@ INT cm_list_experiments(const char *host_name, char exp_name[MAX_EXPERIMENT][NAM
          return status;
 
       for (i = 0; i < MAX_EXPERIMENT; i++)
-         strcpy(exp_name[i], exptab[i].name);
+         strlcpy(exp_name[i], exptab[i].name, NAME_LENGTH);
 
       return CM_SUCCESS;
    }
@@ -13672,7 +13672,6 @@ INT rpc_server_accept(int lsock)
    char *ptr;
    struct sockaddr_in acc_addr;
    struct hostent *phe;
-   char str[100];
    char host_port1_str[30], host_port2_str[30], host_port3_str[30];
    char debug_str[30];
    const char *argv[10];
@@ -13775,7 +13774,7 @@ INT rpc_server_accept(int lsock)
             cm_scan_experiments();
             for (i = 0; i < MAX_EXPERIMENT && exptab[i].name[0]; i++) {
                rpc_debug_printf("Return experiment: %s", exptab[i].name);
-               sprintf(str, "%s", exptab[i].name);
+               const char* str = exptab[i].name;
                send(sock, str, strlen(str) + 1, 0);
             }
             send(sock, "", 1, 0);
@@ -13833,6 +13832,7 @@ INT rpc_server_accept(int lsock)
                if (strchr(strchr(v1, '.') + 1, '.'))
                   *strchr(strchr(v1, '.') + 1, '.') = 0;
 
+            char str[100];
             strlcpy(str, cm_get_version(), sizeof(str));
             if (strchr(str, '.'))
                if (strchr(strchr(str, '.') + 1, '.'))
