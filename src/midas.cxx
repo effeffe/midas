@@ -2527,7 +2527,7 @@ INT cm_list_experiments(const char *host_name, char exp_name[MAX_EXPERIMENT][NAM
          return status;
 
       for (i = 0; i < MAX_EXPERIMENT; i++)
-         strcpy(exp_name[i], exptab[i].name);
+         strlcpy(exp_name[i], exptab[i].name, NAME_LENGTH);
 
       return CM_SUCCESS;
    }
@@ -13672,7 +13672,6 @@ INT rpc_server_accept(int lsock)
    char *ptr;
    struct sockaddr_in acc_addr;
    struct hostent *phe;
-   char str[100];
    char host_port1_str[30], host_port2_str[30], host_port3_str[30];
    char debug_str[30];
    const char *argv[10];
@@ -13775,7 +13774,7 @@ INT rpc_server_accept(int lsock)
             cm_scan_experiments();
             for (i = 0; i < MAX_EXPERIMENT && exptab[i].name[0]; i++) {
                rpc_debug_printf("Return experiment: %s", exptab[i].name);
-               sprintf(str, "%s", exptab[i].name);
+               const char* str = exptab[i].name;
                send(sock, str, strlen(str) + 1, 0);
             }
             send(sock, "", 1, 0);
@@ -13833,6 +13832,7 @@ INT rpc_server_accept(int lsock)
                if (strchr(strchr(v1, '.') + 1, '.'))
                   *strchr(strchr(v1, '.') + 1, '.') = 0;
 
+            char str[100];
             strlcpy(str, cm_get_version(), sizeof(str));
             if (strchr(str, '.'))
                if (strchr(strchr(str, '.') + 1, '.'))
@@ -14839,6 +14839,46 @@ INT bk_size(const void *event) {
    return ((BANK_HEADER *) event)->data_size + sizeof(BANK_HEADER);
 }
 
+static void copy_bk_name(char* dst, const char* src)
+{
+   // copy 4 byte bank name from "src" to "dst", set unused bytes of "dst" to NUL.
+
+   if (src[0] == 0) {
+      // invalid empty name
+      dst[0] = 0;
+      dst[1] = 0;
+      dst[2] = 0;
+      dst[3] = 0;
+      return;
+   }
+
+   dst[0] = src[0];
+
+   if (src[1] == 0) {
+      dst[1] = 0;
+      dst[2] = 0;
+      dst[3] = 0;
+      return;
+   }
+
+   dst[1] = src[1];
+
+   if (src[2] == 0) {
+      dst[2] = 0;
+      dst[3] = 0;
+      return;
+   }
+
+   dst[2] = src[2];
+
+   if (src[3] == 0) {
+      dst[3] = 0;
+      return;
+   }
+
+   dst[3] = src[3];
+}
+
 /********************************************************************/
 /**
 Create a Midas bank.
@@ -14870,7 +14910,7 @@ void bk_create(void *event, const char *name, WORD type, void **pdata) {
       BANK32A *pbk32a;
 
       pbk32a = (BANK32A *) ((char *) (((BANK_HEADER *) event) + 1) + ((BANK_HEADER *) event)->data_size);
-      strncpy(pbk32a->name, name, 4);
+      copy_bk_name(pbk32a->name, name);
       pbk32a->type = type;
       pbk32a->data_size = 0;
       *pdata = pbk32a + 1;
@@ -14878,7 +14918,7 @@ void bk_create(void *event, const char *name, WORD type, void **pdata) {
       BANK32 *pbk32;
 
       pbk32 = (BANK32 *) ((char *) (((BANK_HEADER *) event) + 1) + ((BANK_HEADER *) event)->data_size);
-      strncpy(pbk32->name, name, 4);
+      copy_bk_name(pbk32->name, name);
       pbk32->type = type;
       pbk32->data_size = 0;
       *pdata = pbk32 + 1;
@@ -14886,7 +14926,7 @@ void bk_create(void *event, const char *name, WORD type, void **pdata) {
       BANK *pbk;
 
       pbk = (BANK *) ((char *) (((BANK_HEADER *) event) + 1) + ((BANK_HEADER *) event)->data_size);
-      strncpy(pbk->name, name, 4);
+      copy_bk_name(pbk->name, name);
       pbk->type = type;
       pbk->data_size = 0;
       *pdata = pbk + 1;
@@ -14998,7 +15038,7 @@ int bk_delete(void *event, const char *name)
    if (bk_is32a((BANK_HEADER *) event)) {
       /* locate bank */
       BANK32A *pbk32a = (BANK32A *) (((BANK_HEADER *) event) + 1);
-      strncpy((char *) &dname, name, 4);
+      copy_bk_name((char *) &dname, name);
       do {
          if (*((DWORD *) pbk32a->name) == dname) {
             /* bank found, delete it */
@@ -15020,7 +15060,7 @@ int bk_delete(void *event, const char *name)
    } else if (bk_is32((BANK_HEADER *) event)) {
       /* locate bank */
       BANK32 *pbk32 = (BANK32 *) (((BANK_HEADER *) event) + 1);
-      strncpy((char *) &dname, name, 4);
+      copy_bk_name((char *) &dname, name);
       do {
          if (*((DWORD *) pbk32->name) == dname) {
             /* bank found, delete it */
@@ -15042,7 +15082,7 @@ int bk_delete(void *event, const char *name)
    } else {
       /* locate bank */
       pbk = (BANK *) (((BANK_HEADER *) event) + 1);
-      strncpy((char *) &dname, name, 4);
+      copy_bk_name((char *) &dname, name);
       do {
          if (*((DWORD *) pbk->name) == dname) {
             /* bank found, delete it */
@@ -15196,7 +15236,7 @@ INT bk_locate(const void *event, const char *name, void *pdata) {
 
    if (bk_is32a(event)) {
       pbk32a = (BANK32A *) (((BANK_HEADER *) event) + 1);
-      strncpy((char *) &dname, name, 4);
+      copy_bk_name((char *) &dname, name);
       while ((DWORD) ((char *) pbk32a - (char *) event) <
              ((BANK_HEADER *) event)->data_size + sizeof(BANK_HEADER)) {
          if (*((DWORD *) pbk32a->name) == dname) {
@@ -15209,7 +15249,7 @@ INT bk_locate(const void *event, const char *name, void *pdata) {
       }
    } else if (bk_is32(event)) {
       pbk32 = (BANK32 *) (((BANK_HEADER *) event) + 1);
-      strncpy((char *) &dname, name, 4);
+      copy_bk_name((char *) &dname, name);
       while ((DWORD) ((char *) pbk32 - (char *) event) <
              ((BANK_HEADER *) event)->data_size + sizeof(BANK_HEADER)) {
          if (*((DWORD *) pbk32->name) == dname) {
@@ -15222,7 +15262,7 @@ INT bk_locate(const void *event, const char *name, void *pdata) {
       }
    } else {
       pbk = (BANK *) (((BANK_HEADER *) event) + 1);
-      strncpy((char *) &dname, name, 4);
+      copy_bk_name((char *) &dname, name);
       while ((DWORD) ((char *) pbk - (char *) event) <
              ((BANK_HEADER *) event)->data_size + sizeof(BANK_HEADER)) {
          if (*((DWORD *) pbk->name) == dname) {
@@ -15256,7 +15296,7 @@ INT bk_find(const BANK_HEADER *pbkh, const char *name, DWORD *bklen, DWORD *bkty
 
    if (bk_is32a(pbkh)) {
       BANK32A *pbk32a = (BANK32A *) (pbkh + 1);
-      strncpy((char *) &dname, name, 4);
+      copy_bk_name((char *) &dname, name);
       do {
          if (*((DWORD *) pbk32a->name) == dname) {
             *((void **) pdata) = pbk32a + 1;
@@ -15272,7 +15312,7 @@ INT bk_find(const BANK_HEADER *pbkh, const char *name, DWORD *bklen, DWORD *bkty
       } while ((DWORD) ((char *) pbk32a - (char *) pbkh) < pbkh->data_size + sizeof(BANK_HEADER));
    } else if (bk_is32(pbkh)) {
          BANK32 *pbk32 = (BANK32 *) (pbkh + 1);
-      strncpy((char *) &dname, name, 4);
+      copy_bk_name((char *) &dname, name);
       do {
          if (*((DWORD *) pbk32->name) == dname) {
             *((void **) pdata) = pbk32 + 1;
@@ -15288,7 +15328,7 @@ INT bk_find(const BANK_HEADER *pbkh, const char *name, DWORD *bklen, DWORD *bkty
       } while ((DWORD) ((char *) pbk32 - (char *) pbkh) < pbkh->data_size + sizeof(BANK_HEADER));
    } else {
       BANK *pbk = (BANK *) (pbkh + 1);
-      strncpy((char *) &dname, name, 4);
+      copy_bk_name((char *) &dname, name);
       do {
          if (*((DWORD *) pbk->name) == dname) {
             *((void **) pdata) = pbk + 1;

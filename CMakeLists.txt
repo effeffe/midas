@@ -53,6 +53,16 @@ if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mxml/mxml.cxx)
 endif()
 
 #
+# Check for mjson
+#
+if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mjson/mjson.cxx)
+   message(FATAL_ERROR "\nError: 'mjson' submodule not found. Please install via\n"
+      "'git submodule update --init'\n"
+      "in midas root directory."
+   )
+endif()
+
+#
 # Check for mscb
 #
 if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mscb/src/mscb.cxx)
@@ -131,7 +141,7 @@ endif (NO_SSL)
 # Optional libcurl support for mlogger
 #
 if (NO_CURL)
-   message(STATUS "MIDAS: libcurl mlogger support is disabled via NO_LIBCURL")
+   message(STATUS "MIDAS: libcurl mlogger support is disabled via NO_CURL")
 else (NO_CURL)
    find_package(CURL)
    if (CURL_FOUND)
@@ -297,7 +307,7 @@ set(libsrc
    src/alarm
    src/elog
    src/mrpc
-   src/mjson
+   mjson/mjson
    src/tmfe
    src/mvodb
    src/nullodb
@@ -355,7 +365,7 @@ if (HAVE_MYSQL)
 endif()
 
 target_include_directories(objlib PUBLIC ${SYSINC_DIR})
-target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
+target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mscb/include)
 target_include_directories(objlib PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
 if (OPENSSL_FOUND)
    target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})

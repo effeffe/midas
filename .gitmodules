@@ -1,6 +1,9 @@
 [submodule "mxml"]
 	path = mxml
 	url = https://bitbucket.org/tmidas/mxml.git
+[submodule "mjson"]
+	path = mjson
+	url = https://bitbucket.org/tmidas/mjson.git
 [submodule "mscb"]
 	path = mscb
 	url = https://bitbucket.org/tmidas/mscb.git

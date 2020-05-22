@@ -5913,8 +5913,7 @@ INT ss_file_find(const char *path, const char *pattern, char **plist)
    for (dp = readdir(dir_pointer); dp != NULL; dp = readdir(dir_pointer)) {
       if (fnmatch(pattern, dp->d_name, 0) == 0 && (dp->d_type == DT_REG || dp->d_type == DT_LNK || dp->d_type == DT_UNKNOWN)) {
          *plist = (char *) realloc(*plist, (i + 1) * MAX_STRING_LENGTH);
-         strncpy(*plist + (i * MAX_STRING_LENGTH), dp->d_name, strlen(dp->d_name));
-         *(*plist + (i * MAX_STRING_LENGTH) + strlen(dp->d_name)) = '\0';
+         strlcpy(*plist + (i * MAX_STRING_LENGTH), dp->d_name, MAX_STRING_LENGTH);
          i++;
          seekdir(dir_pointer, telldir(dir_pointer));
       }
@@ -5982,8 +5981,7 @@ INT ss_dir_find(const char *path, const char *pattern, char **plist)
    for (dp = readdir(dir_pointer); dp != NULL; dp = readdir(dir_pointer)) {
       if (fnmatch(pattern, dp->d_name, 0) == 0 && dp->d_type == DT_DIR) {
          *plist = (char *) realloc(*plist, (i + 1) * MAX_STRING_LENGTH);
-         strncpy(*plist + (i * MAX_STRING_LENGTH), dp->d_name, strlen(dp->d_name));
-         *(*plist + (i * MAX_STRING_LENGTH) + strlen(dp->d_name)) = '\0';
+         strlcpy(*plist + (i * MAX_STRING_LENGTH), dp->d_name, MAX_STRING_LENGTH);
          i++;
          seekdir(dir_pointer, telldir(dir_pointer));
       }
