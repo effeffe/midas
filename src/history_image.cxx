@@ -186,7 +186,7 @@ void start_image_history() {
    midas::odb::set_debug(false);
 
    try {
-      if (!h.is_connected())
+      if (!h.is_connected_odb())
          h.connect("/History/Images");
       if (h.get_num_values() == 0)
          throw std::runtime_error("");

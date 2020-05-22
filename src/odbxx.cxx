@@ -30,6 +30,7 @@ namespace midas {
    // initialize static variables
    HNDLE odb::m_hDB = 0;
    bool odb::m_debug = false;
+   bool odb::m_connected_odb = false;
 
    //-----------------------------------------------
 
@@ -350,6 +351,9 @@ namespace midas {
 
    // retrieve data from ODB and assign it to this object
    void odb::read() {
+      if (!is_connected_odb())
+         return;
+
       // check if deleted
       if (is_deleted())
          mthrow("ODB key \"" + m_name + "\" cannot be pulled because it has been deleted");
@@ -463,6 +467,9 @@ namespace midas {
 
    // retrieve individual member of array
    void odb::read(int index) {
+      if (!is_connected_odb())
+         return;
+
       if (m_hKey == 0)
          return; // needed to print un-connected objects
 
@@ -528,6 +535,9 @@ namespace midas {
 
    // push individual member of an array
    void odb::write(int index) {
+      if (!is_connected_odb())
+         return;
+
       if (m_hKey == 0) {
          if (is_auto_create()) {
             int status = db_create_key(m_hDB, 0, m_name.c_str(), m_tid);
