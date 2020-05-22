@@ -856,6 +856,8 @@ namespace midas {
               std::is_same<T, float>::value ||
               std::is_same<T, double>::value, T>::type * = nullptr>
       operator T() {
+         if (m_tid == 0)
+            mthrow("Cannot return un-initialized object \"" + m_name + "\"");
          return get<T>(); // forward to get<T>()
       }
 
@@ -1173,7 +1175,7 @@ namespace midas {
 
    };
 
-   //---- midas::odb friend funcionts -------------------------------
+   //---- midas::odb friend functions -------------------------------
 
    // overload comparison operators
    template<typename T>
