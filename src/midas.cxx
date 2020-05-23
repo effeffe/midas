@@ -9717,7 +9717,9 @@ INT bm_empty_buffers() {
          if (!_buffer[idx].attached)
             continue;
 
-         bm_skip_event(idx);
+         int status = bm_skip_event(idx+1);
+         if (status != BM_SUCCESS)
+            return status;
       }
    }
 #endif                          /* LOCAL_ROUTINES */
