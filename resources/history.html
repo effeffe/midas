@@ -6,6 +6,7 @@
    <script src="midas.js"></script>
    <script src="mhttpd.js"></script>
    <script src="mhistory.js"></script>
+   <script src="mihistory.js"></script>
    <script src="controls.js"></script>
    <title>History</title>
 </head>
@@ -83,8 +84,9 @@
    }
 
    function init() {
-      mjsonrpc_db_copy(["/History/Display"]).then(function (rpc) {
+      mjsonrpc_db_copy(["/History/Display", "/History/Images"]).then(function (rpc) {
          let historyDisplay = rpc.result.data[0];
+         var historyImages = rpc.result.data[1];
 
          let curGroup = decodeURI(getUrlVars()["group"]);
          let curPanel = decodeURI(getUrlVars()["panel"]);
@@ -141,6 +143,21 @@
             });
 
             h +=
+               "    <tr>\n" +
+               "      <td class=\"titleCell\"><a href=\"" + baseURL + "&group=" + "Images" + "&panel=All\">" +
+               "Images" + "</a></td>\n" +
+               "      <td>\n";
+
+            Object.keys(historyImages).forEach(panel => {
+               h += "         <a href=\"" + baseURL + "&group=" + "Images" + "&panel=" + panel + "\">" +
+                  historyImages[panel].Name + "</a>&nbsp;\n";
+            });
+
+            h +=
+               "      </td>\n" +
+               "    </tr>\n";
+
+            h +=
                "</table>\n";
 
             d.innerHTML = h;
@@ -187,6 +204,12 @@
                o.selected = true;
          });
          let o = document.createElement("option");
+         o.text = "Images";
+         sgroup.add(o);
+         if (curGroup !== undefined && curGroup === "Images")
+            o.selected = true;
+
+         o = document.createElement("option");
          o.text = "- All -";
          o.value = "All";
          sgroup.add(o);
@@ -197,7 +220,23 @@
          if (curPanel === "undefined" && curGroup !== "All")
             curPanel = curPanel = Object.keys(historyDisplay[curGroup])[0];
          let spanel = document.getElementById("spanel");
-         if (curGroup !== "undefined" && curGroup !== "All") {
+
+         if (curGroup == "Images") {
+            Object.keys(historyImages).forEach(key => {
+               let o = document.createElement("option");
+               o.text = historyImages[key].Name;
+               o.value = key;
+               spanel.add(o);
+               if (curPanel !== undefined && curPanel === key)
+                  o.selected = true;
+            });
+            o = document.createElement("option");
+            o.text = "- All -";
+            o.value = "All";
+            spanel.add(o);
+            if (curPanel === "All")
+               o.selected = true;
+         } else if (curGroup !== "undefined" && curGroup !== "All") {
             Object.keys(historyDisplay[curGroup]).forEach(key => {
                let o = document.createElement("option");
                o.text = key;
@@ -216,7 +255,7 @@
          // add listener to group selector
          document.getElementById("sgroup").addEventListener("change", function () {
             let url = baseURL + "&group=" + document.getElementById("sgroup").value;
-            
+
             let d = document.getElementById("histPanel").childNodes[0];
 
             if (document.getElementById('keepTAxis') !== null &&
@@ -240,7 +279,7 @@
 
             window.location.href = url;
          });
-         
+
          let createdPlots = [];
 
          if (curGroup === "All") {
@@ -282,19 +321,22 @@
 
             document.getElementById("histPanel").appendChild(table);
 
+         } else if (curGroup === "Images") {
+            // create single image history object
+            createdPlots.push(mihistory_create(document.getElementById("histPanel"), baseURL, curPanel,
+               parseInt(tMin), parseInt(tMax)));
          } else {
             // create single history object
             createdPlots.push(mhistory_create(document.getElementById("histPanel"), baseURL, curGroup, curPanel,
                parseInt(tMin), parseInt(tMax)));
-         }
 
-         // Register callback functions in case user wants to change all tiem axes together.
-         for (let i = 0; i < createdPlots.length; i++) {
-            createdPlots[i].mhg.callbacks.timeZoom = timeZoomCallback;
-            createdPlots[i].mhg.callbacks.resetAxes = resetAxesCallback;
-            createdPlots[i].mhg.callbacks.jumpToCurrent = jumpToCurrentCallback;
+            // Register callback functions in case user wants to change all time axes together.
+            for (let i = 0; i < createdPlots.length; i++) {
+               createdPlots[i].mhg.callbacks.timeZoom = timeZoomCallback;
+               createdPlots[i].mhg.callbacks.resetAxes = resetAxesCallback;
+               createdPlots[i].mhg.callbacks.jumpToCurrent = jumpToCurrentCallback;
+            }
          }
-
          window.addEventListener("resize", windowResize);
          windowResize();
 

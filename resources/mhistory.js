@@ -1522,7 +1522,6 @@ function convertLastWritten(last) {
 
 MhistoryGraph.prototype.updateURL = function() {
    let url = window.location.href;
-   //url += "&abcd";
    if (url.search("&A=") !== -1)
       url = url.slice(0, url.search("&A="));
    url += "&A=" + Math.round(this.tMin) + "&B=" + Math.round(this.tMax);
