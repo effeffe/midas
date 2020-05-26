@@ -63,11 +63,14 @@ function MihistoryGraph(divElement) { // Constructor
    this.parentDiv = divElement;
    this.baseURL = divElement.dataset.baseURL;
    this.panel = divElement.dataset.panel;
-   this.image = document.createElement("img");
-   this.image.style.border = "1ps solid black";
+   this.imageElem = document.createElement("img");
+   this.imageElem.style.border = "2px solid #808080";
+   this.imageElem.style.margin = "auto";
+   this.imageElem.style.display = "block";
+   this.imageElem.id = "hiImage";
    this.canvas = document.createElement("canvas");
    this.canvas.style.border = "1ps solid black";
-   divElement.appendChild(this.image);
+   divElement.appendChild(this.imageElem);
    divElement.appendChild(this.canvas);
 
    // colors
@@ -81,23 +84,17 @@ function MihistoryGraph(divElement) { // Constructor
    this.tScale = 24*3600;
    this.tMax = Math.floor(new Date() / 1000);
    this.tMin = this.tMax - this.tScale;
+   this.tCur = 0;
    this.scroll = true;
    this.showZoomButtons = true;
 
    // overwrite scale from URL if present
-   let tMin = decodeURI(getUrlVars()["A"]);
-   if (tMin !== "undefined") {
-      this.initTMin = tMin;
-      this.tMin = tMin;
+   let tCur = decodeURI(getUrlVars()["A"]);
+   if (tCur !== "undefined") {
+      this.tCur = tCur;
+      this.tMax = tCur;
+      this.tmin = tCur = this.tScale;
    }
-   let tMax = decodeURI(getUrlVars()["B"]);
-   if (tMax !== "undefined") {
-      this.initTMax = tMax;
-      this.tMax = tMax;
-   }
-
-   // immage array
-   this.images = [];
 
    // callbacks when certain actions are performed.
    // All callback functions should accept a single parameter, which is the 
@@ -250,11 +247,12 @@ MihistoryGraph.prototype.initializeIPanel = function () {
    this.marker = {active: false};
    this.drag = {active: false};
    this.data = undefined;
-   this.images = [];
-   this.events = [];
-   this.tags = [];
-   this.index = [];
    this.pendingUpdates = 0;
+
+   // image arrays
+   this.time = [];
+   this.image_name = [];
+   this.image = [];
 
    // retrieve panel definition from ODB
    mjsonrpc_db_copy(["/History/Images/" + this.panel]).then(function (rpc) {
@@ -436,20 +434,23 @@ MihistoryGraph.prototype.loadInitialData = function () {
    this.intSelector.appendChild(table);
    document.body.appendChild(this.intSelector);
 
-   // load latest image
-   /*
-   mjsonrpc_call("hs_get_last_written",
+   // load latest images
+   mjsonrpc_call("hs_image_retrieve",
       {
-         "events": this.events,
-         "tags": this.tags,
-         "index": this.index
-      }).then(function (rpc) {
-      this.lastWritten = rpc.result.last_written;
-   }.bind(this))
-      .catch(function (error) {
-         mjsonrpc_error_alert(error);
-      });
-   */
+         "image": this.panel,
+         "start_time": Math.floor(this.tMin),
+         "end_time": Math.floor(this.tMax),
+      })
+      .then(function (rpc) {
+
+         this.receiveData(rpc);
+         this.redraw();
+
+         this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
+
+      }.bind(this)).catch(function (error) {
+      mjsonrpc_error_alert(error);
+   });
 
 };
 
@@ -462,6 +463,23 @@ MihistoryGraph.prototype.loadOldData = function () {
 
 
 MihistoryGraph.prototype.receiveData = function (rpc) {
+   this.time = rpc.result.data.time;
+   this.image_name = rpc.result.data.filename;
+
+   this.tCur = this.time[this.time.length - 1];
+   this.loadImage(this.image_name[this.image_name.length - 1]);
+};
+
+MihistoryGraph.prototype.loadImage = function (name) {
+   let tmpImage = new Image();
+   tmpImage.onload = function() {
+      document.getElementById("hiImage").src = this.src;
+      this.mhg.imageElem.initialWidth = this.width;
+      this.mhg.imageElem.initialHeight = this.height;
+      this.mhg.resize();
+   }
+   tmpImage.mhg = this;
+   tmpImage.src = this.panel + "/" + name;
 };
 
 MihistoryGraph.prototype.update = function () {
@@ -511,7 +529,6 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
    if (e.type === "mousedown") {
 
       this.intSelector.style.display = "none";
-      this.downloadSelector.style.display = "none";
 
       // check for zoom buttons
       if (e.offsetX > this.width - 30 - 48 && e.offsetX < this.width - 30 - 24 &&
@@ -537,15 +554,11 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
       if (e.offsetX > this.x1 && e.offsetX < this.x2 &&
          e.offsetY > this.y2 && e.offsetY < this.y1) {
          this.drag.active = true;
-         this.marker.active = false;
          this.scroll = false;
          this.drag.xStart = e.offsetX;
-         this.drag.yStart = e.offsetY;
          this.drag.tStart = this.xToTime(e.offsetX);
          this.drag.tMinStart = this.tMin;
          this.drag.tMaxStart = this.tMax;
-         this.drag.yMinStart = this.yMin;
-         this.drag.yMaxStart = this.yMax;
          this.drag.vStart = this.yToValue(e.offsetY);
       }
 
@@ -565,7 +578,29 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
    } else if (e.type === "mousemove") {
 
       if (this.drag.active) {
+
+         // execute dragging
+         cursor = "move";
+         let dt = (e.offsetX - this.drag.xStart) / (this.x2 - this.x1) * (this.tMax - this.tMin);
+         this.tMin = this.drag.tMinStart - dt;
+         this.tMax = this.drag.tMaxStart - dt;
+         this.drag.lastDt = (e.offsetX - this.drag.lastOffsetX) / (this.x2 - this.x1) * (this.tMax - this.tMin);
+         this.drag.lastT = new Date().getTime();
+         this.drag.lastOffsetX = e.offsetX;
+
+         this.redraw();
+
       } else {
+
+         // change cursor to pointer over buttons
+         this.button.forEach(b => {
+            if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
+               e.offsetX < b.x1 + b.width && e.offsetY < b.y1 + b.height) {
+               cursor = "pointer";
+               title = b.title;
+            }
+         });
+
       }
 
       // change cursor to pointer over buttons
@@ -613,6 +648,31 @@ MihistoryGraph.prototype.mouseWheelEvent = function (e) {
    }
 };
 
+MihistoryGraph.prototype.inertia = function () {
+   if (this.drag.Vt !== 0) {
+      let now = new Date().getTime();
+      let dt = now - this.drag.lastMoveT;
+      this.drag.lastMoveT = now;
+
+      this.tMin -= this.drag.Vt * dt;
+      this.tMax -= this.drag.Vt * dt;
+
+      this.drag.Vt = this.drag.Vt * 0.85;
+      if (Math.abs(this.drag.Vt) < 0.005) {
+         this.drag.Vt = 0;
+      }
+
+      this.redraw();
+
+      if (this.callbacks.timeZoom !== undefined) {
+         this.callbacks.timeZoom(this);
+      }
+
+      if (this.drag.Vt !== 0)
+         window.setTimeout(this.inertia.bind(this), 50);
+   }
+};
+
 MihistoryGraph.prototype.setTimespan = function (tMin, tMax, scroll) {
    this.tMin = tMin;
    this.tMax = tMax;
@@ -621,11 +681,36 @@ MihistoryGraph.prototype.setTimespan = function (tMin, tMax, scroll) {
 };
 
 MihistoryGraph.prototype.resize = function () {
-   this.canvas.width = this.parentDiv.clientWidth;
-   this.canvas.height = 30;
-
    this.width = this.parentDiv.clientWidth;
    this.height = this.parentDiv.clientHeight;
+
+   this.canvas.width = this.width;
+   this.canvas.height = 30;
+
+   let iAR = 0;
+   let vAR = 0;
+   if (this.imageElem.initialWidth > 0) {
+      iAR = this.imageElem.initialWidth / this.imageElem.initialHeight;
+      vAR = this.width / (this.height - 30);
+   }
+
+   if (iAR === 0) {
+      this.imageElem.width = this.width;
+      this.imageElem.height = this.height - 30;
+   } else {
+      if (iAR < vAR) {
+         this.imageElem.height = this.height - 30 - 4;
+         this.imageElem.width = (this.height - 30) * iAR;
+      } else {
+         this.imageElem.width = this.width-4;
+         this.imageElem.height = this.width / iAR;
+      }
+
+      if (this.imageElem.height + 30 < this.parentDiv.clientHeight) {
+         let diff = this.parentDiv.clientHeight - (this.imageElem.height + 30);
+         this.parentDiv.style.height = (parseInt(this.parentDiv.style.height) - diff) + "px";
+      }
+   }
 
    if (this.intSelector !== undefined)
       this.intSelector.style.display = "none";
@@ -668,9 +753,9 @@ MihistoryGraph.prototype.updateURL = function() {
    let url = window.location.href;
    if (url.search("&A=") !== -1)
       url = url.slice(0, url.search("&A="));
-   url += "&A=" + Math.round(this.tMin) + "&B=" + Math.round(this.tMax);
+   url += "&A=" + Math.round(this.tCur);
 
-   window.history.replaceState(null, "History", url);
+   window.history.replaceState(null, "Image History", url);
 }
 
 MihistoryGraph.prototype.draw = function () {
@@ -680,15 +765,15 @@ MihistoryGraph.prototype.draw = function () {
    ctx.fillRect(0, 0, this.width, this.height);
 
    this.x1 = 0;
-   this.y1 = 5;
+   this.y1 = 30;
    this.x2 = this.width-10;
-   this.y2 = 5;
+   this.y2 = 0;
 
    ctx.strokeStyle = this.color.axis;
-   ctx.drawLine(this.x1, this.y2, this.x2, this.y2);
+   ctx.drawLine(this.x1, 5, this.x2, 5);
    ctx.drawLine(this.x2, 0, this.x2, 30);
 
-   this.drawTAxis(ctx, this.x1, this.y1, this.x2 - this.x1, this.width,
+   this.drawTAxis(ctx, this.x1, 5, this.x2 - this.x1, this.width,
       4, 7, 10, 10, this.tMin, this.tMax);
 
    // buttons

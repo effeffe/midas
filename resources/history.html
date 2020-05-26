@@ -178,13 +178,16 @@
             "      <select title=\"Select Panel\" id=\"spanel\">\n" +
             "      </select>\n";
 
-         if (curPanel == "All") {
-            h += "      &nbsp;&nbsp;<input type='checkbox' id='linkTAxes' name='linkTAxes'><label for='linkTAxes'>Change all time axes together</label>";
-         } else {
-            if (tMin !== "undefined")
-               h += "      &nbsp;&nbsp;<input type='checkbox' checked id='keepTAxis' name='keepTAxis'><label for='keepTAxis'>Keep horizontal axis when switching panels</label>";
-            else
-               h += "      &nbsp;&nbsp;<input type='checkbox' id='keepTAxis' name='keepTAxis'><label for='keepTAxis'>Keep horizontal axis when switching panels</label>";
+
+         if (curGroup !== "Images") {
+            if (curPanel == "All") {
+               h += "      &nbsp;&nbsp;<input type='checkbox' id='linkTAxes' name='linkTAxes'><label for='linkTAxes'>Change all time axes together</label>";
+            } else {
+               if (tMin !== "undefined")
+                  h += "      &nbsp;&nbsp;<input type='checkbox' checked id='keepTAxis' name='keepTAxis'><label for='keepTAxis'>Keep horizontal axis when switching panels</label>";
+               else
+                  h += "      &nbsp;&nbsp;<input type='checkbox' id='keepTAxis' name='keepTAxis'><label for='keepTAxis'>Keep horizontal axis when switching panels</label>";
+            }
          }
 
          h += "   </td></tr>\n" +

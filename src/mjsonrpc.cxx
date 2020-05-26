@@ -2627,6 +2627,50 @@ static MJsonNode* js_hs_read_binned_arraybuffer(const MJsonNode* params)
 
 /////////////////////////////////////////////////////////////////////////////////
 //
+// image history code goes here
+//
+/////////////////////////////////////////////////////////////////////////////////
+
+static MJsonNode* js_hs_image_retrieve(const MJsonNode* params) {
+   if (!params) {
+      MJSO *doc = MJSO::I();
+      doc->D("Get a list of history image files");
+      doc->P("image?", MJSON_STRING, "image name as defined under /History/Images/<image>");
+      doc->P("start_time", MJSON_NUMBER, "start time of the data");
+      doc->P("end_time", MJSON_NUMBER, "end time of the data");
+      doc->R("time[]", MJSON_ARRAYBUFFER, "array of time stamps in seconds");
+      doc->R("filename[]", MJSON_ARRAYBUFFER, "array of file names");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   std::string image = mjsonrpc_get_param(params, "image", NULL)->GetString();
+   double start_time = mjsonrpc_get_param(params, "start_time", &error)->GetDouble(); if (error) return error;
+   double end_time = mjsonrpc_get_param(params, "end_time", &error)->GetDouble(); if (error) return error;
+
+   std::vector<time_t>vtime{};
+   std::vector<std::string>vfilename{};
+
+   int status = hs_image_retrieve(image, start_time, end_time, vtime, vfilename);
+   int count = 10;
+   MJsonNode *tj = MJsonNode::MakeArray();
+   MJsonNode *fj = MJsonNode::MakeArray();
+
+   for (int i=0 ; i<vtime.size() ; i++) {
+      tj->AddToArray(MJsonNode::MakeInt(vtime[i]));
+      fj->AddToArray(MJsonNode::MakeString(vfilename[i].c_str()));
+   }
+   MJsonNode* data = MJsonNode::MakeObject();
+   data->AddToObject("count", MJsonNode::MakeInt(count));
+   data->AddToObject("time", tj);
+   data->AddToObject("filename", fj);
+
+   return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "data", data);
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+//
 // elog code goes here
 //
 /////////////////////////////////////////////////////////////////////////////////
@@ -3701,6 +3745,8 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("hs_read_binned", js_hs_read_binned, true);
    mjsonrpc_add_handler("hs_read_arraybuffer", js_hs_read_arraybuffer, true);
    mjsonrpc_add_handler("hs_read_binned_arraybuffer", js_hs_read_binned_arraybuffer, true);
+   // interface to image history
+   mjsonrpc_add_handler("hs_image_retrieve", js_hs_image_retrieve, true);
    // sequencer
    mjsonrpc_add_handler("seq_list_files", js_seq_list_files, true);
    mjsonrpc_add_handler("seq_save_script", js_seq_save_script, true);

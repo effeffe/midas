@@ -131,7 +131,7 @@ void image_thread(std::string name) {
          filename += "/" + s.str();
 
          if (o["Extension"] == std::string(""))
-            filename += "/" + s.str() + url.substr(url.find_last_of('.'));
+            filename += url.substr(url.find_last_of('.'));
          else
             filename += o["Extension"];
 
@@ -162,6 +162,7 @@ void image_thread(std::string name) {
                   cm_msg(MERROR, "log_image_history", "%s", error.c_str());
                   o["Last error"] = ss_time();
                }
+               remove(filename.c_str());
             }
 
          }
@@ -209,7 +210,8 @@ void start_image_history() {
               {"Last fetch",         0},
               {"Storage hours",      72},
               {"Error interval (s)", 60},
-              {"Last error",         0}
+              {"Last error",         0},
+              {"Timescale",          3600*24}
       };
       c.connect(ic.get_odb().get_full_path());
 
@@ -225,3 +227,41 @@ void start_image_history() {}
 void stop_image_history() {}
 
 #endif
+
+// retrieve image history
+
+int hs_image_retrieve(std::string image_name, time_t start_time, time_t stop_time,
+                      std::vector<time_t> &vtime, std::vector<std::string> &vfilename)
+{
+   std::string path = history_dir() + image_name;
+
+   char *flist;
+   std::vector<std::string> vfn;
+   int n = ss_file_find(path.c_str(), "??????_??????.*", &flist);
+   for (int i=0 ; i<n ; i++) {
+      char filename[MAX_STRING_LENGTH];
+      strncpy(filename, flist + i * MAX_STRING_LENGTH, MAX_STRING_LENGTH);
+      vfn.push_back(filename);
+   }
+   std::sort(vfn.begin(), vfn.end());
+
+   for (int i=0 ; i<n ; i++) {
+      struct tm ti{};
+      sscanf(vfn[i].c_str(), "%2d%2d%2d_%2d%2d%2d", &ti.tm_year, &ti.tm_mon,
+             &ti.tm_mday, &ti.tm_hour, &ti.tm_min, &ti.tm_sec);
+      ti.tm_year += 100;
+      ti.tm_mon -= 1;
+      ti.tm_isdst = -1;
+      time_t ft = mktime(&ti);
+      time_t now;
+      time(&now);
+      if (ft >= start_time && ft <= stop_time) {
+         vtime.push_back(ft);
+         vfilename.push_back(vfn[i]);
+      }
+   }
+   free(flist);
+
+   return HS_SUCCESS;
+}
+

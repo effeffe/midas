@@ -993,13 +993,21 @@ std::vector<std::string> get_resource_paths()
 
    std::vector<std::string> paths;
 
-   //paths.push_back("test/");
-
+   // add /Experiment/Resources
    std::string buf;
    status = db_get_value_string(hDB, 0, "/Experiment/Resources", 0, &buf, TRUE);
-   if (status == DB_SUCCESS && buf.length() > 0) {
+   if (status == DB_SUCCESS && buf.length() > 0)
       paths.push_back(buf);
-   }
+
+   // add /Logger/History dir
+   status = db_get_value_string(hDB, 0, "/Logger/History dir", 0, &buf, TRUE);
+   if (status == DB_SUCCESS && !buf.empty())
+      paths.push_back(buf);
+
+   // add /Logger/Data dir
+   status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &buf, TRUE);
+   if (status == DB_SUCCESS && !buf.empty())
+      paths.push_back(buf);
 
    paths.push_back(".");
    paths.push_back("resources");
