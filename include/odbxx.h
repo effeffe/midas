@@ -499,6 +499,17 @@ namespace midas {
          m_data = new u_odb[m_num_values];
          int i = 0;
          for (auto &element: list) {
+            // check if name exists already
+            for (int j=0 ; j<i ; j++) {
+               if (strcasecmp(element.first, m_data[j].get_odb().get_name().c_str()) == 0) {
+                  if (element.first == m_data[j].get_odb().get_name().c_str()) {
+                     mthrow("ODB key with name \"" + m_data[j].get_odb().get_name() + "\" exists already");
+                  } else {
+                     mthrow("ODB key \"" + std::string(element.first) + "\" exists already as \"" +
+                            m_data[j].get_odb().get_name() + "\" (only case differs)");
+                  }
+               }
+            }
             auto o = new midas::odb(element.second);
             o->set_name(element.first);
             m_data[i].set_tid(TID_KEY);
