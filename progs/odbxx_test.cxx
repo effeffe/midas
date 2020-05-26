@@ -13,7 +13,7 @@
 #include <functional>
 
 #include "midas.h"
-#include "odbxx.hxx"
+#include "odbxx.h"
 
 /*------------------------------------------------------------------*/
 
