@@ -2635,7 +2635,7 @@ INT cm_select_experiment(const char *host_name, char *exp_name) {
       return status;
 
    if (expts[1][0]) {
-      if (host_name[0])
+      if (host_name && host_name[0])
          printf("Available experiments on server %s:\n", host_name);
       else
          printf("Available experiments on local computer:\n");
