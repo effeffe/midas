@@ -7,3 +7,6 @@
 [submodule "mscb"]
 	path = mscb
 	url = https://bitbucket.org/tmidas/mscb.git
+[submodule "mvodb"]
+	path = mvodb
+	url = https://bitbucket.org/tmidas/mvodb.git

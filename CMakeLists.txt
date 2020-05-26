@@ -63,6 +63,16 @@ if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mjson/mjson.cxx)
 endif()
 
 #
+# Check for mvodb
+#
+if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mvodb/mvodb.cxx)
+   message(FATAL_ERROR "\nError: 'mvodb' submodule not found. Please install via\n"
+      "'git submodule update --init'\n"
+      "in midas root directory."
+   )
+endif()
+
+#
 # Check for mscb
 #
 if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mscb/src/mscb.cxx)
@@ -313,11 +323,11 @@ set(libsrc
    src/mrpc
    mjson/mjson
    src/tmfe
-   src/mvodb
-   src/nullodb
-   src/midasodb
-   src/mxmlodb
-   src/mjsonodb
+   mvodb/mvodb
+   mvodb/nullodb
+   mvodb/midasodb
+   mvodb/mxmlodb
+   mvodb/mjsonodb
    src/json_paste
    src/mjsonrpc
    src/mjsonrpc_user
@@ -369,7 +379,7 @@ if (HAVE_MYSQL)
 endif()
 
 target_include_directories(objlib PUBLIC ${SYSINC_DIR})
-target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mscb/include)
+target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/mscb/include)
 target_include_directories(objlib PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
 if (OPENSSL_FOUND)
    target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
