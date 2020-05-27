@@ -135,11 +135,11 @@ CMAKEGREPFLAGS+= -e build.make
 #CMAKEGREPFLAGS+= -e Building
 
 cmake:
-	-mkdir build
+	mkdir -p build
 	cd build; $(CMAKE) .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install | 2>&1 grep -v $(CMAKEGREPFLAGS)
 
 cmake3:
-	-mkdir build
+	mkdir -p build
 	cd build; cmake3 .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install | 2>&1 grep -v $(CMAKEGREPFLAGS)
 
 clean:: cclean
