@@ -377,12 +377,17 @@ static INT register_equipment(void)
             char after[128];
             snprintf( after, start+sizeof("${HOSTNAME}"), "%s", namepos+ sizeof("${HOSTNAME}") -1);
             //finish replacing ${HOSTNAME} with local_host_name. Force final name to fit within 32 chars
-            if (strlen(before)+strlen(thishost)+strlen(after)>32)
+            std::string name;
+            name += before;
+            name += thishost;
+            name += after;
+            if (name.length() >= 32) {
                cm_msg(MERROR, "equipment name too long",
                               "Equipment name %s%s%s too long, trimming down to %d characters",
                               before,thishost,after,
                               32);
-            snprintf(equipment[idx].name,32,"%s%s%s",before,thishost,after);
+            }
+            strlcpy(equipment[idx].name, name.c_str(), 32);
             printf("\t became:%s\n",equipment[idx].name);
          }
       }
