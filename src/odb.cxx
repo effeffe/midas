@@ -51,8 +51,10 @@ The Online Database file
 
 /* Globals */
 
+#ifdef LOCAL_ROUTINES
 static DATABASE *_database;
 static INT _database_entries = 0;
+#endif
 
 static RECORD_LIST *_record_list;
 static INT _record_list_entries = 0;
@@ -2636,6 +2638,8 @@ INT db_set_lock_timeout(HNDLE hDB, int timeout_millisec)
 #endif
 }
 
+#ifdef LOCAL_ROUTINES
+
 /**
 Update last activity time
 */
@@ -2669,8 +2673,11 @@ INT db_update_last_activity(DWORD millitime)
    return DB_SUCCESS;
 }
 
+#endif // LOCAL_ROUTINES
+
 void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
 {
+#ifdef LOCAL_ROUTINES
    int status;
    int i;
    /* check online databases */
@@ -2772,7 +2779,10 @@ void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
          }
       }
    }
+#endif
 }
+
+#ifdef LOCAL_ROUTINES
 
 void db_cleanup2(const char* client_name, int ignore_timeout, DWORD actual_time,  const char *who)
 {
@@ -3032,6 +3042,8 @@ INT db_check_client(HNDLE hDB, HNDLE hKeyClient)
 
    return DB_SUCCESS;
 }
+
+#endif // LOCAL_ROUTINES
 
 /********************************************************************/
 /**
