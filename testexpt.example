@@ -1,5 +1,5 @@
 
-make test will create an empty experiment and run some basic tests
+make runtest will create an empty experiment and run some basic tests
 
 rm -f exptab
 rm -rf testexpt
