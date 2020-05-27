@@ -3036,9 +3036,8 @@ Exabyte tape IO, which can take up to one minute.
 @param    timeout         Timeout for this application in ms
 @return   CM_SUCCESS
 */
-INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout) {
-   INT i;
-
+INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
+{
    /* set also local timeout to requested value (needed by cm_enable_watchdog()) */
    _watchdog_timeout = timeout;
 
@@ -3064,7 +3063,7 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout) {
       _watchdog_timeout = timeout;
 
       /* set watchdog flag of all open buffers */
-      for (i = _buffer_entries; i > 0; i--) {
+      for (int i = _buffer_entries; i > 0; i--) {
          BUFFER *pbuf = &_buffer[i - 1];
 
          if (!pbuf->attached)
