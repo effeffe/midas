@@ -3,7 +3,7 @@
 # Only use spaces to indent your .yml configuration.
 # -----
 # You can specify a custom docker image from Docker Hub as your build environment.
-image: gcc:6.5
+#image: gcc:6.5
 
 pipelines:
   default:
@@ -18,8 +18,7 @@ pipelines:
           - root-config --cflags
           - root-config --features
           - git submodule update --init
-          - make
-          - make testdiff
+          - make remoteonly
 
     - step:
         name: Build on root-centos with cmake
@@ -32,7 +31,7 @@ pipelines:
           - root-config --features
           - git submodule update --init
           - make cmake
-          - make testdiff
+          - make test
 
     - step:
         name: Build on CentOS-8
@@ -43,7 +42,7 @@ pipelines:
           - cmake --version
           - git submodule update --init
           - make cmake
-          - make testdiff
+          - make test
 
     - step:
         name: Build on Ubuntu LTS 18.04
@@ -55,7 +54,7 @@ pipelines:
           - cmake --version
           - git submodule update --init
           - make cmake
-          - make testdiff
+          - make test
 
     - step:
         name: Build on Ubuntu LTS 20.04
@@ -67,7 +66,7 @@ pipelines:
           - cmake --version
           - git submodule update --init
           - make cmake
-          - make testdiff
+          - make test
 
 #    - step:
 #        name: Build on el6 CERN SLC6
