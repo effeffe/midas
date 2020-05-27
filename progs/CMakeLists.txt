@@ -3,7 +3,6 @@
 #
 set(PROGS
    mserver
-   odbinit
    mlogger
    msequencer
    mhist
@@ -12,7 +11,6 @@ set(PROGS
    lazylogger
    mtransition
    mhdump
-   mchart
    odbhist
    melog
    mh2sql
@@ -20,6 +18,12 @@ set(PROGS
    fetest_tmfe_thread
    crc32c_sum
 )
+
+if (NO_LOCAL_ROUTINES)
+else()
+   list(APPEND PROGS odbinit)
+   list(APPEND PROGS mchart)
+endif()
 
 set(TESTPROGS
    mjson_test

@@ -82,6 +82,13 @@ if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mscb/src/mscb.cxx)
    )
 endif()
 
+#
+# NO_LOCAL_ROUTINES support for only remote connection
+#
+if (NO_LOCAL_ROUTINES)
+   message(STATUS "MIDAS: building with NO_LOCAL_ROUTINES")
+   add_compile_options(-DNO_LOCAL_ROUTINES=1)
+endif()
 
 #
 # Optional ROOT support
