@@ -87,6 +87,8 @@ static int db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, H
 *                                                                    *
 \********************************************************************/
 
+#ifdef LOCAL_ROUTINES
+
 struct db_err_msg_struct
 {
    db_err_msg *next = NULL;
@@ -173,7 +175,11 @@ void db_flush_msg(db_err_msg** msgp)
    }
 }
 
+#endif // LOCAL_ROUTINES
+
 /*------------------------------------------------------------------*/
+
+#ifdef LOCAL_ROUTINES
 
 /********************************************************************\
 *                                                                    *
@@ -552,6 +558,8 @@ static void *realloc_data(DATABASE_HEADER * pheader, void *address, INT old_size
    return pnew;
 }
 
+#endif // LOCAL_ROUTINES
+
 /*------------------------------------------------------------------*/
 char *strcomb(const char **list)
 /* convert list of strings into single string to be used by db_paste() */
@@ -617,6 +625,8 @@ static void add_to_buf(struct print_key_info_buf* buf, const char* s)
    buf->used += len;
    buf->buf[buf->used] = 0; // zero-terminate the string
 }
+
+#ifdef LOCAL_ROUTINES
 
 static INT print_key_info(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
 {
@@ -794,6 +804,7 @@ INT db_get_free_mem(HNDLE hDB, INT *key_size, INT *data_size)
    return DB_SUCCESS;
 }
 
+#endif // LOCAL_ROUTINES
 
 // Method to check if a given string is valid UTF-8.  Returns 1 if it is.
 // This method was taken from stackoverflow user Christoph, specifically
@@ -943,6 +954,8 @@ static int db_validate_name(const char* name, int maybe_path, const char* caller
 
    return DB_SUCCESS;
 }
+
+#ifdef LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
 static bool db_validate_key_offset(const DATABASE_HEADER * pheader, int offset)
@@ -1758,6 +1771,8 @@ static bool db_validate_and_repair_db_wlocked(DATABASE_HEADER * pheader)
 
    return flag;
 }
+
+#endif // LOCAL_ROUTINES
 
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
@@ -4659,6 +4674,8 @@ INT db_scan_tree(HNDLE hDB, HNDLE hKey, INT level, INT(*callback) (HNDLE, HNDLE,
    return DB_SUCCESS;
 }
 
+#ifdef LOCAL_ROUTINES
+
 int db_scan_tree_locked(const DATABASE_HEADER* pheader, const KEY* pkey, int level, int(*callback) (const DATABASE_HEADER* pheader, const KEY *, int, void *, db_err_msg** msg), void *info, db_err_msg** msg)
 {
    assert(pkey != NULL);
@@ -4678,6 +4695,8 @@ int db_scan_tree_locked(const DATABASE_HEADER* pheader, const KEY* pkey, int lev
 
    return DB_SUCCESS;
 }
+
+#endif // LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
 INT db_scan_tree_link(HNDLE hDB, HNDLE hKey, INT level, void (*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info)

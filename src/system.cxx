@@ -1346,7 +1346,9 @@ INT ss_getpid(void)
 #endif                          /* OS_MSDOS */
 }
 
-/********************************************************************\
+#ifdef LOCAL_ROUTINES
+
+/********************************************************************   \
 
   Routine: ss_pid_exists
 
@@ -1401,6 +1403,8 @@ void ss_kill(int pid)
 #warning Missing SIGKILL for ss_kill()
 #endif
 }
+
+#endif // LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
 
@@ -1950,6 +1954,8 @@ INT ss_daemon_init(BOOL keep_stdout)
    return SS_SUCCESS;
 }
 
+#ifdef LOCAL_ROUTINES
+
 /*------------------------------------------------------------------*/
 BOOL ss_existpid(INT pid)
 /********************************************************************\
@@ -1979,6 +1985,7 @@ BOOL ss_existpid(INT pid)
 #endif
 }
 
+#endif // LOCAL_ROUTINES
 
 /********************************************************************/
 /**
