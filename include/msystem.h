@@ -121,6 +121,10 @@ Definition of implementation specific constants */
 #define LOCAL_ROUTINES
 #endif
 
+#if defined(NO_LOCAL_ROUTINES)
+#undef LOCAL_ROUTINES
+#endif
+
 /* YBOS support not in MSDOS */
 #if !defined ( OS_MSDOS )
 #define YBOS_SUPPORT
