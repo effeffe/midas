@@ -57,7 +57,7 @@ Logger                          DIR
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mhttpd -D
 Becoming a daemon...
 sleep 1
-MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./examples/experiment/frontend -D
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./build/examples/experiment/frontend -D
 Frontend name          :     Sample Frontend
 Event buffer size      :     1000000
 User max event size    :     10000

@@ -15,15 +15,22 @@ help:
 	@echo "   make cmake     --- full build of midas"
 	@echo "   make cclean    --- remove everything build by make cmake"
 	@echo ""
+	@echo "   options that can be added to \"make cmake\":"
+	@echo "      NO_LOCAL_ROUTINES=1 NO_CURL=1"
+	@echo "      NO_ROOT=1 NO_ODBC=1 NO_SQLITE=1 NO_MYSQL=1 NO_SSL=1 NO_MBEDTLS=1"
+	@echo "      NO_EXPORT_COMPILE_COMMANDS=1"
+	@echo ""
 	@echo "   make dox       --- run doxygen, results are in ./html/index.html"
 	@echo "   make cleandox  --- remove doxygen output"
 	@echo ""
 	@echo "   make htmllint  --- run html check on resources/*.html"
 	@echo ""
+	@echo "   make test      --- run midas self test"
+	@echo ""
 	@echo "   make mini      --- minimal build, results are in linux/{bin,lib}"
 	@echo "   make cleanmini --- remove everything build by make mini"
 	@echo ""
-	@echo "   make remoteonly      --- minimal build, results are in linux-remoteonly/{bin,lib}"
+	@echo "   make remoteonly      --- minimal build, remote connetion only, results are in linux-remoteonly/{bin,lib}"
 	@echo "   make cleanremoteonly --- remove everything build by make remoteonly"
 	@echo ""
 	@echo "   make linux32   --- minimal x86 -m32 build, results are in linux-m32/{bin,lib}"
@@ -130,7 +137,6 @@ CMAKEGREPFLAGS+= -e build.make
 cmake:
 	-mkdir build
 	cd build; $(CMAKE) .. $(CMAKEFLAGS); $(MAKE) --no-print-directory VERBOSE=1 all install | 2>&1 grep -v $(CMAKEGREPFLAGS)
-	cd examples/experiment; ln -sf ../../build/examples/experiment/frontend frontend
 
 cmake3:
 	-mkdir build
@@ -571,9 +577,9 @@ cleanemcraft:
 
 #####################################################################
 
-test:
+runtest:
 	@echo
-	@echo "make test" will create an empty experiment and run some basic tests
+	@echo "make runtest" will create an empty experiment and run some basic tests
 	@echo
 	rm -f exptab
 	rm -rf testexpt
@@ -587,7 +593,7 @@ test:
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "ls -l"
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhttpd -D
 	sleep 1
-	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./examples/experiment/frontend -D
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./build/examples/experiment/frontend -D
 	sleep 1
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mlogger -D
 	sleep 1
@@ -609,8 +615,8 @@ test:
 testmhttpd:
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhttpd
 
-testdiff:
-	$(MAKE) --no-print-directory test 2>&1 | grep -v "on host localhost stopped" | sed "sZ$(PWD)ZPWDZg" | tee testexpt.log
+test:
+	$(MAKE) --no-print-directory runtest 2>&1 | grep -v "on host localhost stopped" | sed "sZ$(PWD)ZPWDZg" | tee testexpt.log
 	@echo
 	@echo compare output of "make test" with testexpt.example
 	@echo
