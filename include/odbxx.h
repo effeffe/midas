@@ -23,6 +23,245 @@
 #include "mexcept.h"
 // #include "mleak.h" // un-comment for memory leak debugging
 
+/*! \class midas::odb
+
+   Overview
+   ========
+
+   This file provides a very object-oriented approach to interacting with the
+   midas ODB. You can think of it like a "magic" map/dictionary that
+   automatically sends changes you make to the ODB, and receives updates that
+   others have made.
+
+   The simplest usage is like:
+
+   ```
+   // Grab a bit of the ODB
+   midas::odb exp("/Experiment");
+
+   // Simple read
+   std::cout << "The current transition timeout is " << exp["Transition timeout"] << std::endl;
+
+   // Make a change. The new value is automatically sent to the ODB.
+   // Most C++ operators are supported (++, += etc), or you can do a simple
+   // re-assignment like `exp["Transition timeout"] = 12345;`.
+   exp["Transition timeout"] += 100;
+
+   // Read the new value
+   std::cout << "The transition timeout is now " << exp["Transition timeout"] << std::endl;
+   ```
+
+   You can automatically cast to regular data types (int, double) etc if you want a copy
+   of the value to work with:
+
+   ```
+   int curr_timeout = exp["Transition timeout"];
+   ```
+
+
+   Automatic refreshing
+   ====================
+
+   You may temporarily disable the automatic updating to/from the ODB
+   using `odb::set_auto_refresh_write(false)` and `odb::set_auto_refresh_read(false)`.
+
+   If auto-refresh is enabled (the default), your new values are sent to
+   the ODB as soon as you touch the value in the `midas::odb` object. The ODB
+   is queried for new values whenever you access the value. In the above
+   example, the ODB is queried 4 times (during construction of `exp`, and
+   each time `exp["Transition timeout"]` is mentioned), and written to 1
+   time (when `exp["Transition timeout"]` is assigned to).
+
+   See the "Callback functions" section below for details on how to have a function
+   called when a value changes.
+
+
+   Arrays/vectors
+   ==============
+
+   ODB arrays are represented by std vectors.
+
+   You can access/edit individual elements using []:
+
+   ```
+   odb["Example"][1] = 1.2;
+   ```
+
+   You can completely re-assign content using a std::vector or std::array:
+
+   ```
+   std::vector<float> vec = std::vector<float>(10);
+   odb["Example"] = vec;
+   ```
+
+   You can resize arrays using `odb::resize()`. If the existing array is longer,
+   it will be truncated; if shorter it will be extended with default values
+   (0 or an empty string).
+
+   ```
+   odb["Example"].resize(5); // Now is 5 elements long
+   ```
+
+   Note that arithmetic operators are supported for arrays, and will apply
+   the operation to ALL ELEMENTS IN THE ARRAY:
+
+   ```
+   // Create the vector
+   std::vector<float> vec = std::vector<float>(2);
+   vec[0] = 3;
+   vec[1] = 5;
+
+   // Assign in ODB
+   odb["Example"] = vec;
+
+   // Multiply ALL elements by 2
+   odb["Example"] *= 2;
+
+   // odb["Example"] now contains {6, 10}.
+   ```
+
+   You can directly iterate over arrays/vectors:
+
+   ```
+   // Iterating using standard begin/end.
+   for (auto it = o["Int Array"].begin(); it != o["Int Array"].end(); it++) {
+      int val = *it;
+      std::cout << val << std::endl;
+   }
+   ```
+
+   ```
+   // Iterating using C++11 range-based for loop.
+   for (int val : o["Int Array"]) {
+      std::cout << val << std::endl;
+   }
+   ```
+
+
+   Strings
+   =======
+
+   Strings in the ODB are returned as std::string (unlike the midas.h db_get_value()
+   family of functions, where strings are returned as char*). You may have vectors of
+   strings.
+
+
+   Creating new bits of the ODB
+   ============================
+
+   You can automatically create bits of the ODB by passing a struct to the
+   `midas::odb` constructor, then calling `odb::connect()`, like:
+
+   ```
+   // Define the ODB structure
+   midas::odb new_bit = {
+      {"Int32 Key", 42},
+      {"Bool Key", true},
+      {"Subdir", {
+         {"Float key", 1.2f},     // floats must be explicitly specified
+      }},
+      {"Int Array", {1, 2, 3}},
+      {"Double Array", {1.2, 2.3, 3.4}},
+      {"String Array", {"Hello1", "Hello2", "Hello3"}},
+      {"Large Array", std::array<int, 10>{} },   // array with explicit size
+      {"Large String", std::string(63, '\0') },  // string with explicit size
+   };
+
+   // Then sync the structure. Any keys that don't exist will be created; any
+   // that already exist will keep their existing values...
+   o.connect("/Test/Settings");
+
+   // ... unless you make the `write_defaults` argument true, in which case the
+   // existing values will be ignored, and overwritten with what you specified above.
+   o.connect("/Test/Settings", true);
+   ```
+
+   If you want to add new keys to existing ODB subdirectories, you can also
+   just use the [] operator:
+
+   ```
+   midas::odb existing_key("/MyExistingKey");
+   existing_key["MyNewSubKey"] = 1.23;
+   ```
+
+
+   Iterating over subkeys
+   ======================
+
+   You can use iterate over subkeys using normal iterator functions.
+
+   ```
+   // Iterating using standard begin/end.
+   midas::odb exp("/Experiment");
+
+   for (auto it = exp.begin(); it != exp.end(); it++) {
+      midas::odb& subkey = *it;
+      std::cout << subkey.get_name() << " = " << subkey << std::endl;
+   }
+   ```
+
+   ```
+   // Iterating using C++11 range-based for loop.
+   for (midas::odb& subkey : exp) {
+      std::cout << subkey.get_name() << " = " << subkey << std::endl;
+   }
+   ```
+
+   You can check whether a subkey exists using `odb::is_subkey()`.
+
+
+   Deleting bits of the ODB
+   ========================
+
+   You can use `odb::delete_key()` to remove part of the ODB:
+
+   ```
+   midas::odb existing_bit("/Some/ODB/Path");
+   existing_bit.delete_key();
+   ```
+
+
+   Callback functions
+   ==================
+
+   You may also set up callback functions that are called whenever a value
+   changes, using the `odb::watch()` function. Note that you must call
+   `cm_yield()` (from midas.h) periodically for this to work - deep down it
+   is `cm_yield()` itself that calls your callback function.
+
+   The callback functions can either be a "normal" function or a C++ lambda.
+   In either case, it should accept one argument - a `midas::odb` object (passed
+   by reference) that contains the new state.
+
+   // Example with a lambda:
+   ```
+   midas::odb to_watch("/Experiment");
+   to_watch.watch([](midas::odb &arg) {
+      std::cout << "Value of key \"" + arg.get_full_path() + "\" changed to " << arg << std::endl;
+   });
+   ```
+
+   // Example with a "normal" function:
+   ```
+   void my_function(midas::odb &arg) {
+      std::cout << "Value of key \"" + arg.get_full_path() + "\" changed to " << arg << std::endl;
+   }
+
+   midas::odb to_watch("/Experiment");
+   to_watch.watch(my_function);
+   ```
+
+
+   Example code
+   ============
+
+   A full working example exploring most of the features can be found in
+   `progs/odbxx_text.cxx`. The test executable will be compiled as
+   `build/progs/odbxx_test` (it is not installed in the `bin` directory).
+
+*/
+
+
 /*------------------------------------------------------------------*/
 
 namespace midas {
@@ -357,9 +596,17 @@ namespace midas {
       public:
          iterator(u_odb *pu) : pu_odb(pu) {}
 
+         // Pre-increment
          iterator operator++() {
             ++pu_odb;
             return *this;
+         }
+
+         // Post-increment
+         iterator operator++(int) {
+            iterator ret = *this;
+            this->operator++();
+            return ret;
          }
 
          bool operator!=(const iterator &other) const { return pu_odb != other.pu_odb; }
@@ -499,6 +746,17 @@ namespace midas {
          m_data = new u_odb[m_num_values];
          int i = 0;
          for (auto &element: list) {
+            // check if name exists already
+            for (int j=0 ; j<i ; j++) {
+               if (strcasecmp(element.first, m_data[j].get_odb().get_name().c_str()) == 0) {
+                  if (element.first == m_data[j].get_odb().get_name().c_str()) {
+                     mthrow("ODB key with name \"" + m_data[j].get_odb().get_name() + "\" exists already");
+                  } else {
+                     mthrow("ODB key \"" + std::string(element.first) + "\" exists already as \"" +
+                            m_data[j].get_odb().get_name() + "\" (only case differs)");
+                  }
+               }
+            }
             auto o = new midas::odb(element.second);
             o->set_name(element.first);
             m_data[i].set_tid(TID_KEY);

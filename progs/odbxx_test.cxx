@@ -88,7 +88,7 @@ int main() {
    int sum = 0;
    for (int e : o["Int Array"])
       sum += e;
-   std::cout << "Sum should be 47: " << sum << std::endl;
+   std::cout << "Sum should be 27: " << sum << std::endl;
 
    // creat key from other key
    midas::odb oi(o["Int32 Key"]);
