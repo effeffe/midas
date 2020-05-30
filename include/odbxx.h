@@ -565,6 +565,21 @@ namespace midas {
          m_tid = m_data[0].get_tid();
       }
 
+      // Constructor with explicit array of std::string
+      template<size_t SIZE>
+      odb(const std::array<std::string, SIZE> &arr) : odb() {
+         m_num_values = SIZE;
+         m_data = new u_odb[m_num_values]{};
+         for (int i = 0; i < SIZE; i++) {
+            std::string * mystring = new std::string(arr[i]);
+            u_odb u(mystring);
+            m_data[i].set_tid(u.get_tid());
+            m_data[i].set_parent(this);
+            m_data[i].set(arr[i]);
+         }
+         m_tid = m_data[0].get_tid();
+      }
+
       // Forward std::string constructor to (const char *) constructor
       odb(const std::string &s) : odb(s.c_str()) {}
 
