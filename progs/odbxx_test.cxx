@@ -37,9 +37,11 @@ int main() {
       {"Int Array", {1, 2, 3}},
       {"Double Array", {1.2, 2.3, 3.4}},
       {"String Array", {"Hello1", "Hello2", "Hello3"}},
-      {"Large Array", std::array<int, 10>{} },   // array with explicit size
-      {"Large String", std::string(63, '\0') },  // string with explicit size
-      {"Another String Array", std::array<std::string, 10>{}}
+      {"Large Array", std::array<int, 10>{} },            // array with explicit size
+      {"Large String", std::string(63, '\0') },           // string with explicit size
+      {"String Array 10", std::array<std::string, 10>{}}, // string array with explicit size
+      // string array with 10 strings of each 63 chars
+      {"Large String Array 10", std::array<std::string, 10>{std::string(63, '\0')}}
    };
 
    // ...and push it to ODB. If keys are present in the
