@@ -597,25 +597,6 @@ namespace midas {
          m_tid = m_data[0].get_tid();
       }
 
-//      The following constructor would be needed for an string array with explicit
-//      size like
-//         { "Array", { std::string(63, '\0'), "", "" } }
-//      but it clashes with
-//         odb(std::initializer_list<std::pair<std::string, midas::odb>> list)
-//
-//      odb(std::initializer_list<std::string> list) : odb() {
-//         m_num_values = list.size();
-//         m_data = new u_odb[m_num_values]{};
-//         int i = 0;
-//         for (auto &element : list) {
-//            m_data[i].set_tid(TID_STRING);
-//            m_data[i].set_parent(this);
-//            m_data[i].set(element);
-//            i++;
-//         }
-//         m_tid = m_data[0].get_tid();
-//      }
-
       template<typename T>
       int detect_type(const T &v) {
          if (std::is_same<T, uint8_t>::value)
