@@ -10,7 +10,7 @@ pipelines:
     all:
     - parallel:
       - step:
-          name: Build on root-centos
+          name: Build on root-centos "remoteonly"
           image: rootproject/root-centos
           script:
             - gcc -v
@@ -22,7 +22,7 @@ pipelines:
             - make remoteonly
 
       - step:
-          name: Build on root-centos with cmake
+          name: Build on root-centos
           image: rootproject/root-centos
           script:
             - gcc -v
@@ -50,7 +50,7 @@ pipelines:
           image: ubuntu:18.04
           script:
             - apt-get update
-            - apt-get -y install gcc g++ cmake git libssl-dev libz-dev libcurl4-gnutls-dev sqlite3
+            - apt-get -y install gcc g++ cmake git libssl-dev libz-dev libcurl4-gnutls-dev sqlite3 libsqlite3-dev
             - gcc -v
             - cmake --version
             - git submodule update --init
@@ -62,7 +62,7 @@ pipelines:
           image: ubuntu:20.04
           script:
             - apt-get update
-            - DEBIAN_FRONTEND=noninteractive apt-get -y install gcc g++ cmake git libssl-dev libz-dev libcurl4-gnutls-dev sqlite3
+            - DEBIAN_FRONTEND=noninteractive apt-get -y install gcc g++ cmake git libssl-dev libz-dev libcurl4-gnutls-dev sqlite3 libsqlite3-dev
             - gcc -v
             - cmake --version
             - git submodule update --init
