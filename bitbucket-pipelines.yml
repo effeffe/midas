@@ -8,18 +8,18 @@
 pipelines:
   custom:
     all:
-  - parallel:
-    - step:
-        name: Build on root-centos
-        image: rootproject/root-centos
-        script:
-          - gcc -v
-          - which root-config
-          - root-config --version
-          - root-config --cflags
-          - root-config --features
-          - git submodule update --init
-          - make remoteonly
+    - parallel:
+      - step:
+          name: Build on root-centos
+          image: rootproject/root-centos
+          script:
+            - gcc -v
+            - which root-config
+            - root-config --version
+            - root-config --cflags
+            - root-config --features
+            - git submodule update --init
+            - make remoteonly
 
     - step:
         name: Build on root-centos with cmake
