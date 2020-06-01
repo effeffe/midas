@@ -24,7 +24,7 @@ pipelines:
       - step:
           name: Build on root-centos with cmake
           image: rootproject/root-centos
-            script:
+          script:
             - gcc -v
             - which root-config
             - root-config --version
