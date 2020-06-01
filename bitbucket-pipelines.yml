@@ -21,53 +21,53 @@ pipelines:
             - git submodule update --init
             - make remoteonly
 
-    - step:
-        name: Build on root-centos with cmake
-        image: rootproject/root-centos
-        script:
-          - gcc -v
-          - which root-config
-          - root-config --version
-          - root-config --cflags
-          - root-config --features
-          - git submodule update --init
-          - make cmake
-          - make test
+      - step:
+          name: Build on root-centos with cmake
+          image: rootproject/root-centos
+            script:
+            - gcc -v
+            - which root-config
+            - root-config --version
+            - root-config --cflags
+            - root-config --features
+            - git submodule update --init
+            - make cmake
+            - make test
 
-    - step:
-        name: Build on CentOS-8
-        image: centos:centos8
-        script:
-          - yum -y install diffutils make gcc gcc-c++ cmake git zlib-devel openssl-devel curl-devel
-          - gcc -v
-          - cmake --version
-          - git submodule update --init
-          - make cmake
-          - make test
+      - step:
+          name: Build on CentOS-8
+          image: centos:centos8
+          script:
+            - yum -y install diffutils make gcc gcc-c++ cmake git zlib-devel openssl-devel curl-devel
+            - gcc -v
+            - cmake --version
+            - git submodule update --init
+            - make cmake
+            - make test
 
-    - step:
-        name: Build on Ubuntu LTS 18.04
-        image: ubuntu:18.04
-        script:
-          - apt-get update
-          - apt-get -y install gcc g++ cmake git libssl-dev libz-dev
-          - gcc -v
-          - cmake --version
-          - git submodule update --init
-          - make cmake
-          - make test
+      - step:
+          name: Build on Ubuntu LTS 18.04
+          image: ubuntu:18.04
+          script:
+            - apt-get update
+            - apt-get -y install gcc g++ cmake git libssl-dev libz-dev
+            - gcc -v
+            - cmake --version
+            - git submodule update --init
+            - make cmake
+            - make test
 
-    - step:
-        name: Build on Ubuntu LTS 20.04
-        image: ubuntu:20.04
-        script:
-          - apt-get update
-          - DEBIAN_FRONTEND=noninteractive apt-get -y install gcc g++ cmake git libssl-dev libz-dev curl-devel
-          - gcc -v
-          - cmake --version
-          - git submodule update --init
-          - make cmake
-          - make test
+      - step:
+          name: Build on Ubuntu LTS 20.04
+          image: ubuntu:20.04
+          script:
+            - apt-get update
+            - DEBIAN_FRONTEND=noninteractive apt-get -y install gcc g++ cmake git libssl-dev libz-dev curl-devel
+            - gcc -v
+            - cmake --version
+            - git submodule update --init
+            - make cmake
+            - make test
 
 #    - step:
 #        name: Build on el6 CERN SLC6
