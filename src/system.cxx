@@ -5913,9 +5913,9 @@ INT ss_file_find(const char *path, const char *pattern, char **plist)
    DIR *dir_pointer;
    struct dirent *dp;
 
+   *plist = (char *) malloc(MAX_STRING_LENGTH);
    if ((dir_pointer = opendir(path)) == NULL)
       return 0;
-   *plist = (char *) malloc(MAX_STRING_LENGTH);
    i = 0;
    for (dp = readdir(dir_pointer); dp != NULL; dp = readdir(dir_pointer)) {
       if (fnmatch(pattern, dp->d_name, 0) == 0 && (dp->d_type == DT_REG || dp->d_type == DT_LNK || dp->d_type == DT_UNKNOWN)) {
