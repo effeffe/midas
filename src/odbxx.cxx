@@ -753,7 +753,12 @@ namespace midas {
          }
       } else {
          u_odb u = m_data[index];
-         status = db_set_data_index(m_hDB, m_hKey, &u, rpc_tid_size(m_tid), index, m_tid);
+         if (m_tid == TID_BOOL) {
+            BOOL b = static_cast<bool>(u); // "bool" is only 1 Byte, BOOL is 4 Bytes
+            status = db_set_data_index(m_hDB, m_hKey, &b, rpc_tid_size(m_tid), index, m_tid);
+         } else {
+            status = db_set_data_index(m_hDB, m_hKey, &u, rpc_tid_size(m_tid), index, m_tid);
+         }
          if (m_debug) {
             std::string s;
             u.get(s);
@@ -765,7 +770,7 @@ namespace midas {
          }
       }
       if (status != DB_SUCCESS)
-         mthrow("db_set_data for ODB key \"" + get_full_path() +
+         mthrow("db_set_data_index for ODB key \"" + get_full_path() +
                 "\" failed with status " + std::to_string(status));
    }
 
@@ -861,7 +866,13 @@ namespace midas {
          uint8_t *buffer = (uint8_t *) malloc(size);
          uint8_t *p = buffer;
          for (int i = 0; i < m_num_values; i++) {
-            memcpy(p, &m_data[i], rpc_tid_size(m_tid));
+            if (m_tid == TID_BOOL) {
+               // bool has 1 Byte, BOOL has 4 Bytes
+               BOOL b = static_cast<bool>(m_data[i]);
+               memcpy(p, &b, rpc_tid_size(m_tid));
+            } else {
+               memcpy(p, &m_data[i], rpc_tid_size(m_tid));
+            }
             p += rpc_tid_size(m_tid);
          }
          status = db_set_data(m_hDB, m_hKey, buffer, size, m_num_values, m_tid);
