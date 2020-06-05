@@ -915,6 +915,9 @@ namespace midas {
 
    // send key definitions and data with optional subkeys to certain path in ODB
    void odb::connect(std::string str, bool write_defaults) {
+      if (str[0] != '/')
+         mthrow("connect(\"" + str + "\"): path must start with leading \"/\"");
+
       std::string name;
       std::string path;
       if (str.find_last_of('/') == std::string::npos) {
