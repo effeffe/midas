@@ -51,8 +51,10 @@ The Online Database file
 
 /* Globals */
 
+#ifdef LOCAL_ROUTINES
 static DATABASE *_database;
 static INT _database_entries = 0;
+#endif
 
 static RECORD_LIST *_record_list;
 static INT _record_list_entries = 0;
@@ -86,6 +88,8 @@ static int db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, H
 *            db_msg_xxx error message handling                       *
 *                                                                    *
 \********************************************************************/
+
+#ifdef LOCAL_ROUTINES
 
 struct db_err_msg_struct
 {
@@ -173,7 +177,11 @@ void db_flush_msg(db_err_msg** msgp)
    }
 }
 
+#endif // LOCAL_ROUTINES
+
 /*------------------------------------------------------------------*/
+
+#ifdef LOCAL_ROUTINES
 
 /********************************************************************\
 *                                                                    *
@@ -552,6 +560,8 @@ static void *realloc_data(DATABASE_HEADER * pheader, void *address, INT old_size
    return pnew;
 }
 
+#endif // LOCAL_ROUTINES
+
 /*------------------------------------------------------------------*/
 char *strcomb(const char **list)
 /* convert list of strings into single string to be used by db_paste() */
@@ -617,6 +627,8 @@ static void add_to_buf(struct print_key_info_buf* buf, const char* s)
    buf->used += len;
    buf->buf[buf->used] = 0; // zero-terminate the string
 }
+
+#ifdef LOCAL_ROUTINES
 
 static INT print_key_info(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *info)
 {
@@ -794,6 +806,7 @@ INT db_get_free_mem(HNDLE hDB, INT *key_size, INT *data_size)
    return DB_SUCCESS;
 }
 
+#endif // LOCAL_ROUTINES
 
 // Method to check if a given string is valid UTF-8.  Returns 1 if it is.
 // This method was taken from stackoverflow user Christoph, specifically
@@ -943,6 +956,8 @@ static int db_validate_name(const char* name, int maybe_path, const char* caller
 
    return DB_SUCCESS;
 }
+
+#ifdef LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
 static bool db_validate_key_offset(const DATABASE_HEADER * pheader, int offset)
@@ -1758,6 +1773,8 @@ static bool db_validate_and_repair_db_wlocked(DATABASE_HEADER * pheader)
 
    return flag;
 }
+
+#endif // LOCAL_ROUTINES
 
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
@@ -2621,6 +2638,8 @@ INT db_set_lock_timeout(HNDLE hDB, int timeout_millisec)
 #endif
 }
 
+#ifdef LOCAL_ROUTINES
+
 /**
 Update last activity time
 */
@@ -2654,8 +2673,11 @@ INT db_update_last_activity(DWORD millitime)
    return DB_SUCCESS;
 }
 
+#endif // LOCAL_ROUTINES
+
 void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
 {
+#ifdef LOCAL_ROUTINES
    int status;
    int i;
    /* check online databases */
@@ -2757,7 +2779,10 @@ void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
          }
       }
    }
+#endif
 }
+
+#ifdef LOCAL_ROUTINES
 
 void db_cleanup2(const char* client_name, int ignore_timeout, DWORD actual_time,  const char *who)
 {
@@ -3017,6 +3042,8 @@ INT db_check_client(HNDLE hDB, HNDLE hKeyClient)
 
    return DB_SUCCESS;
 }
+
+#endif // LOCAL_ROUTINES
 
 /********************************************************************/
 /**
@@ -4659,6 +4686,8 @@ INT db_scan_tree(HNDLE hDB, HNDLE hKey, INT level, INT(*callback) (HNDLE, HNDLE,
    return DB_SUCCESS;
 }
 
+#ifdef LOCAL_ROUTINES
+
 int db_scan_tree_locked(const DATABASE_HEADER* pheader, const KEY* pkey, int level, int(*callback) (const DATABASE_HEADER* pheader, const KEY *, int, void *, db_err_msg** msg), void *info, db_err_msg** msg)
 {
    assert(pkey != NULL);
@@ -4678,6 +4707,8 @@ int db_scan_tree_locked(const DATABASE_HEADER* pheader, const KEY* pkey, int lev
 
    return DB_SUCCESS;
 }
+
+#endif // LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
 INT db_scan_tree_link(HNDLE hDB, HNDLE hKey, INT level, void (*callback) (HNDLE, HNDLE, KEY *, INT, void *), void *info)

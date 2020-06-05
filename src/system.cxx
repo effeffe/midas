@@ -1346,7 +1346,9 @@ INT ss_getpid(void)
 #endif                          /* OS_MSDOS */
 }
 
-/********************************************************************\
+#ifdef LOCAL_ROUTINES
+
+/********************************************************************   \
 
   Routine: ss_pid_exists
 
@@ -1401,6 +1403,8 @@ void ss_kill(int pid)
 #warning Missing SIGKILL for ss_kill()
 #endif
 }
+
+#endif // LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
 
@@ -1950,6 +1954,8 @@ INT ss_daemon_init(BOOL keep_stdout)
    return SS_SUCCESS;
 }
 
+#ifdef LOCAL_ROUTINES
+
 /*------------------------------------------------------------------*/
 BOOL ss_existpid(INT pid)
 /********************************************************************\
@@ -1979,6 +1985,7 @@ BOOL ss_existpid(INT pid)
 #endif
 }
 
+#endif // LOCAL_ROUTINES
 
 /********************************************************************/
 /**
@@ -5906,9 +5913,9 @@ INT ss_file_find(const char *path, const char *pattern, char **plist)
    DIR *dir_pointer;
    struct dirent *dp;
 
+   *plist = (char *) malloc(MAX_STRING_LENGTH);
    if ((dir_pointer = opendir(path)) == NULL)
       return 0;
-   *plist = (char *) malloc(MAX_STRING_LENGTH);
    i = 0;
    for (dp = readdir(dir_pointer); dp != NULL; dp = readdir(dir_pointer)) {
       if (fnmatch(pattern, dp->d_name, 0) == 0 && (dp->d_type == DT_REG || dp->d_type == DT_LNK || dp->d_type == DT_UNKNOWN)) {

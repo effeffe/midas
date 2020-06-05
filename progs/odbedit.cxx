@@ -2288,12 +2288,16 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          if (rpc_is_remote())
             printf("This function works only locally\n");
          else {
+#ifdef LOCAL_ROUTINES
             char* buf = NULL;
             db_show_mem(hDB, &buf, param[1][0]);
             if (buf) {
                puts(buf);
                free(buf);
             }
+#else
+            printf("This MIDAS only works remotely\n");
+#endif // LOCAL_ROUTINES
          }
       }
 
@@ -2964,10 +2968,15 @@ int main(int argc, char *argv[])
    cm_msg_flush_buffer();
 
    if (reload_from_file) {
+#ifdef LOCAL_ROUTINES
       status = ss_shm_delete("ODB");
       printf("ss_shm_delete(ODB) status %d\n", status);
       printf("Please run odbedit again without \'-R\' and ODB will be reloaded from .ODB.SHM\n");
       return 1;
+#else
+      printf("This odbedit only works remotely, -R is not supported\n");
+      return 1;
+#endif
    }
 
    if ((status == DB_INVALID_HANDLE) && corrupted) {

@@ -17,22 +17,193 @@
 #include <functional>
 
 #include "midas.h"
-#include "odbxx.hxx"
-#include "mexcept.hxx"
+#include "odbxx.h"
+#include "mexcept.h"
 // #include "mleak.hxx" // un-comment for memory leak debugging
 
 /*------------------------------------------------------------------*/
 
 namespace midas {
 
-   //-----------------------------------------------
+   //----------------------------------------------------------------
 
    // initialize static variables
    HNDLE odb::m_hDB = 0;
    bool odb::m_debug = false;
    bool odb::m_connected_odb = false;
 
-   //-----------------------------------------------
+   // static functions ----------------------------------------------
+
+   // initialize m_hDB, internal use only
+   void odb::init_hdb() {
+      if (m_hDB == 0)
+         cm_get_experiment_database(&m_hDB, nullptr);
+      if (m_hDB == 0)
+         mthrow("Please call cm_connect_experiment() befor accessing the ODB");
+      m_connected_odb = true;
+   }
+
+   // search for a key with a specific hKey, needed for callbacks
+   midas::odb *odb::search_hkey(midas::odb *po, int hKey) {
+      if (po->m_hKey == hKey)
+         return po;
+      if (po->m_tid == TID_KEY) {
+         for (int i = 0; i < po->m_num_values; i++) {
+            midas::odb *pot = search_hkey(po->m_data[i].get_podb(), hKey);
+            if (pot != nullptr)
+               return pot;
+         }
+      }
+      return nullptr;
+   }
+
+   // global callback function for db_watch()
+   void odb::watch_callback(int hDB, int hKey, int index, void *info) {
+      midas::odb *po = static_cast<midas::odb *>(info);
+      if (po->m_data == nullptr)
+         mthrow("Callback received for a midas::odb object which went out of scope");
+      midas::odb *poh = search_hkey(po, hKey);
+      poh->m_last_index = index;
+      po->m_watch_callback(*poh);
+      poh->m_last_index = -1;
+   }
+
+   // create ODB key
+   int odb::create(const char *name, int type) {
+      init_hdb();
+      int status = -1;
+      if (is_connected_odb())
+         status = db_create_key(m_hDB, 0, name, type);
+      return status;
+   }
+
+   // private functions ---------------------------------------------
+
+   void odb::set_flags_recursively(uint32_t f) {
+      m_flags = f;
+      if (m_tid == TID_KEY) {
+         for (int i = 0; i < m_num_values; i++)
+            m_data[i].get_odb().set_flags_recursively(f);
+      }
+   }
+
+   // resize internal m_data array, keeping old values
+   void odb::resize_mdata(int size) {
+      auto new_array = new u_odb[size]{};
+      int i;
+      for (i = 0; i < m_num_values && i < size; i++) {
+         new_array[i] = m_data[i];
+         if (m_tid == TID_KEY)
+            m_data[i].set_odb(nullptr); // move odb*
+         if (m_tid == TID_STRING || m_tid == TID_LINK)
+            m_data[i].set_string_ptr(nullptr); // move std::string*
+      }
+      for (; i < size; i++) {
+         if (m_tid == TID_STRING || m_tid == TID_LINK)
+            new_array[i].set_string(""); // allocates new string
+      }
+      delete[] m_data;
+      m_data = new_array;
+      m_num_values = size;
+      for (int i = 0; i < m_num_values; i++) {
+         m_data[i].set_tid(m_tid);
+         m_data[i].set_parent(this);
+      }
+   }
+
+   // get function for strings
+   void odb::get(std::string &s, bool quotes, bool refresh) {
+      if (refresh && is_auto_refresh_read())
+         read();
+
+      // put value into quotes
+      s = "";
+      std::string sd;
+      for (int i = 0; i < m_num_values; i++) {
+         m_data[i].get(sd);
+         if (quotes)
+            s += "\"";
+         s += sd;
+         if (quotes)
+            s += "\"";
+         if (i < m_num_values - 1)
+            s += ",";
+      }
+   }
+
+   // public functions ----------------------------------------------
+
+   // Deep copy constructor
+   odb::odb(const odb &o) : odb() {
+      m_tid = o.m_tid;
+      m_name = o.m_name;
+      m_num_values = o.m_num_values;
+      m_hKey = o.m_hKey;
+      m_watch_callback = o.m_watch_callback;
+      m_data = new midas::u_odb[m_num_values]{};
+      for (int i = 0; i < m_num_values; i++) {
+         m_data[i].set_tid(m_tid);
+         m_data[i].set_parent(this);
+         if (m_tid == TID_STRING || m_tid == TID_LINK) {
+            // set_string() creates a copy of our string
+            m_data[i].set_string(o.m_data[i]);
+         } else if (m_tid == TID_KEY) {
+            // recursive call to create a copy of the odb object
+            midas::odb *po = o.m_data[i].get_podb();
+            m_data[i].set(new midas::odb(*po));
+         } else {
+            // simply pass basic types
+            m_data[i] = o.m_data[i];
+         }
+      }
+   }
+
+   // Constructor for strings
+   odb::odb(const char *v) : odb() {
+      if (v[0] == '/') {
+         std::string s(v);
+         if (!read_key(s))
+            mthrow("ODB key \"" + s + "\" not found in ODB");
+
+         if (m_tid == TID_KEY) {
+            std::vector<std::string> name;
+            m_num_values = get_subkeys(name);
+            delete[] m_data;
+            m_data = new midas::u_odb[m_num_values]{};
+            for (int i = 0; i < m_num_values; i++) {
+               std::string k(s);
+               k += "/" + name[i];
+               midas::odb *o = new midas::odb(k.c_str());
+               m_data[i].set_tid(TID_KEY);
+               m_data[i].set_parent(this);
+               m_data[i].set(o);
+            }
+         } else
+            read();
+      } else {
+         // Construct object from initializer_list
+         m_num_values = 1;
+         m_data = new u_odb[1]{new std::string{v}};
+         m_tid = m_data[0].get_tid();
+         m_data[0].set_parent(this);
+      }
+   }
+
+   // return full path from ODB
+   std::string odb::get_full_path() {
+      if (!is_connected_odb())
+         return m_name;
+
+      char str[256];
+      db_get_path(m_hDB, m_hKey, str, sizeof(str));
+      return str;
+   }
+
+   // Resize an ODB key
+   void odb::resize(int size) {
+      resize_mdata(size);
+      write();
+   }
 
    std::string odb::print() {
       std::string s;
@@ -582,7 +753,12 @@ namespace midas {
          }
       } else {
          u_odb u = m_data[index];
-         status = db_set_data_index(m_hDB, m_hKey, &u, rpc_tid_size(m_tid), index, m_tid);
+         if (m_tid == TID_BOOL) {
+            BOOL b = static_cast<bool>(u); // "bool" is only 1 Byte, BOOL is 4 Bytes
+            status = db_set_data_index(m_hDB, m_hKey, &b, rpc_tid_size(m_tid), index, m_tid);
+         } else {
+            status = db_set_data_index(m_hDB, m_hKey, &u, rpc_tid_size(m_tid), index, m_tid);
+         }
          if (m_debug) {
             std::string s;
             u.get(s);
@@ -594,7 +770,7 @@ namespace midas {
          }
       }
       if (status != DB_SUCCESS)
-         mthrow("db_set_data for ODB key \"" + get_full_path() +
+         mthrow("db_set_data_index for ODB key \"" + get_full_path() +
                 "\" failed with status " + std::to_string(status));
    }
 
@@ -690,7 +866,13 @@ namespace midas {
          uint8_t *buffer = (uint8_t *) malloc(size);
          uint8_t *p = buffer;
          for (int i = 0; i < m_num_values; i++) {
-            memcpy(p, &m_data[i], rpc_tid_size(m_tid));
+            if (m_tid == TID_BOOL) {
+               // bool has 1 Byte, BOOL has 4 Bytes
+               BOOL b = static_cast<bool>(m_data[i]);
+               memcpy(p, &b, rpc_tid_size(m_tid));
+            } else {
+               memcpy(p, &m_data[i], rpc_tid_size(m_tid));
+            }
             p += rpc_tid_size(m_tid);
          }
          status = db_set_data(m_hDB, m_hKey, buffer, size, m_num_values, m_tid);
@@ -744,6 +926,9 @@ namespace midas {
 
    // send key definitions and data with optional subkeys to certain path in ODB
    void odb::connect(std::string str, bool write_defaults) {
+      if (str[0] != '/')
+         mthrow("connect(\"" + str + "\"): path must start with leading \"/\"");
+
       std::string name;
       std::string path;
       if (str.find_last_of('/') == std::string::npos) {

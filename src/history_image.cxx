@@ -18,7 +18,7 @@
 
 #include "midas.h"
 #include "msystem.h"
-#include "odbxx.hxx"
+#include "odbxx.h"
 
 #ifdef HAVE_CURL
 #include <curl/curl.h>

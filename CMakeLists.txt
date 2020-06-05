@@ -63,6 +63,16 @@ if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mjson/mjson.cxx)
 endif()
 
 #
+# Check for mvodb
+#
+if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mvodb/mvodb.cxx)
+   message(FATAL_ERROR "\nError: 'mvodb' submodule not found. Please install via\n"
+      "'git submodule update --init'\n"
+      "in midas root directory."
+   )
+endif()
+
+#
 # Check for mscb
 #
 if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mscb/src/mscb.cxx)
@@ -72,6 +82,13 @@ if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mscb/src/mscb.cxx)
    )
 endif()
 
+#
+# NO_LOCAL_ROUTINES support for only remote connection
+#
+if (NO_LOCAL_ROUTINES)
+   message(STATUS "MIDAS: building with NO_LOCAL_ROUTINES")
+   add_compile_options(-DNO_LOCAL_ROUTINES=1)
+endif()
 
 #
 # Optional ROOT support
@@ -163,8 +180,10 @@ endif (NO_CURL)
 if (NO_MBEDTLS)
    message(STATUS "MIDAS: MBEDTLS https support is disabled via NO_MBEDTLS")
 else (NO_MBEDTLS)
-   if (EXISTS ../../mbedtls/include/mbedtls/debug.h)
-      message(STATUS "MIDAS: Found MBEDTLS ...")
+   if ((EXISTS ../../mbedtls/include/mbedtls/version.h) AND
+      (EXISTS ../../mbedtls/library/version.o) AND
+      (EXISTS ../../mbedtls/crypto/library/version.o))
+      message(STATUS "MIDAS: Found MBEDTLS in ../mbedtls")
       set(MBEDTLS_FOUND 1)
       add_compile_options(-I../../../mbedtls/include -I../../../mbedtls/crypto/include)
       set(MBEDTLS_LIBS ${MBEDTLS_LIBS} -L../../../mbedtls/library -lmbedtls -lmbedx509 -L../../../mbedtls/crypto/library -lmbedcrypto)
@@ -225,14 +244,15 @@ endif (NO_ODBC)
 if (NO_SQLITE)
    message(STATUS "MIDAS: SQLITE support is disabled via NO_SQLITE")
 else (NO_SQLITE)
-if (EXISTS /usr/include/sqlite3.h)
-   message(STATUS "MIDAS: Found SQLITE /usr/include/sqlite3.h")
-   set(HAVE_SQLITE 1)
-   add_compile_options(-DHAVE_SQLITE)
-   set(DB_LIBS ${DB_LIBS} -lsqlite3)
-else ()
-   message(STATUS "MIDAS: SQLITE not found")
-endif()
+   find_package(SQLite3)
+   if (SQLite3_FOUND)
+      message(STATUS "MIDAS: Found SQLITE: " ${SQLite3_VERSION} " in " ${SQLite3_INCLUDE_DIRS})
+      set(HAVE_SQLITE 1)
+      add_compile_options(-DHAVE_SQLITE)
+      set(DB_LIBS ${DB_LIBS} ${SQLite3_LIBRARIES})
+   else ()
+      message(STATUS "MIDAS: SQLITE not found")
+   endif()
 endif (NO_SQLITE)
 
 #
@@ -313,11 +333,11 @@ set(libsrc
    src/mrpc
    mjson/mjson
    src/tmfe
-   src/mvodb
-   src/nullodb
-   src/midasodb
-   src/mxmlodb
-   src/mjsonodb
+   mvodb/mvodb
+   mvodb/nullodb
+   mvodb/midasodb
+   mvodb/mxmlodb
+   mvodb/mjsonodb
    src/json_paste
    src/mjsonrpc
    src/mjsonrpc_user
@@ -369,7 +389,7 @@ if (HAVE_MYSQL)
 endif()
 
 target_include_directories(objlib PUBLIC ${SYSINC_DIR})
-target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mscb/include)
+target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/mscb/include)
 target_include_directories(objlib PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
 if (OPENSSL_FOUND)
    target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})

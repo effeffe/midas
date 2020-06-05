@@ -2635,7 +2635,7 @@ INT cm_select_experiment(const char *host_name, char *exp_name) {
       return status;
 
    if (expts[1][0]) {
-      if (host_name[0])
+      if (host_name && host_name[0])
          printf("Available experiments on server %s:\n", host_name);
       else
          printf("Available experiments on local computer:\n");
@@ -2987,9 +2987,10 @@ static BUFFER_CLIENT *bm_get_my_client(BUFFER *pbuf, BUFFER_HEADER *pheader);
 
 static INT bm_get_buffer(const char *who, INT buffer_handle, BUFFER **pbuf);
 
+#ifdef LOCAL_ROUTINES
 static void bm_lock_buffer(BUFFER *pbuf);
-
 static void bm_unlock_buffer(BUFFER *pbuf);
+#endif
 
 static INT bm_notify_client(const char *buffer_name, int s);
 
@@ -3035,9 +3036,8 @@ Exabyte tape IO, which can take up to one minute.
 @param    timeout         Timeout for this application in ms
 @return   CM_SUCCESS
 */
-INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout) {
-   INT i;
-
+INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
+{
    /* set also local timeout to requested value (needed by cm_enable_watchdog()) */
    _watchdog_timeout = timeout;
 
@@ -3063,7 +3063,7 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout) {
       _watchdog_timeout = timeout;
 
       /* set watchdog flag of all open buffers */
-      for (i = _buffer_entries; i > 0; i--) {
+      for (int i = _buffer_entries; i > 0; i--) {
          BUFFER *pbuf = &_buffer[i - 1];
 
          if (!pbuf->attached)
@@ -5494,10 +5494,12 @@ INT cm_register_function(INT id, INT(*func)(INT, void **))
 *                                                                    *
 \********************************************************************/
 
+static DWORD _bm_max_event_size = 0;
+
+#ifdef LOCAL_ROUTINES
+
 static int _bm_mutex_timeout = 10000;
 static int _bm_lock_timeout = 5 * 60 * 1000;
-
-static DWORD _bm_max_event_size = 0;
 
 static int bm_validate_client_index(const BUFFER *buf, BOOL abort_if_invalid) {
    static int prevent_recursion = 1;
@@ -5548,6 +5550,8 @@ static BUFFER_CLIENT *bm_get_my_client(BUFFER *pbuf, BUFFER_HEADER *pheader) {
    return pheader->client + my_client_index;
 }
 
+#endif // LOCAL_ROUTINES
+
 /********************************************************************/
 /**
 Check if an event matches a given event request by the
@@ -5566,6 +5570,8 @@ INT bm_match_event(short int event_id, short int trigger_mask, const EVENT_HEADE
    return ((event_id == EVENTID_ALL || event_id == pevent->event_id)
            && (trigger_mask == TRIGGER_ALL || (trigger_mask & pevent->trigger_mask)));
 }
+
+#ifdef LOCAL_ROUTINES
 
 /********************************************************************/
 /**
@@ -5670,10 +5676,14 @@ static void bm_update_last_activity(DWORD millitime) {
    }
 }
 
+#endif // LOCAL_ROUTINES
+
 /**
 Check all clients on all buffers, remove invalid clients
 */
-static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval) {
+static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
+{
+#ifdef LOCAL_ROUTINES
    int i;
 
    //printf("bm_cleanup: called by %s, actual_time %d, wrong_interval %d\n", who, actual_time, wrong_interval);
@@ -5699,7 +5709,10 @@ static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval) 
 
          bm_unlock_buffer(pbuf);
       }
+#endif // LOCAL_ROUTINES
 }
+
+#ifdef LOCAL_ROUTINES
 
 static BOOL bm_validate_rp(const char *who, const BUFFER_HEADER *pheader, int rp) {
    if (rp < 0 || rp > pheader->size) {
@@ -5905,8 +5918,6 @@ static void bm_reset_buffer_locked(BUFFER *pbuf) {
       }
    }
 }
-
-#ifdef LOCAL_ROUTINES
 
 static void bm_clear_buffer_statistics(HNDLE hDB, BUFFER *pbuf) {
    HNDLE hKey;
@@ -7966,6 +7977,8 @@ static void bm_dispatch_event(int buffer_handle, EVENT_HEADER *pevent) {
       }
 }
 
+#ifdef LOCAL_ROUTINES
+
 static void bm_incr_read_cache(BUFFER *pbuf, int total_size) {
    /* increment read cache read pointer */
    pbuf->read_cache_rp += total_size;
@@ -8001,9 +8014,8 @@ static BOOL bm_peek_read_cache(BUFFER *pbuf, EVENT_HEADER **ppevent, int *pevent
 // BM_CORRUPTED - buffer is corrupted
 //
 
-static int
-bm_peek_buffer_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, BUFFER_CLIENT *pc, EVENT_HEADER **ppevent, int *pevent_size,
-                      int *ptotal_size) {
+static int bm_peek_buffer_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, BUFFER_CLIENT *pc, EVENT_HEADER **ppevent, int *pevent_size, int *ptotal_size)
+{
    if (pc->read_pointer == pheader->write_pointer) {
       /* no more events buffered for this client */
       if (!pc->read_wait) {
@@ -8414,8 +8426,8 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int as
    }
 }
 
-static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, BUFFER_CLIENT *pc, int async_flag,
-                                          BOOL unlock_read_cache) {
+static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, BUFFER_CLIENT *pc, int async_flag, BOOL unlock_read_cache)
+{
    if (pc->read_pointer != pheader->write_pointer) {
       // buffer has data
       return BM_SUCCESS;
@@ -8536,6 +8548,8 @@ static void bm_notify_reader_locked(BUFFER_HEADER *pheader, BUFFER_CLIENT *pc, i
       }
    }
 }
+
+#endif // LOCAL_ROUTINES
 
 /********************************************************************/
 /**
@@ -9439,6 +9453,13 @@ static INT bm_push_event(const char *buffer_name) {
 
    return BM_INVALID_HANDLE;
 
+}
+
+#else
+
+static INT bm_push_event(const char *buffer_name)
+{
+   return BM_SUCCESS;                                                  
 }
 
 #endif /* LOCAL_ROUTINES */

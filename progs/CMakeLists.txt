@@ -3,7 +3,6 @@
 #
 set(PROGS
    mserver
-   odbinit
    mlogger
    msequencer
    mhist
@@ -12,7 +11,6 @@ set(PROGS
    lazylogger
    mtransition
    mhdump
-   mchart
    odbhist
    melog
    mh2sql
@@ -20,6 +18,12 @@ set(PROGS
    fetest_tmfe_thread
    crc32c_sum
 )
+
+if (NO_LOCAL_ROUTINES)
+else()
+   list(APPEND PROGS odbinit)
+   list(APPEND PROGS mchart)
+endif()
 
 set(TESTPROGS
    mjson_test
@@ -38,7 +42,7 @@ set(MFEPROGS
 
 foreach(PROG ${PROGS} ${TESTPROGS})
    add_executable(${PROG} ${PROG})
-   target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mscb/include)
+   target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/mscb/include)
    target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
    target_link_libraries(${PROG} midas ${LIBS} ${DB_LIBS})
 #   set(CMAKE_CXX_FLAGS "-fsanitize=address")
@@ -47,7 +51,7 @@ endforeach()
 
 foreach(PROG ${MFEPROGS})
    add_executable(${PROG} ${PROG})
-   target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mscb/include)
+   target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/mscb/include)
    target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
    target_link_libraries(${PROG} mfe midas ${LIBS} ${DB_LIBS})
 endforeach()
@@ -66,7 +70,7 @@ endif(HAVE_NVIDIA)
 add_executable(mhttpd mhttpd mongoose616 mgd ${PROJECT_SOURCE_DIR}/mscb/src/mscb)
 target_compile_options(mhttpd PRIVATE -DHAVE_MSCB)
 target_include_directories(mhttpd PRIVATE ${PROJECT_SOURCE_DIR}/mscb/include)
-target_include_directories(mhttpd PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson)
+target_include_directories(mhttpd PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb)
 
 target_compile_options(mhttpd PRIVATE -DHAVE_MONGOOSE616 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI -DMG_ENABLE_EXTRA_ERRORS_DESC -DMG_ENABLE_IPV6 -DMG_ENABLE_HTTP_URL_REWRITES -DMG_ENABLE_HTTP_SSI=0)
 
@@ -88,7 +92,7 @@ endif(MBEDTLS_FOUND)
 add_executable(mhttpd6 mhttpd mongoose6 mgd ${PROJECT_SOURCE_DIR}/mscb/src/mscb)
 target_compile_options(mhttpd6 PRIVATE -DHAVE_MSCB)
 target_include_directories(mhttpd6 PRIVATE ${PROJECT_SOURCE_DIR}/mscb/include)
-target_include_directories(mhttpd6 PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson)
+target_include_directories(mhttpd6 PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb)
 target_include_directories(mhttpd6 PRIVATE ${OPENSSL_INCLUDE_DIR})
 target_link_libraries(mhttpd6 ${DB_LIBS})
 
