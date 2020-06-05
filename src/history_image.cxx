@@ -113,6 +113,7 @@ void image_thread(std::string name) {
          o["Last fetch"] = ss_time();
          std::string url = o["URL"];
          std::string filename = history_dir() + name;
+         std::string dotname = filename;
          int status = mkpath(filename.c_str(), 0755);
          if (status)
             cm_msg(MERROR, "image_thread", "Cannot create directory \"%s\": %s", filename.c_str(), strerror(errno));
@@ -129,17 +130,21 @@ void image_thread(std::string name) {
            std::setfill('0') << std::setw(2) << ltm->tm_min <<
            std::setfill('0') << std::setw(2) << ltm->tm_sec;
          filename += "/" + s.str();
+         dotname += "/." + s.str();
 
-         if (o["Extension"] == std::string(""))
+         if (o["Extension"] == std::string("")) {
             filename += url.substr(url.find_last_of('.'));
-         else
+            dotname += url.substr(url.find_last_of('.'));
+         } else {
             filename += o["Extension"];
+            dotname +=  o["Extension"];
+         }
 
          CURL *conn = curl_easy_init();
          curl_easy_setopt(conn, CURLOPT_URL, url.c_str());
          curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, write_data);
          curl_easy_setopt(conn, CURLOPT_VERBOSE, 0L);
-         auto f = fopen(filename.c_str(), "wb");
+         auto f = fopen(dotname.c_str(), "wb");
          if (f) {
             curl_easy_setopt(conn, CURLOPT_WRITEDATA, f);
             curl_easy_setopt(conn, CURLOPT_TIMEOUT, 10L);
@@ -165,6 +170,8 @@ void image_thread(std::string name) {
                remove(filename.c_str());
             }
 
+            // rename dotfile to filename to make it visible
+            rename(dotname.c_str(), filename.c_str());
          }
          curl_easy_cleanup(conn);
       }
