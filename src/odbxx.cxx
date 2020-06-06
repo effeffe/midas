@@ -150,7 +150,9 @@ namespace midas {
          } else if (m_tid == TID_KEY) {
             // recursive call to create a copy of the odb object
             midas::odb *po = o.m_data[i].get_podb();
-            m_data[i].set(new midas::odb(*po));
+            midas::odb *pc = new midas::odb(*po);
+            pc->set_parent(this);
+            m_data[i].set(pc);
          } else {
             // simply pass basic types
             m_data[i] = o.m_data[i];
@@ -174,6 +176,7 @@ namespace midas {
                std::string k(s);
                k += "/" + name[i];
                midas::odb *o = new midas::odb(k.c_str());
+               o->set_parent(this);
                m_data[i].set_tid(TID_KEY);
                m_data[i].set_parent(this);
                m_data[i].set(o);
@@ -191,6 +194,9 @@ namespace midas {
 
    // return full path from ODB
    std::string odb::get_full_path() {
+      if (m_parent)
+         return m_parent->get_full_path() + "/" + m_name;
+
       if (!is_connected_odb())
          return m_name;
 
@@ -365,6 +371,7 @@ namespace midas {
             o->set_name(get_full_path() + "/" + str);
             o->set_tid(0); // tid is currently undefined
             o->set_flags(get_flags());
+            o->set_parent(this);
             m_data[i].set(o);
          } else
             mthrow("ODB key \"" + get_full_path() + "\" does not contain subkey \"" + first + "\"");
@@ -448,6 +455,7 @@ namespace midas {
             std::string k(path);
             k += "/" + name[i];
             midas::odb *o = new midas::odb(k.c_str());
+            o->set_parent(this);
             m_data[i].set_tid(TID_KEY);
             m_data[i].set_parent(this);
             m_data[i].set(o);
@@ -560,6 +568,7 @@ namespace midas {
                std::string k(get_full_path());
                k += "/" + name[i];
                midas::odb *o = new midas::odb(k.c_str());
+               o->set_parent(this);
                m_data[i].set_tid(TID_KEY);
                m_data[i].set_parent(this);
                m_data[i].set(o);
