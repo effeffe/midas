@@ -971,8 +971,14 @@ namespace midas {
       if (m_hKey == 0)
          mthrow("watch() called for ODB key \"" + m_name +
                 "\" which is not connected to ODB");
-      m_watch_callback = f;
-      db_watch(m_hDB, m_hKey, midas::odb::watch_callback, this);
+
+      // create a deep copy of current object in case it
+      // goes out of scope. This creates a memory leak, since
+      // for each call to odb::watch an object gets created
+      // on the heap. 
+      midas::odb* ow = new midas::odb(*this);
+      ow->m_watch_callback = f;
+      db_watch(m_hDB, m_hKey, midas::odb::watch_callback, ow);
    }
 
    //-----------------------------------------------
