@@ -394,6 +394,8 @@ namespace midas {
       static bool m_debug;
       // global flag indicating that we are connected to the ODB
       static bool m_connected_odb;
+      // global list of ODB keys used by odb::watch
+      static std::vector<midas::odb> m_watch;
 
       // various parameters defined in odb_flags
       std::bitset<8> m_flags;
@@ -1035,6 +1037,7 @@ namespace midas {
       void delete_key();
       void resize(int size);
       void watch(std::function<void(midas::odb &)> f);
+      void unwatch();
 
       bool is_subkey(std::string str);
       HNDLE get_hkey() { return m_hKey; }

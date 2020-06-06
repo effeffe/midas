@@ -31,6 +31,7 @@ namespace midas {
    HNDLE odb::m_hDB = 0;
    bool odb::m_debug = false;
    bool odb::m_connected_odb = false;
+   std::vector<midas::odb *> m_watchlist = {};
 
    // static functions ----------------------------------------------
 
@@ -976,18 +977,33 @@ namespace midas {
       // set flag that this object has been deleted
       set_deleted(true);
    }
+
    void odb::watch(std::function<void(midas::odb &)> f) {
       if (m_hKey == 0)
          mthrow("watch() called for ODB key \"" + m_name +
                 "\" which is not connected to ODB");
 
       // create a deep copy of current object in case it
-      // goes out of scope. This creates a memory leak, since
-      // for each call to odb::watch an object gets created
-      // on the heap. 
+      // goes out of scope
       midas::odb* ow = new midas::odb(*this);
+
       ow->m_watch_callback = f;
       db_watch(m_hDB, m_hKey, midas::odb::watch_callback, ow);
+
+      // put object into watchlist
+      m_watchlist.push_back(ow);
+   }
+
+   void odb::unwatch()
+   {
+      for (int i=0 ; i<m_watchlist.size() ; i++) {
+         if (m_watchlist[i]->get_hkey() == this->get_hkey()) {
+            db_unwatch(m_hDB, m_watchlist[i]->get_hkey());
+            delete m_watchlist[i];
+            m_watchlist.erase(m_watchlist.begin() + i);
+            i--;
+         }
+      }
    }
 
    //-----------------------------------------------
