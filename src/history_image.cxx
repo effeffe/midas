@@ -167,7 +167,7 @@ void image_thread(std::string name) {
                   cm_msg(MERROR, "log_image_history", "%s", error.c_str());
                   o["Last error"] = ss_time();
                }
-               remove(filename.c_str());
+               remove(dotname.c_str());
             }
 
             // rename dotfile to filename to make it visible

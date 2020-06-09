@@ -77,6 +77,7 @@ function MihistoryGraph(divElement) { // Constructor
    this.color = {
       background: "#FFFFFF",
       axis: "#808080",
+      mark: "#8CBDFF",
       label: "#404040",
    };
 
@@ -250,9 +251,7 @@ MihistoryGraph.prototype.initializeIPanel = function () {
    this.pendingUpdates = 0;
 
    // image arrays
-   this.time = [];
-   this.image_name = [];
-   this.image = [];
+   this.imageArray = [];
 
    // retrieve panel definition from ODB
    mjsonrpc_db_copy(["/History/Images/" + this.panel]).then(function (rpc) {
@@ -463,23 +462,32 @@ MihistoryGraph.prototype.loadOldData = function () {
 
 
 MihistoryGraph.prototype.receiveData = function (rpc) {
-   this.time = rpc.result.data.time;
-   this.image_name = rpc.result.data.filename;
+   for (let i=0 ; i<rpc.result.data.time.length ; i++) {
+      let img = {
+         time:       rpc.result.data.time[i],
+         image_name: rpc.result.data.filename[i],
+         image :     new Image()
+      }
+      this.imageArray.push(img);
+   }
 
-   this.tCur = this.time[this.time.length - 1];
-   this.loadImage(this.image_name[this.image_name.length - 1]);
+   this.tCur = this.imageArray[this.imageArray.length - 1].time;
+   this.loadImage(this.imageArray[this.imageArray.length - 1]);
+
+   for (let i=0 ; i<rpc.result.data.time.length-2 ; i++) {
+      this.imageArray[i].image.src = this.panel + "/" + this.imageArray[i].image_name;
+   }
 };
 
-MihistoryGraph.prototype.loadImage = function (name) {
-   let tmpImage = new Image();
-   tmpImage.onload = function() {
+MihistoryGraph.prototype.loadImage = function (image) {
+   image.image.onload = function() {
       document.getElementById("hiImage").src = this.src;
       this.mhg.imageElem.initialWidth = this.width;
       this.mhg.imageElem.initialHeight = this.height;
       this.mhg.resize();
    }
-   tmpImage.mhg = this;
-   tmpImage.src = this.panel + "/" + name;
+   image.image.mhg = this;
+   image.image.src = this.panel + "/" + image.image_name;
 };
 
 MihistoryGraph.prototype.update = function () {
@@ -553,13 +561,15 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
       // check for dragging
       if (e.offsetX > this.x1 && e.offsetX < this.x2 &&
          e.offsetY > this.y2 && e.offsetY < this.y1) {
+
+         cursor = "ew-resize";
+
          this.drag.active = true;
          this.scroll = false;
          this.drag.xStart = e.offsetX;
          this.drag.tStart = this.xToTime(e.offsetX);
          this.drag.tMinStart = this.tMin;
          this.drag.tMaxStart = this.tMax;
-         this.drag.vStart = this.yToValue(e.offsetY);
       }
 
    } else if (e.type === "mouseup") {
@@ -577,10 +587,16 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
 
    } else if (e.type === "mousemove") {
 
+      // stop dragging if outside of axis
+      if (e.offsetX < this.x1 || e.offsetX > this.x2 ||
+         e.offsetY < this.y2 || e.offsetY > this.y1) {
+         this.drag.active = false;
+      }
+
       if (this.drag.active) {
 
          // execute dragging
-         cursor = "move";
+         cursor = "ew-resize";
          let dt = (e.offsetX - this.drag.xStart) / (this.x2 - this.x1) * (this.tMax - this.tMin);
          this.tMin = this.drag.tMinStart - dt;
          this.tMax = this.drag.tMaxStart - dt;
@@ -588,9 +604,21 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
          this.drag.lastT = new Date().getTime();
          this.drag.lastOffsetX = e.offsetX;
 
+         // don't go into the future
+         if (this.tMax > this.drag.lastT / 1000) {
+            this.tMax = this.drag.lastT / 1000;
+            this.tMin = this.tMax - (this.drag.tMaxStart - this.drag.tMinStart);
+         }
+
          this.redraw();
 
       } else {
+
+         // change cursor to arrow over time axis
+         if (e.offsetX > this.x1 && e.offsetX < this.x2 &&
+            e.offsetY > this.y2 && e.offsetY < this.y1) {
+            cursor = "ew-resize";
+         }
 
          // change cursor to pointer over buttons
          this.button.forEach(b => {
@@ -641,8 +669,18 @@ MihistoryGraph.prototype.mouseWheelEvent = function (e) {
    if (e.offsetX > this.x1 && e.offsetX < this.x2 &&
       e.offsetY > this.y2 && e.offsetY < this.y1) {
 
+      let dt = this.tMax - this.tMin;
+      this.tMax -= e.deltaY * 10;
+      this.tMin = this.tMax - dt;
 
-      this.marker.active = false;
+      // don't go into the future
+      let t = new Date().getTime();
+      if (this.tMax > t / 1000) {
+         this.tMax = t / 1000;
+         this.tMin = this.tMax - dt;
+      }
+
+      this.redraw();
 
       e.preventDefault();
    }
@@ -759,22 +797,45 @@ MihistoryGraph.prototype.updateURL = function() {
 }
 
 MihistoryGraph.prototype.draw = function () {
-   let ctx = this.canvas.getContext("2d");
 
+   // select image closest to selected time
+   if (this.imageArray.length > 0) {
+      let tmin = Math.abs(this.tMax - this.imageArray[0].time);
+      let imin = 0;
+      for (let i = 0; i < this.imageArray.length; i++) {
+         if (Math.abs(this.tMax - this.imageArray[i].time) < tmin) {
+            tmin = Math.abs(this.tMax - this.imageArray[i].time);
+            imin = i;
+         }
+      }
+      document.getElementById("hiImage").src = this.imageArray[imin].image.src;
+   }
+
+   // draw time axis
+   this.x1 = 0;
+   this.y1 = 30;
+   this.x2 = this.width-20;
+   this.y2 = 0;
+
+   let ctx = this.canvas.getContext("2d");
    ctx.fillStyle = this.color.background;
    ctx.fillRect(0, 0, this.width, this.height);
 
-   this.x1 = 0;
-   this.y1 = 30;
-   this.x2 = this.width-10;
-   this.y2 = 0;
-
    ctx.strokeStyle = this.color.axis;
    ctx.drawLine(this.x1, 5, this.x2, 5);
+   ctx.strokeStyle = "#C00000";
    ctx.drawLine(this.x2, 0, this.x2, 30);
 
+   ctx.strokeStyle = this.color.axis;
    this.drawTAxis(ctx, this.x1, 5, this.x2 - this.x1, this.width,
       4, 7, 10, 10, this.tMin, this.tMax);
+
+   // marks on time axis
+   ctx.strokeStyle = this.color.mark;
+   for (let i=0 ; i<this.imageArray.length ; i++) {
+      let x = this.timeToX(this.imageArray[i].time);
+         ctx.drawLine(x, 0, x, 5);
+   }
 
    // buttons
    /*
