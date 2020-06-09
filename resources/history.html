@@ -85,6 +85,48 @@
    function init() {
       mjsonrpc_db_copy(["/History/Display"]).then(function (rpc) {
          let historyDisplay = rpc.result.data[0];
+         if (historyDisplay === null || Object.keys(historyDisplay).length === 0) {
+
+            // create default panel
+            let keys = [
+               { "path": "/History/Display/Default/Trigger rate/Variables", "type" : TID_STRING, "string_length": 64},
+               { "path": "/History/Display/Default/Trigger rate/Timescale", "type" : TID_STRING, "string_length": 32},
+               { "path": "/History/Display/Default/Trigger rate/Show values", "type" : TID_BOOL},
+               { "path": "/History/Display/Default/Trigger rate/Show fill", "type" : TID_BOOL},
+               { "path": "/History/Display/Default/Trigger rate/Show run markers", "type" : TID_BOOL},
+               { "path": "/History/Display/Default/Trigger rate/Label", "type" : TID_STRING, "string_length": 32},
+               { "path": "/History/Display/Default/Trigger rate/Colour", "type" : TID_STRING, "string_length": 32},
+            ];
+            mjsonrpc_db_create(keys).then(function(rpc) {
+
+               // set default values
+               let paths = [
+                  "/History/Display/Default/Trigger rate/Variables",
+                  "/History/Display/Default/Trigger rate/Timescale",
+                  "/History/Display/Default/Trigger rate/Show values",
+                  "/History/Display/Default/Trigger rate/Show fill",
+                  "/History/Display/Default/Trigger rate/Show run markers",
+                  "/History/Display/Default/Trigger rate/Label",
+                  "/History/Display/Default/Trigger rate/Colour",
+               ];
+               let values = [
+                  ["System:Trigger per sec.", "System:Trigger kB per sec."],
+                  "1h",
+                  1,
+                  1,
+                  1,
+                  ["", ""],
+                  ["#00AAFF", "#FF9000"],
+               ];
+
+               mjsonrpc_db_paste(paths, values).then(function(rpc) {
+                  init();
+               }).catch(function(error) { mjsonrpc_error_alert(error);});
+
+            }).catch(function(error){mjsonrpc_error_alert(error);});
+
+            return;
+         }
 
          let curGroup = decodeURI(getUrlVars()["group"]);
          let curPanel = decodeURI(getUrlVars()["panel"]);
