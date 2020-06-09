@@ -118,11 +118,13 @@ static int guess_tid(const MJsonNode* node)
    }
 }
 
-static int paste_node(HNDLE hDB, HNDLE hKey, const char* path, bool is_array, int index, const MJsonNode* node, int tid, int string_length, const MJsonNode* key);
+static int paste_node(HNDLE hDB, HNDLE hKey, const char* path, bool is_array, int index, const MJsonNode* node,
+        int tid, int string_length, const MJsonNode* key);
 
-static int paste_array(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode* node, int tid, const MJsonNode* key)
+static int paste_array(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode* node, int tid,
+        int string_length, const MJsonNode* key)
 {
-   int status;
+   int status, slength = 0;
    const MJsonNodeVector* a = node->GetArray();
 
    if (a==NULL) {
@@ -130,9 +132,12 @@ static int paste_array(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode*
       return DB_FILE_ERROR;
    }
 
-   int slength = item_size_from_key(key);
-   if (slength == 0)
-      slength = NAME_LENGTH;
+   if (string_length == 0) {
+      int slength = item_size_from_key(key);
+      if (slength == 0)
+         slength = NAME_LENGTH;
+   } else
+      slength = string_length;
 
    bool is_array = (a->size() > 1);
    for (unsigned i=a->size(); ;) {
@@ -571,7 +576,7 @@ static int paste_node(HNDLE hDB, HNDLE hKey, const char* path, bool is_array, in
 {
    //node->Dump();
    switch (node->GetType()) {
-   case MJSON_ARRAY:  return paste_array(hDB, hKey, path, node, tid, key);
+   case MJSON_ARRAY:  return paste_array(hDB, hKey, path, node, tid, string_length, key);
    case MJSON_OBJECT: return paste_object(hDB, hKey, path, node);
    case MJSON_STRING: return paste_value(hDB, hKey, path, is_array, index, node, tid, string_length, key);
    case MJSON_INT:    return paste_value(hDB, hKey, path, is_array, index, node, tid, 0, key);
