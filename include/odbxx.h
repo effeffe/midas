@@ -394,6 +394,8 @@ namespace midas {
       static bool m_debug;
       // global flag indicating that we are connected to the ODB
       static bool m_connected_odb;
+      // global list of ODB keys used by odb::watch
+      static std::vector<midas::odb> m_watch;
 
       // various parameters defined in odb_flags
       std::bitset<8> m_flags;
@@ -412,6 +414,8 @@ namespace midas {
       HNDLE m_hKey;
       // callback for watch funciton
       std::function<void(midas::odb &)> m_watch_callback;
+      // parent ODB key
+      midas::odb *m_parent;
 
       //-------------------------------------------------------------
 
@@ -471,6 +475,9 @@ namespace midas {
 
       void set_name(std::string s) { m_name = s; }
 
+      void set_parent(midas::odb *p) { m_parent = p; }
+      midas::odb *get_parent() { return m_parent; }
+
    public:
 
       // Default constructor
@@ -483,7 +490,8 @@ namespace midas {
               m_name{},
               m_num_values{0},
               m_last_index{-1},
-              m_hKey{} {}
+              m_hKey{},
+              m_parent{} {}
 
       // Destructor
       ~odb() {
@@ -528,6 +536,7 @@ namespace midas {
             }
             auto o = new midas::odb(element.second);
             o->set_name(element.first);
+            o->set_parent(this);
             m_data[i].set_tid(TID_KEY);
             m_data[i].set_parent(this);
             m_data[i].set(o);
@@ -1028,6 +1037,7 @@ namespace midas {
       void delete_key();
       void resize(int size);
       void watch(std::function<void(midas::odb &)> f);
+      void unwatch();
 
       bool is_subkey(std::string str);
       HNDLE get_hkey() { return m_hKey; }
