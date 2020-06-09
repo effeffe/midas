@@ -1006,6 +1006,15 @@ namespace midas {
       }
    }
 
+   void odb::unwatch_all()
+   {
+      for (int i=0 ; i<m_watchlist.size() ; i++) {
+         db_unwatch(m_hDB, m_watchlist[i]->get_hkey());
+         delete m_watchlist[i];
+      }
+      m_watchlist.clear();
+   }
+
    //-----------------------------------------------
 
    //---- u_odb implementations calling functions from odb

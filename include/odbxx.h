@@ -423,6 +423,7 @@ namespace midas {
       static void init_hdb();
       static midas::odb *search_hkey(midas::odb *po, int hKey);
       static void watch_callback(int hDB, int hKey, int index, void *info);
+      static void unwatch_all();
 
       //-------------------------------------------------------------
 
