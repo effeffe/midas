@@ -147,7 +147,7 @@ void image_thread(std::string name) {
          auto f = fopen(dotname.c_str(), "wb");
          if (f) {
             curl_easy_setopt(conn, CURLOPT_WRITEDATA, f);
-            curl_easy_setopt(conn, CURLOPT_TIMEOUT, 10L);
+            curl_easy_setopt(conn, CURLOPT_TIMEOUT, 60L);
             int status = curl_easy_perform(conn);
             fclose(f);
             std::string error;

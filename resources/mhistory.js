@@ -780,7 +780,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       return;
    }
 
-   // append new values to end of arrays
+   // push initial data
    if (this.data === undefined) {
       this.data = [];
       for (let index = 0; index < nVars; index++) {
@@ -788,6 +788,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       }
    }
 
+   // append new values to end of arrays
    for (let index = 0; index < nVars; index++) {
       if (nData[index] === 0)
          continue;

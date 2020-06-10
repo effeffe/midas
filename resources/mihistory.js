@@ -63,15 +63,41 @@ function MihistoryGraph(divElement) { // Constructor
    this.parentDiv = divElement;
    this.baseURL = divElement.dataset.baseURL;
    this.panel = divElement.dataset.panel;
+
    this.imageElem = document.createElement("img");
    this.imageElem.style.border = "2px solid #808080";
    this.imageElem.style.margin = "auto";
    this.imageElem.style.display = "block";
    this.imageElem.id = "hiImage";
-   this.canvas = document.createElement("canvas");
-   this.canvas.style.border = "1ps solid black";
+
+   this.buttonCanvas = document.createElement("canvas");
+   this.buttonCanvas.width = 30;
+   this.buttonCanvas.height = 30;
+   this.buttonCanvas.style.position = "absolute";
+   this.buttonCanvas.style.top = "0px";
+   this.buttonCanvas.style.right = "0px";
+   this.buttonCanvas.style.zIndex = "11";
+
+   this.axisCanvas = document.createElement("canvas");
+
+   this.fileLabel = document.createElement("div");
+   this.fileLabel.id = "fileLabel";
+   this.fileLabel.style.backgroundColor = "white";
+   this.fileLabel.style.opacity = "0.7";
+   this.fileLabel.style.fontSize = "10px";
+   this.fileLabel.style.padding = "2px";
+   this.fileLabel.innerHTML = "";
+
+   divElement.style.position = "relative";
+   this.fileLabel.style.position = "absolute";
+   this.fileLabel.style.top = "4px";
+   this.fileLabel.style.right = "34px";
+   this.fileLabel.style.zIndex = "10";
+
    divElement.appendChild(this.imageElem);
-   divElement.appendChild(this.canvas);
+   divElement.appendChild(this.fileLabel);
+   divElement.appendChild(this.buttonCanvas);
+   divElement.appendChild(this.axisCanvas);
 
    // colors
    this.color = {
@@ -85,16 +111,18 @@ function MihistoryGraph(divElement) { // Constructor
    this.tScale = 24*3600;
    this.tMax = Math.floor(new Date() / 1000);
    this.tMin = this.tMax - this.tScale;
-   this.tCur = 0;
    this.scroll = true;
    this.showZoomButtons = true;
+   this.currentTime = 0;
+   this.currentIndex = 0;
+   this.playMode = 0;
 
    // overwrite scale from URL if present
-   let tCur = decodeURI(getUrlVars()["A"]);
-   if (tCur !== "undefined") {
-      this.tCur = tCur;
-      this.tMax = tCur;
-      this.tmin = tCur = this.tScale;
+   let currentTime = decodeURI(getUrlVars()["A"]);
+   if (currentTime !== "undefined") {
+      this.currentTime = currentTime;
+      this.tMax = currentTime;
+      this.tmin = currentTime = this.tScale;
    }
 
    // callbacks when certain actions are performed.
@@ -116,6 +144,74 @@ function MihistoryGraph(divElement) { // Constructor
          }
       },
       {
+         src: "chevrons-left.svg",
+         title: "Play backwards",
+         click: function (t) {
+            t.scroll = false;
+            t.playMode = -1;
+            t.play();
+         }
+      },
+      {
+         src: "chevron-left.svg",
+         title: "Step one image back",
+         click: function (t) {
+            t.scroll = false;
+            t.playMode = 0;
+            if (t.currentIndex > 0)
+               t.currentIndex--;
+            t.play();
+         }
+      },
+      {
+         src: "pause.svg",
+         title: "Stop playing",
+         click: function (t) {
+            t.scroll = false;
+            t.playMode = 0;
+            t.redraw();
+         }
+      },
+      {
+         src: "chevron-right.svg",
+         title: "Step one image forward",
+         click: function (t) {
+            t.scroll = false;
+            t.playMode = 0;
+            if (t.currentIndex < t.imageArray.length-1)
+               t.currentIndex++;
+            t.play();
+         }
+      },
+      {
+         src: "chevrons-right.svg",
+         title: "Play forward",
+         click: function (t) {
+            t.scroll = false;
+            t.playMode = 1;
+            t.play();
+         }
+      },
+      {
+         src: "zoom-in.svg",
+         title: "Zoom in time axis",
+         click: function (t) {
+            t.tMin += (t.tMax - t.tMin)/2;
+            t.drag.Vt = 0 // stop inertia
+            t.redraw();
+         }
+      },
+      {
+         src: "zoom-out.svg",
+         title: "Zoom out time axis",
+         click: function (t) {
+            t.tMin -= (t.tMax - t.tMin)/2;
+            t.drag.Vt = 0 // stop inertia
+            t.redraw();
+            //##t.loadOldData();
+         }
+      },
+      {
          src: "play.svg",
          title: "Jump to last image",
          click: function (t) {
@@ -130,32 +226,15 @@ function MihistoryGraph(divElement) { // Constructor
       },
       {
          src: "clock.svg",
-         title: "Select timespan...",
+         title: "Select time...",
          click: function (t) {
-            if (t.intSelector.style.display === "none") {
-               t.intSelector.style.display = "block";
-               t.intSelector.style.left = ((t.canvas.getBoundingClientRect().x + window.pageXOffset +
-                  t.x2) - t.intSelector.offsetWidth) + "px";
-               t.intSelector.style.top = (t.canvas.getBoundingClientRect().y + window.pageYOffset +
-                  this.y1 - 1) + "px";
-            } else {
-               t.intSelector.style.display = "none";
-            }
          }
       },
       {
          src: "download.svg",
-         title: "Download image...",
+         title: "Download current image...",
          click: function (t) {
-            if (t.downloadSelector.style.display === "none") {
-               t.downloadSelector.style.display = "block";
-               t.downloadSelector.style.left = ((t.canvas.getBoundingClientRect().x + window.pageXOffset +
-                  t.x2) - t.downloadSelector.offsetWidth) + "px";
-               t.downloadSelector.style.top = (t.canvas.getBoundingClientRect().y + window.pageYOffset +
-                  this.y1 - 1) + "px";
-            } else {
-               t.downloadSelector.style.display = "none";
-            }
+            t.download();
          }
       },
       {
@@ -170,6 +249,7 @@ function MihistoryGraph(divElement) { // Constructor
    // load dialogs
    dlgLoad('dlgIHistory.html');
 
+   // load button icons
    this.button.forEach(b => {
       b.img = new Image();
       b.img.src = "icons/" + b.src;
@@ -289,149 +369,10 @@ MihistoryGraph.prototype.loadInitialData = function () {
       this.tMin = this.tMax - this.tScale;
    }
 
-   // interval selector
-   this.intSelector = document.createElement("div");
-   this.intSelector.id = "intSel";
-   this.intSelector.style.display = "none";
-   this.intSelector.style.position = "absolute";
-   this.intSelector.className = "mtable";
-   this.intSelector.style.borderRadius = "0";
-   this.intSelector.style.border = "2px solid #808080";
-   this.intSelector.style.margin = "0";
-   this.intSelector.style.padding = "0";
-
-   this.intSelector.style.left = "100px";
-   this.intSelector.style.top = "100px";
-
    let table = document.createElement("table");
    let row = null;
    let cell;
    let link;
-   let buttons = this.odb["Buttons"];
-   if (buttons === undefined) {
-      buttons = [];
-      buttons.push("10m", "1h", "3h", "12h", "24h", "3d", "7d");
-   }
-   buttons.push("A&rarr;B");
-   buttons.push("&lt;&lt;&lt;");
-   buttons.push("&lt;&lt;");
-   buttons.forEach(function (b, i) {
-      if (i % 2 === 0)
-         row = document.createElement("tr");
-
-      cell = document.createElement("td");
-      cell.style.padding = "0";
-
-      link = document.createElement("a");
-      link.href = "#";
-      link.innerHTML = b;
-      if (b === "A&rarr;B")
-         link.title = "Display data between two dates";
-      else if (b === "&lt;&lt;")
-         link.title = "Go back in time to last available data";
-      else
-         link.title = "Show last " + b;
-
-      let mhg = this;
-      link.onclick = function () {
-         if (b === "A&rarr;B") {
-            let currentYear = new Date().getFullYear();
-            let dMin = new Date(this.tMin * 1000);
-            let dMax = new Date(this.tMax * 1000);
-
-            if (document.getElementById('y1').length === 0) {
-               for (let i = currentYear; i > currentYear - 5; i--) {
-                  let o = document.createElement('option');
-                  o.value = i.toString();
-                  o.appendChild(document.createTextNode(i.toString()));
-                  document.getElementById('y1').appendChild(o);
-                  o = document.createElement('option');
-                  o.value = i.toString();
-                  o.appendChild(document.createTextNode(i.toString()));
-                  document.getElementById('y2').appendChild(o);
-               }
-            }
-
-            document.getElementById('m1').selectedIndex = dMin.getMonth();
-            document.getElementById('d1').selectedIndex = dMin.getDate() - 1;
-            document.getElementById('h1').selectedIndex = dMin.getHours();
-            document.getElementById('y1').selectedIndex = currentYear - dMin.getFullYear();
-
-            document.getElementById('m2').selectedIndex = dMax.getMonth();
-            document.getElementById('d2').selectedIndex = dMax.getDate() - 1;
-            document.getElementById('h2').selectedIndex = dMax.getHours();
-            document.getElementById('y2').selectedIndex = currentYear - dMax.getFullYear();
-
-            document.getElementById('dlgQueryQuery').onclick = function () {
-               doQuery(this);
-            }.bind(this);
-
-            dlgShow("dlgQuery");
-
-         } else if (b === "&lt;&lt;") {
-
-            mjsonrpc_call("hs_get_last_written",
-               {
-                  "time": this.tMin,
-                  "events": this.events,
-                  "tags": this.tags,
-                  "index": this.index
-               })
-               .then(function (rpc) {
-
-                  let last = rpc.result.last_written[0];
-                  for (let i = 0; i < rpc.result.last_written.length; i++) {
-                     if (this.events[i] === "Run transitions") {
-                        continue;
-                     }
-                     let l = rpc.result.last_written[i];
-                     last = Math.max(last, l);
-                  }
-
-                  let scale = mhg.tMax - mhg.tMin;
-                  mhg.tMax = last + scale / 2;
-                  mhg.tMin = last - scale / 2;
-
-                  mhg.scroll = false;
-                  mhg.marker.active = false;
-                  mhg.loadOldData();
-
-                  if (mhg.callbacks.timeZoom !== undefined) {
-                     mhg.callbacks.timeZoom(mhg);
-                  }
-
-               }.bind(this))
-               .catch(function (error) {
-                  mjsonrpc_error_alert(error);
-               });
-
-         } else {
-
-            mhg.tMax = new Date() / 1000;
-            mhg.tMin = mhg.tMax - timeToSec(b);
-            mhg.scroll = true;
-            mhg.loadOldData();
-            mhg.scrollRedraw();
-
-            if (mhg.callbacks.timeZoom !== undefined) {
-               mhg.callbacks.timeZoom(mhg);
-            }
-         }
-         mhg.intSelector.style.display = "none";
-         return false;
-      }.bind(this);
-
-      cell.appendChild(link);
-      row.appendChild(cell);
-      if (i % 2 === 1)
-         table.appendChild(row);
-   }, this);
-
-   if (buttons.length % 2 === 1)
-      table.appendChild(row);
-
-   this.intSelector.appendChild(table);
-   document.body.appendChild(this.intSelector);
 
    // load latest images
    mjsonrpc_call("hs_image_retrieve",
@@ -446,6 +387,7 @@ MihistoryGraph.prototype.loadInitialData = function () {
          this.redraw();
 
          this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
+         this.scrollTimer = window.setTimeout(this.scrollRedraw.bind(this), 100);
 
       }.bind(this)).catch(function (error) {
       mjsonrpc_error_alert(error);
@@ -462,32 +404,63 @@ MihistoryGraph.prototype.loadOldData = function () {
 
 
 MihistoryGraph.prototype.receiveData = function (rpc) {
-   for (let i=0 ; i<rpc.result.data.time.length ; i++) {
-      let img = {
-         time:       rpc.result.data.time[i],
-         image_name: rpc.result.data.filename[i],
-         image :     new Image()
+
+   if (rpc.result.data.time.length > 0) {
+      let first = (this.imageArray.length === 0);
+      let lastImage;
+      // append new values to end of array
+      for (let i = 0; i < rpc.result.data.time.length; i++) {
+         let img = {
+            time: rpc.result.data.time[i],
+            image_name: rpc.result.data.filename[i],
+            image: new Image()
+         }
+         if (this.imageArray.length === 0 ||
+             img.time > this.imageArray[this.imageArray.length - 1].time) {
+            this.imageArray.push(img);
+            lastImage = img;
+         }
       }
-      this.imageArray.push(img);
-   }
 
-   this.tCur = this.imageArray[this.imageArray.length - 1].time;
-   this.loadImage(this.imageArray[this.imageArray.length - 1]);
+      if (this.scroll) {
+         this.currentTime = this.imageArray[this.imageArray.length - 1].time;
+         this.currentIndex = this.imageArray.length - 1;
+      }
 
-   for (let i=0 ; i<rpc.result.data.time.length-2 ; i++) {
-      this.imageArray[i].image.src = this.panel + "/" + this.imageArray[i].image_name;
-   }
-};
+      this.lastTimeStamp = this.currentTime;
+      console.log("currentIndex: " + this.currentIndex);
 
-MihistoryGraph.prototype.loadImage = function (image) {
-   image.image.onload = function() {
-      document.getElementById("hiImage").src = this.src;
-      this.mhg.imageElem.initialWidth = this.width;
-      this.mhg.imageElem.initialHeight = this.height;
-      this.mhg.resize();
+      if (first) {
+         // after loading of fist image, resize panel
+         let img = this.imageArray[this.imageArray.length - 1];
+         img.image.onload = function() {
+            document.getElementById("hiImage").src = this.src;
+            this.mhg.imageElem.initialWidth = this.width;
+            this.mhg.imageElem.initialHeight = this.height;
+            this.mhg.resize();
+         }
+         img.image.mhg = this;
+         // trigger loading of image
+         img.image.src = this.panel + "/" + img.image_name;
+      } else {
+         // just load last image without resize
+         if (lastImage !== undefined) {
+            lastImage.image.onload = function () {
+               document.getElementById("hiImage").src = this.src;
+               console.log("Image loaded: " + this.src);
+            }
+            // trigger loading of image
+            lastImage.image.src = this.panel + "/" + lastImage.image_name;
+         }
+      }
+
+      // trigger loading of remaining images
+
+      for (let i = rpc.result.data.time.length - 1; i >= 0; i--) {
+         if (this.imageArray[i].image.src === "")
+            this.imageArray[i].image.src = this.panel + "/" + this.imageArray[i].image_name;
+      }
    }
-   image.image.mhg = this;
-   image.image.src = this.panel + "/" + image.image_name;
 };
 
 MihistoryGraph.prototype.update = function () {
@@ -500,15 +473,12 @@ MihistoryGraph.prototype.update = function () {
 
    let t = Math.floor(new Date() / 1000);
 
-   /*
-   mjsonrpc_call("hs_read_arraybuffer",
+   mjsonrpc_call("hs_image_retrieve",
       {
+         "image": this.panel,
          "start_time": Math.floor(this.lastTimeStamp),
          "end_time": Math.floor(t),
-         "events": this.events,
-         "tags": this.tags,
-         "index": this.index
-      }, "arraybuffer")
+      })
       .then(function (rpc) {
 
          this.receiveData(rpc);
@@ -519,7 +489,50 @@ MihistoryGraph.prototype.update = function () {
       }.bind(this)).catch(function (error) {
       mjsonrpc_error_alert(error);
    });
-   */
+
+};
+
+MihistoryGraph.prototype.scrollRedraw = function () {
+   if (this.scroll) {
+      let dt = this.tMax - this.tMin;
+      this.tMax = Math.floor(new Date() / 1000);
+      this.tMin = this.tMax - dt;
+      this.redraw();
+   }
+
+   this.scrollTimer = window.setTimeout(this.scrollRedraw.bind(this), 1000);
+};
+
+MihistoryGraph.prototype.play = function () {
+   window.clearTimeout(this.playTimer);
+
+   if (this.playMode === 1) {
+      if (this.currentIndex === this.imageArray.length-1) {
+         this.playMode = 0;
+         return;
+      }
+      this.currentIndex++;
+   }
+
+   if (this.playMode === -1) {
+      if (this.currentIndex === 0) {
+         this.playMode = 0;
+         return;
+      }
+      this.currentIndex--;
+   }
+
+   // shift time axis according to current image
+   let delta = this.tMax - this.tMin;
+   this.tMax = this.imageArray[this.currentIndex].time;
+   this.tMin = this.tMax - delta;
+
+   this.redraw();
+
+   if (this.playMode === 0)
+      return;
+
+   this.playTimer = window.setTimeout(this.play.bind(this), 100);
 };
 
 MihistoryGraph.prototype.mouseEvent = function (e) {
@@ -531,15 +544,30 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
       else if ((e.button & 2) > 0) e.which = 3; // Right
    }
 
+   // calculate mouse coordinates relative to history panel
+   let rect = document.getElementById("histPanel").getBoundingClientRect();
+   let mouseX = e.clientX - rect.left;
+   let mouseY = e.clientY - rect.top;
+
    let cursor = this.pendingUpdates > 0 ? "progress" : "default";
    let title = "";
 
    if (e.type === "mousedown") {
 
-      this.intSelector.style.display = "none";
+      // check for buttons
+      if (e.target === this.buttonCanvas) {
+         let rect = this.buttonCanvas.getBoundingClientRect();
+         this.button.forEach(b => {
+            if (e.offsetY > b.y1 && e.offsetY < b.y1 + b.width &&
+               b.enabled) {
+               cursor = "pointer";
+               b.click(this);
+            }
+         });
+      }
 
       // check for zoom buttons
-      if (e.offsetX > this.width - 30 - 48 && e.offsetX < this.width - 30 - 24 &&
+      else if (e.offsetX > this.width - 30 - 48 && e.offsetX < this.width - 30 - 24 &&
          e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
          // zoom in
          let delta = this.tMax - this.tMin;
@@ -548,7 +576,7 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
          this.drag.Vt = 0; // stop inertia
          this.redraw();
       }
-      if (e.offsetX > this.width - 30 - 24 && e.offsetX < this.width - 30 &&
+      else if (e.offsetX > this.width - 30 - 24 && e.offsetX < this.width - 30 &&
          e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
          // zoom out
          let delta = this.tMax - this.tMin;
@@ -558,16 +586,14 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
          this.loadOldData();
       }
 
-      // check for dragging
-      if (e.offsetX > this.x1 && e.offsetX < this.x2 &&
-         e.offsetY > this.y2 && e.offsetY < this.y1) {
-
+      // start dragging
+      else {
          cursor = "ew-resize";
 
          this.drag.active = true;
          this.scroll = false;
-         this.drag.xStart = e.offsetX;
-         this.drag.tStart = this.xToTime(e.offsetX);
+         this.drag.xStart = mouseX;
+         this.drag.tStart = this.xToTime(mouseX);
          this.drag.tMinStart = this.tMin;
          this.drag.tMaxStart = this.tMax;
       }
@@ -587,22 +613,19 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
 
    } else if (e.type === "mousemove") {
 
-      // stop dragging if outside of axis
-      if (e.offsetX < this.x1 || e.offsetX > this.x2 ||
-         e.offsetY < this.y2 || e.offsetY > this.y1) {
-         this.drag.active = false;
-      }
+      // change cursor to arrow over image and axis
+      cursor = "ew-resize";
 
       if (this.drag.active) {
 
          // execute dragging
          cursor = "ew-resize";
-         let dt = (e.offsetX - this.drag.xStart) / (this.x2 - this.x1) * (this.tMax - this.tMin);
+         let dt = (mouseX - this.drag.xStart) / (this.x2 - this.x1) * (this.tMax - this.tMin);
          this.tMin = this.drag.tMinStart - dt;
          this.tMax = this.drag.tMaxStart - dt;
-         this.drag.lastDt = (e.offsetX - this.drag.lastOffsetX) / (this.x2 - this.x1) * (this.tMax - this.tMin);
+         this.drag.lastDt = (mouseX - this.drag.lastOffsetX) / (this.x2 - this.x1) * (this.tMax - this.tMin);
          this.drag.lastT = new Date().getTime();
-         this.drag.lastOffsetX = e.offsetX;
+         this.drag.lastOffsetX = mouseX;
 
          // don't go into the future
          if (this.tMax > this.drag.lastT / 1000) {
@@ -610,17 +633,25 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
             this.tMin = this.tMax - (this.drag.tMaxStart - this.drag.tMinStart);
          }
 
-         this.redraw();
-
-      } else {
-
-         // change cursor to arrow over time axis
-         if (e.offsetX > this.x1 && e.offsetX < this.x2 &&
-            e.offsetY > this.y2 && e.offsetY < this.y1) {
-            cursor = "ew-resize";
+         // seach image closest to current time
+         if (this.imageArray.length > 0) {
+            let tmin = Math.abs(this.tMax - this.imageArray[0].time);
+            let imin = 0;
+            for (let i = 0; i < this.imageArray.length; i++) {
+               if (Math.abs(this.tMax - this.imageArray[i].time) < tmin) {
+                  tmin = Math.abs(this.tMax - this.imageArray[i].time);
+                  imin = i;
+               }
+            }
+            this.currentIndex = imin;
          }
 
-         // change cursor to pointer over buttons
+         this.redraw();
+
+      }
+
+      // change cursor to pointer over buttons
+      if (e.target === this.buttonCanvas) {
          this.button.forEach(b => {
             if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
                e.offsetX < b.x1 + b.width && e.offsetY < b.y1 + b.height) {
@@ -628,17 +659,7 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
                title = b.title;
             }
          });
-
       }
-
-      // change cursor to pointer over buttons
-      this.button.forEach(b => {
-         if (e.offsetX > b.x1 && e.offsetY > b.y1 &&
-            e.offsetX < b.x1 + b.width && e.offsetY < b.y1 + b.height) {
-            cursor = "pointer";
-            title = b.title;
-         }
-      });
 
       if (this.showZoomButtons) {
          // check for zoom buttons
@@ -666,24 +687,13 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
 
 MihistoryGraph.prototype.mouseWheelEvent = function (e) {
 
-   if (e.offsetX > this.x1 && e.offsetX < this.x2 &&
-      e.offsetY > this.y2 && e.offsetY < this.y1) {
+   let dt = this.tMax - this.tMin;
+   this.tMax -= e.deltaY * 5;
+   this.tMin = this.tMax - dt;
 
-      let dt = this.tMax - this.tMin;
-      this.tMax -= e.deltaY * 10;
-      this.tMin = this.tMax - dt;
+   this.redraw();
 
-      // don't go into the future
-      let t = new Date().getTime();
-      if (this.tMax > t / 1000) {
-         this.tMax = t / 1000;
-         this.tMin = this.tMax - dt;
-      }
-
-      this.redraw();
-
-      e.preventDefault();
-   }
+   e.preventDefault();
 };
 
 MihistoryGraph.prototype.inertia = function () {
@@ -722,8 +732,8 @@ MihistoryGraph.prototype.resize = function () {
    this.width = this.parentDiv.clientWidth;
    this.height = this.parentDiv.clientHeight;
 
-   this.canvas.width = this.width;
-   this.canvas.height = 30;
+   this.axisCanvas.width = this.width;
+   this.axisCanvas.height = 30;
 
    let iAR = 0;
    let vAR = 0;
@@ -749,9 +759,6 @@ MihistoryGraph.prototype.resize = function () {
          this.parentDiv.style.height = (parseInt(this.parentDiv.style.height) - diff) + "px";
       }
    }
-
-   if (this.intSelector !== undefined)
-      this.intSelector.style.display = "none";
 
    this.redraw();
 };
@@ -791,58 +798,64 @@ MihistoryGraph.prototype.updateURL = function() {
    let url = window.location.href;
    if (url.search("&A=") !== -1)
       url = url.slice(0, url.search("&A="));
-   url += "&A=" + Math.round(this.tCur);
+   url += "&A=" + Math.round(this.currentTime);
 
    window.history.replaceState(null, "Image History", url);
 }
 
 MihistoryGraph.prototype.draw = function () {
 
-   // select image closest to selected time
+   // set image from this.currentIndex
    if (this.imageArray.length > 0) {
-      let tmin = Math.abs(this.tMax - this.imageArray[0].time);
-      let imin = 0;
-      for (let i = 0; i < this.imageArray.length; i++) {
-         if (Math.abs(this.tMax - this.imageArray[i].time) < tmin) {
-            tmin = Math.abs(this.tMax - this.imageArray[i].time);
-            imin = i;
-         }
-      }
-      document.getElementById("hiImage").src = this.imageArray[imin].image.src;
+      document.getElementById("hiImage").src = this.imageArray[this.currentIndex].image.src;
+      if (!this.imageArray[this.currentIndex].image.complete)
+         document.getElementById("fileLabel").innerHTML = "Loading " + this.imageArray[this.currentIndex].image_name;
+      else
+         document.getElementById("fileLabel").innerHTML = this.imageArray[this.currentIndex].image_name;
+   }
+
+   // don't go into the future
+   let t = new Date().getTime();
+   let dt = this.tMax - this.tMin;
+   if (this.tMax > t / 1000) {
+      this.tMax = t / 1000;
+      this.tMin = this.tMax - dt;
    }
 
    // draw time axis
    this.x1 = 0;
    this.y1 = 30;
-   this.x2 = this.width-20;
+   this.x2 = this.width-30;
    this.y2 = 0;
 
-   let ctx = this.canvas.getContext("2d");
+   let ctx = this.axisCanvas.getContext("2d");
    ctx.fillStyle = this.color.background;
    ctx.fillRect(0, 0, this.width, this.height);
 
    ctx.strokeStyle = this.color.axis;
-   ctx.drawLine(this.x1, 5, this.x2, 5);
+   ctx.drawLine(this.x1, 8, this.x2, 8);
    ctx.strokeStyle = "#C00000";
    ctx.drawLine(this.x2, 0, this.x2, 30);
 
    ctx.strokeStyle = this.color.axis;
-   this.drawTAxis(ctx, this.x1, 5, this.x2 - this.x1, this.width,
+   this.drawTAxis(ctx, this.x1, 8, this.x2 - this.x1, this.width,
       4, 7, 10, 10, this.tMin, this.tMax);
 
    // marks on time axis
    ctx.strokeStyle = this.color.mark;
    for (let i=0 ; i<this.imageArray.length ; i++) {
       let x = this.timeToX(this.imageArray[i].time);
-         ctx.drawLine(x, 0, x, 5);
+         ctx.drawLine(x, 0, x, 8);
    }
 
-   // buttons
-   /*
+   // draw buttons
+   ctx = this.buttonCanvas.getContext("2d");
+   this.buttonCanvas.height = this.button.length*28+2;
+
    let y = 0;
    this.button.forEach(b => {
-      b.x1 = this.width - 30;
-      b.y1 = 6 + y * 28;
+      b.x1 = 1;
+      b.y1 = 1 + y * 28;
       b.width = 28;
       b.height = 28;
       b.enabled = true;
@@ -855,8 +868,13 @@ MihistoryGraph.prototype.draw = function () {
 
       if (b.src === "play.svg" && !this.scroll)
          ctx.fillStyle = "#FFC0C0";
+      else if (b.src === "chevrons-right.svg" && this.playMode === 1)
+         ctx.fillStyle = "#C0FFC0";
+      else if (b.src === "chevrons-left.svg" && this.playMode === -1)
+         ctx.fillStyle = "#C0FFC0";
       else
          ctx.fillStyle = "#F0F0F0";
+
       ctx.strokeStyle = "#808080";
       ctx.fillRect(b.x1, b.y1, b.width, b.height);
       ctx.strokeRect(b.x1, b.y1, b.width, b.height);
@@ -864,7 +882,6 @@ MihistoryGraph.prototype.draw = function () {
 
       y++;
    });
-   */
 
    // zoom buttons
    /*
@@ -1079,23 +1096,9 @@ MihistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, ma
    } while (1);
 };
 
-MihistoryGraph.prototype.download = function (mode) {
+MihistoryGraph.prototype.download = function () {
 
-   let leftDate = new Date(this.tMin * 1000);
-   let rightDate = new Date(this.tMax * 1000);
-   let filename = this.group + "-" + this.panel + "-" +
-      leftDate.getFullYear() +
-      ("0" + leftDate.getMonth() + 1).slice(-2) +
-      ("0" + leftDate.getDate()).slice(-2) + "-" +
-      ("0" + leftDate.getHours()).slice(-2) +
-      ("0" + leftDate.getMinutes()).slice(-2) +
-      ("0" + leftDate.getSeconds()).slice(-2) + "-" +
-      rightDate.getFullYear() +
-      ("0" + rightDate.getMonth() + 1).slice(-2) +
-      ("0" + rightDate.getDate()).slice(-2) + "-" +
-      ("0" + rightDate.getHours()).slice(-2) +
-      ("0" + rightDate.getMinutes()).slice(-2) +
-      ("0" + rightDate.getSeconds()).slice(-2);
+   let filename = this.imageArray[this.currentIndex].image_name;
 
    // use trick from FileSaver.js
    let a = document.getElementById('downloadHook');
@@ -1106,41 +1109,8 @@ MihistoryGraph.prototype.download = function (mode) {
       document.body.appendChild(a);
    }
 
-   if (mode === "PNG") {
-      filename += ".png";
-
-      this.canvas.toBlob(function (blob) {
-         let url = window.URL.createObjectURL(blob);
-
-         a.href = url;
-         a.download = filename;
-         a.click();
-         window.URL.revokeObjectURL(url);
-         dlgAlert("Image downloaded to '" + filename + "'");
-
-      }, 'image/png');
-   } else if (mode === "URL") {
-      // Create new element
-      let el = document.createElement('textarea');
-
-      // Set value (string to be copied)
-      let url = this.baseURL + "&group=" + this.group + "&panel=" + this.panel +
-         "&A=" + this.tMin + "&B=" + this.tMax;
-      url = encodeURI(url);
-      el.value = url;
-
-      // Set non-editable to avoid focus and move outside of view
-      el.setAttribute('readonly', '');
-      el.style = {position: 'absolute', left: '-9999px'};
-      document.body.appendChild(el);
-      // Select text inside element
-      el.select();
-      // Copy text to clipboard
-      document.execCommand('copy');
-      // Remove temporary element
-      document.body.removeChild(el);
-
-      dlgMessage("Info", "URL<br/><br/>" + url + "<br/><br/>copied to clipboard", true, false);
-   }
-
+   a.href = this.panel + "/" + filename;
+   a.download = filename;
+   a.click();
+   dlgAlert("Image downloaded to '" + filename + "'");
 };
