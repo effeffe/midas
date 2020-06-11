@@ -387,7 +387,7 @@ MihistoryGraph.prototype.loadInitialData = function () {
          this.receiveData(rpc);
          this.redraw();
 
-         this.updateTimer = window.setTimeout(this.update.bind(this), 5000);
+         this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
          this.scrollTimer = window.setTimeout(this.scrollRedraw.bind(this), 1000);
 
       }.bind(this)).catch(function (error) {
@@ -408,7 +408,7 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
 
    if (rpc.result.data.time.length > 0) {
       let first = (this.imageArray.length === 0);
-      let lastImage;
+      let lastImageIndex;
       let newImage = [];
       // append new values to end of array
       for (let i = 0; i < rpc.result.data.time.length; i++) {
@@ -418,24 +418,30 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
             image: new Image()
          }
          if (this.imageArray.length === 0 ||
-             img.time > this.imageArray[this.imageArray.length - 1].time) {
+            img.time > this.imageArray[this.imageArray.length - 1].time) {
+
+            // trigger load of new images, but not for initial (large) array
+            if (!first)
+               img.image.src = this.panel + "/" + img.image_name;
+
             this.imageArray.push(img);
             newImage.push(img);
-            lastImage = img;
+            lastImageIndex = this.imageArray.length - 1;
          }
+         console.log(img.image_name);
       }
+
+      this.lastTimeStamp = this.imageArray[this.imageArray.length - 1].time;
 
       if (this.scroll) {
-         this.currentTime = this.imageArray[this.imageArray.length - 1].time;
+         this.currentTime = this.lastTimeStamp;
          this.currentIndex = this.imageArray.length - 1;
       }
-
-      this.lastTimeStamp = this.currentTime;
 
       if (first) {
          // after loading of fist image, resize panel
          let img = this.imageArray[this.imageArray.length - 1];
-         img.image.onload = function() {
+         img.image.onload = function () {
             document.getElementById("hiImage").src = this.src;
             this.mhg.imageElem.initialWidth = this.width;
             this.mhg.imageElem.initialHeight = this.height;
@@ -445,28 +451,20 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
             for (let i = rpc.result.data.time.length - 2; i >= 0; i--) {
                this.mhg.imageArray[i].image.src = this.mhg.panel + "/" + this.mhg.imageArray[i].image_name;
             }
-         }
+         };
          img.image.mhg = this;
          // trigger loading of image
          img.image.src = this.panel + "/" + img.image_name;
       } else {
          // just load last image without resize
-         if (lastImage !== undefined) {
-            lastImage.image.onload = function () {
+         if (lastImageIndex !== undefined) {
+            this.imageArray[lastImageIndex].image.onload = function () {
                this.mhg.redraw();
                console.log("Image loaded: " + this.src);
             }
-            lastImage.image.mhg = this;
-            lastImage.image.src = this.panel + "/" + lastImage.image_name;
-            console.log("Load " + lastImage.image_name);
-
-            // trigger loading of remaining images
-            for (let i=0 ; i<newImage.length-2 && i >= 0 ; i++)
-               if (newImage.image.image_name !== lastImage.image.image_name)
-                  newImages[i].imgage.src = this.panel + "/" + newImages[i].image.image_name;
          }
+         this.imageArray[lastImageIndex].image.mhg = this;
       }
-
    }
 };
 
@@ -483,7 +481,7 @@ MihistoryGraph.prototype.update = function () {
    mjsonrpc_call("hs_image_retrieve",
       {
          "image": this.panel,
-         "start_time": Math.floor(this.lastTimeStamp),
+         "start_time": Math.floor(this.lastTimeStamp+1),
          "end_time": Math.floor(t),
       })
       .then(function (rpc) {
@@ -491,7 +489,7 @@ MihistoryGraph.prototype.update = function () {
          this.receiveData(rpc);
          this.redraw();
 
-         this.updateTimer = window.setTimeout(this.update.bind(this), 5000);
+         this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
 
       }.bind(this)).catch(function (error) {
       mjsonrpc_error_alert(error);
