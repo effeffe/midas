@@ -148,7 +148,10 @@ function MihistoryGraph(divElement) { // Constructor
          title: "Play backwards",
          click: function (t) {
             t.scroll = false;
-            t.playMode = -1;
+            if (t.playMode > -1)
+               t.playMode = -1;
+            else
+               t.playMode *= 2;
             t.loadOldData();
             t.play();
          }
@@ -189,7 +192,10 @@ function MihistoryGraph(divElement) { // Constructor
          title: "Play forward",
          click: function (t) {
             t.scroll = false;
-            t.playMode = 1;
+            if (t.playMode < 1)
+               t.playMode = 1;
+            else
+               t.playMode *= 2;
             t.play();
          }
       },
@@ -560,20 +566,22 @@ MihistoryGraph.prototype.scrollRedraw = function () {
 MihistoryGraph.prototype.play = function () {
    window.clearTimeout(this.playTimer);
 
-   if (this.playMode === 1) {
-      if (this.currentIndex === this.imageArray.length-1) {
+   if (this.playMode > 0) {
+      this.currentIndex += this.playMode;
+      if (this.currentIndex >= this.imageArray.length-1) {
+         this.currentIndex = this.imageArray.length - 1;
          this.playMode = 0;
          return;
       }
-      this.currentIndex++;
    }
 
-   if (this.playMode === -1) {
-      if (this.currentIndex === 0) {
+   if (this.playMode < 0) {
+      this.currentIndex += this.playMode;
+      if (this.currentIndex < 0) {
+         this.currentIndex = 0;
          this.playMode = 0;
          return;
       }
-      this.currentIndex--;
    }
 
    // shift time axis according to current image
@@ -844,7 +852,8 @@ MihistoryGraph.prototype.draw = function () {
 
    // set image from this.currentIndex
    if (this.imageArray.length > 0) {
-      document.getElementById("hiImage").src = this.imageArray[this.currentIndex].image.src;
+      if (document.getElementById("hiImage").src !== this.imageArray[this.currentIndex].image.src)
+         document.getElementById("hiImage").src = this.imageArray[this.currentIndex].image.src;
       if (!this.imageArray[this.currentIndex].image.complete)
          document.getElementById("fileLabel").innerHTML = "Loading " + this.imageArray[this.currentIndex].image_name;
       else
@@ -910,11 +919,12 @@ MihistoryGraph.prototype.draw = function () {
          }
       }
 
+
       if (b.src === "play.svg" && !this.scroll)
          ctx.fillStyle = "#FFC0C0";
-      else if (b.src === "chevrons-right.svg" && this.playMode === 1)
+      else if (b.src === "chevrons-right.svg" && this.playMode > 0)
          ctx.fillStyle = "#C0FFC0";
-      else if (b.src === "chevrons-left.svg" && this.playMode === -1)
+      else if (b.src === "chevrons-left.svg" && this.playMode < 0)
          ctx.fillStyle = "#C0FFC0";
       else
          ctx.fillStyle = "#F0F0F0";
@@ -923,6 +933,19 @@ MihistoryGraph.prototype.draw = function () {
       ctx.fillRect(b.x1, b.y1, b.width, b.height);
       ctx.strokeRect(b.x1, b.y1, b.width, b.height);
       ctx.drawImage(b.img, b.x1 + 2, b.y1 + 2);
+
+      if (b.src === "chevrons-left.svg" && this.playMode < 0) {
+         ctx.fillStyle = "#404040";
+         ctx.font = "8px sans-serif";
+         ctx.fillText("x" + (-this.playMode), b.x1+2, b.y1+b.height-2);
+      }
+
+      if (b.src === "chevrons-right.svg" && this.playMode > 0) {
+         ctx.fillStyle = "#404040";
+         ctx.font = "8px sans-serif";
+         let s = "x" + this.playMode;
+         ctx.fillText(s, b.x1+b.width-ctx.measureText(s).width-2, b.y1+b.height-2);
+      }
 
       y++;
    });
