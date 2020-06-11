@@ -215,6 +215,7 @@ function MihistoryGraph(divElement) { // Constructor
          src: "play.svg",
          title: "Jump to last image",
          click: function (t) {
+            t.playMode = 0;
             t.scroll = true;
             t.scrollRedraw();
             t.drag.Vt = 0; // stop inertia
@@ -386,8 +387,8 @@ MihistoryGraph.prototype.loadInitialData = function () {
          this.receiveData(rpc);
          this.redraw();
 
-         this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
-         this.scrollTimer = window.setTimeout(this.scrollRedraw.bind(this), 100);
+         this.updateTimer = window.setTimeout(this.update.bind(this), 5000);
+         this.scrollTimer = window.setTimeout(this.scrollRedraw.bind(this), 1000);
 
       }.bind(this)).catch(function (error) {
       mjsonrpc_error_alert(error);
@@ -408,6 +409,7 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
    if (rpc.result.data.time.length > 0) {
       let first = (this.imageArray.length === 0);
       let lastImage;
+      let newImage = [];
       // append new values to end of array
       for (let i = 0; i < rpc.result.data.time.length; i++) {
          let img = {
@@ -418,6 +420,7 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
          if (this.imageArray.length === 0 ||
              img.time > this.imageArray[this.imageArray.length - 1].time) {
             this.imageArray.push(img);
+            newImage.push(img);
             lastImage = img;
          }
       }
@@ -428,7 +431,6 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
       }
 
       this.lastTimeStamp = this.currentTime;
-      console.log("currentIndex: " + this.currentIndex);
 
       if (first) {
          // after loading of fist image, resize panel
@@ -438,6 +440,11 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
             this.mhg.imageElem.initialWidth = this.width;
             this.mhg.imageElem.initialHeight = this.height;
             this.mhg.resize();
+
+            // trigger loading of remaining images
+            for (let i = rpc.result.data.time.length - 2; i >= 0; i--) {
+               this.mhg.imageArray[i].image.src = this.mhg.panel + "/" + this.mhg.imageArray[i].image_name;
+            }
          }
          img.image.mhg = this;
          // trigger loading of image
@@ -446,20 +453,20 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
          // just load last image without resize
          if (lastImage !== undefined) {
             lastImage.image.onload = function () {
-               document.getElementById("hiImage").src = this.src;
+               this.mhg.redraw();
                console.log("Image loaded: " + this.src);
             }
-            // trigger loading of image
+            lastImage.image.mhg = this;
             lastImage.image.src = this.panel + "/" + lastImage.image_name;
+            console.log("Load " + lastImage.image_name);
+
+            // trigger loading of remaining images
+            for (let i=0 ; i<newImage.length-2 && i >= 0 ; i++)
+               if (newImage.image.image_name !== lastImage.image.image_name)
+                  newImages[i].imgage.src = this.panel + "/" + newImages[i].image.image_name;
          }
       }
 
-      // trigger loading of remaining images
-
-      for (let i = rpc.result.data.time.length - 1; i >= 0; i--) {
-         if (this.imageArray[i].image.src === "")
-            this.imageArray[i].image.src = this.panel + "/" + this.imageArray[i].image_name;
-      }
    }
 };
 
@@ -484,7 +491,7 @@ MihistoryGraph.prototype.update = function () {
          this.receiveData(rpc);
          this.redraw();
 
-         this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
+         this.updateTimer = window.setTimeout(this.update.bind(this), 5000);
 
       }.bind(this)).catch(function (error) {
       mjsonrpc_error_alert(error);
