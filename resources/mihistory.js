@@ -516,7 +516,6 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
          if (lastImageIndex !== undefined) {
             this.imageArray[lastImageIndex].image.onload = function () {
                this.mhg.redraw();
-               console.log("Image loaded: " + this.src);
             }
             this.imageArray[lastImageIndex].image.mhg = this;
          }
@@ -918,7 +917,6 @@ MihistoryGraph.prototype.draw = function () {
             return;
          }
       }
-
 
       if (b.src === "play.svg" && !this.scroll)
          ctx.fillStyle = "#FFC0C0";
