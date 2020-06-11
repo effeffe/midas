@@ -444,6 +444,17 @@ namespace midas {
                // if key does not exist in ODB write it
                m_data[i].get_odb().write_key(k, true);
                m_data[i].get_odb().write();
+            } else {
+               // check key type
+               KEY key;
+               status = db_get_key(m_hDB, h, &key);
+               if (m_data[i].get_odb().get_name() == "Timescale")
+                  std::cout << m_data[i].get_odb().get_tid() << std::endl;
+               if (m_data[i].get_odb().get_tid() != key.type) {
+                  // write key if different
+                  m_data[i].get_odb().write_key(k, true);
+                  m_data[i].get_odb().write();
+               }
             }
          }
 
