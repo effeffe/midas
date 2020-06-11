@@ -218,7 +218,7 @@ void start_image_history() {
               {"Storage hours",      72},
               {"Error interval (s)", 60},
               {"Last error",         0},
-              {"Timescale",          3600*24}
+              {"Timescale",          "8h"}
       };
       c.connect(ic.get_odb().get_full_path());
 

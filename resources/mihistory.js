@@ -103,12 +103,12 @@ function MihistoryGraph(divElement) { // Constructor
    this.color = {
       background: "#FFFFFF",
       axis: "#808080",
-      mark: "#8CBDFF",
+      mark: "#0000A0",
       label: "#404040",
    };
 
    // scales
-   this.tScale = 24*3600;
+   this.tScale = 8*3600;
    this.tMax = Math.floor(new Date() / 1000);
    this.tMin = this.tMax - this.tScale;
    this.scroll = true;
@@ -149,6 +149,7 @@ function MihistoryGraph(divElement) { // Constructor
          click: function (t) {
             t.scroll = false;
             t.playMode = -1;
+            t.loadOldData();
             t.play();
          }
       },
@@ -196,7 +197,8 @@ function MihistoryGraph(divElement) { // Constructor
          src: "zoom-in.svg",
          title: "Zoom in time axis",
          click: function (t) {
-            t.tMin += (t.tMax - t.tMin)/2;
+            t.tScale /= 2;
+            t.tMin += t.tScale;
             t.drag.Vt = 0 // stop inertia
             t.redraw();
          }
@@ -205,10 +207,11 @@ function MihistoryGraph(divElement) { // Constructor
          src: "zoom-out.svg",
          title: "Zoom out time axis",
          click: function (t) {
-            t.tMin -= (t.tMax - t.tMin)/2;
+            t.tMin -= t.tScale;
+            t.tScale *= 2;
             t.drag.Vt = 0 // stop inertia
             t.redraw();
-            //##t.loadOldData();
+            t.loadOldData();
          }
       },
       {
@@ -217,8 +220,10 @@ function MihistoryGraph(divElement) { // Constructor
          click: function (t) {
             t.playMode = 0;
             t.scroll = true;
-            t.scrollRedraw();
             t.drag.Vt = 0; // stop inertia
+
+            t.currentIndex = t.imageArray.length-1;
+            t.scrollRedraw();
 
             if (t.callbacks.jumpToCurrent !== undefined) {
                t.callbacks.jumpToCurrent(t);
@@ -376,10 +381,12 @@ MihistoryGraph.prototype.loadInitialData = function () {
    let link;
 
    // load latest images
+   this.tMinRequested = this.tMin - this.tScale;
+
    mjsonrpc_call("hs_image_retrieve",
       {
          "image": this.panel,
-         "start_time": Math.floor(this.tMin),
+         "start_time": Math.floor(this.tMin-(this.tMax-this.tMin)),
          "end_time": Math.floor(this.tMax),
       })
       .then(function (rpc) {
@@ -398,7 +405,38 @@ MihistoryGraph.prototype.loadInitialData = function () {
 
 MihistoryGraph.prototype.loadOldData = function () {
 
-   let dt = Math.floor(this.tMax - this.tMin);
+   // trigger any remaining image load
+   for (let i=0 ; i<this.imageArray.length ; i++)
+      if (this.imageArray[i].image.src === "")
+         this.imageArray[i].image.src = this.panel + "/" + this.imageArray[i].image_name;
+
+   if (this.tMin - this.tScale / 2 < this.tMinRequested) {
+
+      let oldTMinRequested = this.tMinRequested;
+      this.tMinRequested = this.tMin - this.tScale;
+
+      this.pendingUpdates++;
+      this.parentDiv.style.cursor = "progress";
+      mjsonrpc_call("hs_image_retrieve",
+         {
+            "image": this.panel,
+            "start_time": Math.floor(this.tMinRequested),
+            "end_time": Math.floor(oldTMinRequested),
+         })
+         .then(function (rpc) {
+
+            this.pendingUpdates--;
+            if (this.pendingUpdates === 0)
+               this.parentDiv.style.cursor = "default";
+
+            this.receiveData(rpc);
+            this.redraw();
+
+         }.bind(this))
+         .catch(function (error) {
+            mjsonrpc_error_alert(error);
+         });
+   }
 
    this.redraw();
 };
@@ -410,6 +448,7 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
       let first = (this.imageArray.length === 0);
       let lastImageIndex;
       let newImage = [];
+      let i1 = [];
       // append new values to end of array
       for (let i = 0; i < rpc.result.data.time.length; i++) {
          let img = {
@@ -427,8 +466,17 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
             this.imageArray.push(img);
             newImage.push(img);
             lastImageIndex = this.imageArray.length - 1;
+         } else if (img.time < this.imageArray[0].time) {
+
+            // add entries to the left side of the array
+            img.image.src = this.panel + "/" + img.image_name;
+            i1.push(img);
          }
-         console.log(img.image_name);
+      }
+
+      if (i1.length > 0) {
+         this.imageArray = i1.concat(this.imageArray);
+         this.currentIndex += i1.length;
       }
 
       this.lastTimeStamp = this.imageArray[this.imageArray.length - 1].time;
@@ -447,9 +495,11 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
             this.mhg.imageElem.initialHeight = this.height;
             this.mhg.resize();
 
-            // trigger loading of remaining images
+            // trigger loading of images one hour in the past
+            let t = new Date().getTime() / 1000;
             for (let i = rpc.result.data.time.length - 2; i >= 0; i--) {
-               this.mhg.imageArray[i].image.src = this.mhg.panel + "/" + this.mhg.imageArray[i].image_name;
+               if (this.mhg.imageArray[i].time > t - 3600)
+                  this.mhg.imageArray[i].image.src = this.mhg.panel + "/" + this.mhg.imageArray[i].image_name;
             }
          };
          img.image.mhg = this;
@@ -462,8 +512,8 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
                this.mhg.redraw();
                console.log("Image loaded: " + this.src);
             }
+            this.imageArray[lastImageIndex].image.mhg = this;
          }
-         this.imageArray[lastImageIndex].image.mhg = this;
       }
    }
 };
@@ -499,9 +549,8 @@ MihistoryGraph.prototype.update = function () {
 
 MihistoryGraph.prototype.scrollRedraw = function () {
    if (this.scroll) {
-      let dt = this.tMax - this.tMin;
       this.tMax = Math.floor(new Date() / 1000);
-      this.tMin = this.tMax - dt;
+      this.tMin = this.tMax - this.tScale;
       this.redraw();
    }
 
@@ -528,9 +577,8 @@ MihistoryGraph.prototype.play = function () {
    }
 
    // shift time axis according to current image
-   let delta = this.tMax - this.tMin;
    this.tMax = this.imageArray[this.currentIndex].time;
-   this.tMin = this.tMax - delta;
+   this.tMin = this.tMax - this.tScale;
 
    this.redraw();
 
@@ -571,32 +619,13 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
          });
       }
 
-      // check for zoom buttons
-      else if (e.offsetX > this.width - 30 - 48 && e.offsetX < this.width - 30 - 24 &&
-         e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
-         // zoom in
-         let delta = this.tMax - this.tMin;
-         this.tMin += delta/4;
-         this.tMax -= delta/4;
-         this.drag.Vt = 0; // stop inertia
-         this.redraw();
-      }
-      else if (e.offsetX > this.width - 30 - 24 && e.offsetX < this.width - 30 &&
-         e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
-         // zoom out
-         let delta = this.tMax - this.tMin;
-         this.tMin -= delta/2;
-         this.tMax += delta/2;
-         this.drag.Vt = 0; // stop inertia
-         this.loadOldData();
-      }
-
       // start dragging
       else {
          cursor = "ew-resize";
 
          this.drag.active = true;
          this.scroll = false;
+         this.playMode = 0;
          this.drag.xStart = mouseX;
          this.drag.tStart = this.xToTime(mouseX);
          this.drag.tMinStart = this.tMin;
@@ -651,7 +680,11 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
             this.currentIndex = imin;
          }
 
-         this.redraw();
+         this.loadOldData();
+
+         if (this.callbacks.timeZoom !== undefined) {
+            this.callbacks.timeZoom(this);
+         }
 
       }
 
@@ -692,9 +725,8 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
 
 MihistoryGraph.prototype.mouseWheelEvent = function (e) {
 
-   let dt = this.tMax - this.tMin;
    this.tMax -= e.deltaY * 5;
-   this.tMin = this.tMax - dt;
+   this.tMin = this.tMax - this.tScale;
 
    this.redraw();
 
@@ -821,10 +853,9 @@ MihistoryGraph.prototype.draw = function () {
 
    // don't go into the future
    let t = new Date().getTime();
-   let dt = this.tMax - this.tMin;
    if (this.tMax > t / 1000) {
       this.tMax = t / 1000;
-      this.tMin = this.tMax - dt;
+      this.tMin = this.tMax - this.tScale;
    }
 
    // draw time axis
@@ -847,10 +878,14 @@ MihistoryGraph.prototype.draw = function () {
       4, 7, 10, 10, this.tMin, this.tMax);
 
    // marks on time axis
-   ctx.strokeStyle = this.color.mark;
    for (let i=0 ; i<this.imageArray.length ; i++) {
       let x = this.timeToX(this.imageArray[i].time);
-         ctx.drawLine(x, 0, x, 8);
+      if (this.imageArray[i].image.src != "" && this.imageArray[i].image.complete)
+         ctx.strokeStyle = this.color.mark;
+      else
+         ctx.strokeStyle = this.color.axis;
+
+      ctx.drawLine(x, 0, x, 8);
    }
 
    // draw buttons
@@ -865,11 +900,15 @@ MihistoryGraph.prototype.draw = function () {
       b.height = 28;
       b.enabled = true;
 
-      if (b.src === "maximize-2.svg")
-         if (window.location.href === encodeURI(this.baseURL + "&group=" + "Images" + "&panel=" + this.panel)) {
+      if (b.src === "maximize-2.svg") {
+         let s = window.location.href;
+         if (s.indexOf("&A") > -1)
+            s = s.substr(0, s.indexOf("&A"));
+         if (s === encodeURI(this.baseURL + "&group=" + "Images" + "&panel=" + this.panel)) {
             b.enabled = false;
             return;
          }
+      }
 
       if (b.src === "play.svg" && !this.scroll)
          ctx.fillStyle = "#FFC0C0";

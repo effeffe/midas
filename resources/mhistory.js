@@ -2004,11 +2004,15 @@ MhistoryGraph.prototype.draw = function () {
       b.height = 28;
       b.enabled = true;
 
-      if (b.src === "maximize-2.svg")
-         if (window.location.href === encodeURI(this.baseURL + "&group=" + this.group + "&panel=" + this.panel)) {
+      if (b.src === "maximize-2.svg") {
+         let s = window.location.href;
+         if (s.indexOf("&A") > -1)
+            s = s.substr(0, s.indexOf("&A"));
+         if (s === encodeURI(this.baseURL + "&group=" + this.group + "&panel=" + this.panel)) {
             b.enabled = false;
             return;
          }
+      }
 
       if (b.src === "play.svg" && !this.scroll)
          ctx.fillStyle = "#FFC0C0";
