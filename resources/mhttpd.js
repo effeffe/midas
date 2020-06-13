@@ -1674,7 +1674,6 @@ function mhttpd_resize_header() {
 
 }
 
-var mhttpd_last_message = 1;
 var mhttpd_last_alarm = 0;
 
 function mhttpd_refresh() {
@@ -1773,15 +1772,15 @@ function mhttpd_refresh() {
    // request new messages
    var req3 = mjsonrpc_make_request("cm_msg_retrieve", {
       "facility": "midas",
-      "time": mhttpd_last_message - 1,
-      "min_messages": 100
+      "time": 0,
+      "min_messages": 1
    });
 
    // request new char messages
    var req4 = mjsonrpc_make_request("cm_msg_retrieve", {
       "facility": "chat",
-      "time": mhttpd_last_message - 1,
-      "min_messages": 100
+      "time": 0,
+      "min_messages": 1
    });
 
    mjsonrpc_send_request([req1, req2, req3, req4]).then(function (rpc) {
