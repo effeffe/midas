@@ -116,6 +116,7 @@ function MihistoryGraph(divElement) { // Constructor
    this.currentTime = 0;
    this.currentIndex = 0;
    this.playMode = 0;
+   this.updatePaused = false;
 
    // overwrite scale from URL if present
    let currentTime = decodeURI(getUrlVars()["A"]);
@@ -345,6 +346,10 @@ MihistoryGraph.prototype.initializeIPanel = function () {
    // image arrays
    this.imageArray = [];
 
+   // pause main refresh for a moment
+   mhttpd_refresh_pause(true);
+   this.updatePaused = true;
+
    // retrieve panel definition from ODB
    mjsonrpc_db_copy(["/History/Images/" + this.panel]).then(function (rpc) {
       if (rpc.result.status[0] !== 1) {
@@ -461,6 +466,10 @@ MihistoryGraph.prototype.loadNextImage = function () {
          }
       }
    }
+
+   // all done, so resume updates
+   mhttpd_refresh_pause(false);
+   this.updatePaused = false;
 };
 
 MihistoryGraph.prototype.receiveData = function (rpc) {
@@ -480,23 +489,16 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
          }
          if (this.imageArray.length === 0 ||
             img.time > this.imageArray[this.imageArray.length - 1].time) {
-
-            // trigger load of new images, but not for initial (large) array
-            if (!first)
-               img.image.src = this.panel + "/" + img.image_name;
-
             this.imageArray.push(img);
             newImage.push(img);
             lastImageIndex = this.imageArray.length - 1;
          } else if (img.time < this.imageArray[0].time) {
-
-            // add entries to the left side of the array
-            img.image.src = this.panel + "/" + img.image_name;
             i1.push(img);
          }
       }
 
       if (i1.length > 0) {
+         // add new entries to the left side of the array
          this.imageArray = i1.concat(this.imageArray);
          this.currentIndex += i1.length;
       }
@@ -516,7 +518,7 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
             this.mhg.imageElem.initialWidth = this.width;
             this.mhg.imageElem.initialHeight = this.height;
             this.mhg.resize();
-            this.mhg.loadNextImage();
+            window.setTimeout(this.mhg.loadNextImage.bind(this.mhg), 1000);
          };
          img.image.mhg = this;
          // trigger loading of image
@@ -526,17 +528,22 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
          if (lastImageIndex !== undefined) {
             this.imageArray[lastImageIndex].image.onload = function () {
                this.mhg.redraw();
-               this.mhg.loadNextImage();
+               window.setTimeout(this.mhg.loadNextImage.bind(this.mhg), 1000);
             }
             this.imageArray[lastImageIndex].image.mhg = this;
             this.imageArray[lastImageIndex].image.src = this.panel + "/" + this.imageArray[lastImageIndex].image_name;
-
          }
       }
    }
 };
 
 MihistoryGraph.prototype.update = function () {
+
+   // don't update if we are paused
+   if (this.updatePaused) {
+      this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
+      return;
+   }
 
    // don't update window if content is hidden (other tab, minimized, etc.)
    if (document.hidden) {
