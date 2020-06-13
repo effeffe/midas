@@ -13,8 +13,8 @@
 #include <exception>
 #include <sstream>
 #include <iomanip>
-#include <map>
 #include <thread>
+#include <algorithm>
 
 #include "midas.h"
 #include "msystem.h"
