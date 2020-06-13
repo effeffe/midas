@@ -618,7 +618,7 @@ MihistoryGraph.prototype.play = function () {
    if (this.playMode === 0)
       return;
 
-   this.playTimer = window.setTimeout(this.play.bind(this), 30);
+   this.playTimer = window.setTimeout(this.play.bind(this), 100);
 };
 
 MihistoryGraph.prototype.mouseEvent = function (e) {
