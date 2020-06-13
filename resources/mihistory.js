@@ -450,19 +450,24 @@ MihistoryGraph.prototype.loadOldData = function () {
 MihistoryGraph.prototype.loadNextImage = function () {
    // look from current image backwards for first image not loaded
    let n = 0;
+   let nParallel = 10; // number of parallel loads
    for (let i = this.currentIndex; i >= 0; i--) {
       if (this.imageArray[i].image.src === undefined || this.imageArray[i].image.src === "") {
-         // load up to one window with in beyond current windo
+         // load up to one window beyond current window
          if (this.imageArray[i].time > this.tMin - this.tScale) {
             this.imageArray[i].image.onload = function () {
                this.mhg.redraw();
-               this.mhg.loadNextImage();
-            }
+            };
             this.imageArray[i].image.mhg = this;
             this.imageArray[i].image.src = this.panel + "/" + this.imageArray[i].image_name;
             n++;
-            if (n === 1)
+            if (n === nParallel) {
+               this.imageArray[i].image.onload = function () {
+                  this.mhg.redraw();
+                  this.mhg.loadNextImage();
+               };
                return;
+            }
          }
       }
    }
