@@ -411,11 +411,6 @@ MihistoryGraph.prototype.loadInitialData = function () {
 
 MihistoryGraph.prototype.loadOldData = function () {
 
-   // trigger any remaining image load
-   for (let i=0 ; i<this.imageArray.length ; i++)
-      if (this.imageArray[i].image.src === "")
-         this.imageArray[i].image.src = this.panel + "/" + this.imageArray[i].image_name;
-
    if (this.tMin - this.tScale / 2 < this.tMinRequested) {
 
       let oldTMinRequested = this.tMinRequested;
@@ -447,6 +442,26 @@ MihistoryGraph.prototype.loadOldData = function () {
    this.redraw();
 };
 
+MihistoryGraph.prototype.loadNextImage = function () {
+   // look from current image backwards for first image not loaded
+   let n = 0;
+   for (let i = this.currentIndex; i >= 0; i--) {
+      if (this.imageArray[i].image.src === undefined || this.imageArray[i].image.src === "") {
+         // load up to one window with in beyond current windo
+         if (this.imageArray[i].time > this.tMin - this.tScale) {
+            this.imageArray[i].image.onload = function () {
+               this.mhg.redraw();
+               this.mhg.loadNextImage();
+            }
+            this.imageArray[i].image.mhg = this;
+            this.imageArray[i].image.src = this.panel + "/" + this.imageArray[i].image_name;
+            n++;
+            if (n === 1)
+               return;
+         }
+      }
+   }
+};
 
 MihistoryGraph.prototype.receiveData = function (rpc) {
 
@@ -455,6 +470,7 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
       let lastImageIndex;
       let newImage = [];
       let i1 = [];
+
       // append new values to end of array
       for (let i = 0; i < rpc.result.data.time.length; i++) {
          let img = {
@@ -500,13 +516,7 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
             this.mhg.imageElem.initialWidth = this.width;
             this.mhg.imageElem.initialHeight = this.height;
             this.mhg.resize();
-
-            // trigger loading of images one hour in the past
-            let t = new Date().getTime() / 1000;
-            for (let i = rpc.result.data.time.length - 2; i >= 0; i--) {
-               if (this.mhg.imageArray[i].time > t - 3600)
-                  this.mhg.imageArray[i].image.src = this.mhg.panel + "/" + this.mhg.imageArray[i].image_name;
-            }
+            this.mhg.loadNextImage();
          };
          img.image.mhg = this;
          // trigger loading of image
@@ -516,8 +526,11 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
          if (lastImageIndex !== undefined) {
             this.imageArray[lastImageIndex].image.onload = function () {
                this.mhg.redraw();
+               this.mhg.loadNextImage();
             }
             this.imageArray[lastImageIndex].image.mhg = this;
+            this.imageArray[lastImageIndex].image.src = this.panel + "/" + this.imageArray[lastImageIndex].image_name;
+
          }
       }
    }
@@ -588,11 +601,12 @@ MihistoryGraph.prototype.play = function () {
    this.tMin = this.tMax - this.tScale;
 
    this.redraw();
+   this.loadOldData();
 
    if (this.playMode === 0)
       return;
 
-   this.playTimer = window.setTimeout(this.play.bind(this), 100);
+   this.playTimer = window.setTimeout(this.play.bind(this), 30);
 };
 
 MihistoryGraph.prototype.mouseEvent = function (e) {
