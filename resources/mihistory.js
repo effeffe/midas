@@ -35,16 +35,12 @@ function mihistory_init() {
    }
 }
 
-function mihistory_create(parentElement, baseURL, panel, tMin, tMax) {
+function mihistory_create(parentElement, baseURL, panel) {
    let d = document.createElement("div");
    parentElement.appendChild(d);
    d.dataset.baseURL = baseURL;
    d.dataset.panel = panel;
    d.mhg = new MihistoryGraph(d);
-   if (!Number.isNaN(tMin) && !Number.isNaN(tMax)) {
-      d.mhg.initTMin = tMin;
-      d.mhg.initTMax = tMax;
-   }
    d.mhg.initializeIPanel();
    return d;
 }
@@ -119,11 +115,10 @@ function MihistoryGraph(divElement) { // Constructor
    this.updatePaused = false;
 
    // overwrite scale from URL if present
-   let currentTime = decodeURI(getUrlVars()["A"]);
-   if (currentTime !== "undefined") {
-      this.currentTime = currentTime;
-      this.tMax = currentTime;
-      this.tmin = currentTime = this.tScale;
+   this.requestedTime = decodeURI(getUrlVars()["T"]);
+   if (this.requestedTime !== "undefined") {
+      this.tMax = this.requestedTime;
+      this.tMin = this.requestedTime - this.tScale;
    }
 
    // callbacks when certain actions are performed.
@@ -370,18 +365,18 @@ MihistoryGraph.prototype.loadInitialData = function () {
 
    this.lastTimeStamp = Math.floor(Date.now() / 1000);
 
-   if (this.initTMin !== undefined && this.initTMin !== "undefined") {
-      this.tMin = this.initTMin;
-      this.tMax = this.initTMax;
-      this.tScale = this.tMax - this.tMin;
+   // get time scale from ODB
+   this.tScale = timeToSec(this.odb["Timescale"]);
+
+   // overwrite via <div ... data-scale=<value> >
+   if (this.parentDiv.dataset.scale !== undefined)
+      this.tScale = timeToSec(this.parentDiv.dataset.scale);
+
+   if (this.requestedTime !== "undefined") {
+      //this.tMax = this.requestedTime;
+      //this.tMin = this.requestedTime - this.tScale;
       this.scroll = false;
    } else {
-      this.tScale = timeToSec(this.odb["Timescale"]);
-
-      // overwrite via <div ... data-scale=<value> >
-      if (this.parentDiv.dataset.scale !== undefined)
-         this.tScale = timeToSec(this.parentDiv.dataset.scale);
-
       this.tMax = Math.floor(new Date() / 1000);
       this.tMin = this.tMax - this.tScale;
    }
@@ -510,10 +505,8 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
 
       this.lastTimeStamp = this.imageArray[this.imageArray.length - 1].time;
 
-      if (this.scroll) {
-         this.currentTime = this.lastTimeStamp;
+      if (this.scroll)
          this.currentIndex = this.imageArray.length - 1;
-      }
 
       if (first) {
          // after loading of fist image, resize panel
@@ -866,11 +859,12 @@ function convertLastWritten(last) {
 
 MihistoryGraph.prototype.updateURL = function() {
    let url = window.location.href;
-   if (url.search("&A=") !== -1)
-      url = url.slice(0, url.search("&A="));
-   url += "&A=" + Math.round(this.currentTime);
+   if (url.search("&T=") !== -1)
+      url = url.slice(0, url.search("&T="));
+   url += "&T=" + Math.round(this.currentTime);
 
-   window.history.replaceState(null, "Image History", url);
+   if (url !== window.location.href)
+      window.history.replaceState(null, "Image History", url);
 }
 
 MihistoryGraph.prototype.draw = function () {
@@ -883,7 +877,14 @@ MihistoryGraph.prototype.draw = function () {
          document.getElementById("fileLabel").innerHTML = "Loading " + this.imageArray[this.currentIndex].image_name;
       else
          document.getElementById("fileLabel").innerHTML = this.imageArray[this.currentIndex].image_name;
+      this.currentTime = this.imageArray[this.currentIndex].time;
    }
+
+   // check for valid axis
+   if (this.tMax === undefined || Number.isNaN(this.tMax))
+      return;
+   if (this.tMin === undefined || Number.isNaN(this.tMin))
+      return;
 
    // don't go into the future
    let t = new Date().getTime();
@@ -973,32 +974,6 @@ MihistoryGraph.prototype.draw = function () {
 
       y++;
    });
-
-   // zoom buttons
-   /*
-   if (this.showZoomButtons) {
-      let xb = this.width - 30 - 48;
-      let yb = this.y1 - 24;
-      ctx.fillStyle = "#F0F0F0";
-      ctx.globalAlpha = 0.5;
-      ctx.fillRect(xb, yb, 24, 24);
-      ctx.globalAlpha = 1;
-      ctx.strokeStyle = "#808080";
-      ctx.strokeRect(xb, yb, 24, 24);
-      ctx.strokeStyle = "#202020";
-      ctx.drawLine(xb + 5, yb + 12, xb + 19, yb + 12);
-      ctx.drawLine(xb + 12, yb + 5, xb + 12, yb + 19);
-
-      xb += 24;
-      ctx.globalAlpha = 0.5;
-      ctx.fillRect(xb, yb, 24, 24);
-      ctx.globalAlpha = 1;
-      ctx.strokeStyle = "#808080";
-      ctx.strokeRect(xb, yb, 24, 24);
-      ctx.strokeStyle = "#202020";
-      ctx.drawLine(xb + 5, yb + 12, xb + 19, yb + 12);
-   }
-   */
 
    this.lastDrawTime = new Date().getTime();
 

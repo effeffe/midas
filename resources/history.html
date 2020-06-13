@@ -369,8 +369,7 @@
 
          } else if (curGroup === "Images") {
             // create single image history object
-            createdPlots.push(mihistory_create(document.getElementById("histPanel"), baseURL, curPanel,
-               parseInt(tMin), parseInt(tMax)));
+            createdPlots.push(mihistory_create(document.getElementById("histPanel"), baseURL, curPanel));
          } else {
             // create single history object
             createdPlots.push(mhistory_create(document.getElementById("histPanel"), baseURL, curGroup, curPanel,
