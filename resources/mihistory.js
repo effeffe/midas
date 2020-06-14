@@ -373,8 +373,8 @@ MihistoryGraph.prototype.loadInitialData = function () {
       this.tScale = timeToSec(this.parentDiv.dataset.scale);
 
    if (this.requestedTime !== "undefined") {
-      //this.tMax = this.requestedTime;
-      //this.tMin = this.requestedTime - this.tScale;
+      this.tMax = this.requestedTime;
+      this.tMin = this.requestedTime - this.tScale;
       this.scroll = false;
    } else {
       this.tMax = Math.floor(new Date() / 1000);
@@ -508,9 +508,21 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
       if (this.scroll)
          this.currentIndex = this.imageArray.length - 1;
 
+      if (first && this.requestedTime !== "undefined") {
+         let tmin = Math.abs(this.requestedTime - this.imageArray[0].time);
+         let imin = 0;
+         for (let i = 0; i < this.imageArray.length; i++) {
+            if (Math.abs(this.requestedTime - this.imageArray[i].time) < tmin) {
+               tmin = Math.abs(this.requestedTime - this.imageArray[i].time);
+               imin = i;
+            }
+         }
+         this.currentIndex = imin;
+      }
+
       if (first) {
          // after loading of fist image, resize panel
-         let img = this.imageArray[this.imageArray.length - 1];
+         let img = this.imageArray[this.currentIndex];
          img.image.onload = function () {
             document.getElementById("hiImage").src = this.src;
             this.mhg.imageElem.initialWidth = this.width;
