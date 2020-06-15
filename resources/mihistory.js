@@ -886,7 +886,7 @@ MihistoryGraph.prototype.updateURL = function() {
    url += "&T=" + Math.round(this.currentTime);
 
    if (url !== window.location.href)
-      window.history.replaceState(null, "Image History", url);
+      window.history.replaceState({}, "Image History", url);
 }
 
 MihistoryGraph.prototype.draw = function () {

@@ -1527,7 +1527,8 @@ MhistoryGraph.prototype.updateURL = function() {
       url = url.slice(0, url.search("&A="));
    url += "&A=" + Math.round(this.tMin) + "&B=" + Math.round(this.tMax);
 
-   window.history.replaceState(null, "History", url);
+   if (url !== window.location.href)
+      window.history.replaceState({}, "Midas History", url);
 }
 
 MhistoryGraph.prototype.draw = function () {
