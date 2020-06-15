@@ -443,9 +443,6 @@ MihistoryGraph.prototype.loadOldData = function () {
 };
 
 MihistoryGraph.prototype.loadNextImage = function (startIndex) {
-
-   console.log("LoadNextImage: " + startIndex);
-
    // look from current image backwards for first image not loaded
    let n = 0;
    let nParallel = 10; // number of parallel loads
@@ -473,7 +470,7 @@ MihistoryGraph.prototype.loadNextImage = function (startIndex) {
    // now check images AFTER currentIndex, like if we start with URL T=...
    for (let i = this.imageArray.length-1 ; i >= 0; i--)
       if (this.imageArray[i].image.src === undefined || this.imageArray[i].image.src === "") {
-         this.loadNextImage(i);
+         window.setTimeout(this.loadNextImage.bind(this, i), 100);
          return;
       }
 
