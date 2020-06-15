@@ -442,11 +442,14 @@ MihistoryGraph.prototype.loadOldData = function () {
    this.redraw();
 };
 
-MihistoryGraph.prototype.loadNextImage = function () {
+MihistoryGraph.prototype.loadNextImage = function (startIndex) {
+
+   console.log("LoadNextImage: " + startIndex);
+
    // look from current image backwards for first image not loaded
    let n = 0;
    let nParallel = 10; // number of parallel loads
-   for (let i = this.currentIndex; i >= 0; i--) {
+   for (let i = startIndex; i >= 0; i--) {
       if (this.imageArray[i].image.src === undefined || this.imageArray[i].image.src === "") {
          // load up to one window beyond current window
          if (this.imageArray[i].time > this.tMin - this.tScale) {
@@ -459,13 +462,20 @@ MihistoryGraph.prototype.loadNextImage = function () {
             if (n === nParallel) {
                this.imageArray[i].image.onload = function () {
                   this.mhg.redraw();
-                  this.mhg.loadNextImage();
+                  this.mhg.loadNextImage(i);
                };
                return;
             }
          }
       }
    }
+
+   // now check images AFTER currentIndex, like if we start with URL T=...
+   for (let i = this.imageArray.length-1 ; i >= 0; i--)
+      if (this.imageArray[i].image.src === undefined || this.imageArray[i].image.src === "") {
+         this.loadNextImage(i);
+         return;
+      }
 
    // all done, so resume updates
    mhttpd_refresh_pause(false);
@@ -528,20 +538,23 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
             this.mhg.imageElem.initialWidth = this.width;
             this.mhg.imageElem.initialHeight = this.height;
             this.mhg.resize();
-            window.setTimeout(this.mhg.loadNextImage.bind(this.mhg), 1000);
+            window.setTimeout(this.mhg.loadNextImage.bind(this.mhg, this.currentIndex), 1000);
          };
          img.image.mhg = this;
          // trigger loading of image
          img.image.src = this.panel + "/" + img.image_name;
       } else {
-         // just load last image without resize
          if (lastImageIndex !== undefined) {
+            // just load last image without resize
             this.imageArray[lastImageIndex].image.onload = function () {
                this.mhg.redraw();
-               window.setTimeout(this.mhg.loadNextImage.bind(this.mhg), 1000);
+               window.setTimeout(this.mhg.loadNextImage.bind(this.mhg, lastImageIndex), 1000);
             }
             this.imageArray[lastImageIndex].image.mhg = this;
             this.imageArray[lastImageIndex].image.src = this.panel + "/" + this.imageArray[lastImageIndex].image_name;
+         } else {
+            // load images appended to left
+            this.loadNextImage(this.currentIndex);
          }
       }
    }
