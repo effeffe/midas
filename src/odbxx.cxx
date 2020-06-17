@@ -1132,6 +1132,14 @@ namespace midas {
       return v;
    }
 
+   std::string * u_odb::operator=(std::string * v){
+       set(*v);
+       if (m_parent_odb)
+          m_parent_odb->write();
+       return v;
+
+   }
+
    // overload all standard conversion operators
    u_odb::operator uint8_t() {
       m_parent_odb->set_last_index(-1);
