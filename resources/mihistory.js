@@ -115,7 +115,7 @@ function MihistoryGraph(divElement) { // Constructor
    this.updatePaused = false;
 
    // overwrite scale from URL if present
-   this.requestedTime = decodeURI(getUrlVars()["T"]);
+   this.requestedTime = Math.floor(decodeURI(getUrlVars()["T"]));
    if (this.requestedTime !== "undefined") {
       this.tMax = this.requestedTime;
       this.tMin = this.requestedTime - this.tScale;
@@ -767,12 +767,36 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
 
 MihistoryGraph.prototype.mouseWheelEvent = function (e) {
 
+   e.preventDefault();
+
+   this.scroll = false;
+   this.playMode = 0;
+
+   this.tMax += e.deltaX * 5;
    this.tMax -= e.deltaY * 5;
    this.tMin = this.tMax - this.tScale;
 
-   this.redraw();
+   // don't go into the future
+   let t = new Date().getTime();
+   if (this.tMax > t / 1000) {
+      this.tMax = t / 1000;
+      this.tMin = this.tMax - this.tScale;
+   }
 
-   e.preventDefault();
+   // seach image closest to current time
+   if (this.imageArray.length > 0) {
+      let tmin = Math.abs(this.tMax - this.imageArray[0].time);
+      let imin = 0;
+      for (let i = 0; i < this.imageArray.length; i++) {
+         if (Math.abs(this.tMax - this.imageArray[i].time) < tmin) {
+            tmin = Math.abs(this.tMax - this.imageArray[i].time);
+            imin = i;
+         }
+      }
+      this.currentIndex = imin;
+   }
+
+   this.loadOldData();
 };
 
 MihistoryGraph.prototype.inertia = function () {
