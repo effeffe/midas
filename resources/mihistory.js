@@ -363,8 +363,6 @@ MihistoryGraph.prototype.initializeIPanel = function () {
 
 MihistoryGraph.prototype.loadInitialData = function () {
 
-   this.lastTimeStamp = Math.floor(Date.now() / 1000);
-
    // get time scale from ODB
    this.tScale = timeToSec(this.odb["Timescale"]);
 
@@ -442,11 +440,11 @@ MihistoryGraph.prototype.loadOldData = function () {
    this.redraw();
 };
 
-MihistoryGraph.prototype.loadNextImage = function (startIndex) {
+MihistoryGraph.prototype.loadNextImage = function () {
    // look from current image backwards for first image not loaded
    let n = 0;
    let nParallel = 10; // number of parallel loads
-   for (let i = startIndex; i >= 0; i--) {
+   for (let i = this.currentIndex; i >= 0; i--) {
       if (this.imageArray[i].image.src === undefined || this.imageArray[i].image.src === "") {
          // load up to one window beyond current window
          if (this.imageArray[i].time > this.tMin - this.tScale) {
@@ -459,7 +457,7 @@ MihistoryGraph.prototype.loadNextImage = function (startIndex) {
             if (n === nParallel) {
                this.imageArray[i].image.onload = function () {
                   this.mhg.redraw();
-                  this.mhg.loadNextImage(i);
+                  this.mhg.loadNextImage();
                };
                return;
             }
@@ -470,8 +468,15 @@ MihistoryGraph.prototype.loadNextImage = function (startIndex) {
    // now check images AFTER currentIndex, like if we start with URL T=...
    for (let i = this.imageArray.length-1 ; i >= 0; i--)
       if (this.imageArray[i].image.src === undefined || this.imageArray[i].image.src === "") {
-         window.setTimeout(this.loadNextImage.bind(this, i), 100);
-         return;
+         this.imageArray[i].image.mhg = this;
+         this.imageArray[i].image.src = this.panel + "/" + this.imageArray[i].image_name;
+         n++;
+         if (n === nParallel) {
+            this.imageArray[i].image.onload = function () {
+               this.mhg.loadNextImage();
+            };
+            return;
+         }
       }
 
    // all done, so resume updates
@@ -510,8 +515,6 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
          this.currentIndex += i1.length;
       }
 
-      this.lastTimeStamp = this.imageArray[this.imageArray.length - 1].time;
-
       if (this.scroll)
          this.currentIndex = this.imageArray.length - 1;
 
@@ -535,24 +538,14 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
             this.mhg.imageElem.initialWidth = this.width;
             this.mhg.imageElem.initialHeight = this.height;
             this.mhg.resize();
-            window.setTimeout(this.mhg.loadNextImage.bind(this.mhg, this.currentIndex), 1000);
+            window.setTimeout(this.mhg.loadNextImage.bind(this.mhg), 1000);
          };
          img.image.mhg = this;
          // trigger loading of image
          img.image.src = this.panel + "/" + img.image_name;
       } else {
-         if (lastImageIndex !== undefined) {
-            // just load last image without resize
-            this.imageArray[lastImageIndex].image.onload = function () {
-               this.mhg.redraw();
-               window.setTimeout(this.mhg.loadNextImage.bind(this.mhg, lastImageIndex), 1000);
-            }
-            this.imageArray[lastImageIndex].image.mhg = this;
-            this.imageArray[lastImageIndex].image.src = this.panel + "/" + this.imageArray[lastImageIndex].image_name;
-         } else {
-            // load images appended to left
-            this.loadNextImage(this.currentIndex);
-         }
+         // load actual image
+         this.loadNextImage();
       }
    }
 };
@@ -572,11 +565,12 @@ MihistoryGraph.prototype.update = function () {
    }
 
    let t = Math.floor(new Date() / 1000);
+   let tStart = this.imageArray[this.imageArray.length-1].time+1;
 
    mjsonrpc_call("hs_image_retrieve",
       {
          "image": this.panel,
-         "start_time": Math.floor(this.lastTimeStamp+1),
+         "start_time": Math.floor(tStart),
          "end_time": Math.floor(t),
       })
       .then(function (rpc) {
@@ -880,13 +874,15 @@ function convertLastWritten(last) {
 }
 
 MihistoryGraph.prototype.updateURL = function() {
-   let url = window.location.href;
-   if (url.search("&T=") !== -1)
-      url = url.slice(0, url.search("&T="));
-   url += "&T=" + Math.round(this.currentTime);
+   if (this.currentTime > 0) {
+      let url = window.location.href;
+      if (url.search("&T=") !== -1)
+         url = url.slice(0, url.search("&T="));
+      url += "&T=" + Math.round(this.currentTime);
 
-   if (url !== window.location.href)
-      window.history.replaceState({}, "Image History", url);
+      if (url !== window.location.href)
+         window.history.replaceState({}, "Image History", url);
+   }
 }
 
 MihistoryGraph.prototype.draw = function () {
