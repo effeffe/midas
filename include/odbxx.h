@@ -106,6 +106,7 @@ namespace midas {
       float operator=(float v);
       double operator=(double v);
       const char *operator=(const char *v);
+      std::string *operator=(std::string * v);
 
       // Overload the Conversion Operators
       operator uint8_t();
@@ -205,6 +206,7 @@ namespace midas {
       void set(char *v) {
          set(std::string(v));
       }
+
 
       void add(double inc, bool push = true);
 
