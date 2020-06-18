@@ -116,7 +116,7 @@ function MihistoryGraph(divElement) { // Constructor
 
    // overwrite scale from URL if present
    this.requestedTime = Math.floor(decodeURI(getUrlVars()["T"]));
-   if (this.requestedTime !== "undefined") {
+   if (!Number.isNaN(this.requestedTime)) {
       this.tMax = this.requestedTime;
       this.tMin = this.requestedTime - this.tScale;
    }
@@ -370,7 +370,7 @@ MihistoryGraph.prototype.loadInitialData = function () {
    if (this.parentDiv.dataset.scale !== undefined)
       this.tScale = timeToSec(this.parentDiv.dataset.scale);
 
-   if (this.requestedTime !== "undefined") {
+   if (!Number.isNaN(this.requestedTime)) {
       this.tMax = this.requestedTime;
       this.tMin = this.requestedTime - this.tScale;
       this.scroll = false;
@@ -518,7 +518,7 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
       if (this.scroll)
          this.currentIndex = this.imageArray.length - 1;
 
-      if (first && this.requestedTime !== "undefined") {
+      if (first && !Number.isNaN(this.requestedTime)) {
          let tmin = Math.abs(this.requestedTime - this.imageArray[0].time);
          let imin = 0;
          for (let i = 0; i < this.imageArray.length; i++) {
