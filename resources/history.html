@@ -53,7 +53,7 @@
       }
       
       let mhist = Array.from(document.getElementsByTagName("div")).filter(d => {
-         return d.hasOwnProperty('mhg') && d.mhg != caller;
+         return d.hasOwnProperty('mhg') && d.mhg !== caller;
       });
       
       return mhist;
@@ -344,7 +344,7 @@
                   if ((nPanel++) % nColumns === 0) // put two panels in one row
                      tr = table.insertRow();
                   let td = tr.insertCell();
-                  createdPlots.push(mhistory_create(td, baseURL, group, panel, parseInt(tMin), parseInt(tMax)));
+                  createdPlots.push(mhistory_create(td, baseURL, group, panel, parseInt(tMin), parseInt(tMax), 0));
                });
             });
 
@@ -361,17 +361,18 @@
                nColumns = Math.max(1, nColumns);
 
                Object.keys(historyImages).forEach(panel => {
-                  if (nPanel++ % nColumns === 0) // put two panels in one row
+                  if (nPanel % nColumns === 0) // put several panels in one row
                      tr = table.insertRow();
                   let td = tr.insertCell();
-                  createdPlots.push(mihistory_create(td, baseURL, panel));
+                  createdPlots.push(mihistory_create(td, baseURL, panel, nPanel));
+                  nPanel++;
                });
 
                document.getElementById("histPanel").appendChild(table);
 
             } else
                // create single image history object
-               createdPlots.push(mihistory_create(document.getElementById("histPanel"), baseURL, curPanel));
+               createdPlots.push(mihistory_create(document.getElementById("histPanel"), baseURL, curPanel, 0));
 
          } else if (curPanel === "All") {
             let table = document.createElement("table");
@@ -383,10 +384,11 @@
             nColumns = Math.max(1, nColumns);
 
             Object.keys(historyDisplay[curGroup]).forEach(panel => {
-               if (nPanel++ % nColumns === 0) // put two panels in one row
+               if (nPanel % nColumns === 0) // put two panels in one row
                   tr = table.insertRow();
                let td = tr.insertCell();
-               createdPlots.push(mhistory_create(td, baseURL, curGroup, panel, parseInt(tMin), parseInt(tMax)));
+               createdPlots.push(mhistory_create(td, baseURL, curGroup, panel, parseInt(tMin), parseInt(tMax), nPanel));
+               nPanel++;
             });
 
             document.getElementById("histPanel").appendChild(table);
@@ -394,7 +396,7 @@
          } else {
             // create single history object
             createdPlots.push(mhistory_create(document.getElementById("histPanel"), baseURL, curGroup, curPanel,
-               parseInt(tMin), parseInt(tMax)));
+               parseInt(tMin), parseInt(tMax), 0));
 
             // Register callback functions in case user wants to change all time axes together.
             for (let i = 0; i < createdPlots.length; i++) {

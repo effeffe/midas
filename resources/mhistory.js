@@ -28,7 +28,7 @@ function mhistory_init() {
    for (let i = 0; i < mhist.length; i++) {
       mhist[i].dataset.baseURL = baseURL;
       mhist[i].mhg = new MhistoryGraph(mhist[i]);
-      mhist[i].mhg.initializePanel();
+      mhist[i].mhg.initializePanel(i);
       mhist[i].mhg.resize();
       mhist[i].resize = function () {
          this.mhg.resize();
@@ -36,7 +36,7 @@ function mhistory_init() {
    }
 }
 
-function mhistory_create(parentElement, baseURL, group, panel, tMin, tMax) {
+function mhistory_create(parentElement, baseURL, group, panel, tMin, tMax, index) {
    let d = document.createElement("div");
    parentElement.appendChild(d);
    d.dataset.baseURL = baseURL;
@@ -47,7 +47,7 @@ function mhistory_create(parentElement, baseURL, group, panel, tMin, tMax) {
       d.mhg.initTMin = tMin;
       d.mhg.initTMax = tMax;
    }
-   d.mhg.initializePanel();
+   d.mhg.initializePanel(index);
    return d;
 }
 
@@ -290,9 +290,9 @@ function timeToSec(str) {
    return s;
 }
 
-function doQuery(t) {
+function doQueryAB(t) {
 
-   dlgHide('dlgQuery');
+   dlgHide('dlgQueryAB');
 
    let d1 = new Date(
       document.getElementById('y1').value,
@@ -337,7 +337,7 @@ MhistoryGraph.prototype.keyDown = function (e) {
    }
 };
 
-MhistoryGraph.prototype.initializePanel = function () {
+MhistoryGraph.prototype.initializePanel = function (index) {
 
    // Retrieve group and panel
    this.group = this.parentDiv.dataset.group;
@@ -359,6 +359,7 @@ MhistoryGraph.prototype.initializePanel = function () {
    if (this.group === "" || this.panel === "")
       return;
 
+   this.index = index;
    this.marker = {active: false};
    this.drag = {active: false};
    this.data = undefined;
@@ -521,10 +522,10 @@ MhistoryGraph.prototype.loadInitialData = function () {
             document.getElementById('y2').selectedIndex = currentYear - dMax.getFullYear();
 
             document.getElementById('dlgQueryQuery').onclick = function () {
-               doQuery(this);
+               doQueryAB(this);
             }.bind(this);
 
-            dlgShow("dlgQuery");
+            dlgShow("dlgQueryAB");
 
          } else if (b === "&lt;&lt;") {
 
@@ -2152,7 +2153,9 @@ MhistoryGraph.prototype.draw = function () {
    // update URL
    if (this.updateURLTimer !== undefined)
       window.clearTimeout(this.updateURLTimer);
-   this.updateURLTimer = window.setTimeout(this.updateURL.bind(this), 500);
+
+   if (this.index === 0)
+      this.updateURLTimer = window.setTimeout(this.updateURL.bind(this), 500);
 };
 
 

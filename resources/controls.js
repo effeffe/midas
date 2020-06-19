@@ -437,8 +437,16 @@ Controls.prototype.ctrlProgressSet = function (value) {
 };
 
 //-------------------------------------------------------------------------------------------------
+var dlgLoadedDialogs = [];
 
 function dlgLoad(url) {
+   // check if dialog already laoded
+   if (dlgLoadedDialogs.includes(url))
+      return;
+
+   dlgLoadedDialogs.push(url);
+
+   // load dialog via AJAX
    return new Promise(function (resolve, reject) {
       let xhr = new XMLHttpRequest();
       xhr.onreadystatechange = function () {

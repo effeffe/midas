@@ -27,7 +27,7 @@ function mihistory_init() {
    for (let i = 0; i < mhist.length; i++) {
       mhist[i].dataset.baseURL = baseURL;
       mhist[i].mhg = new MihistoryGraph(mhist[i]);
-      mhist[i].mhg.initializeIPanel();
+      mhist[i].mhg.initializeIPanel(i);
       mhist[i].mhg.resize();
       mhist[i].resize = function () {
          this.mhg.resize();
@@ -35,13 +35,13 @@ function mihistory_init() {
    }
 }
 
-function mihistory_create(parentElement, baseURL, panel) {
+function mihistory_create(parentElement, baseURL, panel, index) {
    let d = document.createElement("div");
    parentElement.appendChild(d);
    d.dataset.baseURL = baseURL;
    d.dataset.panel = panel;
    d.mhg = new MihistoryGraph(d);
-   d.mhg.initializeIPanel();
+   d.mhg.initializeIPanel(index);
    return d;
 }
 
@@ -77,7 +77,7 @@ function MihistoryGraph(divElement) { // Constructor
    this.axisCanvas = document.createElement("canvas");
 
    this.fileLabel = document.createElement("div");
-   this.fileLabel.id = "fileLabel";
+   this.fileLabel.id = "fileLabel_" + this.panel;
    this.fileLabel.style.backgroundColor = "white";
    this.fileLabel.style.opacity = "0.7";
    this.fileLabel.style.fontSize = "10px";
@@ -236,6 +236,29 @@ function MihistoryGraph(divElement) { // Constructor
          src: "clock.svg",
          title: "Select time...",
          click: function (t) {
+
+            let currentYear = new Date().getFullYear();
+            let dCur = new Date(t.currentTime * 1000);
+
+            if (document.getElementById('y1').length === 0) {
+               for (let i = currentYear; i > currentYear - 5; i--) {
+                  let o = document.createElement('option');
+                  o.value = i.toString();
+                  o.appendChild(document.createTextNode(i.toString()));
+                  document.getElementById('y1').appendChild(o);
+               }
+            }
+
+            document.getElementById('m1').selectedIndex = dCur.getMonth();
+            document.getElementById('d1').selectedIndex = dCur.getDate() - 1;
+            document.getElementById('h1').selectedIndex = dCur.getHours();
+            document.getElementById('y1').selectedIndex = currentYear - dCur.getFullYear
+
+            document.getElementById('dlgQueryQuery').onclick = function () {
+               doQueryT(t);
+            }.bind(t);
+
+            dlgShow("dlgQueryT");
          }
       },
       {
@@ -294,9 +317,9 @@ function timeToSec(str) {
    return s;
 }
 
-function doQuery(t) {
+function doQueryT(t) {
 
-   dlgHide('dlgQuery');
+   dlgHide('dlgQueryT');
 
    let d = new Date(
       document.getElementById('y1').value,
@@ -304,9 +327,28 @@ function doQuery(t) {
       document.getElementById('d1').selectedIndex + 1,
       document.getElementById('h1').selectedIndex);
 
-   t.tMax = d.getTime() / 1000;
-   t.tMin = t.tMax - 24*3600;
    t.scroll = false;
+   t.playMode = 0;
+
+   let tm = d.getTime() / 1000;
+   t.tMax = tm;
+   t.tMin = tm - t.tScale;
+
+   if (tm < t.imageArray[0].time) {
+      t.requestedTime = tm;
+      t.loadOldData();
+   } else {
+      let tmin = Math.abs(tm - t.imageArray[0].time);
+      let imin = 0;
+      for (let i = 0; i < t.imageArray.length; i++) {
+         if (Math.abs(tm - t.imageArray[i].time) < tmin) {
+            tmin = Math.abs(tm - t.imageArray[i].time);
+            imin = i;
+         }
+      }
+      t.currentIndex = imin;
+      t.redraw();
+   }
 }
 
 
@@ -318,14 +360,14 @@ MihistoryGraph.prototype.keyDown = function (e) {
    }
 };
 
-MihistoryGraph.prototype.initializeIPanel = function () {
+MihistoryGraph.prototype.initializeIPanel = function (index) {
 
    // Retrieve panel
    this.panel = this.parentDiv.dataset.panel;
 
    if (this.panel === undefined) {
-      dlgMessage("Error", "Definition of \'dataset-panel\' missing for history panel \'" + this.parentDiv.id + "\'. " +
-         "Please use syntax:<br /><br /><b>&lt;div class=\"mjshistory\" " +
+      dlgMessage("Error", "Definition of \'dataset-panel\' missing for image history panel \'" + this.parentDiv.id + "\'. " +
+         "Please use syntax:<br /><br /><b>&lt;div class=\"mjsihistory\" " +
          "data-group=\"&lt;Group&gt;\" data-panel=\"&lt;Panel&gt;\"&gt;&lt;/div&gt;</b>", true);
       return;
    }
@@ -333,6 +375,7 @@ MihistoryGraph.prototype.initializeIPanel = function () {
    if (this.panel === "")
       return;
 
+   this.index = index;
    this.marker = {active: false};
    this.drag = {active: false};
    this.data = undefined;
@@ -390,7 +433,7 @@ MihistoryGraph.prototype.loadInitialData = function () {
    mjsonrpc_call("hs_image_retrieve",
       {
          "image": this.panel,
-         "start_time": Math.floor(this.tMin-(this.tMax-this.tMin)),
+         "start_time": Math.floor(this.tMinRequested),
          "end_time": Math.floor(this.tMax),
       })
       .then(function (rpc) {
@@ -518,7 +561,7 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
       if (this.scroll)
          this.currentIndex = this.imageArray.length - 1;
 
-      if (first && !Number.isNaN(this.requestedTime)) {
+      if (!Number.isNaN(this.requestedTime)) {
          let tmin = Math.abs(this.requestedTime - this.imageArray[0].time);
          let imin = 0;
          for (let i = 0; i < this.imageArray.length; i++) {
@@ -528,6 +571,7 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
             }
          }
          this.currentIndex = imin;
+         this.requestedTime = NaN;
       }
 
       if (first) {
@@ -863,6 +907,9 @@ MihistoryGraph.prototype.resize = function () {
       if (this.imageElem.height + 30 < this.parentDiv.clientHeight) {
          let diff = this.parentDiv.clientHeight - (this.imageElem.height + 30);
          this.parentDiv.style.height = (parseInt(this.parentDiv.style.height) - diff) + "px";
+         if (this.parentDiv.parentNode.tagName === "TD") {
+            this.parentDiv.parentNode.style.height = this.parentDiv.style.height;
+         }
       }
    }
    this.buttonCanvas.height = this.imageElem.height;
@@ -920,9 +967,9 @@ MihistoryGraph.prototype.draw = function () {
       if (this.imageElem.src !== this.imageArray[this.currentIndex].image.src)
          this.imageElem.src = this.imageArray[this.currentIndex].image.src;
       if (!this.imageArray[this.currentIndex].image.complete)
-         document.getElementById("fileLabel").innerHTML = "Loading " + this.imageArray[this.currentIndex].image_name;
+         this.fileLabel.innerHTML = "Loading " + this.imageArray[this.currentIndex].image_name;
       else
-         document.getElementById("fileLabel").innerHTML = this.imageArray[this.currentIndex].image_name;
+         this.fileLabel.innerHTML = this.imageArray[this.currentIndex].image_name;
       this.currentTime = this.imageArray[this.currentIndex].time;
    }
 
@@ -984,8 +1031,8 @@ MihistoryGraph.prototype.draw = function () {
 
       if (b.src === "maximize-2.svg") {
          let s = window.location.href;
-         if (s.indexOf("&A") > -1)
-            s = s.substr(0, s.indexOf("&A"));
+         if (s.indexOf("&T") > -1)
+            s = s.substr(0, s.indexOf("&T"));
          if (s === encodeURI(this.baseURL + "&group=" + "Images" + "&panel=" + this.panel)) {
             b.enabled = false;
             return;
@@ -1027,7 +1074,9 @@ MihistoryGraph.prototype.draw = function () {
    // update URL
    if (this.updateURLTimer !== undefined)
       window.clearTimeout(this.updateURLTimer);
-   this.updateURLTimer = window.setTimeout(this.updateURL.bind(this), 500);
+
+   if (this.index === 0)
+      this.updateURLTimer = window.setTimeout(this.updateURL.bind(this), 500);
 };
 
 let ioptions1 = {
