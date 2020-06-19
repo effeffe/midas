@@ -203,6 +203,8 @@ function MihistoryGraph(divElement) { // Constructor
             t.tMin += t.tScale;
             t.drag.Vt = 0 // stop inertia
             t.redraw();
+            if (t.callbacks.timeZoom !== undefined)
+               t.callbacks.timeZoom(t);
          }
       },
       {
@@ -214,6 +216,9 @@ function MihistoryGraph(divElement) { // Constructor
             t.drag.Vt = 0 // stop inertia
             t.redraw();
             t.loadOldData();
+
+            if (t.callbacks.timeZoom !== undefined)
+               t.callbacks.timeZoom(t);
          }
       },
       {
@@ -227,9 +232,8 @@ function MihistoryGraph(divElement) { // Constructor
             t.currentIndex = t.imageArray.length-1;
             t.scrollRedraw();
 
-            if (t.callbacks.jumpToCurrent !== undefined) {
+            if (t.callbacks.jumpToCurrent !== undefined)
                t.callbacks.jumpToCurrent(t);
-            }
          }
       },
       {
