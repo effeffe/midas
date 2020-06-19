@@ -350,6 +350,29 @@
 
             document.getElementById("histPanel").appendChild(table);
 
+         } else if (curGroup === "Images") {
+            if (curPanel === "All") {
+               let table = document.createElement("table");
+               let tr;
+               let nPanel = 0;
+
+               let m = document.getElementById("mmain");
+               let nColumns = Math.floor((document.documentElement.clientWidth - parseInt(m.style.marginLeft) - 30) / 400);
+               nColumns = Math.max(1, nColumns);
+
+               Object.keys(historyImages).forEach(panel => {
+                  if (nPanel++ % nColumns === 0) // put two panels in one row
+                     tr = table.insertRow();
+                  let td = tr.insertCell();
+                  createdPlots.push(mihistory_create(td, baseURL, panel));
+               });
+
+               document.getElementById("histPanel").appendChild(table);
+
+            } else
+               // create single image history object
+               createdPlots.push(mihistory_create(document.getElementById("histPanel"), baseURL, curPanel));
+
          } else if (curPanel === "All") {
             let table = document.createElement("table");
             let tr;
@@ -368,9 +391,6 @@
 
             document.getElementById("histPanel").appendChild(table);
 
-         } else if (curGroup === "Images") {
-            // create single image history object
-            createdPlots.push(mihistory_create(document.getElementById("histPanel"), baseURL, curPanel));
          } else {
             // create single history object
             createdPlots.push(mhistory_create(document.getElementById("histPanel"), baseURL, curGroup, curPanel,

@@ -64,7 +64,7 @@ function MihistoryGraph(divElement) { // Constructor
    this.imageElem.style.border = "2px solid #808080";
    this.imageElem.style.margin = "auto";
    this.imageElem.style.display = "block";
-   this.imageElem.id = "hiImage";
+   this.imageElem.id = "hiImage_" + this.panel;
 
    this.buttonCanvas = document.createElement("canvas");
    this.buttonCanvas.width = 30;
@@ -534,7 +534,7 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
          // after loading of fist image, resize panel
          let img = this.imageArray[this.currentIndex];
          img.image.onload = function () {
-            document.getElementById("hiImage").src = this.src;
+            this.mhg.imageElem.src = this.src;
             this.mhg.imageElem.initialWidth = this.width;
             this.mhg.imageElem.initialHeight = this.height;
             this.mhg.resize();
@@ -767,13 +767,16 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
 
 MihistoryGraph.prototype.mouseWheelEvent = function (e) {
 
+   // only use horizontal events
+   if (e.deltaX === 0)
+      return;
+
    e.preventDefault();
 
    this.scroll = false;
    this.playMode = 0;
 
    this.tMax += e.deltaX * 5;
-   this.tMax -= e.deltaY * 5;
    this.tMin = this.tMax - this.tScale;
 
    // don't go into the future
@@ -862,6 +865,7 @@ MihistoryGraph.prototype.resize = function () {
          this.parentDiv.style.height = (parseInt(this.parentDiv.style.height) - diff) + "px";
       }
    }
+   this.buttonCanvas.height = this.imageElem.height;
 
    this.redraw();
 };
@@ -913,8 +917,8 @@ MihistoryGraph.prototype.draw = function () {
 
    // set image from this.currentIndex
    if (this.imageArray.length > 0) {
-      if (document.getElementById("hiImage").src !== this.imageArray[this.currentIndex].image.src)
-         document.getElementById("hiImage").src = this.imageArray[this.currentIndex].image.src;
+      if (this.imageElem.src !== this.imageArray[this.currentIndex].image.src)
+         this.imageElem.src = this.imageArray[this.currentIndex].image.src;
       if (!this.imageArray[this.currentIndex].image.complete)
          document.getElementById("fileLabel").innerHTML = "Loading " + this.imageArray[this.currentIndex].image_name;
       else
@@ -967,7 +971,8 @@ MihistoryGraph.prototype.draw = function () {
 
    // draw buttons
    ctx = this.buttonCanvas.getContext("2d");
-   this.buttonCanvas.height = this.button.length*28+2;
+   if (this.button.length*28+2 < this.buttonCanvas.height)
+      this.buttonCanvas.height = this.button.length*28+2;
 
    let y = 0;
    this.button.forEach(b => {
