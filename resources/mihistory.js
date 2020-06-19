@@ -338,17 +338,11 @@ function doQueryT(t) {
       t.requestedTime = tm;
       t.loadOldData();
    } else {
-      let tmin = Math.abs(tm - t.imageArray[0].time);
-      let imin = 0;
-      for (let i = 0; i < t.imageArray.length; i++) {
-         if (Math.abs(tm - t.imageArray[i].time) < tmin) {
-            tmin = Math.abs(tm - t.imageArray[i].time);
-            imin = i;
-         }
-      }
-      t.currentIndex = imin;
-      t.redraw();
+      t.setCurrentIndex(tm);
    }
+
+   if (t.callbacks.timeZoom !== undefined)
+      t.callbacks.timeZoom(t);
 }
 
 
@@ -402,6 +396,19 @@ MihistoryGraph.prototype.initializeIPanel = function (index) {
       else
          throw(error);
    });
+};
+
+MihistoryGraph.prototype.setCurrentIndex = function(t) {
+   let tmin = Math.abs(t - this.imageArray[0].time);
+   let imin = 0;
+   for (let i = 0; i < this.imageArray.length; i++) {
+      if (Math.abs(t - this.imageArray[i].time) < tmin) {
+         tmin = Math.abs(t - this.imageArray[i].time);
+         imin = i;
+      }
+   }
+   this.currentIndex = imin;
+   this.redraw();
 };
 
 MihistoryGraph.prototype.loadInitialData = function () {
@@ -562,15 +569,7 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
          this.currentIndex = this.imageArray.length - 1;
 
       if (!Number.isNaN(this.requestedTime)) {
-         let tmin = Math.abs(this.requestedTime - this.imageArray[0].time);
-         let imin = 0;
-         for (let i = 0; i < this.imageArray.length; i++) {
-            if (Math.abs(this.requestedTime - this.imageArray[i].time) < tmin) {
-               tmin = Math.abs(this.requestedTime - this.imageArray[i].time);
-               imin = i;
-            }
-         }
-         this.currentIndex = imin;
+         this.setCurrentIndex(this.requestedTime);
          this.requestedTime = NaN;
       }
 
@@ -668,6 +667,9 @@ MihistoryGraph.prototype.play = function () {
    this.redraw();
    this.loadOldData();
 
+   if (this.callbacks.timeZoom !== undefined)
+      this.callbacks.timeZoom(this);
+
    if (this.playMode === 0)
       return;
 
@@ -754,24 +756,13 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
          }
 
          // seach image closest to current time
-         if (this.imageArray.length > 0) {
-            let tmin = Math.abs(this.tMax - this.imageArray[0].time);
-            let imin = 0;
-            for (let i = 0; i < this.imageArray.length; i++) {
-               if (Math.abs(this.tMax - this.imageArray[i].time) < tmin) {
-                  tmin = Math.abs(this.tMax - this.imageArray[i].time);
-                  imin = i;
-               }
-            }
-            this.currentIndex = imin;
-         }
+         if (this.imageArray.length > 0)
+            this.setCurrentIndex(this.tMax);
 
          this.loadOldData();
 
-         if (this.callbacks.timeZoom !== undefined) {
+         if (this.callbacks.timeZoom !== undefined)
             this.callbacks.timeZoom(this);
-         }
-
       }
 
       // change cursor to pointer over buttons
@@ -831,17 +822,8 @@ MihistoryGraph.prototype.mouseWheelEvent = function (e) {
    }
 
    // seach image closest to current time
-   if (this.imageArray.length > 0) {
-      let tmin = Math.abs(this.tMax - this.imageArray[0].time);
-      let imin = 0;
-      for (let i = 0; i < this.imageArray.length; i++) {
-         if (Math.abs(this.tMax - this.imageArray[i].time) < tmin) {
-            tmin = Math.abs(this.tMax - this.imageArray[i].time);
-            imin = i;
-         }
-      }
-      this.currentIndex = imin;
-   }
+   if (this.imageArray.length > 0)
+      this.setCurrentIndex(this.tMax);
 
    this.loadOldData();
 };
@@ -862,9 +844,8 @@ MihistoryGraph.prototype.inertia = function () {
 
       this.redraw();
 
-      if (this.callbacks.timeZoom !== undefined) {
+      if (this.callbacks.timeZoom !== undefined)
          this.callbacks.timeZoom(this);
-      }
 
       if (this.drag.Vt !== 0)
          window.setTimeout(this.inertia.bind(this), 50);
@@ -875,6 +856,7 @@ MihistoryGraph.prototype.setTimespan = function (tMin, tMax, scroll) {
    this.tMin = tMin;
    this.tMax = tMax;
    this.scroll = scroll;
+   this.setCurrentIndex(tMax);
    this.loadOldData();
 };
 

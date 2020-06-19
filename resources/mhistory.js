@@ -314,11 +314,9 @@ function doQueryAB(t) {
    t.scroll = false;
    t.loadOldData();
 
-   if (t.callbacks.timeZoom !== undefined) {
+   if (t.callbacks.timeZoom !== undefined)
       t.callbacks.timeZoom(t);
-   }
 }
-
 
 MhistoryGraph.prototype.keyDown = function (e) {
    if (e.key === "u") {  // 'u' key
@@ -555,9 +553,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   mhg.marker.active = false;
                   mhg.loadOldData();
 
-                  if (mhg.callbacks.timeZoom !== undefined) {
+                  if (mhg.callbacks.timeZoom !== undefined)
                      mhg.callbacks.timeZoom(mhg);
-                  }
 
                }.bind(this))
                .catch(function (error) {
@@ -588,9 +585,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   mhg.marker.active = false;
                   mhg.loadOldData();
 
-                  if (mhg.callbacks.timeZoom !== undefined) {
+                  if (mhg.callbacks.timeZoom !== undefined)
                      mhg.callbacks.timeZoom(mhg);
-                  }
 
                }.bind(this))
                .catch(function (error) {
@@ -605,9 +601,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
             mhg.loadOldData();
             mhg.scrollRedraw();
 
-            if (mhg.callbacks.timeZoom !== undefined) {
+            if (mhg.callbacks.timeZoom !== undefined)
                mhg.callbacks.timeZoom(mhg);
-            }
          }
          mhg.intSelector.style.display = "none";
          return false;
@@ -1056,9 +1051,8 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.zoom.x.active = false;
          this.redraw();
 
-         if (this.callbacks.timeZoom !== undefined) {
+         if (this.callbacks.timeZoom !== undefined)
             this.callbacks.timeZoom(this);
-         }
       }
 
       if (this.zoom.y.active) {
@@ -1097,9 +1091,8 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
          this.loadOldData();
 
-         if (this.callbacks.timeZoom !== undefined) {
+         if (this.callbacks.timeZoom !== undefined)
             this.callbacks.timeZoom(this);
-         }
 
       } else {
 
@@ -1294,9 +1287,8 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
             this.loadOldData();
          }
 
-         if (this.callbacks.timeZoom !== undefined) {
+         if (this.callbacks.timeZoom !== undefined)
             this.callbacks.timeZoom(this);
-         }
       } else
          return;
 
@@ -1322,9 +1314,8 @@ MhistoryGraph.prototype.inertia = function () {
 
       this.loadOldData();
 
-      if (this.callbacks.timeZoom !== undefined) {
+      if (this.callbacks.timeZoom !== undefined)
          this.callbacks.timeZoom(this);
-      }
 
       if (this.drag.Vt !== 0)
          window.setTimeout(this.inertia.bind(this), 50);

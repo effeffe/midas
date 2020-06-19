@@ -223,15 +223,13 @@
             "      </select>\n";
 
 
-         if (curGroup !== "Images") {
-            if (curPanel == "All") {
-               h += "      &nbsp;&nbsp;<input type='checkbox' id='linkTAxes' name='linkTAxes'><label for='linkTAxes'>Change all time axes together</label>";
-            } else {
-               if (tMin !== "undefined")
-                  h += "      &nbsp;&nbsp;<input type='checkbox' checked id='keepTAxis' name='keepTAxis'><label for='keepTAxis'>Keep horizontal axis when switching panels</label>";
-               else
-                  h += "      &nbsp;&nbsp;<input type='checkbox' id='keepTAxis' name='keepTAxis'><label for='keepTAxis'>Keep horizontal axis when switching panels</label>";
-            }
+         if (curPanel == "All") {
+            h += "      &nbsp;&nbsp;<input type='checkbox' id='linkTAxes' name='linkTAxes'><label for='linkTAxes'>Change all time axes together</label>";
+         } else {
+            if (tMin !== "undefined")
+               h += "      &nbsp;&nbsp;<input type='checkbox' checked id='keepTAxis' name='keepTAxis'><label for='keepTAxis'>Keep horizontal axis when switching panels</label>";
+            else
+               h += "      &nbsp;&nbsp;<input type='checkbox' id='keepTAxis' name='keepTAxis'><label for='keepTAxis'>Keep horizontal axis when switching panels</label>";
          }
 
          h += "   </td></tr>\n" +
@@ -397,14 +395,15 @@
             // create single history object
             createdPlots.push(mhistory_create(document.getElementById("histPanel"), baseURL, curGroup, curPanel,
                parseInt(tMin), parseInt(tMax), 0));
-
-            // Register callback functions in case user wants to change all time axes together.
-            for (let i = 0; i < createdPlots.length; i++) {
-               createdPlots[i].mhg.callbacks.timeZoom = timeZoomCallback;
-               createdPlots[i].mhg.callbacks.resetAxes = resetAxesCallback;
-               createdPlots[i].mhg.callbacks.jumpToCurrent = jumpToCurrentCallback;
-            }
          }
+
+         // Register callback functions in case user wants to change all time axes together.
+         for (let i = 0; i < createdPlots.length; i++) {
+            createdPlots[i].mhg.callbacks.timeZoom = timeZoomCallback;
+            createdPlots[i].mhg.callbacks.resetAxes = resetAxesCallback;
+            createdPlots[i].mhg.callbacks.jumpToCurrent = jumpToCurrentCallback;
+         }
+
          window.addEventListener("resize", windowResize);
          windowResize();
 
