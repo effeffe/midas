@@ -1801,7 +1801,7 @@ function mhttpd_refresh() {
 
       for (var i = 0; i < modb.length; i++, idata++) {
          let x = rpc[0].result.data[idata];
-         if (modb[i].x === undefined) {
+         if (modb[i].value === undefined) {
             modb[i].value = x;
          } else {
             if (typeof x === 'object' && x !== null) { // subdircectory
