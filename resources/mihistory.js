@@ -294,6 +294,10 @@ function MihistoryGraph(divElement) { // Constructor
    divElement.addEventListener("mousedown", this.mouseEvent.bind(this), true);
    divElement.addEventListener("dblclick", this.mouseEvent.bind(this), true);
    divElement.addEventListener("mousemove", this.mouseEvent.bind(this), true);
+   divElement.addEventListener("touchstart", this.mouseEvent.bind(this), true);
+   divElement.addEventListener("touchmove", this.mouseEvent.bind(this), true);
+   divElement.addEventListener("touchend", this.mouseEvent.bind(this), true);
+   divElement.addEventListener("touchcancel", this.mouseEvent.bind(this), true);
    divElement.addEventListener("mouseup", this.mouseEvent.bind(this), true);
    divElement.addEventListener("wheel", this.mouseWheelEvent.bind(this), true);
 
@@ -691,19 +695,26 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
 
    // calculate mouse coordinates relative to history panel
    let rect = document.getElementById("histPanel").getBoundingClientRect();
-   let mouseX = e.clientX - rect.left;
-   let mouseY = e.clientY - rect.top;
+   let mouseX, offsetY;
+
+   if (e.type === "touchstart" || e.type === "touchmove" ||
+       e.type === "touchend" || e.type === "touchcancel") {
+      mouseX = Math.floor(e.changedTouches[e.changedTouches.length - 1].clientX - rect.left);
+      offsetY = Math.floor(e.changedTouches[e.changedTouches.length - 1].clientY - rect.top);
+   } else {
+      mouseX = e.clientX - rect.left;
+      offsetY = e.offsetY;
+   }
 
    let cursor = this.pendingUpdates > 0 ? "progress" : "default";
    let title = "";
 
-   if (e.type === "mousedown") {
+   if (e.type === "mousedown" || e.type === "touchstart") {
 
       // check for buttons
       if (e.target === this.buttonCanvas) {
-         let rect = this.buttonCanvas.getBoundingClientRect();
          this.button.forEach(b => {
-            if (e.offsetY > b.y1 && e.offsetY < b.y1 + b.width &&
+            if (offsetY > b.y1 && offsetY < b.y1 + b.width &&
                b.enabled) {
                cursor = "pointer";
                b.click(this);
@@ -724,7 +735,7 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
          this.drag.tMaxStart = this.tMax;
       }
 
-   } else if (e.type === "mouseup") {
+   } else if (e.type === "mouseup" || e.type === "touchend" || e.type === "touchcancel") {
 
       if (this.drag.active) {
          this.drag.active = false;
@@ -737,7 +748,7 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
          window.setTimeout(this.inertia.bind(this), 50);
       }
 
-   } else if (e.type === "mousemove") {
+   } else if (e.type === "mousemove" || e.type === "touchmove") {
 
       // change cursor to arrow over image and axis
       cursor = "ew-resize";
