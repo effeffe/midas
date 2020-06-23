@@ -58,6 +58,15 @@ namespace midas {
       return nullptr;
    }
 
+   // check if a key exists in the ODB
+   bool odb::exists(std::string name) {
+      init_hdb();
+      if (!odb::is_connected_odb())
+         return false;
+      HNDLE hkey;
+      return db_find_key(m_hDB, 0, name.c_str(), &hkey) == DB_SUCCESS;
+   }
+
    // global callback function for db_watch()
    void odb::watch_callback(int hDB, int hKey, int index, void *info) {
       midas::odb *po = static_cast<midas::odb *>(info);

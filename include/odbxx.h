@@ -1025,6 +1025,8 @@ namespace midas {
       static void set_debug(bool flag) { m_debug = flag; }
       static bool get_debug() { return m_debug; }
       static int create(const char *name, int type = TID_KEY);
+      static bool exists(std::string name);
+
 
       void connect(std::string path, std::string name, bool write_defaults);
       void connect(std::string str, bool write_defaults = false);
