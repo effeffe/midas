@@ -28,7 +28,7 @@ function mhistory_init() {
    for (let i = 0; i < mhist.length; i++) {
       mhist[i].dataset.baseURL = baseURL;
       mhist[i].mhg = new MhistoryGraph(mhist[i]);
-      mhist[i].mhg.initializePanel();
+      mhist[i].mhg.initializePanel(i);
       mhist[i].mhg.resize();
       mhist[i].resize = function () {
          this.mhg.resize();
@@ -36,7 +36,7 @@ function mhistory_init() {
    }
 }
 
-function mhistory_create(parentElement, baseURL, group, panel, tMin, tMax) {
+function mhistory_create(parentElement, baseURL, group, panel, tMin, tMax, index) {
    let d = document.createElement("div");
    parentElement.appendChild(d);
    d.dataset.baseURL = baseURL;
@@ -47,7 +47,7 @@ function mhistory_create(parentElement, baseURL, group, panel, tMin, tMax) {
       d.mhg.initTMin = tMin;
       d.mhg.initTMax = tMax;
    }
-   d.mhg.initializePanel();
+   d.mhg.initializePanel(index);
    return d;
 }
 
@@ -290,9 +290,9 @@ function timeToSec(str) {
    return s;
 }
 
-function doQuery(t) {
+function doQueryAB(t) {
 
-   dlgHide('dlgQuery');
+   dlgHide('dlgQueryAB');
 
    let d1 = new Date(
       document.getElementById('y1').value,
@@ -314,11 +314,9 @@ function doQuery(t) {
    t.scroll = false;
    t.loadOldData();
 
-   if (t.callbacks.timeZoom !== undefined) {
+   if (t.callbacks.timeZoom !== undefined)
       t.callbacks.timeZoom(t);
-   }
 }
-
 
 MhistoryGraph.prototype.keyDown = function (e) {
    if (e.key === "u") {  // 'u' key
@@ -337,7 +335,7 @@ MhistoryGraph.prototype.keyDown = function (e) {
    }
 };
 
-MhistoryGraph.prototype.initializePanel = function () {
+MhistoryGraph.prototype.initializePanel = function (index) {
 
    // Retrieve group and panel
    this.group = this.parentDiv.dataset.group;
@@ -359,6 +357,7 @@ MhistoryGraph.prototype.initializePanel = function () {
    if (this.group === "" || this.panel === "")
       return;
 
+   this.index = index;
    this.marker = {active: false};
    this.drag = {active: false};
    this.data = undefined;
@@ -521,10 +520,10 @@ MhistoryGraph.prototype.loadInitialData = function () {
             document.getElementById('y2').selectedIndex = currentYear - dMax.getFullYear();
 
             document.getElementById('dlgQueryQuery').onclick = function () {
-               doQuery(this);
+               doQueryAB(this);
             }.bind(this);
 
-            dlgShow("dlgQuery");
+            dlgShow("dlgQueryAB");
 
          } else if (b === "&lt;&lt;") {
 
@@ -554,9 +553,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   mhg.marker.active = false;
                   mhg.loadOldData();
 
-                  if (mhg.callbacks.timeZoom !== undefined) {
+                  if (mhg.callbacks.timeZoom !== undefined)
                      mhg.callbacks.timeZoom(mhg);
-                  }
 
                }.bind(this))
                .catch(function (error) {
@@ -587,9 +585,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   mhg.marker.active = false;
                   mhg.loadOldData();
 
-                  if (mhg.callbacks.timeZoom !== undefined) {
+                  if (mhg.callbacks.timeZoom !== undefined)
                      mhg.callbacks.timeZoom(mhg);
-                  }
 
                }.bind(this))
                .catch(function (error) {
@@ -604,9 +601,8 @@ MhistoryGraph.prototype.loadInitialData = function () {
             mhg.loadOldData();
             mhg.scrollRedraw();
 
-            if (mhg.callbacks.timeZoom !== undefined) {
+            if (mhg.callbacks.timeZoom !== undefined)
                mhg.callbacks.timeZoom(mhg);
-            }
          }
          mhg.intSelector.style.display = "none";
          return false;
@@ -780,7 +776,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       return;
    }
 
-   // append new values to end of arrays
+   // push initial data
    if (this.data === undefined) {
       this.data = [];
       for (let index = 0; index < nVars; index++) {
@@ -788,6 +784,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       }
    }
 
+   // append new values to end of arrays
    for (let index = 0; index < nVars; index++) {
       if (nData[index] === 0)
          continue;
@@ -1054,9 +1051,8 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.zoom.x.active = false;
          this.redraw();
 
-         if (this.callbacks.timeZoom !== undefined) {
+         if (this.callbacks.timeZoom !== undefined)
             this.callbacks.timeZoom(this);
-         }
       }
 
       if (this.zoom.y.active) {
@@ -1095,9 +1091,8 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
          this.loadOldData();
 
-         if (this.callbacks.timeZoom !== undefined) {
+         if (this.callbacks.timeZoom !== undefined)
             this.callbacks.timeZoom(this);
-         }
 
       } else {
 
@@ -1292,9 +1287,8 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
             this.loadOldData();
          }
 
-         if (this.callbacks.timeZoom !== undefined) {
+         if (this.callbacks.timeZoom !== undefined)
             this.callbacks.timeZoom(this);
-         }
       } else
          return;
 
@@ -1320,9 +1314,8 @@ MhistoryGraph.prototype.inertia = function () {
 
       this.loadOldData();
 
-      if (this.callbacks.timeZoom !== undefined) {
+      if (this.callbacks.timeZoom !== undefined)
          this.callbacks.timeZoom(this);
-      }
 
       if (this.drag.Vt !== 0)
          window.setTimeout(this.inertia.bind(this), 50);
@@ -1522,12 +1515,12 @@ function convertLastWritten(last) {
 
 MhistoryGraph.prototype.updateURL = function() {
    let url = window.location.href;
-   //url += "&abcd";
    if (url.search("&A=") !== -1)
       url = url.slice(0, url.search("&A="));
    url += "&A=" + Math.round(this.tMin) + "&B=" + Math.round(this.tMax);
 
-   window.history.replaceState(null, "History", url);
+   if (url !== window.location.href)
+      window.history.replaceState({}, "Midas History", url);
 }
 
 MhistoryGraph.prototype.draw = function () {
@@ -2004,11 +1997,15 @@ MhistoryGraph.prototype.draw = function () {
       b.height = 28;
       b.enabled = true;
 
-      if (b.src === "maximize-2.svg")
-         if (window.location.href === encodeURI(this.baseURL + "&group=" + this.group + "&panel=" + this.panel)) {
+      if (b.src === "maximize-2.svg") {
+         let s = window.location.href;
+         if (s.indexOf("&A") > -1)
+            s = s.substr(0, s.indexOf("&A"));
+         if (s === encodeURI(this.baseURL + "&group=" + this.group + "&panel=" + this.panel)) {
             b.enabled = false;
             return;
          }
+      }
 
       if (b.src === "play.svg" && !this.scroll)
          ctx.fillStyle = "#FFC0C0";
@@ -2147,7 +2144,9 @@ MhistoryGraph.prototype.draw = function () {
    // update URL
    if (this.updateURLTimer !== undefined)
       window.clearTimeout(this.updateURLTimer);
-   this.updateURLTimer = window.setTimeout(this.updateURL.bind(this), 500);
+
+   if (this.index === 0)
+      this.updateURLTimer = window.setTimeout(this.updateURL.bind(this), 500);
 };
 
 

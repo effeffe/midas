@@ -113,6 +113,7 @@ void image_thread(std::string name) {
          o["Last fetch"] = ss_time();
          std::string url = o["URL"];
          std::string filename = history_dir() + name;
+         std::string dotname = filename;
          int status = mkpath(filename.c_str(), 0755);
          if (status)
             cm_msg(MERROR, "image_thread", "Cannot create directory \"%s\": %s", filename.c_str(), strerror(errno));
@@ -129,20 +130,24 @@ void image_thread(std::string name) {
            std::setfill('0') << std::setw(2) << ltm->tm_min <<
            std::setfill('0') << std::setw(2) << ltm->tm_sec;
          filename += "/" + s.str();
+         dotname += "/." + s.str();
 
-         if (o["Extension"] == std::string(""))
-            filename += "/" + s.str() + url.substr(url.find_last_of('.'));
-         else
+         if (o["Extension"] == std::string("")) {
+            filename += url.substr(url.find_last_of('.'));
+            dotname += url.substr(url.find_last_of('.'));
+         } else {
             filename += o["Extension"];
+            dotname +=  o["Extension"];
+         }
 
          CURL *conn = curl_easy_init();
          curl_easy_setopt(conn, CURLOPT_URL, url.c_str());
          curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, write_data);
          curl_easy_setopt(conn, CURLOPT_VERBOSE, 0L);
-         auto f = fopen(filename.c_str(), "wb");
+         auto f = fopen(dotname.c_str(), "wb");
          if (f) {
             curl_easy_setopt(conn, CURLOPT_WRITEDATA, f);
-            curl_easy_setopt(conn, CURLOPT_TIMEOUT, 10L);
+            curl_easy_setopt(conn, CURLOPT_TIMEOUT, 60L);
             int status = curl_easy_perform(conn);
             fclose(f);
             std::string error;
@@ -162,8 +167,11 @@ void image_thread(std::string name) {
                   cm_msg(MERROR, "log_image_history", "%s", error.c_str());
                   o["Last error"] = ss_time();
                }
+               remove(dotname.c_str());
             }
 
+            // rename dotfile to filename to make it visible
+            rename(dotname.c_str(), filename.c_str());
          }
          curl_easy_cleanup(conn);
       }
@@ -209,7 +217,8 @@ void start_image_history() {
               {"Last fetch",         0},
               {"Storage hours",      72},
               {"Error interval (s)", 60},
-              {"Last error",         0}
+              {"Last error",         0},
+              {"Timescale",          "8h"}
       };
       c.connect(ic.get_odb().get_full_path());
 
@@ -225,3 +234,41 @@ void start_image_history() {}
 void stop_image_history() {}
 
 #endif
+
+// retrieve image history
+
+int hs_image_retrieve(std::string image_name, time_t start_time, time_t stop_time,
+                      std::vector<time_t> &vtime, std::vector<std::string> &vfilename)
+{
+   std::string path = history_dir() + image_name;
+
+   char *flist;
+   std::vector<std::string> vfn;
+   int n = ss_file_find(path.c_str(), "??????_??????.*", &flist);
+   for (int i=0 ; i<n ; i++) {
+      char filename[MAX_STRING_LENGTH];
+      strncpy(filename, flist + i * MAX_STRING_LENGTH, MAX_STRING_LENGTH);
+      vfn.push_back(filename);
+   }
+   std::sort(vfn.begin(), vfn.end());
+
+   for (int i=0 ; i<n ; i++) {
+      struct tm ti{};
+      sscanf(vfn[i].c_str(), "%2d%2d%2d_%2d%2d%2d", &ti.tm_year, &ti.tm_mon,
+             &ti.tm_mday, &ti.tm_hour, &ti.tm_min, &ti.tm_sec);
+      ti.tm_year += 100;
+      ti.tm_mon -= 1;
+      ti.tm_isdst = -1;
+      time_t ft = mktime(&ti);
+      time_t now;
+      time(&now);
+      if (ft >= start_time && ft <= stop_time) {
+         vtime.push_back(ft);
+         vfilename.push_back(vfn[i]);
+      }
+   }
+   free(flist);
+
+   return HS_SUCCESS;
+}
+

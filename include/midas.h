@@ -2046,7 +2046,11 @@ Data conversion flags */
    void EXPRT open_subfolder(const char *name);
    void EXPRT close_subfolder(void);
 
-   /* we need a duplicate of mxml/strlcpy.h or nobody can use strlcpy() from libmidas.a */
+   /*---- image history functions ----*/
+   int hs_image_retrieve(std::string image_name, time_t start, time_t stop,
+                      std::vector<time_t> &vtime, std::vector<std::string> &vfilename);
+
+/* we need a duplicate of mxml/strlcpy.h or nobody can use strlcpy() from libmidas.a */
 #ifndef HAVE_STRLCPY
 #ifndef _STRLCPY_H_
 #define _STRLCPY_H_

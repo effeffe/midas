@@ -595,6 +595,7 @@ function mhttpd_exec_script(name) {
 var mhttpd_refresh_id;
 var mhttpd_refresh_history_id;
 var mhttpd_refresh_interval;
+var mhttpd_refresh_paused;
 var mhttpd_refresh_history_interval;
 var mhttpd_spinning_wheel;
 
@@ -811,12 +812,17 @@ function mhttpd_init(current_page, interval, callback) {
    if (interval === undefined)
       interval = 1000;
    mhttpd_refresh_interval = interval;
+   mhttpd_refresh_paused = false;
 
    // history interval is static for now
    mhttpd_refresh_history_interval = 30000;
 
    // scan custom page to find all mxxx elements and install proper handlers etc.
    mhttpd_scan();
+}
+
+function mhttpd_refresh_pause(flag) {
+   mhttpd_refresh_paused = flag;
 }
 
 function getMElements(name) {
@@ -1668,14 +1674,19 @@ function mhttpd_resize_header() {
 
 }
 
-var mhttpd_last_message = 1;
 var mhttpd_last_alarm = 0;
 
 function mhttpd_refresh() {
    if (mhttpd_refresh_id !== undefined)
       window.clearTimeout(mhttpd_refresh_id);
 
-   /* don't update page if document is hidden (minimized, covered tab etc), only play alarms */
+   // don't do a refresh if we are paused
+   if (mhttpd_refresh_paused) {
+      mhttpd_refresh_id = window.setTimeout(mhttpd_refresh, mhttpd_refresh_interval);
+      return;
+   }
+
+   // don't update page if document is hidden (minimized, covered tab etc), only play alarms
    if (document.hidden) {
 
       // only check every 10 seconds for alarm
@@ -1761,15 +1772,15 @@ function mhttpd_refresh() {
    // request new messages
    var req3 = mjsonrpc_make_request("cm_msg_retrieve", {
       "facility": "midas",
-      "time": mhttpd_last_message - 1,
-      "min_messages": 100
+      "time": 0,
+      "min_messages": 1
    });
 
    // request new char messages
    var req4 = mjsonrpc_make_request("cm_msg_retrieve", {
       "facility": "chat",
-      "time": mhttpd_last_message - 1,
-      "min_messages": 100
+      "time": 0,
+      "min_messages": 1
    });
 
    mjsonrpc_send_request([req1, req2, req3, req4]).then(function (rpc) {
