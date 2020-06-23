@@ -65,26 +65,27 @@ namespace midas {
    public:
       u_odb() : m_string{}, m_tid{}, m_parent_odb{nullptr} {};
 
-      u_odb(uint8_t v) : m_uint8{v}, m_tid{TID_UINT8}, m_parent_odb{nullptr} {};
+      // for shorter values, first set m_string to nullptr to initialize higher bytes to zero
+      u_odb(uint8_t v) : m_tid{TID_UINT8}, m_parent_odb{nullptr} {m_string = nullptr; m_uint8 = v;};
 
-      u_odb(int8_t v) : m_int8{v}, m_tid{TID_INT8}, m_parent_odb{nullptr} {};
+      u_odb(int8_t v) : m_tid{TID_INT8}, m_parent_odb{nullptr} {m_string = nullptr; m_int8 = v;};
 
-      u_odb(uint16_t v) : m_uint16{v}, m_tid{TID_UINT16}, m_parent_odb{nullptr} {};
+      u_odb(uint16_t v) : m_tid{TID_UINT16}, m_parent_odb{nullptr} {m_string = nullptr; m_uint16 = v;};
 
-      u_odb(int16_t v) : m_int16{v}, m_tid{TID_INT16}, m_parent_odb{nullptr} {};
+      u_odb(int16_t v) : m_tid{TID_INT16}, m_parent_odb{nullptr} {m_string = nullptr; m_int16 = v;};
 
-      u_odb(uint32_t v) : m_uint32{v}, m_tid{TID_UINT32}, m_parent_odb{nullptr} {};
+      u_odb(uint32_t v) : m_tid{TID_UINT32}, m_parent_odb{nullptr} {m_string = nullptr; m_uint32 = v;};
 
-      u_odb(int32_t v) : m_int32{v}, m_tid{TID_INT32}, m_parent_odb{nullptr} {};
+      u_odb(int32_t v) : m_tid{TID_INT32}, m_parent_odb{nullptr} {m_string = nullptr; m_int32 = v;};
 
-      u_odb(bool v) : m_bool{v}, m_tid{TID_BOOL}, m_parent_odb{nullptr} {};
+      u_odb(bool v) : m_tid{TID_BOOL}, m_parent_odb{nullptr} {m_string = nullptr; m_bool = v;};
 
-      u_odb(float v) : m_float{v}, m_tid{TID_FLOAT}, m_parent_odb{nullptr} {};
+      u_odb(float v) : m_float{v}, m_tid{TID_FLOAT}, m_parent_odb{nullptr} {m_string = nullptr; m_float = v;};
 
-      u_odb(double v) : m_double{v}, m_tid{TID_DOUBLE}, m_parent_odb{nullptr} {};
+      u_odb(double v) : m_double{v}, m_tid{TID_DOUBLE}, m_parent_odb{nullptr} {m_string = nullptr; m_double = v;};
 
       u_odb(std::string *v) : m_string{v}, m_tid{TID_STRING}, m_parent_odb{nullptr} {};
-
+      
       // Destructor
       ~u_odb();
 
