@@ -20,6 +20,21 @@
 #include "msystem.h"
 #include "odbxx.h"
 
+std::string history_dir() {
+   static std::string dir;
+
+   if (dir.empty()) {
+      midas::odb l("/Logger");
+      if (l.is_subkey("History dir"))
+         dir = l["History dir"];
+      else
+         dir = l["Data dir"];
+      if (dir.back() != '/')
+         dir += "/";
+   }
+   return dir;
+}
+
 #ifdef HAVE_CURL
 #include <curl/curl.h>
 
@@ -50,21 +65,6 @@ int mkpath(const char *dir, mode_t mode)
    free(p);
 
    return mkdir(dir, mode);
-}
-
-std::string history_dir() {
-   static std::string dir;
-
-   if (dir.empty()) {
-      midas::odb l("/Logger");
-      if (l.is_subkey("History dir"))
-         dir = l["History dir"];
-      else
-         dir = l["Data dir"];
-      if (dir.back() != '/')
-         dir += "/";
-   }
-   return dir;
 }
 
 void image_thread(std::string name) {
