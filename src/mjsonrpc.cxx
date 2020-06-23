@@ -2657,7 +2657,7 @@ static MJsonNode* js_hs_image_retrieve(const MJsonNode* params) {
    MJsonNode *tj = MJsonNode::MakeArray();
    MJsonNode *fj = MJsonNode::MakeArray();
 
-   for (int i=0 ; i<vtime.size() ; i++) {
+   for (int i=0 ; i<(int)vtime.size() ; i++) {
       tj->AddToArray(MJsonNode::MakeInt(vtime[i]));
       fj->AddToArray(MJsonNode::MakeString(vfilename[i].c_str()));
    }

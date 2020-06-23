@@ -451,7 +451,7 @@ namespace midas {
                if (status != DB_SUCCESS)
                   mthrow("db_get_link for ODB key \"" + get_full_path() +
                          "\" failed with status " + std::to_string(status));
-               if (m_data[i].get_odb().get_tid() != key.type) {
+               if (m_data[i].get_odb().get_tid() != (int)key.type) {
                   // write key if different
                   m_data[i].get_odb().write_key(k, true);
                   m_data[i].get_odb().write();
@@ -1008,7 +1008,7 @@ namespace midas {
 
    void odb::unwatch()
    {
-      for (int i=0 ; i<m_watchlist.size() ; i++) {
+      for (int i=0 ; i<(int)m_watchlist.size() ; i++) {
          if (m_watchlist[i]->get_hkey() == this->get_hkey()) {
             db_unwatch(m_hDB, m_watchlist[i]->get_hkey());
             delete m_watchlist[i];
@@ -1020,7 +1020,7 @@ namespace midas {
 
    void odb::unwatch_all()
    {
-      for (int i=0 ; i<m_watchlist.size() ; i++) {
+      for (int i=0 ; i<(int)m_watchlist.size() ; i++) {
          db_unwatch(m_hDB, m_watchlist[i]->get_hkey());
          delete m_watchlist[i];
       }
