@@ -160,6 +160,7 @@ function MihistoryGraph(divElement) { // Constructor
             t.playMode = 0;
             if (t.currentIndex > 0)
                t.currentIndex--;
+            t.loadOldData();
             t.play();
          }
       },
@@ -180,6 +181,7 @@ function MihistoryGraph(divElement) { // Constructor
             t.playMode = 0;
             if (t.currentIndex < t.imageArray.length-1)
                t.currentIndex++;
+            t.loadOldData();
             t.play();
          }
       },
@@ -192,6 +194,7 @@ function MihistoryGraph(divElement) { // Constructor
                t.playMode = 1;
             else
                t.playMode *= 2;
+            t.loadOldData();
             t.play();
          }
       },
@@ -432,9 +435,11 @@ MihistoryGraph.prototype.loadInitialData = function () {
       this.tMax = this.requestedTime;
       this.tMin = this.requestedTime - this.tScale;
       this.scroll = false;
+      this.tMinRequested = this.tMax;
    } else {
       this.tMax = Math.floor(new Date() / 1000);
       this.tMin = this.tMax - this.tScale;
+      this.tMinRequested = this.tMax;
    }
 
    let table = document.createElement("table");
@@ -442,13 +447,11 @@ MihistoryGraph.prototype.loadInitialData = function () {
    let cell;
    let link;
 
-   // load latest images
-   this.tMinRequested = this.tMin - this.tScale;
-
+   // load latest image
    mjsonrpc_call("hs_image_retrieve",
       {
          "image": this.panel,
-         "start_time": Math.floor(this.tMinRequested),
+         "start_time": Math.floor(this.tMax),
          "end_time": Math.floor(this.tMax),
       })
       .then(function (rpc) {
@@ -589,7 +592,8 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
             this.mhg.imageElem.initialWidth = this.width;
             this.mhg.imageElem.initialHeight = this.height;
             this.mhg.resize();
-            window.setTimeout(this.mhg.loadNextImage.bind(this.mhg), 1000);
+            if (this.mhg.tMinRequested === 0)
+               this.mhg.tMinRequested = this.mhg.tMax;
          };
          img.image.mhg = this;
          // trigger loading of image
@@ -710,6 +714,8 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
    let title = "";
 
    if (e.type === "mousedown" || e.type === "touchstart") {
+
+      this.loadOldData();
 
       // check for buttons
       if (e.target === this.buttonCanvas) {

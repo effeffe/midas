@@ -237,20 +237,85 @@ void stop_image_history() {}
 
 // retrieve image history
 
+std::chrono::time_point<std::chrono::high_resolution_clock> usStart()
+{
+   return std::chrono::high_resolution_clock::now();
+}
+
+unsigned int usSince(std::chrono::time_point<std::chrono::high_resolution_clock> start) {
+   auto elapsed = std::chrono::high_resolution_clock::now() - start;
+   return std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
+}
+
 int hs_image_retrieve(std::string image_name, time_t start_time, time_t stop_time,
                       std::vector<time_t> &vtime, std::vector<std::string> &vfilename)
 {
+   auto start = usStart();
    std::string path = history_dir() + image_name;
 
    char *flist;
    std::vector<std::string> vfn;
-   int n = ss_file_find(path.c_str(), "??????_??????.*", &flist);
+
+   std::string mask;
+   if (start_time == stop_time) {
+      tm *ltm = localtime(&start_time);
+      std::stringstream s;
+      s <<
+        std::setfill('0') << std::setw(2) << ltm->tm_year - 100 <<
+        std::setfill('0') << std::setw(2) << ltm->tm_mon + 1 <<
+        std::setfill('0') << std::setw(2) << ltm->tm_mday <<
+        "_" << "??????.*";
+      mask = s.str();
+   } else {
+
+      tm ltStart, ltStop;
+      memcpy(&ltStart, localtime(&start_time), sizeof(tm));
+      memcpy(&ltStop, localtime(&stop_time), sizeof(tm));
+      std::stringstream sStart, sStop;
+      std::string mStart, mStop;
+      mask = "??????_??????.*";
+
+      sStart <<
+        std::setfill('0') << std::setw(2) << ltStart.tm_year - 100 <<
+        std::setfill('0') << std::setw(2) << ltStart.tm_mon + 1 <<
+        std::setfill('0') << std::setw(2) << ltStart.tm_mday <<
+        "_" <<
+        std::setfill('0') << std::setw(2) << ltStart.tm_hour <<
+        std::setfill('0') << std::setw(2) << ltStart.tm_min <<
+        std::setfill('0') << std::setw(2) << ltStart.tm_sec;
+      mStart = sStart.str();
+      sStop <<
+        std::setfill('0') << std::setw(2) << ltStop.tm_year - 100 <<
+        std::setfill('0') << std::setw(2) << ltStop.tm_mon + 1 <<
+        std::setfill('0') << std::setw(2) << ltStop.tm_mday <<
+        "_" <<
+        std::setfill('0') << std::setw(2) << ltStop.tm_hour <<
+        std::setfill('0') << std::setw(2) << ltStop.tm_min <<
+        std::setfill('0') << std::setw(2) << ltStop.tm_sec;
+      mStop = sStop.str();
+      for (int i=0 ; i<13 ; i++) {
+         if (mStart[i] == mStop[i])
+            mask[i] = mStart[i];
+         else
+            break;
+      }
+   }
+
+   int n = ss_file_find(path.c_str(), mask.c_str(), &flist);
+
+   if (n == 0)
+      n = ss_file_find(path.c_str(), "??????_??????.*", &flist);
+
    for (int i=0 ; i<n ; i++) {
       char filename[MAX_STRING_LENGTH];
       strncpy(filename, flist + i * MAX_STRING_LENGTH, MAX_STRING_LENGTH);
       vfn.push_back(filename);
    }
    std::sort(vfn.begin(), vfn.end());
+
+   time_t minDiff = 1E7;
+   time_t minTime{};
+   int minIndex{};
 
    for (int i=0 ; i<n ; i++) {
       struct tm ti{};
@@ -262,13 +327,28 @@ int hs_image_retrieve(std::string image_name, time_t start_time, time_t stop_tim
       time_t ft = mktime(&ti);
       time_t now;
       time(&now);
-      if (ft >= start_time && ft <= stop_time) {
+
+      if (abs(ft - start_time) < minDiff) {
+         minDiff = abs(ft - start_time);
+         minTime = ft;
+         minIndex = i;
+      }
+
+      if (start_time != stop_time && ft >= start_time && ft <= stop_time) {
          vtime.push_back(ft);
          vfilename.push_back(vfn[i]);
       }
    }
+
+   // start == stop means return single image closest to them
+   if (start_time == stop_time && n > 0) {
+      vtime.push_back(minTime);
+      vfilename.push_back(vfn[minIndex]);
+   }
+
    free(flist);
 
+   std::cout << "mask = " << mask << ", n = " << n << ", t = " << usSince(start)/1000.0 << " ms" << std::endl;
    return HS_SUCCESS;
 }
 
