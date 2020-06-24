@@ -235,22 +235,21 @@ void stop_image_history() {}
 
 #endif
 
+//std::chrono::time_point<std::chrono::high_resolution_clock> usStart()
+//{
+//   return std::chrono::high_resolution_clock::now();
+//}
+//
+//unsigned int usSince(std::chrono::time_point<std::chrono::high_resolution_clock> start) {
+//   auto elapsed = std::chrono::high_resolution_clock::now() - start;
+//   return std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
+//}
+
 // retrieve image history
-
-std::chrono::time_point<std::chrono::high_resolution_clock> usStart()
-{
-   return std::chrono::high_resolution_clock::now();
-}
-
-unsigned int usSince(std::chrono::time_point<std::chrono::high_resolution_clock> start) {
-   auto elapsed = std::chrono::high_resolution_clock::now() - start;
-   return std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
-}
-
 int hs_image_retrieve(std::string image_name, time_t start_time, time_t stop_time,
                       std::vector<time_t> &vtime, std::vector<std::string> &vfilename)
 {
-   auto start = usStart();
+   // auto start = usStart();
    std::string path = history_dir() + image_name;
 
    char *flist;
@@ -348,7 +347,8 @@ int hs_image_retrieve(std::string image_name, time_t start_time, time_t stop_tim
 
    free(flist);
 
-   std::cout << "mask = " << mask << ", n = " << n << ", t = " << usSince(start)/1000.0 << " ms" << std::endl;
+   //std::cout << "mask = " << mask << ", n = " << n << ", t = " << usSince(start)/1000.0 << " ms" << std::endl;
+
    return HS_SUCCESS;
 }
 

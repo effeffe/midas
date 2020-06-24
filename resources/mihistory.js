@@ -539,10 +539,6 @@ MihistoryGraph.prototype.loadNextImage = function () {
             return;
          }
       }
-
-   // all done, so resume updates
-   mhttpd_refresh_pause(false);
-   this.updatePaused = false;
 };
 
 MihistoryGraph.prototype.receiveData = function (rpc) {
@@ -594,6 +590,10 @@ MihistoryGraph.prototype.receiveData = function (rpc) {
             this.mhg.resize();
             if (this.mhg.tMinRequested === 0)
                this.mhg.tMinRequested = this.mhg.tMax;
+
+            // all done, so resume updates
+            mhttpd_refresh_pause(false);
+            this.mhg.updatePaused = false;
          };
          img.image.mhg = this;
          // trigger loading of image
