@@ -181,6 +181,10 @@ function MihistoryGraph(divElement) { // Constructor
             t.playMode = 0;
             if (t.currentIndex < t.imageArray.length-1)
                t.currentIndex++;
+            else {
+               t.scroll = true;
+               t.scrollRedraw();
+            }
             t.loadOldData();
             t.play();
          }
@@ -659,6 +663,8 @@ MihistoryGraph.prototype.play = function () {
       if (this.currentIndex >= this.imageArray.length-1) {
          this.currentIndex = this.imageArray.length - 1;
          this.playMode = 0;
+         this.scroll = true;
+         this.scrollRedraw();
          return;
       }
    }
@@ -690,6 +696,11 @@ MihistoryGraph.prototype.play = function () {
 
 MihistoryGraph.prototype.mouseEvent = function (e) {
 
+   if (e.touches !== undefined) {
+      if (e.touches.length > 1)
+         return;
+   }
+
    // fix buttons for IE
    if (!e.which && e.button) {
       if ((e.button & 1) > 0) e.which = 1;      // Left
@@ -697,17 +708,24 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
       else if ((e.button & 2) > 0) e.which = 3; // Right
    }
 
+   // discard pinch and zoom
+   if (e.type === "touchstart" || e.type === "touchmove" ||
+      e.type === "touchend" || e.type === "touchcancel") {
+      if (e.touches.length > 1)
+         return;
+   }
+
    // calculate mouse coordinates relative to history panel
-   let rect = document.getElementById("histPanel").getBoundingClientRect();
-   let mouseX, offsetY;
+   let rect = document.getElementById("hiImage_" + this.panel).parentElement.getBoundingClientRect();
+   let mouseX, mouseY;
 
    if (e.type === "touchstart" || e.type === "touchmove" ||
        e.type === "touchend" || e.type === "touchcancel") {
       mouseX = Math.floor(e.changedTouches[e.changedTouches.length - 1].clientX - rect.left);
-      offsetY = Math.floor(e.changedTouches[e.changedTouches.length - 1].clientY - rect.top);
+      mouseY = Math.floor(e.changedTouches[e.changedTouches.length - 1].clientY - rect.top);
    } else {
       mouseX = e.clientX - rect.left;
-      offsetY = e.offsetY;
+      mouseY = e.offsetY;
    }
 
    let cursor = this.pendingUpdates > 0 ? "progress" : "default";
@@ -720,7 +738,7 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
       // check for buttons
       if (e.target === this.buttonCanvas) {
          this.button.forEach(b => {
-            if (offsetY > b.y1 && offsetY < b.y1 + b.width &&
+            if (mouseY > b.y1 && mouseY < b.y1 + b.width &&
                b.enabled) {
                cursor = "pointer";
                b.click(this);
@@ -818,7 +836,12 @@ MihistoryGraph.prototype.mouseEvent = function (e) {
    this.parentDiv.title = title;
    this.parentDiv.style.cursor = cursor;
 
-   e.preventDefault();
+   if (e.touches  !== undefined) {
+      if (e.type === "touchmove" && e.touches.length === 1)
+         e.preventDefault();
+   } else
+      // for all mouse events
+      e.preventDefault();
 };
 
 MihistoryGraph.prototype.mouseWheelEvent = function (e) {
