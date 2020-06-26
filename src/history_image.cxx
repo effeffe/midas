@@ -187,22 +187,14 @@ void stop_image_history() {
 }
 
 void start_image_history() {
+   curl_global_init(CURL_GLOBAL_DEFAULT);
+
+   // create defautl "Demo" image if ODB treee does not exist
+   if (!midas::odb::exists("/History/Images"))
+      midas::odb::create("/History/Images/Demo", TID_KEY);
 
    static midas::odb h;
-
-   curl_global_init(CURL_GLOBAL_DEFAULT);
-   midas::odb::set_debug(false);
-
-   try {
-      if (!h.is_connected_odb())
-         h.connect("/History/Images");
-      if (h.get_num_values() == 0)
-         throw std::runtime_error("");
-   } catch (std::exception &e) {
-      // create "Demo" image
-      midas::odb::create("/History/Images/Demo", TID_KEY);
-      h.connect("/History/Images");
-   }
+   h.connect("/History/Images");
 
    // loop over all cameras
    for (auto &ic: h) {
