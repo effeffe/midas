@@ -576,6 +576,19 @@ cleanemcraft:
 
 
 #####################################################################
+# mbedtls support
+
+mbedtls:
+	git clone https://github.com/ARMmbed/mbedtls.git
+	cd mbedtls; git checkout mbedtls-2.16
+
+update_mbedtls:
+	cd mbedtls; git checkout mbedtls-2.16; git pull
+
+clean_mbedtls:
+	-rm -rf mbedtls
+
+#####################################################################
 
 runtest:
 	@echo

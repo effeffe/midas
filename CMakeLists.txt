@@ -143,6 +143,7 @@ endif (NO_ZLIB)
 #
 # Optional SSL support for mhttpd
 #
+if (USE_OPENSSL)
 if (NO_SSL)
    message(STATUS "MIDAS: OpenSSL https support is disabled via NO_SSL")
 else (NO_SSL)
@@ -153,6 +154,7 @@ else ()
    message(STATUS "MIDAS: OpenSSL not found")
 endif ()
 endif (NO_SSL)
+endif (USE_OPENSSL)
 
 #
 # Optional libcurl support for mlogger
@@ -180,16 +182,16 @@ endif (NO_CURL)
 if (NO_MBEDTLS)
    message(STATUS "MIDAS: MBEDTLS https support is disabled via NO_MBEDTLS")
 else (NO_MBEDTLS)
-   if ((EXISTS ../../mbedtls/include/mbedtls/version.h) AND
-      (EXISTS ../../mbedtls/library/version.o) AND
-      (EXISTS ../../mbedtls/crypto/library/version.o))
-      message(STATUS "MIDAS: Found MBEDTLS in ../mbedtls")
+   #if (EXISTS mbedtls)
+      message(STATUS "MIDAS: Found MBEDTLS in mbedtls")
       set(MBEDTLS_FOUND 1)
-      add_compile_options(-I../../../mbedtls/include -I../../../mbedtls/crypto/include)
-      set(MBEDTLS_LIBS ${MBEDTLS_LIBS} -L../../../mbedtls/library -lmbedtls -lmbedx509 -L../../../mbedtls/crypto/library -lmbedcrypto)
-   else ()
-      message(STATUS "MIDAS: MBEDTLS not found")
-   endif ()
+      add_subdirectory(mbedtls)
+      #add_compile_options(-I../mbedtls/include)
+      #add_compile_options(-I../../../mbedtls/include -I../../../mbedtls/crypto/include)
+      #set(MBEDTLS_LIBS ${MBEDTLS_LIBS} -L../../../mbedtls/library -lmbedtls -lmbedx509 -L../../../mbedtls/crypto/library -lmbedcrypto)
+   #else ()
+   #   message(STATUS "MIDAS: MBEDTLS not found")
+   #endif ()
 endif (NO_MBEDTLS)
 
 #
