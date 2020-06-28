@@ -9,6 +9,7 @@ cmake_minimum_required(VERSION 3.0)
 
 set(CMAKE_CXX_STANDARD 11) # this does not work on SL6
 set(CMAKE_CXX_STANDARD_REQUIRED ON) # this does not work on SL6
+string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}") # midas requires working assert()
 
 #message(STATUS "MIDAS: CMAKE_CXX_COMPILE_FEATURES: ${CMAKE_CXX_COMPILE_FEATURES}")
 
