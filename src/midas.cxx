@@ -2349,7 +2349,7 @@ Connect to a MIDAS experiment (to the online database) on
 */
 INT cm_connect_experiment1(const char *host_name, const char *exp_name,
                            const char *client_name, void (*func)(char *), INT odb_size, DWORD watchdog_timeout) {
-   INT status, semaphore_elog, semaphore_alarm, semaphore_history, semaphore_msg, size;
+   INT status, size;
    char local_host_name[HOST_NAME_LENGTH];
    char client_name1[NAME_LENGTH];
    char password[NAME_LENGTH], str[256];
@@ -2405,6 +2405,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    } else {
       /* lookup path for *SHM files and save it */
 
+#ifdef LOCAL_ROUTINES
       status = cm_set_experiment_local(exp_name1.c_str());
       if (status != CM_SUCCESS)
          return status;
@@ -2412,6 +2413,8 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       exp_name1 = cm_get_experiment_name();
 
       ss_suspend_init_odb_port();
+
+      INT semaphore_elog, semaphore_alarm, semaphore_history, semaphore_msg;
 
       /* create alarm and elog semaphores */
       status = ss_semaphore_create("ALARM", &semaphore_alarm);
@@ -2436,6 +2439,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       }
 
       cm_set_experiment_semaphore(semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg);
+#else
+      return CM_UNDEF_EXP;
+#endif
    }
 
    //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg before open ODB");
@@ -13876,7 +13882,6 @@ INT rpc_server_accept(int lsock)
 {
    INT i;
    unsigned int size;
-   int status;
    INT sock;
    char version[NAME_LENGTH], v1[32];
    char experiment[NAME_LENGTH];
@@ -13884,9 +13889,6 @@ INT rpc_server_accept(int lsock)
    char *ptr;
    struct sockaddr_in acc_addr;
    struct hostent *phe;
-   char host_port1_str[30], host_port2_str[30], host_port3_str[30];
-   char debug_str[30];
-   const char *argv[10];
    char net_buffer[256];
    struct linger ling;
 
@@ -13983,6 +13985,7 @@ INT rpc_server_accept(int lsock)
          case 'I': {
 
             /*----------- return available experiments -----------*/
+#ifdef LOCAL_ROUTINES
             exptab_struct exptab;
             cm_read_exptab(&exptab); // thread safe!
             for (unsigned i=0; i<exptab.exptab.size(); i++) {
@@ -13991,6 +13994,7 @@ INT rpc_server_accept(int lsock)
                send(sock, str, strlen(str) + 1, 0);
             }
             send(sock, "", 1, 0);
+#endif
             closesocket(sock);
             break;
          }
@@ -14084,6 +14088,7 @@ INT rpc_server_accept(int lsock)
             }
 #endif
 
+#ifdef LOCAL_ROUTINES
             /* update experiment definition */
             exptab_struct exptab;
             cm_read_exptab(&exptab); // thread safe!
@@ -14115,6 +14120,9 @@ INT rpc_server_accept(int lsock)
             callback.user = exptab.exptab[idx].user;
 
             /* create a new process */
+            char host_port1_str[30], host_port2_str[30], host_port3_str[30];
+            char debug_str[30];
+
             sprintf(host_port1_str, "%d", callback.host_port1);
             sprintf(host_port2_str, "%d", callback.host_port2);
             sprintf(host_port3_str, "%d", callback.host_port3);
@@ -14122,6 +14130,7 @@ INT rpc_server_accept(int lsock)
 
             const char *mserver_path = rpc_get_mserver_path();
 
+            const char *argv[10];
             argv[0] = mserver_path;
             argv[1] = callback.host_name.c_str();
             argv[2] = host_port1_str;
@@ -14137,7 +14146,7 @@ INT rpc_server_accept(int lsock)
                              argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8],
                              argv[9]);
 
-            status = ss_spawnv(P_NOWAIT, mserver_path, argv);
+            int status = ss_spawnv(P_NOWAIT, mserver_path, argv);
 
             if (status != SS_SUCCESS) {
                rpc_debug_printf("Cannot spawn subprocess: %s\n", strerror(errno));
@@ -14150,6 +14159,7 @@ INT rpc_server_accept(int lsock)
 
             sprintf(str, "1 %s", cm_get_version());     /* 1 means ok */
             send(sock, str, strlen(str) + 1, 0);
+#endif // LOCAL_ROUTINES
             closesocket(sock);
 
             break;
