@@ -1672,13 +1672,18 @@ Data conversion flags */
    const char* EXPRT cm_get_version(void);
    const char* EXPRT cm_get_revision(void);
    INT EXPRT cm_get_experiment_name(char *name, int name_size);
-   INT EXPRT cm_get_environment(char *host_name, int host_name_size,
-                                char *exp_name, int exp_name_size);
-   INT EXPRT cm_list_experiments(const char *host_name,
-                                 char exp_name[MAX_EXPERIMENT][NAME_LENGTH]);
+   std::string cm_get_experiment_name();
+   INT EXPRT cm_get_environment(char *host_name, int host_name_size, char *exp_name, int exp_name_size);
+   INT EXPRT cm_get_environment(std::string *host_name, std::string *exp_name);
+   INT EXPRT cm_list_experiments_local(STRING_LIST* exp_names);
+   INT EXPRT cm_list_experiments_remote(const char *host_name, STRING_LIST* exp_names);
    INT EXPRT cm_get_exptab_filename(char* filename, int filename_size);
+   std::string cm_get_exptab_filename();
    INT EXPRT cm_get_exptab(const char* exp_name, char* expdir, int expdir_size, char* expuser, int expuser_size);
-   INT EXPRT cm_select_experiment(const char *host_name, char *exp_name);
+   INT EXPRT cm_get_exptab(const char* exp_name, std::string* expdir, std::string* expuser);
+   INT EXPRT cm_select_experiment_local(std::string *exp_name);
+   INT EXPRT cm_select_experiment_remote(const char *host_name, std::string *exp_name);
+   INT EXPRT cm_set_experiment_local(const char* exp_name);
    INT EXPRT cm_connect_experiment(const char *host_name, const char *exp_name,
                                    const char *client_name, void (*func) (char *));
    INT EXPRT cm_connect_experiment1(const char *host_name, const char *exp_name,
@@ -1743,6 +1748,7 @@ Data conversion flags */
 
    BOOL EXPRT equal_ustring(const char *str1, const char *str2);
    BOOL EXPRT ends_with_ustring(const char *str, const char *suffix);
+   bool EXPRT ends_with_char(const std::string& s, char c);
    BOOL EXPRT strmatch(char* pattern, char*str);
    void EXPRT strarrayindex(char* odbpath, int* index1, int* index2);
 

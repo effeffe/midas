@@ -6360,12 +6360,12 @@ bool starts_with(const std::string& s1, const char* s2)
    return (strncasecmp(s1.c_str(), s2, strlen(s2)) == 0);
 }
 
-bool ends_with_char(const std::string& s, char c)
-{
-   if (s.length() < 1)
-      return false;
-   return s[s.length()-1] == c;
-}
+//static bool ends_with_char(const std::string& s, char c)
+//{
+//   if (s.length() < 1)
+//      return false;
+//   return s[s.length()-1] == c;
+//}
 
 /*------------------------------------------------------------------*/
 

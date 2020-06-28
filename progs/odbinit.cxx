@@ -155,7 +155,6 @@ int main(int argc, char *argv[])
    int odb_size = 0; // DEFAULT_ODB_SIZE;
 
    char exptab_filename[MAX_STRING_LENGTH];
-   char exp_names[MAX_EXPERIMENT][NAME_LENGTH];
 
    /* get default from environment */
    status = cm_get_environment(host_name, sizeof(host_name), exp_name, sizeof(exp_name));
@@ -420,7 +419,8 @@ int main(int argc, char *argv[])
 
    printf("...%s\n", midassys);
 
-   status = cm_list_experiments(host_name, exp_names);
+   STRING_LIST exp_names;
+   status = cm_list_experiments_local(&exp_names);
 
    if (status != CM_SUCCESS) {
       printf("Error: cm_list_experiments() status %d\n", status);
@@ -446,15 +446,13 @@ int main(int argc, char *argv[])
    printf("Checking exptab... experiments defined in exptab file \"%s\":\n", exptab_filename);
 
    bool found_exp = false;
-   for (int i=0; i<MAX_EXPERIMENT; i++) {
-      if (exp_names[i][0] == 0)
-         break;
-      printf("%d: \"%s\"", i, exp_names[i]);
+   for (unsigned i=0; i<exp_names.size(); i++) {
+      printf("%d: \"%s\"", i, exp_names[i].c_str());
       if (exp_name[0] == 0)
-         strlcpy(exp_name, exp_names[i], sizeof (exp_name));
-      if (equal_ustring(exp_names[i], exp_name)) {
+         strlcpy(exp_name, exp_names[i].c_str(), sizeof (exp_name));
+      if (equal_ustring(exp_names[i].c_str(), exp_name)) {
          printf(" <-- selected experiment");
-         strlcpy(exp_name, exp_names[i], sizeof (exp_name));
+         strlcpy(exp_name, exp_names[i].c_str(), sizeof (exp_name));
          found_exp = true;
       }
       printf("\n");
