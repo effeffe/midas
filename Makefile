@@ -27,6 +27,12 @@ help:
 	@echo ""
 	@echo "   make test      --- run midas self test"
 	@echo ""
+	@echo "   make mbedtls   --- enable mhttpd support for https via the mbedtls https library"
+	@echo "   make update_mbedtls --- update mbedtls to latest version"
+	@echo "   make clean_mbedtls  --- remove mbedtls from this midas build"
+	@echo ""
+	@echo "   make mtcpproxy --- build the https proxy to forward root-only port 443 to mhttpd https port 8443"
+	@echo ""
 	@echo "   make mini      --- minimal build, results are in linux/{bin,lib}"
 	@echo "   make cleanmini --- remove everything build by make mini"
 	@echo ""
@@ -588,6 +594,10 @@ update_mbedtls:
 
 clean_mbedtls:
 	-rm -rf mbedtls
+
+mtcpproxy:
+	cd progs; go build mtcpproxy.go
+	cp -pv progs/mtcpproxy bin/
 
 #####################################################################
 
