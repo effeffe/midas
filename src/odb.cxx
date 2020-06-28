@@ -1723,6 +1723,8 @@ static bool db_validate_and_repair_db_wlocked(DATABASE_HEADER * pheader)
       return false;
    }
 
+   //printf("pheader %p, first_free_data %d, key size %d, data size %d\n", pheader, pheader->first_free_data, pheader->key_size, pheader->data_size);
+
    pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_data);
 
    while ((POINTER_T) pfree != (POINTER_T) pheader) {
@@ -1947,6 +1949,12 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    if (pheader->version != DATABASE_VERSION) {
       cm_msg(MERROR, "db_open_database",
              "Different database format: Shared memory is %d, program is %d", pheader->version, DATABASE_VERSION);
+      return DB_VERSION_MISMATCH;
+   }
+
+   /* check database size vs shared memory size */
+   if (_database[handle].shm_size < (int)sizeof(DATABASE_HEADER) + pheader->key_size + pheader->data_size) {
+      cm_msg(MERROR, "db_open_database", "Invalid database, shared memory size %d is smaller than database size %d (header: %d, key area: %d, data area: %d). Delete this shared memory (odbedit -R), create a new odb (odbinit) and reload it from the last odb save file.", _database[handle].shm_size, (int)sizeof(DATABASE_HEADER) + pheader->key_size + pheader->data_size, (int)sizeof(DATABASE_HEADER), pheader->key_size, pheader->data_size);
       return DB_VERSION_MISMATCH;
    }
 

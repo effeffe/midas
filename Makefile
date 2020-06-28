@@ -436,6 +436,7 @@ ifdef NEED_RANLIB
 endif
 
 MINI_PROGS :=
+MINI_PROGS += $(BIN_DIR)/odbinit
 MINI_PROGS += $(BIN_DIR)/odbedit
 MINI_PROGS += $(BIN_DIR)/fetest
 MINI_PROGS += $(BIN_DIR)/fetest_tmfe
