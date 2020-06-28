@@ -1933,7 +1933,7 @@ Data conversion flags */
    INT EXPRT rpc_get_option(HNDLE hConn, INT item);
    INT EXPRT rpc_set_option(HNDLE hConn, INT item, INT value);
    INT EXPRT rpc_set_name(const char *name);
-   INT EXPRT rpc_get_name(char *name);
+   std::string rpc_get_name();
    INT EXPRT rpc_is_remote(void);
    std::string rpc_get_mserver_hostname();
    INT EXPRT rpc_is_mserver(void);

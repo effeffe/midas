@@ -815,7 +815,8 @@ cm_msg_format(char *message, int sizeof_message, INT message_type, const char *f
    if (message_type == MT_USER)
       sprintf(message, "[%s] ", routine);
    else {
-      rpc_get_name(str);
+      std::string name = rpc_get_name();
+      strlcpy(str, name.c_str(), sizeof(str));
       if (str[0])
          sprintf(message, "[%s,%s] ", str, type_str);
       else
@@ -1539,8 +1540,8 @@ INT cm_time(DWORD *t) {
 
 static HNDLE _hKeyClient = 0;   /* key handle for client in ODB */
 static HNDLE _hDB = 0;          /* Database handle */
-static char _experiment_name[NAME_LENGTH];
-static char _client_name[NAME_LENGTH];
+static std::string _experiment_name;
+static std::string _client_name;
 static std::string _path_name;
 static INT _watchdog_timeout = DEFAULT_WATCHDOG_TIMEOUT;
 INT _semaphore_alarm = -1;
@@ -1640,7 +1641,7 @@ Set name of the experiment
 @return CM_SUCCESS
 */
 INT cm_set_experiment_name(const char *name) {
-   strlcpy(_experiment_name, name, sizeof(_experiment_name));
+   _experiment_name = name;
    return CM_SUCCESS;
 }
 
@@ -1652,7 +1653,7 @@ Return the experiment name
 @return CM_SUCCESS
 */
 INT cm_get_experiment_name(char *name, int name_length) {
-   strlcpy(name, _experiment_name, name_length);
+   strlcpy(name, _experiment_name.c_str(), name_length);
    return CM_SUCCESS;
 }
 
@@ -2352,7 +2353,6 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    char local_host_name[HOST_NAME_LENGTH];
    char client_name1[NAME_LENGTH];
    char password[NAME_LENGTH], str[256];
-   char xclient_name[NAME_LENGTH];
    HNDLE hDB = 0, hKeyClient = 0;
    BOOL call_watchdog;
 
@@ -2597,12 +2597,12 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       *strchr(local_host_name, '.') = 0;
 
    /* get final client name */
-   rpc_get_name(xclient_name);
+   std::string xclient_name = rpc_get_name();
 
    /* startup message is not displayed */
    _message_print = NULL;
 
-   cm_msg(MINFO, "cm_connect_experiment", "Program %s on host %s started", xclient_name, local_host_name);
+   cm_msg(MINFO, "cm_connect_experiment", "Program %s on host %s started", xclient_name.c_str(), local_host_name);
 
    /* enable system and user messages to stdout as default */
    cm_set_msg_print(MT_ALL, MT_ALL, puts);
@@ -2934,7 +2934,7 @@ allocated memory. See cm_connect_experiment() for example.
 */
 INT cm_disconnect_experiment(void) {
    HNDLE hDB, hKey;
-   char local_host_name[HOST_NAME_LENGTH], client_name[80];
+   char local_host_name[HOST_NAME_LENGTH];
 
    //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before disconnect from experiment");
    //cm_msg_flush_buffer();
@@ -2951,7 +2951,7 @@ INT cm_disconnect_experiment(void) {
    cm_stop_watchdog_thread();
 
    /* send shutdown notification */
-   rpc_get_name(client_name);
+   std::string client_name = rpc_get_name();
 
    if (!disable_bind_rpc_to_localhost)
       strlcpy(local_host_name, "localhost", sizeof(local_host_name));
@@ -2964,7 +2964,7 @@ INT cm_disconnect_experiment(void) {
    /* disconnect message not displayed */
    _message_print = NULL;
 
-   cm_msg(MINFO, "cm_disconnect_experiment", "Program %s on host %s stopped", client_name, local_host_name);
+   cm_msg(MINFO, "cm_disconnect_experiment", "Program %s on host %s stopped", client_name.c_str(), local_host_name);
 
    cm_msg_flush_buffer();
 
@@ -4552,7 +4552,8 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
             }
 
             if (program_info_required) {
-               rpc_get_name(str);
+               std::string name = rpc_get_name();
+               strlcpy(str, name.c_str(), sizeof(str));
                str[strlen(key.name)] = 0;
                if (!equal_ustring(str, key.name) && cm_exist(key.name, FALSE) == CM_NO_CLIENT) {
                   cm_msg(MERROR, "cm_transition", "Run start abort due to program \"%s\" not running", key.name);
@@ -10585,7 +10586,6 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    INT sock;
    INT remote_hw_type, hw_type;
    char version[32], v1[32];
-   char local_prog_name[NAME_LENGTH];
    char local_host_name[HOST_NAME_LENGTH];
    struct hostent *phe;
 
@@ -10600,7 +10600,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
 #endif
 
    /* check if cm_connect_experiment was called */
-   if (_client_name[0] == 0) {
+   if (_client_name.length() == 0) {
       cm_msg(MERROR, "rpc_client_connect", "cm_connect_experiment/rpc_set_name not called");
       return RPC_NOT_REGISTERED;
    }
@@ -10719,13 +10719,13 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &i, sizeof(i));
 
    /* send local computer info */
-   rpc_get_name(local_prog_name);
+   std::string local_prog_name = rpc_get_name();
    ss_gethostname(local_host_name, sizeof(local_host_name));
 
    hw_type = rpc_get_option(0, RPC_OHW_TYPE);
 
    char str[128 + NAME_LENGTH + HOST_NAME_LENGTH];
-   sprintf(str, "%d %s %s %s", hw_type, cm_get_version(), local_prog_name, local_host_name);
+   sprintf(str, "%d %s %s %s", hw_type, cm_get_version(), local_prog_name.c_str(), local_host_name);
 
    size = strlen(str) + 1;
    i = send(sock, str, size, 0);
@@ -10910,7 +10910,6 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    INT remote_hw_type, hw_type;
    unsigned int size;
    char str[200], version[32], v1[32];
-   char local_prog_name[NAME_LENGTH];
    struct hostent *phe;
    fd_set readfds;
    struct timeval timeout;
@@ -10935,7 +10934,7 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    rpc_register_functions(rpc_get_internal_list(0), NULL);
 
    /* check if cm_connect_experiment was called */
-   if (_client_name[0] == 0) {
+   if (_client_name.length() == 0) {
       cm_msg(MERROR, "rpc_server_connect", "cm_connect_experiment/rpc_set_name not called");
       return RPC_NOT_REGISTERED;
    }
@@ -11166,9 +11165,9 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
              strerror(errno));
 
    /* send local computer info */
-   rpc_get_name(local_prog_name);
+   std::string local_prog_name = rpc_get_name();
    hw_type = rpc_get_option(0, RPC_OHW_TYPE);
-   sprintf(str, "%d %s", hw_type, local_prog_name);
+   sprintf(str, "%d %s", hw_type, local_prog_name.c_str());
 
    send(_server_connection.send_sock, str, strlen(str) + 1, 0);
 
@@ -11629,7 +11628,7 @@ INT rpc_set_mserver_path(const char *path)
 }
 
 /********************************************************************/
-INT rpc_get_name(char *name)
+std::string rpc_get_name()
 /********************************************************************\
 
   Routine: rpc_get_name
@@ -11648,9 +11647,7 @@ INT rpc_get_name(char *name)
 
 \********************************************************************/
 {
-   strcpy(name, _client_name);
-
-   return RPC_SUCCESS;
+   return _client_name;
 }
 
 
@@ -11674,7 +11671,7 @@ INT rpc_set_name(const char *name)
 
 \********************************************************************/
 {
-   strlcpy(_client_name, name, sizeof(_client_name));
+   _client_name = name;
 
    return RPC_SUCCESS;
 }
