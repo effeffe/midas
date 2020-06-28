@@ -2657,7 +2657,6 @@ INT cm_list_experiments_remote(const char *host_name, STRING_LIST *exp_names) {
    INT status;
    struct sockaddr_in bind_addr;
    INT sock;
-   char str[MAX_EXPERIMENT * NAME_LENGTH];
    struct hostent *phe;
    int port = MIDAS_TCP_PORT;
    char hname[256];
@@ -2733,7 +2732,9 @@ INT cm_list_experiments_remote(const char *host_name, STRING_LIST *exp_names) {
    /* request experiment list */
    send(sock, "I", 2, 0);
 
-   for (int i = 0; i < MAX_EXPERIMENT; i++) {
+   while (1) {
+      char str[256];
+
       status = recv_string(sock, str, sizeof(str), _rpc_connect_timeout);
 
       if (status < 0)
