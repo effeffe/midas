@@ -25,6 +25,8 @@ help:
 	@echo ""
 	@echo "   make htmllint  --- run html check on resources/*.html"
 	@echo ""
+	@echo "   make gofmt     --- run gofmt on golang programs"
+	@echo ""
 	@echo "   make test      --- run midas self test"
 	@echo ""
 	@echo "   make mbedtls   --- enable mhttpd support for https via the mbedtls https library"
@@ -536,6 +538,13 @@ cleandox:
 
 htmllint:
 	java -jar ~/git/validator/dist/vnu.jar --filterpattern ".*Use CSS instead.*" resources/*.html
+
+#
+# gofmt
+#
+
+gofmt:
+	gofmt -w progs/*.go
 
 #
 # make targets
