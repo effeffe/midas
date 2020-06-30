@@ -79,6 +79,7 @@ static int db_scan_tree_locked(const DATABASE_HEADER* pheader, const KEY* pkey, 
 static int db_set_mode_wlocked(DATABASE_HEADER*,KEY*,WORD mode,int recurse,db_err_msg**);
 static const KEY* db_resolve_link_locked(const DATABASE_HEADER*, const KEY*,int *pstatus, db_err_msg**);
 static int db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk, db_err_msg** msg);
+static int db_create_key_wlocked(DATABASE_HEADER* pheader, KEY* parentKey, const char *key_name, DWORD type, KEY** pnewkey, db_err_msg** msg);
 #endif // LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
@@ -946,7 +947,7 @@ static int db_validate_name(const char* name, int maybe_path, const char* caller
       }
 
       if (strlen(name) >= NAME_LENGTH) {
-         cm_msg(MERROR, "db_validate_name", "Invalid name \"%s\" passed to %s: length %d should be less than %d", name, caller_name, (int)strlen(name), NAME_LENGTH);
+         cm_msg(MERROR, "db_validate_name", "Invalid name \"%s\" passed to %s: length %d should be less than %d bytes", name, caller_name, (int)strlen(name), NAME_LENGTH);
          return DB_INVALID_NAME;
       }
    }
@@ -1082,6 +1083,32 @@ static HNDLE db_pkey_to_hkey(const DATABASE_HEADER* pheader, const KEY* pkey)
    return (POINTER_T) pkey - (POINTER_T) pheader;
 }
 
+static const KEY* db_get_parent(const DATABASE_HEADER* pheader, const KEY* pkey, int* pstatus, const char* caller, db_err_msg **msg)
+{
+   if (pkey->parent_keylist == 0) {
+      // they asked for the parent of "/", return "/"
+      return db_get_pkey(pheader, pheader->root_key, pstatus, caller, msg);
+   }
+
+   if (!db_validate_data_offset(pheader, pkey->parent_keylist)) {
+      db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid pkey->parent %d", db_pkey_to_hkey(pheader, pkey), db_get_path_locked(pheader, pkey).c_str(), pkey->parent_keylist);
+      if (pstatus)
+         *pstatus = DB_CORRUPTED;
+      return NULL;
+   }
+
+   const KEYLIST *pkeylist = (const KEYLIST *) ((char *) pheader + pkey->parent_keylist);
+
+   if (pkeylist->first_key == 0 && pkeylist->num_keys != 0) {
+      db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid parent pkeylist->first_key %d should be non zero for num_keys %d", db_pkey_to_hkey(pheader, pkey), db_get_path_locked(pheader, pkey).c_str(), pkeylist->first_key, pkeylist->num_keys);
+      if (pstatus)
+         *pstatus = DB_CORRUPTED;
+      return NULL;
+   }
+
+   return db_get_pkey(pheader, pkeylist->parent, pstatus, caller, msg);
+}
+
 static const KEY* db_enum_first_locked(const DATABASE_HEADER *pheader, const KEY* pkey, db_err_msg **msg)
 {
    HNDLE hKey = db_pkey_to_hkey(pheader, pkey);
@@ -1115,7 +1142,7 @@ static const KEY* db_enum_first_locked(const DATABASE_HEADER *pheader, const KEY
 static const KEY* db_enum_next_locked(const DATABASE_HEADER *pheader, const KEY* pdir, const KEY* pkey, db_err_msg **msg)
 {
    if (pkey->next_key == 0)
-      return 0;
+      return NULL;
    
    return db_get_pkey(pheader, pkey->next_key, NULL, "db_enum_next_locked", msg);
 }
@@ -1124,6 +1151,8 @@ static const KEY* db_resolve_link_locked(const DATABASE_HEADER* pheader, const K
 {
    if (pkey->type != TID_LINK)
       return pkey;
+
+   // FIXME: need to validate pkey->data
 
    if (*((char *) pheader + pkey->data) == '/') {
       return db_find_pkey_locked(pheader, NULL, (char*)pheader + pkey->data, pstatus, msg);
@@ -3208,11 +3237,6 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
 
 #ifdef LOCAL_ROUTINES
    {
-      DATABASE_HEADER *pheader;
-      KEYLIST *pkeylist;
-      KEY *pprev_key, *pkeyparent;
-      const char *pkey_name;
-      INT i;
       int status;
 
       if (hDB > _database_entries || hDB <= 0) {
@@ -3225,21 +3249,10 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
          return DB_INVALID_HANDLE;
       }
 
-      status = db_validate_name(key_name, TRUE, "db_create_key");
-      if (status != DB_SUCCESS)
-         return status;
-
-      /* check type */
-      if (type <= 0 || type >= TID_LAST) {
-         std::string path = db_get_path(hDB, hKey);
-         cm_msg(MERROR, "db_create_key", "invalid key type %d to create \'%s\' in \'%s\'", type, key_name, path.c_str());
-         return DB_INVALID_PARAM;
-      }
-
       /* lock database */
       db_lock_database(hDB);
 
-      pheader = _database[hDB - 1].database_header;
+      DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
 
       db_err_msg *msg = NULL;
       
@@ -3254,234 +3267,246 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
 
       db_allow_write_locked(&_database[hDB-1], "db_create_key");
 
-      if (pkey->type != TID_KEY) {
-         DWORD xtid = pkey->type;
-         std::string path = db_get_path_locked(pheader, hKey);
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_create_key", "cannot create \'%s\' in \'%s\' tid is %d, not a directory", key_name, path.c_str(), xtid);
-         return DB_NO_KEY;
-      }
-      pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
+      KEY* newpkey = NULL;
 
-      pkey_name = key_name;
-      do {
-         // key name is limited to NAME_LENGTH, but buffer has to be slightly longer
-         // to prevent truncation before db_validate_name checks for correct length. K.O.
-         char str[NAME_LENGTH+100];
-
-         /* extract single key from key_name */
-         pkey_name = extract_key(pkey_name, str, sizeof(str));
-
-         status = db_validate_name(str, FALSE, "db_create_key");
-         if (status != DB_SUCCESS) {
-            db_unlock_database(hDB);
-            return status;
-         }
-
-         /* do not allow empty names, like '/dir/dir//dir/' */
-         if (str[0] == 0) {
-            db_unlock_database(hDB);
-            return DB_INVALID_PARAM;
-         }
-
-         /* check if parent or current directory */
-         if (strcmp(str, "..") == 0) {
-            if (pkey->parent_keylist) {
-               pkeylist = (KEYLIST *) ((char *) pheader + pkey->parent_keylist);
-               // FIXME: validate pkeylist->parent
-               pkey = (KEY *) ((char *) pheader + pkeylist->parent);
-            }
-            continue;
-         }
-         if (strcmp(str, ".") == 0)
-            continue;
-         
-         /* check if key is in keylist */
-         db_err_msg *msg = NULL;
-         KEY* npkey = (KEY*) db_get_pkey(pheader, pkeylist->first_key, &status, "db_create_key", &msg);
-
-         if (!npkey) {
-            int pkey_first_key = pkeylist->first_key;
-            HNDLE pkey_hkey = db_pkey_to_hkey(pheader, pkey);
-            std::string path = db_get_path_locked(pheader, pkey_hkey);
-            db_unlock_database(hDB);
-            cm_msg(MERROR, "db_create_key", "hkey %d path \"%s\" invalid first_key %d, while creating \'%s\' in \'%s\'", pkey_hkey, path.c_str(), pkey_first_key, key_name, str);
-            return DB_CORRUPTED;
-         }
-
-         pkey = npkey;
-         pprev_key = NULL;
-
-         for (i = 0; i < pkeylist->num_keys; i++) {
-            if (!db_validate_key_offset(pheader, pkey->next_key)) {
-               int pkey_next_key = pkey->next_key;
-               HNDLE pkey_hkey = db_pkey_to_hkey(pheader, pkey);
-               std::string path = db_get_path_locked(pheader, pkey_hkey);
-               db_unlock_database(hDB);
-               cm_msg(MERROR, "db_create_key", "hkey %d path \"%s\" invalid next_key %d, while creating \'%s\' in \'%s\'", pkey_hkey, path.c_str(), pkey_next_key, key_name, str);
-               return DB_CORRUPTED;
-            }
-
-            if (equal_ustring(str, pkey->name))
-               break;
-
-            pprev_key = pkey;
-            pkey = (KEY *) ((char *) pheader + pkey->next_key); // FIXME: pkey->next_key could be zero
-         }
-
-         if (i == pkeylist->num_keys) {
-            /* not found: create new key */
-
-            /* check parent for write access */
-            // FIXME: validate pkeylist->parent
-            pkeyparent = (KEY *) ((char *) pheader + pkeylist->parent);
-            if (!(pkeyparent->access_mode & MODE_WRITE) || (pkeyparent->access_mode & MODE_EXCLUSIVE)) {
-               db_unlock_database(hDB);
-               return DB_NO_ACCESS;
-            }
-
-            pkeylist->num_keys++;
-
-            if (*pkey_name == '/' || type == TID_KEY) {
-               /* create new key with keylist */
-               pkey = (KEY *) malloc_key(pheader, sizeof(KEY), "db_create_key_A");
-
-               if (pkey == NULL) {
-                  db_unlock_database(hDB);
-                  char str[MAX_ODB_PATH];
-                  db_get_path(hDB, hKey, str, sizeof(str));
-                  cm_msg(MERROR, "db_create_key", "online database full while creating \'%s\'", str);
-                  return DB_FULL;
-               }
-
-               /* append key to key list */
-               if (pprev_key)
-                  pprev_key->next_key = (POINTER_T) pkey - (POINTER_T) pheader;
-               else
-                  pkeylist->first_key = (POINTER_T) pkey - (POINTER_T) pheader;
-
-               /* set key properties */
-               pkey->type = TID_KEY;
-               pkey->num_values = 1;
-               pkey->access_mode = MODE_READ | MODE_WRITE | MODE_DELETE;
-               strlcpy(pkey->name, str, sizeof(pkey->name));
-               pkey->parent_keylist = (POINTER_T) pkeylist - (POINTER_T) pheader;
-
-               /* find space for new keylist */
-               pkeylist = (KEYLIST *) malloc_key(pheader, sizeof(KEYLIST), "db_create_key_B");
-
-               if (pkeylist == NULL) {
-                  db_unlock_database(hDB);
-                  char str[MAX_ODB_PATH];
-                  db_get_path(hDB, hKey, str, sizeof(str));
-                  cm_msg(MERROR, "db_create_key", "online database full while creating \'%s\' in \'%s'", key_name, str);
-                  return DB_FULL;
-               }
-
-               /* store keylist in data field */
-               pkey->data = (POINTER_T) pkeylist - (POINTER_T) pheader;
-               pkey->item_size = sizeof(KEYLIST);
-               pkey->total_size = sizeof(KEYLIST);
-
-               pkeylist->parent = (POINTER_T) pkey - (POINTER_T) pheader;
-               pkeylist->num_keys = 0;
-               pkeylist->first_key = 0;
-            } else {
-               /* create new key with data */
-               pkey = (KEY *) malloc_key(pheader, sizeof(KEY), "db_create_key_C");
-
-               if (pkey == NULL) {
-                  db_unlock_database(hDB);
-                  char str[MAX_ODB_PATH];
-                  db_get_path(hDB, hKey, str, sizeof(str));
-                  cm_msg(MERROR, "db_create_key", "online database full while creating \'%s\'", str);
-                  return DB_FULL;
-               }
-
-               /* append key to key list */
-               if (pprev_key)
-                  pprev_key->next_key = (POINTER_T) pkey - (POINTER_T) pheader;
-               else
-                  pkeylist->first_key = (POINTER_T) pkey - (POINTER_T) pheader;
-
-               pkey->type = type;
-               pkey->num_values = 1;
-               pkey->access_mode = MODE_READ | MODE_WRITE | MODE_DELETE;
-               strlcpy(pkey->name, str, sizeof(pkey->name));
-               pkey->parent_keylist = (POINTER_T) pkeylist - (POINTER_T) pheader;
-
-               /* zero data */
-               if (type != TID_STRING && type != TID_LINK) {
-                  pkey->item_size = rpc_tid_size(type);
-                  pkey->data = (POINTER_T) malloc_data(pheader, pkey->item_size);
-                  pkey->total_size = pkey->item_size;
-
-                  if (pkey->data == 0) {
-                     pkey->total_size = 0;
-                     db_unlock_database(hDB);
-                     char str[MAX_ODB_PATH];
-                     db_get_path(hDB, hKey, str, sizeof(str));
-                     cm_msg(MERROR, "db_create_key", "online database full while creating \'%s\' in \'%s\'", key_name, str);
-                     return DB_FULL;
-                  }
-
-                  pkey->data -= (POINTER_T) pheader;
-               } else {
-                  /* first data is empty */
-                  pkey->item_size = 0;
-                  pkey->total_size = 0;
-                  pkey->data = 0;
-               }
-            }
-         } else {
-            /* key found: descend */
-
-            /* resolve links */
-            if (pkey->type == TID_LINK && pkey_name[0]) {
-               /* copy destination, strip '/' */
-               strcpy(str, (char *) pheader + pkey->data);
-               if (str[strlen(str) - 1] == '/')
-                  str[strlen(str) - 1] = 0;
-
-               /* append rest of key name */
-               strcat(str, pkey_name);
-
-               db_unlock_database(hDB);
-
-               return db_create_key(hDB, 0, str, type);
-            }
-
-            if (!(*pkey_name == '/')) {
-               DWORD xtid = pkey->type;
-               db_unlock_database(hDB);
-
-               if (xtid != type) {
-                  char path[MAX_ODB_PATH];
-                  db_get_path(hDB, hKey, path, sizeof(path));
-                  cm_msg(MERROR, "db_create_key", "object of type %d already exists while creating \'%s\' of type %d in \'%s\'", xtid, key_name, type, path);
-               }
-
-               return DB_KEY_EXIST;
-            }
-
-            if (pkey->type != TID_KEY) {
-               db_unlock_database(hDB);
-               char path[MAX_ODB_PATH];
-               db_get_path(hDB, hKey, path, sizeof(path));
-               cm_msg(MERROR, "db_create_key", "path element \"%s\" in \"%s\" is not a subdirectory while creating \'%s\' in \'%s\'", str, key_name, key_name, path);
-               return DB_KEY_EXIST;
-            }
-
-            pkeylist = (KEYLIST *) ((char *) pheader + pkey->data);
-         }
-      } while (*pkey_name == '/');
+      status = db_create_key_wlocked(pheader, pkey, key_name, type, &newpkey, &msg);
 
       db_unlock_database(hDB);
+
+      if (msg)
+         db_flush_msg(&msg);
+
+      return status;
    }
 #endif                          /* LOCAL_ROUTINES */
 
    return DB_SUCCESS;
 }
+
+#ifdef LOCAL_ROUTINES
+
+int db_create_key_wlocked(DATABASE_HEADER* pheader, KEY* parentKey, const char *key_name, DWORD type, KEY** pnewkey, db_err_msg** msg)
+{
+   int status;
+
+   if (pnewkey)
+      *pnewkey = NULL;
+
+   if (parentKey== NULL) {
+      parentKey = (KEY*) db_get_pkey(pheader, pheader->root_key, &status, "db_create_key_wlocked", msg);
+      if (!parentKey) {
+         return status;
+      }
+   }
+   
+   status = db_validate_name(key_name, TRUE, "db_create_key");
+   if (status != DB_SUCCESS) {
+      return status;
+   }
+   
+   /* check type */
+   if (type <= 0 || type >= TID_LAST) {
+      db_msg(msg, MERROR, "db_create_key", "invalid key type %d to create \'%s\' in \'%s\'", type, key_name, db_get_path_locked(pheader, parentKey).c_str());
+      return DB_INVALID_PARAM;
+   }
+   
+   const KEY* pdir = parentKey;
+   
+   if (pdir->type != TID_KEY) {
+      db_msg(msg, MERROR, "db_create_key", "cannot create \'%s\' in \'%s\' tid is %d, not a directory", key_name, db_get_path_locked(pheader, pdir).c_str(), pdir->type);
+      return DB_NO_KEY;
+   }
+
+   KEY* pcreated = NULL;
+
+   const char* pkey_name = key_name;
+   do {
+      // key name is limited to NAME_LENGTH, but buffer has to be slightly longer
+      // to prevent truncation before db_validate_name checks for correct length. K.O.
+      char name[NAME_LENGTH+100];
+      
+      /* extract single key from key_name */
+      pkey_name = extract_key(pkey_name, name, sizeof(name));
+
+      status = db_validate_name(name, FALSE, "db_create_key");
+      if (status != DB_SUCCESS) {
+         return status;
+      }
+      
+      /* do not allow empty names, like '/dir/dir//dir/' */
+      if (name[0] == 0) {
+         return DB_INVALID_PARAM;
+      }
+      
+      /* check if parent or current directory */
+      if (strcmp(name, "..") == 0) {
+         pdir = db_get_parent(pheader, pdir, &status, "db_create_key", msg);
+         if (!pdir) {
+            return status;
+         }
+         continue;
+      }
+      if (strcmp(name, ".") == 0)
+         continue;
+
+      KEY* pprev = NULL;
+      const KEY* pitem = db_enum_first_locked(pheader, pdir, msg);
+
+      while (pitem) {
+         if (equal_ustring(name, pitem->name)) {
+            break;
+         }
+         pprev = (KEY*)pitem;
+         pitem = db_enum_next_locked(pheader, pdir, pitem, msg);
+      }
+      
+      if (!pitem) {
+         /* not found: create new key */
+
+         /* check parent for write access */
+         const KEY* pkeyparent = db_get_parent(pheader, pdir, &status, "db_create_key", msg);
+         if (!pkeyparent) {
+            return status;
+         }
+
+         if (!(pkeyparent->access_mode & MODE_WRITE) || (pkeyparent->access_mode & MODE_EXCLUSIVE)) {
+            return DB_NO_ACCESS;
+         }
+         
+         KEYLIST* pkeylist = (KEYLIST*)db_get_pkeylist(pheader, db_pkey_to_hkey(pheader, pdir), pdir, "db_create_key_wlocked", msg);
+         
+         if (!pkeylist) {
+            return DB_CORRUPTED;
+         }
+         
+         pkeylist->num_keys++;
+         
+         if (*pkey_name == '/' || type == TID_KEY) {
+            /* create new key with keylist */
+            KEY* pkey = (KEY *) malloc_key(pheader, sizeof(KEY), "db_create_key_subdir");
+            
+            if (pkey == NULL) {
+               db_msg(msg, MERROR, "db_create_key", "online database full while creating \'%s\' in \'%s\'", key_name, db_get_path_locked(pheader, parentKey).c_str());
+               return DB_FULL;
+            }
+
+            /* append key to key list */
+            if (pprev)
+               pprev->next_key = (POINTER_T) pkey - (POINTER_T) pheader;
+            else
+               pkeylist->first_key = (POINTER_T) pkey - (POINTER_T) pheader;
+            
+            /* set key properties */
+            pkey->type = TID_KEY;
+            pkey->num_values = 1;
+            pkey->access_mode = MODE_READ | MODE_WRITE | MODE_DELETE;
+            strlcpy(pkey->name, name, sizeof(pkey->name));
+            pkey->parent_keylist = (POINTER_T) pkeylist - (POINTER_T) pheader;
+            
+            /* find space for new keylist */
+            pkeylist = (KEYLIST *) malloc_key(pheader, sizeof(KEYLIST), "db_create_key_B");
+            
+            if (pkeylist == NULL) {
+               db_msg(msg, MERROR, "db_create_key", "online database full while creating \'%s\' in \'%s'", key_name, db_get_path_locked(pheader, parentKey).c_str());
+               return DB_FULL;
+            }
+            
+            /* store keylist in data field */
+            pkey->data = (POINTER_T) pkeylist - (POINTER_T) pheader;
+            pkey->item_size = sizeof(KEYLIST);
+            pkey->total_size = sizeof(KEYLIST);
+            
+            pkeylist->parent = (POINTER_T) pkey - (POINTER_T) pheader;
+            pkeylist->num_keys = 0;
+            pkeylist->first_key = 0;
+
+            pcreated = pkey;
+            pdir = pkey; // descend into newly created subdirectory
+         } else {
+            /* create new key with data */
+            KEY* pkey = (KEY *) malloc_key(pheader, sizeof(KEY), "db_create_key_data");
+            
+            if (pkey == NULL) {
+               db_msg(msg, MERROR, "db_create_key", "online database full while creating \'%s\' in \'%s\'", key_name, db_get_path_locked(pheader, parentKey).c_str());
+               return DB_FULL;
+            }
+            
+            /* append key to key list */
+            if (pprev)
+               pprev->next_key = (POINTER_T) pkey - (POINTER_T) pheader;
+            else
+               pkeylist->first_key = (POINTER_T) pkey - (POINTER_T) pheader;
+            
+            pkey->type = type;
+            pkey->num_values = 1;
+            pkey->access_mode = MODE_READ | MODE_WRITE | MODE_DELETE;
+            strlcpy(pkey->name, name, sizeof(pkey->name));
+            pkey->parent_keylist = (POINTER_T) pkeylist - (POINTER_T) pheader;
+            
+            /* zero data */
+            if (type != TID_STRING && type != TID_LINK) {
+               pkey->item_size = rpc_tid_size(type);
+               void* data = malloc_data(pheader, pkey->item_size);
+               if (data == NULL) {
+                  pkey->total_size = 0;
+                  db_msg(msg, MERROR, "db_create_key", "online database full while creating \'%s\' in \'%s\'", key_name, db_get_path_locked(pheader, parentKey).c_str());
+                  return DB_FULL;
+               }
+               
+               pkey->total_size = pkey->item_size;
+               pkey->data = (POINTER_T)data - (POINTER_T)pheader;
+            } else {
+               /* first data is empty */
+               pkey->item_size = 0;
+               pkey->total_size = 0;
+               pkey->data = 0;
+            }
+            pcreated = pkey;
+         }
+      } else {
+         /* key found: descend */
+         
+         /* resolve links */
+         if (pitem->type == TID_LINK && pkey_name[0]) {
+            pdir = db_resolve_link_locked(pheader, pitem, &status, msg);
+            if (!pdir) {
+               return status;
+            }
+            continue;
+         }
+         
+         if (!(*pkey_name == '/')) {
+            if (pitem->type != type) {
+               db_msg(msg, MERROR, "db_create_key", "object of type %d already exists at \"%s\" while creating \'%s\' of type %d in \'%s\'", pitem->type, db_get_path_locked(pheader, pitem).c_str(), key_name, type, db_get_path_locked(pheader, parentKey).c_str());
+               return DB_TYPE_MISMATCH;
+            }
+            printf("here: [%s]: ", pkey_name);
+            db_print_pkey(pheader, pitem);
+
+            if (pnewkey)
+               *pnewkey = (KEY*)pitem;
+
+            return DB_KEY_EXIST;
+         }
+         
+         if (pitem->type != TID_KEY) {
+            db_msg(msg, MERROR, "db_create_key", "path element \"%s\" in \"%s\" is not a subdirectory at \"%s\" while creating \'%s\' in \'%s\'", name, key_name, db_get_path_locked(pheader, pitem).c_str(), key_name, db_get_path_locked(pheader, parentKey).c_str());
+            return DB_TYPE_MISMATCH;
+         }
+         
+         pdir = pitem;
+      }
+   } while (*pkey_name == '/');
+
+   assert(pcreated != NULL);
+   
+   if (pnewkey)
+      *pnewkey = pcreated;
+
+   return DB_SUCCESS;
+}
+
+#endif /* LOCAL_ROUTINES */
 
 /********************************************************************/
 /**
@@ -5095,6 +5120,7 @@ INT db_get_open_records(HNDLE hDB, HNDLE hKey, char *str, INT buf_size, BOOL fix
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
+
 /********************************************************************/
 /**
 Set value of a single key.
@@ -5227,6 +5253,91 @@ INT db_set_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *da
 
    return DB_SUCCESS;
 }
+
+#ifdef LOCAL_ROUTINES
+#if 0
+static int db_set_value_wlocked(DATABASE_HEADER* pheader, const KEY* pkeyRoot, const char *key_name, const void *data, INT data_size, INT num_values, DWORD type, db_err_msg** msg)
+{
+   INT status;
+   
+   if (num_values == 0)
+      return DB_INVALID_PARAM;
+   
+   KEY* pkey = (KEY*)db_find_pkey_locked(pheader, pkeyRoot, key_name, &status, msg);
+
+   if (!pkey) {
+      status = db_create_key(hDB, hKeyRoot, key_name, type);
+      if (status != DB_SUCCESS && status != DB_CREATED)
+         return status;
+      status = db_find_link(hDB, hKeyRoot, key_name, &hKey);
+   }
+   
+   if (status != DB_SUCCESS)
+      return status;
+   
+   /* get address from handle */
+   pkey = (KEY *) ((char *) pheader + hKey); // NB: hKey comes from db_find_key(), assumed to be valid
+   
+   /* check for write access */
+   if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
+      return DB_NO_ACCESS;
+   }
+   
+   if (pkey->type != type) {
+      db_msg(msg, MERROR, "db_set_value", "\"%s\" is of type %s, not %s", key_name, rpc_tid_name(pkey->type), rpc_tid_name(pkey->type));
+      return DB_TYPE_MISMATCH;
+   }
+   
+   /* keys cannot contain data */
+   if (pkey->type == TID_KEY) {
+      db_msg(msg, MERROR, "db_set_value", "key cannot contain data");
+      return DB_TYPE_MISMATCH;
+   }
+   
+   if (data_size == 0) {
+      db_msg(msg, MERROR, "db_set_value", "zero data size not allowed");
+      return DB_TYPE_MISMATCH;
+   }
+   
+   if (type != TID_STRING && type != TID_LINK && data_size != rpc_tid_size(type) * num_values) {
+      db_msg(msg, MERROR, "db_set_value", "\"%s\" data_size %d does not match tid %d size %d times num_values %d", key_name, data_size, type, rpc_tid_size(type), num_values);
+      return DB_TYPE_MISMATCH;
+   }
+   
+   /* resize data size if necessary */
+   if (pkey->total_size != data_size) {
+      pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size, "db_set_value");
+      
+      if (pkey->data == 0) {
+         pkey->total_size = 0;
+         db_msg(msg, MERROR, "db_set_value", "online database full");
+         return DB_FULL;
+      }
+      
+      pkey->data -= (POINTER_T) pheader;
+      pkey->total_size = data_size;
+   }
+   
+   /* set number of values */
+   pkey->num_values = num_values;
+   
+   if (type == TID_STRING || type == TID_LINK)
+      pkey->item_size = data_size / num_values;
+   else
+      pkey->item_size = rpc_tid_size(type);
+   
+   /* copy data */
+   memcpy((char *) pheader + pkey->data, data, data_size);
+   
+   /* update time */
+   pkey->last_written = ss_time();
+   
+   db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, msg);
+   
+   return DB_SUCCESS;
+}
+#endif
+#endif /* LOCAL_ROUTINES */
 
 /********************************************************************/
 /**
