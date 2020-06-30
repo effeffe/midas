@@ -14,6 +14,7 @@ set(PROGS
    odbhist
    melog
    mh2sql
+   hwtest
    fetest_tmfe
    fetest_tmfe_thread
    crc32c_sum

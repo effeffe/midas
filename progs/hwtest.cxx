@@ -18,24 +18,23 @@ struct {
 } test_align;
 
 #ifdef vxw
-hwtest()
+int hwtest()
 #else
-main()
+int main()
 #endif
 {
    unsigned long dummy;
    unsigned char *p;
    float f;
    double d;
-   int i;
 
    printf("Data sizes:\n");
-   printf("sizeof(int)    = %d\n", sizeof(int));
-   printf("sizeof(float)  = %d\n", sizeof(float));
-   printf("sizeof(double) = %d\n", sizeof(double));
-   printf("sizeof(long int) = %d\n", sizeof(long int));
-   printf("sizeof(long double) = %d\n", sizeof(long double));
-   printf("sizeof(char *) = %d\n", sizeof(p));
+   printf("sizeof(int)    = %d\n", (int)sizeof(int));
+   printf("sizeof(float)  = %d\n", (int)sizeof(float));
+   printf("sizeof(double) = %d\n", (int)sizeof(double));
+   printf("sizeof(long int) = %d\n", (int)sizeof(long int));
+   printf("sizeof(long double) = %d\n", (int)sizeof(long double));
+   printf("sizeof(char *) = %d\n", (int)sizeof(p));
    if (sizeof(p) == 2)
       printf("...this looks like a 16-bit OS\n\n");
    else if (sizeof(p) == 4)
@@ -56,13 +55,13 @@ main()
    f = (float) 1.2345;
    p = (unsigned char *) &f;
    printf("1.2345f        = ");
-   for (i = 0; i < sizeof(float); i++)
+   for (unsigned i = 0; i < sizeof(float); i++)
       printf("%02X ", p[i]);
    printf("\n");
    d = 1.2345;
    p = (unsigned char *) &d;
    printf("1.2345d        = ");
-   for (i = 0; i < sizeof(double); i++)
+   for (unsigned i = 0; i < sizeof(double); i++)
       printf("%02X ", p[i]);
    printf("\n");
 
@@ -97,7 +96,7 @@ main()
       printf("...this looks like VAX D double format\n\n");
 
 
-   i = (int) (&test_align.d) - (int) &test_align.c;
+   int i = (char*) (&test_align.d) - (char*) &test_align.c;
    printf("Structure members are %d-byte aligned\n\n", i);
 
    return 1;
