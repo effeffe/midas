@@ -1008,7 +1008,14 @@ static const KEY* db_get_pkey(const DATABASE_HEADER* pheader, HNDLE hKey, int* p
    }
 
    /* check if hKey argument is correct */
-   if (!db_validate_hkey(pheader, hKey)) {
+   if (hKey == 0) {
+      if (pstatus)
+         *pstatus = DB_INVALID_HANDLE;
+      return NULL;
+   }
+
+   /* check if hKey argument is correct */
+   if (!db_validate_key_offset(pheader, hKey)) {
       if (pstatus)
          *pstatus = DB_INVALID_HANDLE;
       return NULL;
@@ -4845,7 +4852,11 @@ static std::string db_get_path_locked(const DATABASE_HEADER* pheader, const KEY*
          return "/" + path;
       }
 
-      if (!db_validate_hkey(pheader, pkeylist->parent)) {
+      if (pkeylist->parent == 0) {
+         return "(NULL_PARENT)/" + path;
+      }
+
+      if (!db_validate_key_offset(pheader, pkeylist->parent)) {
          return "(INVALID_PARENT)/" + path;
       }
 
@@ -4868,7 +4879,12 @@ static std::string db_get_path_locked(const DATABASE_HEADER* pheader, HNDLE hKey
    }
 
    /* check if hKey argument is correct */
-   if (!db_validate_hkey(pheader, hKey)) {
+   if (hKey == 0) {
+      return "(ZERO_HKEY)";
+   }
+
+   /* check if hKey argument is correct */
+   if (!db_validate_key_offset(pheader, hKey)) {
       return "(INVALID_HKEY)";
    }
 
