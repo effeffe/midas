@@ -698,7 +698,8 @@ INT al_check()
          time_t now = ss_time();
 
          // get name of this client
-         rpc_get_name(str);
+         std::string name = rpc_get_name();
+         strlcpy(str, name.c_str(), sizeof(str));
 
          // truncate name of this client to the length of program name in /Programs/xxx
          // to get rid if "odbedit1", "odbedit2", etc.

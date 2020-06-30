@@ -2955,6 +2955,23 @@ int main(int argc, char *argv[])
    }
 #endif
 
+   if (reload_from_file) {
+#ifdef LOCAL_ROUTINES
+      status = cm_set_experiment_local(exp_name);
+      if (status != CM_SUCCESS) {
+         printf("Cannot setup experiment name and path.\n");
+         return 1;
+      }
+      status = ss_shm_delete("ODB");
+      printf("MIDAS ODB shared memory was deleted, ss_shm_delete(ODB) status %d\n", status);
+      printf("Please run odbedit again without \'-R\' and ODB will be reloaded from .ODB.SHM\n");
+      return 1;
+#else
+      printf("This odbedit only works remotely, -R is not supported\n");
+      return 1;
+#endif
+   }
+
    /* no startup message if called with command */
    if (cmd[0])
       cm_set_msg_print(MT_ERROR, 0, NULL);
@@ -2966,18 +2983,6 @@ int main(int argc, char *argv[])
       return 1;
 
    cm_msg_flush_buffer();
-
-   if (reload_from_file) {
-#ifdef LOCAL_ROUTINES
-      status = ss_shm_delete("ODB");
-      printf("ss_shm_delete(ODB) status %d\n", status);
-      printf("Please run odbedit again without \'-R\' and ODB will be reloaded from .ODB.SHM\n");
-      return 1;
-#else
-      printf("This odbedit only works remotely, -R is not supported\n");
-      return 1;
-#endif
-   }
 
    if ((status == DB_INVALID_HANDLE) && corrupted) {
       cm_get_error(status, str);
