@@ -1,4 +1,26 @@
-# MidasConfig.cmake
+
+#[[
+MidasConfig
+---------
+Defines Midas include dirs and libraries
+
+Use this module by invoking find_package with the form::
+
+  find_package(Midas
+    [REQUIRED]             # Fail with error if Midas is not found
+    )                     
+
+This module finds headers and requested component libraries. During installation,
+paths to these directories are hard-coded and results are reported in variables::
+
+  MIDAS_FOUND            - True if headers and requested libraries were found
+  MIDAS_PACKAGE_NAME     - Midas package name
+  MIDAS_INCLUDE_DIRS     - Midas include directories
+  MIDAS_LIBRARY_DIRS     - Link directories for Boost libraries
+  MIDAS_LIBRARIES        - Midas component libraries to be linked
+
+#]]
+
 
 if (MIDAS_FOUND)
     return()
@@ -10,18 +32,7 @@ if (ROOT_FOUND)
     include_directories(@ROOT_INCLUDES@)
 endif (ROOT_FOUND)
 
-# MIDAS_COMP_DEFS
-# set_property (DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY COMPILE_DEFINITIONS @MIDAS_COMP_DEFS@)
-
-# Make customizations below
-
-#set (MIDAS_VERSION_MAJOR @MIDAS_VERSION_MAJOR@)
-#set (MIDAS_VERSION_MINOR @MIDAS_VERSION_MINOR@)
-#set (MIDAS_REVISION @MIDAS_REVISION@)
-#set (MIDAS_VERSION @MIDAS_VERSION@)
-#set (MIDAS_FULL_VERSION @MIDAS_FULL_VERSION@)
 set (MIDAS_PACKAGE_NAME midas )
-#set (MIDAS_PACKAGE_STRING @MIDAS_PACKAGE_STRING@)
 
 list (APPEND MIDAS_INCLUDE_DIRS @SYSINC_DIR@)
 list (APPEND MIDAS_LIBRARY_DIRS @SYSLIB_DIR@)
