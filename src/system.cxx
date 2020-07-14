@@ -3195,7 +3195,7 @@ DWORD ss_settime(DWORD seconds)
    clock_settime(CLOCK_REALTIME, &ltm);
    return SS_NO_DRIVER;
 
-#elif defined(OS_UNIX)
+#elif defined(OS_UNIX) && defined(CLOCK_REALTIME)
 
    struct timespec ltm;
 
