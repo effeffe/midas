@@ -460,6 +460,22 @@ if (HAVE_ROOT)
 endif(HAVE_ROOT)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/rmanao.dir/src/mana.cxx.o DESTINATION lib RENAME rmana.o)
 
+# keeps track of all the built libraries
+set ( MIDAS_LIBRARIES 
+        objlib 
+        objlib-c-compat 
+        midas 
+        midas-shared 
+        midas-c-compat
+        mfe
+        mana
+        rmana
+        mfeo
+        manao
+        rmanao
+    )
+MESSAGE (status ${MIDAS_LIBRARIES})
+
 #####################################################################
 # generate git revision file
 #####################################################################
@@ -489,3 +505,6 @@ add_dependencies(objlib git_revision_h)
 add_subdirectory(progs)
 add_subdirectory(examples)
 
+configure_file(
+    ${PROJECT_SOURCE_DIR}/MidasConfig.cmake.in
+    ${PROJECT_SOURCE_DIR}/cmake/MidasConfig.cmake)
