@@ -989,11 +989,15 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       if (e.offsetX > this.width - 30 - 24 && e.offsetX < this.width - 30 &&
          e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
          // zoom out
-         let delta = this.tMax - this.tMin;
-         this.tMin -= delta/2;
-         this.tMax += delta/2;
-         this.drag.Vt = 0; // stop inertia
-         this.loadOldData();
+         if (this.pendingUpdates === 0) {
+            let delta = this.tMax - this.tMin;
+            this.tMin -= delta / 2;
+            this.tMax += delta / 2;
+            this.drag.Vt = 0; // stop inertia
+            this.loadOldData();
+         } else
+            dlgMessage("Warning", "Please press the "-" not too fast!", true, false);
+
       }
 
       // check for dragging
