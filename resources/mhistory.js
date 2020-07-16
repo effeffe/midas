@@ -985,6 +985,8 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.tMax -= delta/4;
          this.drag.Vt = 0; // stop inertia
          this.redraw();
+         e.preventDefault();
+         return;
       }
       if (e.offsetX > this.width - 30 - 24 && e.offsetX < this.width - 30 &&
          e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
@@ -996,8 +998,9 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             this.drag.Vt = 0; // stop inertia
             this.loadOldData();
          } else
-            dlgMessage("Warning", "Please press the "-" not too fast!", true, false);
-
+            dlgMessage("Warning", "Don't press the '-' too fast!", true, false);
+         e.preventDefault();
+         return;
       }
 
       // check for dragging
