@@ -3185,7 +3185,7 @@ DWORD ss_settime(DWORD seconds)
 
    SetLocalTime(&st);
 
-#elif defined(OS_DARWIN)
+#elif defined(OS_DARWIN) && defined(CLOCK_REALTIME)
 
    struct timespec ltm;
 
@@ -3193,7 +3193,7 @@ DWORD ss_settime(DWORD seconds)
    ltm.tv_nsec = 0;
    clock_settime(CLOCK_REALTIME, &ltm);
 
-#elif defined(OS_CYGWIN)
+#elif defined(OS_CYGWIN) && defined(CLOCK_REALTIME)
 
    struct timespec ltm;
 
@@ -3202,7 +3202,7 @@ DWORD ss_settime(DWORD seconds)
    clock_settime(CLOCK_REALTIME, &ltm);
    return SS_NO_DRIVER;
 
-#elif defined(OS_UNIX)
+#elif defined(OS_UNIX) && defined(CLOCK_REALTIME)
 
    struct timespec ltm;
 
@@ -3218,6 +3218,8 @@ DWORD ss_settime(DWORD seconds)
    ltm.tv_nsec = 0;
    clock_settime(CLOCK_REALTIME, &ltm);
 
+#else
+#warning ss_settime() is not supported!
 #endif
    return SS_SUCCESS;
 }
