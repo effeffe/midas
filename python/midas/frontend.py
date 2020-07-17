@@ -28,6 +28,7 @@ import ctypes
 import argparse
 import collections
 import logging
+import sys
 
 frontend_index = None    # If run with the -i flag on the command-line. Populated by parse_args().
 cmd_line_hostname = None # If run with the -h flag on the command-line. Populated by parse_args().
@@ -247,7 +248,7 @@ class EquipmentBase:
                       ("Log history", ctypes.c_int32(default_common.log_history)),
                       ("Frontend host", ctypes.create_string_buffer(bytes(socket.gethostname(), "utf-8"), 32)),
                       ("Frontend name", ctypes.create_string_buffer(bytes(self.frontend_name, "utf-8"), 32)),
-                      ("Frontend file name", ctypes.create_string_buffer(bytes(os.path.basename(__file__), "utf-8"), 256)),
+                      ("Frontend file name", ctypes.create_string_buffer(bytes(os.path.basename(sys.argv[0]), "utf-8"), 256)),
                       ("Status", ctypes.create_string_buffer(256)),
                       ("Status color", ctypes.create_string_buffer(32)),
                       ("Hidden", False),

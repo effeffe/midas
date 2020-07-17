@@ -422,7 +422,8 @@ static INT hs_search_file(DWORD * ltime, INT direction)
    hs_open_file(*ltime, "idf", O_RDONLY, NULL, &fhd);
    hs_open_file(*ltime, "idx", O_RDONLY, NULL, &fhi);
 
-   close(fh);
+   if (fh > 0)
+      close(fh);
    if (fhd > 0)
       close(fhd);
    if (fhi > 0)
@@ -1708,9 +1709,12 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
                      *dbsize = 0;
                   if (cache)
                      M_FREE(cache);
-                  close(fh);
-                  close(fhd);
-                  close(fhi);
+                  if (fh > 0)
+                     close(fh);
+                  if (fhd > 0)
+                     close(fhd);
+                  if (fhi > 0)
+                     close(fhi);
                   return HS_NO_MEMORY;
                }
                xread(fn, fh, (char *) tag, drec.data_size);
@@ -1743,9 +1747,12 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
                   if (cache)
                      M_FREE(cache);
                   M_FREE(tag);
-                  close(fh);
-                  close(fhd);
-                  close(fhi);
+                  if (fh > 0)
+                     close(fh);
+                  if (fhd > 0)
+                     close(fhd);
+                  if (fhi > 0)
+                     close(fhi);
                   return HS_WRONG_INDEX;
                }
 
@@ -1790,9 +1797,12 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
                   *tbsize = (*data_n) * sizeof(DWORD);
                   if (cache)
                      M_FREE(cache);
-                  close(fh);
-                  close(fhd);
-                  close(fhi);
+                  if (fh > 0)
+                     close(fh);
+                  if (fhd > 0)
+                     close(fhd);
+                  if (fhi > 0)
+                     close(fhi);
                   return HS_TRUNCATED;
                }
 
@@ -1850,12 +1860,15 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
 
       /* end of file: search next history file */
       if (ieof <= 0) {
-         close(fh);
-         close(fhd);
-         close(fhi);
-         fh = fhd = fhi = 0;
+         nextday:
 
-       nextday:
+         if (fh > 0)
+            close(fh);
+         if (fhd > 0)
+            close(fhd);
+         if (fhi > 0)
+            close(fhi);
+         fh = fhd = fhi = 0;
 
          /* advance one day */
          ltime = (time_t) last_irec_time;
