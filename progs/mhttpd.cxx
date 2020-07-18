@@ -1000,12 +1000,12 @@ std::vector<std::string> get_resource_paths()
       paths.push_back(buf);
 
    // add /Logger/History dir
-   status = db_get_value_string(hDB, 0, "/Logger/History dir", 0, &buf, TRUE);
+   status = db_get_value_string(hDB, 0, "/Logger/History dir", 0, &buf, FALSE);
    if (status == DB_SUCCESS && !buf.empty())
       paths.push_back(buf);
 
    // add /Logger/Data dir
-   status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &buf, TRUE);
+   status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &buf, FALSE);
    if (status == DB_SUCCESS && !buf.empty())
       paths.push_back(buf);
 

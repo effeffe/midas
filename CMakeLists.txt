@@ -507,4 +507,4 @@ add_subdirectory(examples)
 
 configure_file(
     ${PROJECT_SOURCE_DIR}/MidasConfig.cmake.in
-    ${PROJECT_SOURCE_DIR}/cmake/MidasConfig.cmake)
+    ${PROJECT_SOURCE_DIR}/MidasConfig.cmake)
