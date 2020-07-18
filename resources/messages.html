@@ -81,12 +81,39 @@
       mf.style.maxHeight = h + "px";
    }
 
+   function getUrlVars() {
+      let vars = {};
+      window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function (m, key, value) {
+         vars[key] = value;
+      });
+      return vars;
+   }
+
    function msg_load(f) {
-      if (f === undefined)
-         f = mhttpdConfig().mFacility;
-      if (f === undefined)
-         f = 'midas';
-      facility = f;
+      // if facility comes from the button, use it
+      if (f !== undefined)
+         facility = f;
+      else {
+         // if facility is in URL, use it
+         let urlfacility = decodeURI(getUrlVars()["facility"]);
+         if (urlfacility !== "undefined")
+            facility = urlfacility;
+         // if facility is in local storage, use it
+         else if (mhttpdConfig().mFacility !== undefined)
+            facility = mhttpdConfig().mFacility;
+         else
+            // use 'midas' if no other source
+            facility = 'midas';
+      }
+
+      // put facility in URL
+      let url = window.location.href;
+      if (url.search("&facility=") !== -1)
+         url = url.slice(0, url.search("&facility="));
+      url += "&facility=" + facility;
+      if (url !== window.location.href)
+         window.history.replaceState({}, "Midas History", url);
+
       mhttpdConfigSet("mFacility", f);
       first_tstamp = 0;
       last_tstamp = 0;
