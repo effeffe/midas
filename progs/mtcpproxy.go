@@ -6,78 +6,111 @@
 package main
 
 import (
-    "io"
-    "net"
-    "fmt"
-    "os"
+	"flag"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"sync"
 )
 
-var done map[net.Conn]bool
+var conf_verbose = flag.Bool("v", false, "report activity")
+var conf_from = flag.String("from", ":443", "listen on this address")
+var conf_to = flag.String("to", "localhost:8443", "forward to connections to this address")
 
-func copy(w, r *net.TCPConn) {
-   _, e := io.Copy(w, r)
-   if e != nil {
-     fmt.Fprintf(os.Stderr, "io.Copy() error %v\n", e)
-   } else {
-     //fmt.Fprintf(os.Stderr, "io.Copy() done\n")
-   }
+var g_done map[net.Conn]bool
+var g_done_mutex sync.Mutex
 
-   r.CloseRead()
-   w.CloseWrite()
-   //w.Close()
+func copy(c, w, r *net.TCPConn) {
+	_, e := io.Copy(w, r)
+	if e != nil {
+		fmt.Fprintf(os.Stderr, "Connection from \"%v\": io.Copy() error %v\n", c.RemoteAddr(), e)
+	} else {
+		if *conf_verbose {
+			fmt.Fprintf(os.Stderr, "Connection from \"%v\": io.Copy() done\n", c.RemoteAddr())
+		}
+	}
 
-   //fmt.Fprintf(os.Stderr, "done %v %v\n", done[w], done[r])
-   if (done[w]) {
-     //fmt.Fprintf(os.Stderr, "close w = %v\n", w)
-      w.Close()
-      delete(done, w)
-   } else {
-      done[w] = true
-   }
+	r.CloseRead()
+	w.CloseWrite()
+	//w.Close()
 
-   if (done[r]) {
-      //fmt.Fprintf(os.Stderr, "close r = %v\n", r)
-      r.Close()
-      delete(done, r)
-   } else {
-      done[r] = true
-   }
+	g_done_mutex.Lock()
+	defer g_done_mutex.Unlock()
+
+	if *conf_verbose {
+		fmt.Fprintf(os.Stderr, "Connection from \"%v\": writer done: %v, reader done: %v\n", c.RemoteAddr(), g_done[w], g_done[r])
+	}
+
+	if g_done[w] {
+		if *conf_verbose {
+			fmt.Fprintf(os.Stderr, "Connection from \"%v\": writer close\n", c.RemoteAddr())
+		}
+		//fmt.Fprintf(os.Stderr, "close w = %v\n", w)
+		w.Close()
+		delete(g_done, w)
+	} else {
+		g_done[w] = true
+	}
+
+	if g_done[r] {
+		if *conf_verbose {
+			fmt.Fprintf(os.Stderr, "Connection from \"%v\": reader close\n", c.RemoteAddr())
+		}
+		//fmt.Fprintf(os.Stderr, "close r = %v\n", r)
+		r.Close()
+		delete(g_done, r)
+	} else {
+		g_done[r] = true
+	}
 }
 
 func main() {
-    done = make(map[net.Conn]bool)
+	flag.Parse()
 
-    addr, e := net.ResolveTCPAddr("tcp", ":443")
-    if e != nil {
-       fmt.Fprintf(os.Stderr, "net.ResolveTCPAddr() error %v\n", e)
-       return
-    }
+	g_done = make(map[net.Conn]bool)
 
-    raddr, e := net.ResolveTCPAddr("tcp", "localhost:8443")
-    if e != nil {
-       fmt.Fprintf(os.Stderr, "net.ResolveTCPAddr() error %v\n", e)
-       return
-    }
+	if *conf_verbose {
+		fmt.Fprintf(os.Stderr, "Listening on \"%v\", forwarding connections to \"%v\"\n", *conf_from, *conf_to)
+	}
 
-    s, e := net.ListenTCP("tcp", addr)
-    if e != nil {
-       fmt.Fprintf(os.Stderr, "net.ListenTCP() error %v\n", e)
-       return
-    }
-    for {
-        l, e := s.AcceptTCP()
-        if e != nil {
-    	   fmt.Fprintf(os.Stderr, "net.Accept() error %v\n", e)
-       	   return
-    	}
-        r, e := net.DialTCP("tcp", nil, raddr)
-        if e != nil {
-    	   fmt.Fprintf(os.Stderr, "net.Dial() error %v\n", e)
-	   continue
-    	}
-        go copy(l, r)
-        go copy(r, l)
-    }
+	addr, e := net.ResolveTCPAddr("tcp", *conf_from)
+	if e != nil {
+		fmt.Fprintf(os.Stderr, "net.ResolveTCPAddr() error %v\n", e)
+		return
+	}
+
+	raddr, e := net.ResolveTCPAddr("tcp", *conf_to)
+	if e != nil {
+		fmt.Fprintf(os.Stderr, "net.ResolveTCPAddr() error %v\n", e)
+		return
+	}
+
+	s, e := net.ListenTCP("tcp", addr)
+	if e != nil {
+		fmt.Fprintf(os.Stderr, "net.ListenTCP() error %v\n", e)
+		return
+	}
+	for {
+		l, e := s.AcceptTCP()
+		if e != nil {
+			fmt.Fprintf(os.Stderr, "net.Accept() error %v\n", e)
+			return
+		}
+
+		if *conf_verbose {
+			fmt.Fprintf(os.Stderr, "Connection from \"%v\"\n", l.RemoteAddr())
+		}
+
+		r, e := net.DialTCP("tcp", nil, raddr)
+		if e != nil {
+			fmt.Fprintf(os.Stderr, "Connection from \"%v\": net.Dial() error %v\n", l.RemoteAddr(), e)
+			l.Close()
+			continue
+		}
+		go copy(l, l, r)
+		go copy(l, r, l)
+	}
 }
 
 // end

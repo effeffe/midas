@@ -154,8 +154,6 @@ int main(int argc, char *argv[])
 
    int odb_size = 0; // DEFAULT_ODB_SIZE;
 
-   char exptab_filename[MAX_STRING_LENGTH];
-
    /* get default from environment */
    status = cm_get_environment(host_name, sizeof(host_name), exp_name, sizeof(exp_name));
 
@@ -195,6 +193,8 @@ int main(int argc, char *argv[])
    }
 
    printf("Checking command line... experiment \"%s\", cleanup %d, dry_run %d, create_exptab %d, create_env %d\n", exp_name, cleanup, dry_run, create_exptab, create_env);
+
+#ifndef NO_LOCAL_ROUTINES
 
    if (create_exptab) {
       printf("Creating a new exptab file in the current directory...\n");
@@ -432,6 +432,8 @@ int main(int argc, char *argv[])
       printf("Bye...\n");
       exit(1);
    }
+
+   char exptab_filename[MAX_STRING_LENGTH];
 
    status = cm_get_exptab_filename(exptab_filename, sizeof(exptab_filename));
 
@@ -698,6 +700,10 @@ int main(int argc, char *argv[])
 
    printf("\n");
    printf("Done\n");
+
+#else
+   printf("this version of odbinit is built with NO_LOCAL_ROUTINES and it will not work. odbinit only works locally!\n");
+#endif // NO_LOCAL_ROUTINES
 
    return 0;
 }

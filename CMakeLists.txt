@@ -144,6 +144,7 @@ endif (NO_ZLIB)
 #
 # Optional SSL support for mhttpd
 #
+if (USE_OPENSSL)
 if (NO_SSL)
    message(STATUS "MIDAS: OpenSSL https support is disabled via NO_SSL")
 else (NO_SSL)
@@ -154,6 +155,7 @@ else ()
    message(STATUS "MIDAS: OpenSSL not found")
 endif ()
 endif (NO_SSL)
+endif (USE_OPENSSL)
 
 #
 # Optional libcurl support for mlogger
@@ -181,13 +183,10 @@ endif (NO_CURL)
 if (NO_MBEDTLS)
    message(STATUS "MIDAS: MBEDTLS https support is disabled via NO_MBEDTLS")
 else (NO_MBEDTLS)
-   if ((EXISTS ../../mbedtls/include/mbedtls/version.h) AND
-      (EXISTS ../../mbedtls/library/version.o) AND
-      (EXISTS ../../mbedtls/crypto/library/version.o))
-      message(STATUS "MIDAS: Found MBEDTLS in ../mbedtls")
+   if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/library/version.c)
+      message(STATUS "MIDAS: Found MBEDTLS in ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls")
       set(MBEDTLS_FOUND 1)
-      add_compile_options(-I../../../mbedtls/include -I../../../mbedtls/crypto/include)
-      set(MBEDTLS_LIBS ${MBEDTLS_LIBS} -L../../../mbedtls/library -lmbedtls -lmbedx509 -L../../../mbedtls/crypto/library -lmbedcrypto)
+      add_subdirectory(mbedtls)
    else ()
       message(STATUS "MIDAS: MBEDTLS not found")
    endif ()
@@ -360,10 +359,10 @@ set(libsrc
    mxml/strlcpy.cxx
    ${GIT_REVISION}
    )
- 
+
 set(libsrc-c-compat
-    src/midas_c_compat
-    )
+   src/midas_c_compat
+   )
 
 # this is the "object library" target: compiles the sources only once
 add_library(objlib OBJECT ${libsrc})
@@ -461,6 +460,22 @@ if (HAVE_ROOT)
 endif(HAVE_ROOT)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/rmanao.dir/src/mana.cxx.o DESTINATION lib RENAME rmana.o)
 
+# keeps track of all the built libraries
+set(MIDAS_LIBRARIES
+#   objlib
+#   objlib-c-compat
+   midas
+   midas-shared
+   midas-c-compat
+   mfe
+#   mana
+#   rmana
+#   mfeo
+#   manao
+#   rmanao
+   )
+#MESSAGE (status ${MIDAS_LIBRARIES})
+
 #####################################################################
 # generate git revision file
 #####################################################################
@@ -490,3 +505,6 @@ add_dependencies(objlib git_revision_h)
 add_subdirectory(progs)
 add_subdirectory(examples)
 
+configure_file(
+    ${PROJECT_SOURCE_DIR}/MidasConfig.cmake.in
+    ${PROJECT_SOURCE_DIR}/cmake/MidasConfig.cmake)

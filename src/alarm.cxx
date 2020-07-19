@@ -716,7 +716,7 @@ INT al_check()
             
             /* fire alarm when not running for more than what specified in check interval */
             if (now - program_info.first_failed >= program_info.check_interval / 1000) {
-               /* if not running and alarm calss defined, trigger alarm */
+               /* if not running and alarm class defined, trigger alarm */
                if (program_info.alarm_class[0]) {
                   sprintf(str, "Program %s is not running", key.name);
                   al_trigger_alarm(key.name, str, program_info.alarm_class, "Program not running", AT_PROGRAM);

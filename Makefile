@@ -25,7 +25,15 @@ help:
 	@echo ""
 	@echo "   make htmllint  --- run html check on resources/*.html"
 	@echo ""
+	@echo "   make gofmt     --- run gofmt on golang programs"
+	@echo ""
 	@echo "   make test      --- run midas self test"
+	@echo ""
+	@echo "   make mbedtls   --- enable mhttpd support for https via the mbedtls https library"
+	@echo "   make update_mbedtls --- update mbedtls to latest version"
+	@echo "   make clean_mbedtls  --- remove mbedtls from this midas build"
+	@echo ""
+	@echo "   make mtcpproxy --- build the https proxy to forward root-only port 443 to mhttpd https port 8443"
 	@echo ""
 	@echo "   make mini      --- minimal build, results are in linux/{bin,lib}"
 	@echo "   make cleanmini --- remove everything build by make mini"
@@ -436,6 +444,7 @@ ifdef NEED_RANLIB
 endif
 
 MINI_PROGS :=
+MINI_PROGS += $(BIN_DIR)/odbinit
 MINI_PROGS += $(BIN_DIR)/odbedit
 MINI_PROGS += $(BIN_DIR)/fetest
 MINI_PROGS += $(BIN_DIR)/fetest_tmfe
@@ -531,6 +540,13 @@ htmllint:
 	java -jar ~/git/validator/dist/vnu.jar --filterpattern ".*Use CSS instead.*" resources/*.html
 
 #
+# gofmt
+#
+
+gofmt:
+	gofmt -w progs/*.go
+
+#
 # make targets
 #
 
@@ -574,6 +590,23 @@ linuxemcraft:
 cleanemcraft:
 	$(MAKE) OS_DIR=linux-emcraft cleanmini
 
+
+#####################################################################
+# mbedtls support
+
+mbedtls:
+	git clone https://github.com/ARMmbed/mbedtls.git
+	cd mbedtls; git checkout mbedtls-2.16
+
+update_mbedtls:
+	cd mbedtls; git checkout mbedtls-2.16; git pull
+
+clean_mbedtls:
+	-rm -rf mbedtls
+
+mtcpproxy:
+	cd progs; go build mtcpproxy.go
+	cp -pv progs/mtcpproxy bin/
 
 #####################################################################
 

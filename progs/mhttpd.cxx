@@ -19048,7 +19048,8 @@ static int mongoose_listen(const char* address, int flags)
 
       if (status != SUCCESS) {
          cm_msg(MERROR, "mongoose_listen", "cannot find SSL certificate file \"%s\"", cert_file.c_str());
-         cm_msg(MERROR, "mongoose_listen", "please create SSL certificate file: cd $MIDASSYS; openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key -subj \"/C=/ST=/L=/O=midas/OU=mhttpd/CN=localhost\"; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
+         cm_msg(MERROR, "mongoose_listen", "please create SSL certificate file using openssl: cd $MIDASSYS; openssl req -new -nodes -newkey rsa:2048 -sha256 -out ssl_cert.csr -keyout ssl_cert.key -subj \"/C=/ST=/L=/O=midas/OU=mhttpd/CN=localhost\"; openssl x509 -req -days 365 -sha256 -in ssl_cert.csr -signkey ssl_cert.key -out ssl_cert.pem; cat ssl_cert.key >> ssl_cert.pem");
+         cm_msg(MERROR, "mongoose_listen", "or using certbot (recommened): setup certbot per Let's Encrypt instructions, certificates are typically saved in /etc/letsencrypt/live/$HOSTNAME/, copy fullchain.pem and privkey.pem to $MIDASSYS; cd $MIDASSYS; cat fullchain.pem privkey.pem > ssl_cert.pem");
          return SS_FILE_ERROR;
       }
 
@@ -19056,7 +19057,7 @@ static int mongoose_listen(const char* address, int flags)
 
       const char* errmsg = mg_set_ssl(nc, cert_file.c_str(), NULL);
       if (errmsg) {
-         cm_msg(MERROR, "mongoose_listen", "Cannot enable https with certificate file \"%s\", error: %s\n", cert_file.c_str(), errmsg);
+         cm_msg(MERROR, "mongoose_listen", "Cannot enable https with certificate file \"%s\", error: %s", cert_file.c_str(), errmsg);
          return SS_SOCKET_ERROR;
       }
 

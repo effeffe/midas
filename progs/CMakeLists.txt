@@ -75,7 +75,11 @@ target_include_directories(mhttpd PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml 
 target_compile_options(mhttpd PRIVATE -DHAVE_MONGOOSE616 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI -DMG_ENABLE_EXTRA_ERRORS_DESC -DMG_ENABLE_IPV6 -DMG_ENABLE_HTTP_URL_REWRITES -DMG_ENABLE_HTTP_SSI=0)
 
 if (MBEDTLS_FOUND)
-   target_compile_options(mhttpd PRIVATE -DMG_ENABLE_SSL -DMG_SSL_IF=2 -DMG_SSL_MBED_DUMMY_RANDOM)
+   #add_compile_options(-I../mbedtls/include)
+   #add_compile_options(-I../../../mbedtls/include -I../../../mbedtls/crypto/include)
+   #set(MBEDTLS_LIBS ${MBEDTLS_LIBS} -L../../../mbedtls/library -lmbedtls -lmbedx509 -L../../../mbedtls/crypto/library -lmbedcrypto)
+   set(MBEDTLS_LIBS ${MBEDTLS_LIBS} mbedtls)
+   target_compile_options(mhttpd PRIVATE -DMG_ENABLE_SSL -DMG_SSL_IF=2 -DMG_SSL_MBED_DUMMY_RANDOM -I../mbedtls/include)
    target_link_libraries(mhttpd midas ${MBEDTLS_LIBS} ${LIBS} ${DB_LIBS})
 elseif (OPENSSL_FOUND)
    target_compile_options(mhttpd PRIVATE -DMG_ENABLE_SSL -DMG_SSL_IF=1)
