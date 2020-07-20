@@ -7171,7 +7171,6 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout) {
 #ifdef LOCAL_ROUTINES
    {
       INT i, j;
-      char str[256];
       DWORD interval;
       DWORD now = ss_millitime();
 
@@ -7202,16 +7201,18 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout) {
 
                      bm_lock_buffer(pbuf);
 
-                     str[0] = 0;
+                     bool removed = false;
+                     std::string pbclient_name;
+                     std::string pheader_name;
+                     DWORD to = now - pbclient->last_activity;
 
                      /* now make again the check with the buffer locked */
                      if (interval > 0
                          && now > pbclient->last_activity && now - pbclient->last_activity > interval) {
-                        sprintf(str,
-                                "Client \'%s\' on \'%s\' removed by cm_cleanup (idle %1.1lfs, timeout %1.0lfs)",
-                                pbclient->name, pheader->name,
-                                (ss_millitime() - pbclient->last_activity) / 1000.0,
-                                interval / 1000.0);
+                        removed = true;
+                        pbclient_name = pbclient->name;
+                        pheader_name = pheader->name;
+                        to = now - pbclient->last_activity;
 
                         bm_remove_client_locked(pheader, j);
                      }
@@ -7219,8 +7220,9 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout) {
                      bm_unlock_buffer(pbuf);
 
                      /* display info message after unlocking buffer */
-                     if (str[0])
-                        cm_msg(MINFO, "cm_cleanup", "%s", str);
+                     if (removed) {
+                        cm_msg(MINFO, "cm_cleanup", "Client \'%s\' on \'%s\' removed by cm_cleanup (idle %1.1lfs, timeout %1.0lfs)", pbclient_name.c_str(), pheader_name.c_str(), to/1000.0, interval/1000.0);
+                     }
 
                      /* go again through whole list */
                      j = 0;
