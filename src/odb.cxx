@@ -895,6 +895,8 @@ static bool is_utf8(const char * string)
     return true;
 }
 
+#ifdef LOCAL_ROUTINES
+
 static BOOL utfCheckEnvVar = 0;
 static BOOL checkUtfValidString = 0;
 
@@ -957,8 +959,6 @@ static int db_validate_name(const char* name, int maybe_path, const char* caller
 
    return DB_SUCCESS;
 }
-
-#ifdef LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
 static bool db_validate_key_offset(const DATABASE_HEADER * pheader, int offset)
