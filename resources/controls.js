@@ -648,18 +648,36 @@ function dlgHide(dlg) {
       } while (dlg.className !== 'dlgFrame');
    }
 
-   let d = document.getElementById("dlgBlackout");
-   if (d !== undefined && d !== null)
-      d.style.display = "none";
+   if (dlg.modal) {
+      // only remove blackout if we are the only modal dialog left
+      let dlgs = document.getElementsByClassName("dlgFrame");
+      let n=0;
+      for (let i = 0; i < dlgs.length; i++)
+         if (dlgs[i].style.display === "block" && dlgs[i].modal)
+            n++;
+      if (n === 1) {
+         let d = document.getElementById("dlgBlackout");
+         if (d !== undefined && d !== null)
+            d.style.display = "none";
+      }
+   }
    dlg.style.display = "none";
 }
 
 function dlgMessageDestroy(b) {
    let dlg = b.parentElement.parentElement;
    if (dlg.modal) {
-      let d = document.getElementById("dlgBlackout");
-      if (d !== undefined && d !== null)
-         d.style.display = "none";
+      // only remove blackout if we are the only modal dialog left
+      let dlgs = document.getElementsByClassName("dlgFrame");
+      let n=0;
+      for (let i = 0; i < dlgs.length; i++)
+         if (dlgs[i].style.display === "block" && dlgs[i].modal)
+            n++;
+      if (n === 1) {
+         let d = document.getElementById("dlgBlackout");
+         if (d !== undefined && d !== null)
+            d.style.display = "none";
+      }
    }
    // dialog is not really removed from memory, event listerner is still active and
    // grabs mousdown events, so mark its display "none" to prevent eating mouse events
