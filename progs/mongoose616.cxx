@@ -5269,6 +5269,9 @@ static enum mg_ssl_if_result mg_ssl_if_mbed_err(struct mg_connection *nc,
     LOG(LL_DEBUG, ("%p TLS connection closed by peer", nc));
     nc->flags |= MG_F_CLOSE_IMMEDIATELY;
     res = MG_SSL_OK;
+  } else if (ret == MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE) {
+    nc->flags |= MG_F_CLOSE_IMMEDIATELY;
+    res = MG_SSL_ERROR;
   } else if (ret == MBEDTLS_ERR_SSL_INVALID_MAC) {
     nc->flags |= MG_F_CLOSE_IMMEDIATELY;
     res = MG_SSL_ERROR;
