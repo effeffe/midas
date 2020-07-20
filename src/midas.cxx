@@ -348,7 +348,6 @@ static std::vector<std::string> split(const char* sep, const std::string& s)
    std::string::size_type pos = 0;
    while (1) {
       std::string::size_type next = s.find(sep, pos);
-      printf("pos %d, next %d\n", (int)pos, (int)next);
       if (next == std::string::npos) {
          v.push_back(s.substr(pos));
          break;
