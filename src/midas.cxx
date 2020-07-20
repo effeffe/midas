@@ -10174,9 +10174,6 @@ static void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
  *
  *  @{  */
 
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
-
 /********************************************************************\
 *                                                                    *
 *                         RPC functions                              *
@@ -10399,8 +10396,20 @@ const char *rpc_tid_name_old(INT id) {
       return "<unknown>";
 }
 
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
+int rpc_name_tid(const char* name) // inverse of rpc_tid_name()
+{
+   for (int i=0; i<TID_LAST; i++) {
+      if (strcmp(name, tid_name[i]) == 0)
+         return i;
+   }
+
+   for (int i=0; i<TID_LAST; i++) {
+      if (strcmp(name, tid_name_old[i]) == 0)
+         return i;
+   }
+
+   return 0;
+}
 
 /********************************************************************\
 *                        client functions                            *

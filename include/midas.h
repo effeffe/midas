@@ -1949,6 +1949,7 @@ Data conversion flags */
    INT EXPRT rpc_tid_size(INT id);
    const char EXPRT *rpc_tid_name(INT id);
    const char EXPRT *rpc_tid_name_old(INT id);
+   INT EXPRT rpc_name_tid(const char* name); // inverse of rpc_tid_name()
    INT EXPRT rpc_server_connect(const char *host_name, const char *exp_name);
    INT EXPRT rpc_client_connect(const char *host_name, INT midas_port, const char *client_name, HNDLE * hConnection);
    INT EXPRT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown);
