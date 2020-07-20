@@ -237,7 +237,7 @@ static const ERROR_TABLE _error_table[] = {
         {CM_WRONG_PASSWORD, "Wrong password"},
         {CM_UNDEF_EXP,      "Experiment not defined"},
         {CM_UNDEF_ENVIRON,
-                            "\"exptab\" file not found and MIDAS_DIR environment variable not defined"},
+                            "\"exptab\" file not found and MIDAS_DIR or MIDAS_EXPTAB environment variable is not defined"},
         {RPC_NET_ERROR,     "Cannot connect to remote host"},
         {0, NULL}
 };
@@ -339,6 +339,44 @@ static void xwrite(const char *filename, int fd, const void *data, int size) {
       printf("xwrite: cannot write to \'%s\', write(%d) returned %d, errno %d (%s)\n", filename, size, wr, errno,
              strerror(errno));
    }
+}
+
+static std::vector<std::string> split(const char* sep, const std::string& s)
+{
+   unsigned sep_len = strlen(sep);
+   std::vector<std::string> v;
+   std::string::size_type pos = 0;
+   while (1) {
+      std::string::size_type next = s.find(sep, pos);
+      if (next == std::string::npos) {
+         v.push_back(s.substr(pos));
+         break;
+      }
+      v.push_back(s.substr(pos, next-pos));
+      pos = next+sep_len;
+   }
+   return v;
+}
+
+static std::string join(const char* sep, const std::vector<std::string>& v)
+{
+   std::string s;
+
+   for (unsigned i=0; i<v.size(); i++) {
+      if (i>0) {
+         s += sep;
+      }
+      s += v[i];
+   }
+
+   return s;
+}
+
+bool ends_with_char(const std::string& s, char c)
+{
+   if (s.length() < 1)
+      return false;
+   return s[s.length()-1] == c;
 }
 
 /********************************************************************\
@@ -776,7 +814,8 @@ cm_msg_format(char *message, int sizeof_message, INT message_type, const char *f
    if (message_type == MT_USER)
       sprintf(message, "[%s] ", routine);
    else {
-      rpc_get_name(str);
+      std::string name = rpc_get_name();
+      strlcpy(str, name.c_str(), sizeof(str));
       if (str[0])
          sprintf(message, "[%s,%s] ", str, type_str);
       else
@@ -1500,8 +1539,8 @@ INT cm_time(DWORD *t) {
 
 static HNDLE _hKeyClient = 0;   /* key handle for client in ODB */
 static HNDLE _hDB = 0;          /* Database handle */
-static char _experiment_name[NAME_LENGTH];
-static char _client_name[NAME_LENGTH];
+static std::string _experiment_name;
+static std::string _client_name;
 static std::string _path_name;
 static INT _watchdog_timeout = DEFAULT_WATCHDOG_TIMEOUT;
 INT _semaphore_alarm = -1;
@@ -1601,7 +1640,7 @@ Set name of the experiment
 @return CM_SUCCESS
 */
 INT cm_set_experiment_name(const char *name) {
-   strlcpy(_experiment_name, name, sizeof(_experiment_name));
+   _experiment_name = name;
    return CM_SUCCESS;
 }
 
@@ -1613,9 +1652,17 @@ Return the experiment name
 @return CM_SUCCESS
 */
 INT cm_get_experiment_name(char *name, int name_length) {
-   strlcpy(name, _experiment_name, name_length);
-
+   strlcpy(name, _experiment_name.c_str(), name_length);
    return CM_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Return the experiment name
+@return experiment name
+*/
+std::string cm_get_experiment_name() {
+   return _experiment_name;
 }
 
 /**dox***************************************************************/
@@ -1626,20 +1673,20 @@ INT cm_get_experiment_name(char *name, int name_length) {
  *
  *  @{  */
 
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
+#ifdef LOCAL_ROUTINES
 
-typedef struct {
-   char name[NAME_LENGTH];
-   char directory[MAX_STRING_LENGTH];
-   char user[NAME_LENGTH];
-} experiment_table;
+struct exptab_entry {
+   std::string name;
+   std::string directory;
+   std::string user;
+};
 
-static char exptab_filename[MAX_STRING_LENGTH];
-static experiment_table exptab[MAX_EXPERIMENT];
+struct exptab_struct {
+   std::string filename;
+   std::vector<exptab_entry> exptab;
+};
 
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
+static exptab_struct _exptab; // contents of exptab file
 
 /**
 Scan the "exptab" file for MIDAS experiment names and save them
@@ -1648,90 +1695,160 @@ under $MIDAS/exptab if present, then the directory from argv[0] is probed.
 @return CM_SUCCESS<br>
         CM_UNDEF_EXP exptab not found and MIDAS_DIR not set
 */
-INT cm_scan_experiments(void) {
-   INT i;
-   FILE *f;
-   char str[MAX_STRING_LENGTH], alt_str[MAX_STRING_LENGTH], *pdir;
-
-   for (i = 0; i < MAX_EXPERIMENT; i++)
-      exptab[i].name[0] = 0;
+INT cm_read_exptab(exptab_struct *exptab) {
+   exptab->exptab.clear();
 
    /* MIDAS_DIR overrides exptab */
    if (getenv("MIDAS_DIR")) {
-      strlcpy(exptab_filename, "", sizeof(exptab_filename));
-      strlcpy(str, getenv("MIDAS_DIR"), sizeof(str));
+      exptab->filename = "";
 
-      strcpy(exptab[0].name, "Default");
-      strlcpy(exptab[0].directory, getenv("MIDAS_DIR"), sizeof(exptab[0].directory));
-      exptab[0].user[0] = 0;
+      exptab_entry e;
+
+      e.name = "Default";
+      e.directory = getenv("MIDAS_DIR");
+      e.user = "";
+
+      exptab->exptab.push_back(e);
 
       return CM_SUCCESS;
    }
 
    /* default directory for different OSes */
 #if defined (OS_WINNT)
+   std::string str;
    if (getenv("SystemRoot"))
-      strlcpy(str, getenv("SystemRoot"), sizeof(str));
+      str = getenv("SystemRoot");
    else if (getenv("windir"))
-      strlcpy(str, getenv("windir"), sizeof(str));
+      str = getenv("windir");
    else
-      strcpy(str, "");
+      str = "";
 
-   strcpy(alt_str, str);
-   strcat(str, "\\system32\\exptab");
-   strcat(alt_str, "\\system\\exptab");
+   std::string alt_str = str;
+   str += "\\system32\\exptab";
+   alt_str += "\\system\\exptab";
 #elif defined (OS_UNIX)
-   strcpy(str, "/etc/exptab");
-   strcpy(alt_str, "/exptab");
+   std::string str = "/etc/exptab";
+   std::string alt_str = "/exptab";
 #else
-   strcpy(str, "exptab");
-   strcpy(alt_str, "exptab");
+   std::strint str = "exptab";
+   std::string alt_str = "exptab";
 #endif
 
    /* MIDAS_EXPTAB overrides default directory */
    if (getenv("MIDAS_EXPTAB")) {
-      strlcpy(str, getenv("MIDAS_EXPTAB"), sizeof(str));
-      strlcpy(alt_str, getenv("MIDAS_EXPTAB"), sizeof(alt_str));
+      str = getenv("MIDAS_EXPTAB");
+      alt_str = getenv("MIDAS_EXPTAB");
    }
-
-   strlcpy(exptab_filename, str, sizeof(exptab_filename));
+   
+   exptab->filename = str;
 
    /* read list of available experiments */
-   f = fopen(str, "r");
+   FILE* f = fopen(str.c_str(), "r");
    if (f == NULL) {
-      f = fopen(alt_str, "r");
+      f = fopen(alt_str.c_str(), "r");
       if (f == NULL)
          return CM_UNDEF_ENVIRON;
+      exptab->filename = alt_str;
    }
 
-   i = 0;
    if (f != NULL) {
       do {
-         str[0] = 0;
-         if (fgets(str, 100, f) == NULL)
+         char buf[256];
+         memset(buf, 0, sizeof(buf));
+         char* str = fgets(buf, sizeof(buf)-1, f);
+         if (str == NULL)
             break;
-         if (str[0] && str[0] != '#' && str[0] != ' ' && str[0] != '\t'
-             && (strchr(str, ' ') || strchr(str, '\t'))) {
-            sscanf(str, "%s %s %s", exptab[i].name, exptab[i].directory, exptab[i].user);
+         if (str[0] == 0) continue; // empty line
+         if (str[0] == '#') continue; // comment line
 
-            /* check for trailing directory separator */
-            pdir = exptab[i].directory;
-            if (pdir[strlen(pdir) - 1] != DIR_SEPARATOR)
-               strcat(pdir, DIR_SEPARATOR_STR);
+         exptab_entry e;
 
-            i++;
+         // following code emulates the function of this sprintf():
+         //sscanf(str, "%s %s %s", exptab[i].name, exptab[i].directory, exptab[i].user);
+
+         // skip leading spaces
+         while (*str && isspace(*str))
+            str++;
+
+         char* p1 = str;
+         char* p2 = str;
+
+         while (*p2 && !isspace(*p2))
+            p2++;
+
+         ssize_t len = p2-p1;
+
+         if (len<1)
+            continue;
+         
+         //printf("str %d [%s] p1 [%s] p2 %d [%s] len %d\n", *str, str, p1, *p2, p2, (int)len);
+
+         e.name = std::string(p1, len);
+
+         if (*p2 == 0)
+            continue;
+
+         str = p2;
+
+         // skip leading spaces
+         while (*str && isspace(*str))
+            str++;
+         
+         p1 = str;
+         p2 = str;
+
+         while (*p2 && !isspace(*p2))
+            p2++;
+
+         len = p2-p1;
+
+         if (len<1)
+            continue;
+         
+         //printf("str %d [%s] p1 [%s] p2 %d [%s] len %d\n", *str, str, p1, *p2, p2, (int)len);
+
+         e.directory = std::string(p1, len);
+
+         if (*p2 == 0)
+            continue;
+
+         str = p2;
+
+         // skip leading spaces
+         while (*str && isspace(*str))
+            str++;
+         
+         p1 = str;
+         p2 = str;
+
+         while (*p2 && !isspace(*p2))
+            p2++;
+
+         len = p2-p1;
+
+         if (len<1)
+            continue;
+         
+         //printf("str %d [%s] p1 [%s] p2 %d [%s] len %d\n", *str, str, p1, *p2, p2, (int)len);
+
+         e.user = std::string(p1, len);
+         
+         /* check for trailing directory separator */
+         if (!ends_with_char(e.directory, DIR_SEPARATOR)) {
+            e.directory += DIR_SEPARATOR_STR;
          }
+         
+         exptab->exptab.push_back(e);
       } while (!feof(f));
       fclose(f);
    }
 
-   /*
-      for (j=0 ; j<i ; j++)
-      {
-      sprintf(str, "Scanned experiment %s", exptab[j].name);
-      cm_msg(MINFO, str);
-      }
-    */
+#if 0
+   cm_msg(MINFO, "cm_read_exptab", "Read exptab \"%s\":", exptab->filename.c_str()); 
+   for (unsigned j=0; j<exptab->exptab.size(); j++) {
+      cm_msg(MINFO, "cm_read_exptab", "entry %d, experiment \"%s\", directory \"%s\", user \"%s\"", j, exptab->exptab[j].name.c_str(), exptab->exptab[j].directory.c_str(), exptab->exptab[j].user.c_str());
+   }
+#endif
 
    return CM_SUCCESS;
 }
@@ -1744,8 +1861,43 @@ Return location of exptab file
 @return CM_SUCCESS
 */
 int cm_get_exptab_filename(char *s, int size) {
-   strlcpy(s, exptab_filename, size);
+   strlcpy(s, _exptab.filename.c_str(), size);
    return CM_SUCCESS;
+}
+
+std::string cm_get_exptab_filename() {
+   return _exptab.filename;
+}
+
+/********************************************************************/
+/**
+Return exptab information for given experiment
+@param s               Pointer to string buffer
+@param size            Size of string buffer
+@return CM_SUCCESS
+*/
+int cm_get_exptab(const char *expname, std::string* dir, std::string* user) {
+
+   if (_exptab.exptab.size() == 0) {
+      int status = cm_read_exptab(&_exptab);
+      if (status != CM_SUCCESS)
+         return status;
+   }
+
+   for (unsigned i = 0; i < _exptab.exptab.size(); i++) {
+      if (_exptab.exptab[i].name == expname) {
+         if (dir)
+            *dir = _exptab.exptab[i].directory;
+         if (user)
+            *user = _exptab.exptab[i].user;
+         return CM_SUCCESS;
+      }
+   }
+   if (dir)
+      *dir = "";
+   if (user)
+      *user = "";
+   return CM_UNDEF_EXP;
 }
 
 /********************************************************************/
@@ -1756,18 +1908,19 @@ Return exptab information for given experiment
 @return CM_SUCCESS
 */
 int cm_get_exptab(const char *expname, char *dir, int dir_size, char *user, int user_size) {
-   int i;
-   for (i = 0; i < MAX_EXPERIMENT; i++) {
-      if (strcmp(exptab[i].name, expname) == 0) {
-         if (dir)
-            strlcpy(dir, exptab[i].directory, dir_size);
-         if (user)
-            strlcpy(user, exptab[i].user, user_size);
-         return CM_SUCCESS;
-      }
+   std::string sdir, suser;
+   int status = cm_get_exptab(expname, &sdir, &suser);
+   if (status == CM_SUCCESS) {
+      if (dir)
+         strlcpy(dir, sdir.c_str(), dir_size);
+      if (user)
+         strlcpy(user, suser.c_str(), user_size);
+      return CM_SUCCESS;
    }
    return CM_UNDEF_EXP;
 }
+
+#endif // LOCAL_ROUTINES
 
 /********************************************************************/
 /**
@@ -2114,10 +2267,57 @@ INT cm_get_environment(char *host_name, int host_name_size, char *exp_name, int 
    return CM_SUCCESS;
 }
 
+INT cm_get_environment(std::string *host_name, std::string *exp_name) {
+   if (host_name)
+      *host_name = "";
+   if (exp_name)
+      *exp_name = "";
 
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
+   if (host_name && getenv("MIDAS_SERVER_HOST"))
+      *host_name = getenv("MIDAS_SERVER_HOST");
 
+   if (exp_name && getenv("MIDAS_EXPT_NAME"))
+      *exp_name = getenv("MIDAS_EXPT_NAME");
+
+   return CM_SUCCESS;
+}
+
+#ifdef LOCAL_ROUTINES
+
+int cm_set_experiment_local(const char* exp_name)
+{
+   std::string exp_name1;
+
+   if ((exp_name != NULL) && (strlen(exp_name) > 0)) {
+      exp_name1 = exp_name;
+   } else {
+      int status = cm_select_experiment_local(&exp_name1);
+      if (status != CM_SUCCESS)
+         return status;
+   }
+
+   std::string expdir, expuser;
+   
+   int status = cm_get_exptab(exp_name1.c_str(), &expdir, &expuser);
+   
+   if (status != CM_SUCCESS) {
+      cm_msg(MERROR, "cm_set_experiment_local", "Experiment \"%s\" not found in exptab file \"%s\"", exp_name1.c_str(), cm_get_exptab_filename().c_str());
+      return CM_UNDEF_EXP;
+   }
+
+   if (!ss_dir_exist(expdir.c_str())) {
+      cm_msg(MERROR, "cm_set_experiment_local", "Experiment \"%s\" directory \"%s\" does not exist", exp_name1.c_str(), expdir.c_str());
+      return CM_UNDEF_EXP;
+   }
+   
+   cm_set_experiment_name(exp_name1.c_str());
+   cm_set_path(expdir.c_str());
+
+   return CM_SUCCESS;
+}
+
+#endif // LOCAL_ROUTINES
+   
 /********************************************************************/
 void cm_check_connect(void) {
    if (_hKeyClient) {
@@ -2125,9 +2325,6 @@ void cm_check_connect(void) {
       cm_msg_flush_buffer();
    }
 }
-
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
 /********************************************************************/
 /**
@@ -2221,11 +2418,10 @@ Connect to a MIDAS experiment (to the online database) on
 */
 INT cm_connect_experiment1(const char *host_name, const char *exp_name,
                            const char *client_name, void (*func)(char *), INT odb_size, DWORD watchdog_timeout) {
-   INT status, i, semaphore_elog, semaphore_alarm, semaphore_history, semaphore_msg, size;
+   INT status, size;
    char local_host_name[HOST_NAME_LENGTH];
    char client_name1[NAME_LENGTH];
-   char password[NAME_LENGTH], str[256], exp_name1[NAME_LENGTH];
-   char xclient_name[NAME_LENGTH];
+   char password[NAME_LENGTH], str[256];
    HNDLE hDB = 0, hKeyClient = 0;
    BOOL call_watchdog;
 
@@ -2257,16 +2453,17 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    if (exp_name == NULL)
       exp_name = "";
 
-   strlcpy(exp_name1, exp_name, sizeof(exp_name1));
-   if (exp_name1[0] == 0) {
-      status = cm_select_experiment(host_name, exp_name1);
-      if (status != CM_SUCCESS)
-         return status;
-   }
+   std::string exp_name1 = exp_name;
 
    /* connect to MIDAS server */
    if (host_name && host_name[0]) {
-      status = rpc_server_connect(host_name, exp_name1);
+      if (exp_name1.length() == 0) {
+         status = cm_select_experiment_remote(host_name, &exp_name1);
+         if (status != CM_SUCCESS)
+            return status;
+      }
+
+      status = rpc_server_connect(host_name, exp_name1.c_str());
       if (status != RPC_SUCCESS)
          return status;
 
@@ -2276,26 +2473,17 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
          return status;
    } else {
       /* lookup path for *SHM files and save it */
-      status = cm_scan_experiments();
+
+#ifdef LOCAL_ROUTINES
+      status = cm_set_experiment_local(exp_name1.c_str());
       if (status != CM_SUCCESS)
          return status;
 
-      for (i = 0; i < MAX_EXPERIMENT && exptab[i].name[0]; i++)
-         if (equal_ustring(exp_name1, exptab[i].name))
-            break;
+      exp_name1 = cm_get_experiment_name();
 
-      /* return if experiment not defined */
-      if (i == MAX_EXPERIMENT || exptab[i].name[0] == 0) {
-         /* message should be displayed by application
-            sprintf(str, "Experiment %s not defined in exptab\r", exp_name1);
-            cm_msg(MERROR, str);
-          */
-         return CM_UNDEF_EXP;
-      }
-
-      cm_set_experiment_name(exptab[i].name);
-      cm_set_path(exptab[i].directory);
       ss_suspend_init_odb_port();
+
+      INT semaphore_elog, semaphore_alarm, semaphore_history, semaphore_msg;
 
       /* create alarm and elog semaphores */
       status = ss_semaphore_create("ALARM", &semaphore_alarm);
@@ -2320,6 +2508,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       }
 
       cm_set_experiment_semaphore(semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg);
+#else
+      return CM_UNDEF_EXP;
+#endif
    }
 
    //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg before open ODB");
@@ -2450,7 +2641,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    //cm_msg_flush_buffer();
 
    /* set experiment name in ODB */
-   db_set_value(hDB, 0, "/Experiment/Name", exp_name1, NAME_LENGTH, 1, TID_STRING);
+   db_set_value_string(hDB, 0, "/Experiment/Name", &exp_name1);
 
    if (!rpc_is_remote()) {
       /* experiment path is only set for local connections */
@@ -2481,12 +2672,12 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       *strchr(local_host_name, '.') = 0;
 
    /* get final client name */
-   rpc_get_name(xclient_name);
+   std::string xclient_name = rpc_get_name();
 
    /* startup message is not displayed */
    _message_print = NULL;
 
-   cm_msg(MINFO, "cm_connect_experiment", "Program %s on host %s started", xclient_name, local_host_name);
+   cm_msg(MINFO, "cm_connect_experiment", "Program %s on host %s started", xclient_name.c_str(), local_host_name);
 
    /* enable system and user messages to stdout as default */
    cm_set_msg_print(MT_ALL, MT_ALL, puts);
@@ -2503,6 +2694,32 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    return CM_SUCCESS;
 }
 
+#ifdef LOCAL_ROUTINES
+/********************************************************************/
+/**
+Read exptab and return all defined experiments in *exp_name[MAX_EXPERIMENTS]
+@param  host_name         Internet host name.
+@param  exp_name          list of experiment names
+@return CM_SUCCESS, RPC_NET_ERROR
+*/
+INT cm_list_experiments_local(STRING_LIST *exp_names) {
+   assert(exp_names != NULL);
+   exp_names->clear();
+
+   if (_exptab.exptab.size() == 0) {
+      int status = cm_read_exptab(&_exptab);
+      if (status != CM_SUCCESS)
+         return status;
+   }
+   
+   for (unsigned i=0; i<_exptab.exptab.size(); i++) {
+      exp_names->push_back(_exptab.exptab[i].name);
+   }
+   
+   return CM_SUCCESS;
+}
+#endif // LOCAL_ROUTINES
+
 /********************************************************************/
 /**
 Connect to a MIDAS server and return all defined
@@ -2511,26 +2728,18 @@ Connect to a MIDAS server and return all defined
 @param  exp_name          list of experiment names
 @return CM_SUCCESS, RPC_NET_ERROR
 */
-INT cm_list_experiments(const char *host_name, char exp_name[MAX_EXPERIMENT][NAME_LENGTH]) {
-   INT i, status;
+INT cm_list_experiments_remote(const char *host_name, STRING_LIST *exp_names) {
+   INT status;
    struct sockaddr_in bind_addr;
    INT sock;
-   char str[MAX_EXPERIMENT * NAME_LENGTH];
    struct hostent *phe;
    int port = MIDAS_TCP_PORT;
    char hname[256];
    char *s;
 
-   if (host_name == NULL || host_name[0] == 0 || equal_ustring(host_name, "local")) {
-      status = cm_scan_experiments();
-      if (status != CM_SUCCESS)
-         return status;
+   assert(exp_names != NULL);
+   exp_names->clear();
 
-      for (i = 0; i < MAX_EXPERIMENT; i++)
-         strlcpy(exp_name[i], exptab[i].name, NAME_LENGTH);
-
-      return CM_SUCCESS;
-   }
 #ifdef OS_WINNT
    {
       WSADATA WSAData;
@@ -2541,10 +2750,12 @@ INT cm_list_experiments(const char *host_name, char exp_name[MAX_EXPERIMENT][NAM
    }
 #endif
 
+   // NB: this will not work with IPv6
+
    /* create a new socket for connecting to remote server */
    sock = socket(AF_INET, SOCK_STREAM, 0);
    if (sock == -1) {
-      cm_msg(MERROR, "cm_list_experiments", "cannot create socket");
+      cm_msg(MERROR, "cm_list_experiments_remote", "cannot create socket, errno %d (%s)", errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
@@ -2572,7 +2783,7 @@ INT cm_list_experiments(const char *host_name, char exp_name[MAX_EXPERIMENT][NAM
 #else
    phe = gethostbyname(hname);
    if (phe == NULL) {
-      cm_msg(MERROR, "cm_list_experiments", "cannot resolve host name \'%s\'", hname);
+      cm_msg(MERROR, "cm_list_experiments_remote", "cannot resolve host name \'%s\'", hname);
       return RPC_NET_ERROR;
    }
    memcpy((char *) &(bind_addr.sin_addr), phe->h_addr, phe->h_length);
@@ -2589,15 +2800,16 @@ INT cm_list_experiments(const char *host_name, char exp_name[MAX_EXPERIMENT][NAM
 #endif
 
    if (status != 0) {
-/*    cm_msg(MERROR, "cannot connect"); message should be displayed by application */
+      cm_msg(MERROR, "Cannot connect to \"%s\" port %d, errno %d (%s)", hname, port, errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
    /* request experiment list */
    send(sock, "I", 2, 0);
 
-   for (i = 0; i < MAX_EXPERIMENT; i++) {
-      exp_name[i][0] = 0;
+   while (1) {
+      char str[256];
+
       status = recv_string(sock, str, sizeof(str), _rpc_connect_timeout);
 
       if (status < 0)
@@ -2606,14 +2818,62 @@ INT cm_list_experiments(const char *host_name, char exp_name[MAX_EXPERIMENT][NAM
       if (status == 0)
          break;
 
-      strcpy(exp_name[i], str);
+      exp_names->push_back(str);
    }
 
-   exp_name[i][0] = 0;
    closesocket(sock);
 
    return CM_SUCCESS;
 }
+
+#ifdef LOCAL_ROUTINES
+/********************************************************************/
+/**
+Read exptab and select an experiment
+           from the experiments available on this server
+@internal
+@param  exp_name          selected experiment name
+@return CM_SUCCESS
+*/
+INT cm_select_experiment_local(std::string *exp_name) {
+   INT status;
+   STRING_LIST expts;
+
+   assert(exp_name != NULL);
+
+   /* retrieve list of experiments and make selection */
+   status = cm_list_experiments_local(&expts);
+   if (status != CM_SUCCESS)
+      return status;
+
+   if (expts.size() == 1) {
+      *exp_name = expts[0];
+   } else if (expts.size() > 1) {
+      printf("Available experiments on local computer:\n");
+
+      for (unsigned i = 0; i < expts.size(); i++) {
+         printf("%d : %s\n", i, expts[i].c_str());
+      }
+
+      while (1) {
+         printf("Select number from 0 to %d: ", ((int)expts.size())-1);
+         char str[32];
+         ss_gets(str, 32);
+         int isel = atoi(str);
+         if (isel < 0)
+            continue;
+         if (isel >= (int)expts.size())
+            continue;
+         *exp_name = expts[isel];
+         break;
+      }
+   } else {
+      return CM_UNDEF_EXP;
+   }
+
+   return CM_SUCCESS;
+}
+#endif // LOCAL_ROUTINES
 
 /********************************************************************/
 /**
@@ -2621,33 +2881,42 @@ Connect to a MIDAS server and select an experiment
            from the experiments available on this server
 @internal
 @param  host_name         Internet host name.
-@param  exp_name          list of experiment names
+@param  exp_name          selected experiment name
 @return CM_SUCCESS, RPC_NET_ERROR
 */
-INT cm_select_experiment(const char *host_name, char *exp_name) {
-   INT status, i;
-   char expts[MAX_EXPERIMENT][NAME_LENGTH];
-   char str[32];
+INT cm_select_experiment_remote(const char *host_name, std::string *exp_name) {
+   INT status;
+   STRING_LIST expts;
+
+   assert(exp_name != NULL);
 
    /* retrieve list of experiments and make selection */
-   status = cm_list_experiments(host_name, expts);
+   status = cm_list_experiments_remote(host_name, &expts);
    if (status != CM_SUCCESS)
       return status;
 
-   if (expts[1][0]) {
-      if (host_name && host_name[0])
-         printf("Available experiments on server %s:\n", host_name);
-      else
-         printf("Available experiments on local computer:\n");
+   if (expts.size() > 1) {
+      printf("Available experiments on server %s:\n", host_name);
 
-      for (i = 0; expts[i][0]; i++)
-         printf("%d : %s\n", i, expts[i]);
-      printf("Select number: ");
-      ss_gets(str, 32);
-      i = atoi(str);
-      strcpy(exp_name, expts[i]);
-   } else
-      strcpy(exp_name, expts[0]);
+      for (unsigned i = 0; i < expts.size(); i++) {
+         printf("%d : %s\n", i, expts[i].c_str());
+      }
+
+      while (1) {
+         printf("Select number from 0 to %d: ", ((int)expts.size())-1);
+         char str[32];
+         ss_gets(str, 32);
+         int isel = atoi(str);
+         if (isel < 0)
+            continue;
+         if (isel >= (int)expts.size())
+            continue;
+         *exp_name = expts[isel];
+         break;
+      }
+   } else {
+      *exp_name = expts[0];
+   }
 
    return CM_SUCCESS;
 }
@@ -2742,7 +3011,7 @@ allocated memory. See cm_connect_experiment() for example.
 */
 INT cm_disconnect_experiment(void) {
    HNDLE hDB, hKey;
-   char local_host_name[HOST_NAME_LENGTH], client_name[80];
+   char local_host_name[HOST_NAME_LENGTH];
 
    //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before disconnect from experiment");
    //cm_msg_flush_buffer();
@@ -2759,7 +3028,7 @@ INT cm_disconnect_experiment(void) {
    cm_stop_watchdog_thread();
 
    /* send shutdown notification */
-   rpc_get_name(client_name);
+   std::string client_name = rpc_get_name();
 
    if (!disable_bind_rpc_to_localhost)
       strlcpy(local_host_name, "localhost", sizeof(local_host_name));
@@ -2772,7 +3041,7 @@ INT cm_disconnect_experiment(void) {
    /* disconnect message not displayed */
    _message_print = NULL;
 
-   cm_msg(MINFO, "cm_disconnect_experiment", "Program %s on host %s stopped", client_name, local_host_name);
+   cm_msg(MINFO, "cm_disconnect_experiment", "Program %s on host %s stopped", client_name.c_str(), local_host_name);
 
    cm_msg_flush_buffer();
 
@@ -4360,7 +4629,8 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
             }
 
             if (program_info_required) {
-               rpc_get_name(str);
+               std::string name = rpc_get_name();
+               strlcpy(str, name.c_str(), sizeof(str));
                str[strlen(key.name)] = 0;
                if (!equal_ustring(str, key.name) && cm_exist(key.name, FALSE) == CM_NO_CLIENT) {
                   cm_msg(MERROR, "cm_transition", "Run start abort due to program \"%s\" not running", key.name);
@@ -10402,7 +10672,6 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    INT sock;
    INT remote_hw_type, hw_type;
    char version[32], v1[32];
-   char local_prog_name[NAME_LENGTH];
    char local_host_name[HOST_NAME_LENGTH];
    struct hostent *phe;
 
@@ -10417,7 +10686,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
 #endif
 
    /* check if cm_connect_experiment was called */
-   if (_client_name[0] == 0) {
+   if (_client_name.length() == 0) {
       cm_msg(MERROR, "rpc_client_connect", "cm_connect_experiment/rpc_set_name not called");
       return RPC_NOT_REGISTERED;
    }
@@ -10536,13 +10805,13 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &i, sizeof(i));
 
    /* send local computer info */
-   rpc_get_name(local_prog_name);
+   std::string local_prog_name = rpc_get_name();
    ss_gethostname(local_host_name, sizeof(local_host_name));
 
    hw_type = rpc_get_option(0, RPC_OHW_TYPE);
 
    char str[128 + NAME_LENGTH + HOST_NAME_LENGTH];
-   sprintf(str, "%d %s %s %s", hw_type, cm_get_version(), local_prog_name, local_host_name);
+   sprintf(str, "%d %s %s %s", hw_type, cm_get_version(), local_prog_name.c_str(), local_host_name);
 
    size = strlen(str) + 1;
    i = send(sock, str, size, 0);
@@ -10727,7 +10996,6 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    INT remote_hw_type, hw_type;
    unsigned int size;
    char str[200], version[32], v1[32];
-   char local_prog_name[NAME_LENGTH];
    struct hostent *phe;
    fd_set readfds;
    struct timeval timeout;
@@ -10752,7 +11020,7 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    rpc_register_functions(rpc_get_internal_list(0), NULL);
 
    /* check if cm_connect_experiment was called */
-   if (_client_name[0] == 0) {
+   if (_client_name.length() == 0) {
       cm_msg(MERROR, "rpc_server_connect", "cm_connect_experiment/rpc_set_name not called");
       return RPC_NOT_REGISTERED;
    }
@@ -10983,9 +11251,9 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
              strerror(errno));
 
    /* send local computer info */
-   rpc_get_name(local_prog_name);
+   std::string local_prog_name = rpc_get_name();
    hw_type = rpc_get_option(0, RPC_OHW_TYPE);
-   sprintf(str, "%d %s", hw_type, local_prog_name);
+   sprintf(str, "%d %s", hw_type, local_prog_name.c_str());
 
    send(_server_connection.send_sock, str, strlen(str) + 1, 0);
 
@@ -11446,7 +11714,7 @@ INT rpc_set_mserver_path(const char *path)
 }
 
 /********************************************************************/
-INT rpc_get_name(char *name)
+std::string rpc_get_name()
 /********************************************************************\
 
   Routine: rpc_get_name
@@ -11465,9 +11733,7 @@ INT rpc_get_name(char *name)
 
 \********************************************************************/
 {
-   strcpy(name, _client_name);
-
-   return RPC_SUCCESS;
+   return _client_name;
 }
 
 
@@ -11491,7 +11757,7 @@ INT rpc_set_name(const char *name)
 
 \********************************************************************/
 {
-   strlcpy(_client_name, name, sizeof(_client_name));
+   _client_name = name;
 
    return RPC_SUCCESS;
 }
@@ -13694,9 +13960,8 @@ INT rpc_server_accept(int lsock)
 
 \********************************************************************/
 {
-   INT idx, i;
+   INT i;
    unsigned int size;
-   int status;
    INT sock;
    char version[NAME_LENGTH], v1[32];
    char experiment[NAME_LENGTH];
@@ -13704,9 +13969,6 @@ INT rpc_server_accept(int lsock)
    char *ptr;
    struct sockaddr_in acc_addr;
    struct hostent *phe;
-   char host_port1_str[30], host_port2_str[30], host_port3_str[30];
-   char debug_str[30];
-   const char *argv[10];
    char net_buffer[256];
    struct linger ling;
 
@@ -13803,13 +14065,16 @@ INT rpc_server_accept(int lsock)
          case 'I': {
 
             /*----------- return available experiments -----------*/
-            cm_scan_experiments();
-            for (i = 0; i < MAX_EXPERIMENT && exptab[i].name[0]; i++) {
-               rpc_debug_printf("Return experiment: %s", exptab[i].name);
-               const char* str = exptab[i].name;
+#ifdef LOCAL_ROUTINES
+            exptab_struct exptab;
+            cm_read_exptab(&exptab); // thread safe!
+            for (unsigned i=0; i<exptab.exptab.size(); i++) {
+               rpc_debug_printf("Return experiment: %s", exptab.exptab[i].name.c_str());
+               const char* str = exptab.exptab[i].name.c_str();
                send(sock, str, strlen(str) + 1, 0);
             }
             send(sock, "", 1, 0);
+#endif
             closesocket(sock);
             break;
          }
@@ -13903,30 +14168,43 @@ INT rpc_server_accept(int lsock)
             }
 #endif
 
+#ifdef LOCAL_ROUTINES
             /* update experiment definition */
-            cm_scan_experiments();
+            exptab_struct exptab;
+            cm_read_exptab(&exptab); // thread safe!
 
+            unsigned idx = 0;
+            bool found = false;
             /* lookup experiment */
-            if (equal_ustring(callback.experiment.c_str(), "Default"))
+            if (equal_ustring(callback.experiment.c_str(), "Default")) {
+               found = true;
                idx = 0;
-            else
-               for (idx = 0; idx < MAX_EXPERIMENT && exptab[idx].name[0]; idx++)
-                  if (equal_ustring(callback.experiment.c_str(), exptab[idx].name))
-                     break;
+            } else {
+               for (idx = 0; idx < exptab.exptab.size(); idx++) {
+                  if (exptab.exptab[idx].name == callback.experiment) {
+                     if (ss_dir_exist(exptab.exptab[idx].directory.c_str())) {
+                        found = true;
+                        break;
+                     }
+                  }
+               }
+            }
 
-            if (idx == MAX_EXPERIMENT || exptab[idx].name[0] == 0) {
-               sprintf(str, "experiment \'%s\' not defined in exptab\r", callback.experiment.c_str());
-               cm_msg(MERROR, "rpc_server_accept", "%s", str);
+            if (!found) {
+               cm_msg(MERROR, "rpc_server_accept", "experiment \'%s\' not defined in exptab file \'%s\'", callback.experiment.c_str(), exptab.filename.c_str());
 
                send(sock, "2", 2, 0);   /* 2 means exp. not found */
                closesocket(sock);
                break;
             }
 
-            callback.directory = exptab[idx].directory;
-            callback.user = exptab[idx].user;
+            callback.directory = exptab.exptab[idx].directory;
+            callback.user = exptab.exptab[idx].user;
 
             /* create a new process */
+            char host_port1_str[30], host_port2_str[30], host_port3_str[30];
+            char debug_str[30];
+
             sprintf(host_port1_str, "%d", callback.host_port1);
             sprintf(host_port2_str, "%d", callback.host_port2);
             sprintf(host_port3_str, "%d", callback.host_port3);
@@ -13934,6 +14212,7 @@ INT rpc_server_accept(int lsock)
 
             const char *mserver_path = rpc_get_mserver_path();
 
+            const char *argv[10];
             argv[0] = mserver_path;
             argv[1] = callback.host_name.c_str();
             argv[2] = host_port1_str;
@@ -13949,7 +14228,7 @@ INT rpc_server_accept(int lsock)
                              argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8],
                              argv[9]);
 
-            status = ss_spawnv(P_NOWAIT, mserver_path, argv);
+            int status = ss_spawnv(P_NOWAIT, mserver_path, argv);
 
             if (status != SS_SUCCESS) {
                rpc_debug_printf("Cannot spawn subprocess: %s\n", strerror(errno));
@@ -13962,6 +14241,7 @@ INT rpc_server_accept(int lsock)
 
             sprintf(str, "1 %s", cm_get_version());     /* 1 means ok */
             send(sock, str, strlen(str) + 1, 0);
+#endif // LOCAL_ROUTINES
             closesocket(sock);
 
             break;
