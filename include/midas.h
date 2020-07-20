@@ -2008,6 +2008,7 @@ Data conversion flags */
    /*---- disk routines ----*/
    double EXPRT ss_disk_free(const char *path);
    double EXPRT ss_file_size(const char *path);
+   INT EXPRT ss_dir_exist(const char *path);
    INT EXPRT ss_file_exist(const char *path);
    INT EXPRT ss_file_remove(const char *path);
    INT EXPRT ss_file_find(const char *path, const char *pattern, char **plist);

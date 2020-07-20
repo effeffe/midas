@@ -6176,7 +6176,10 @@ int ss_file_exist(const char *path)
 #ifdef OS_UNIX
    struct stat buf;
    
-   stat(path, &buf);
+   int retval = stat(path, &buf);
+   //printf("retval %d, errno %d (%s)\n", retval, errno, strerror(errno));
+   if (retval < 0)
+      return 0;
    if (S_ISDIR(buf.st_mode))
       return 0;
 #endif
@@ -6185,6 +6188,39 @@ int ss_file_exist(const char *path)
    if (fd < 0)
       return 0;
    close(fd);
+   return 1;
+}
+
+int ss_dir_exist(const char *path)
+/********************************************************************\
+ 
+ Routine: ss_dir_exist
+ 
+ Purpose: Check if a directory exists
+ 
+ Input:
+ char  *path             Name of a file in file to check
+ 
+ Output:
+ 
+ Function value:
+ int                     1: file exists
+                         0: file does not exist
+ 
+ \********************************************************************/
+{
+#ifdef OS_UNIX
+   struct stat buf;
+   
+   int retval = stat(path, &buf);
+   //printf("retval %d, errno %d (%s)\n", retval, errno, strerror(errno));
+   if (retval < 0)
+      return 0;
+   if (!S_ISDIR(buf.st_mode))
+      return 0;
+#else
+#warning ss_dir_exist() is not implemented!
+#endif
    return 1;
 }
 

@@ -237,7 +237,7 @@ static const ERROR_TABLE _error_table[] = {
         {CM_WRONG_PASSWORD, "Wrong password"},
         {CM_UNDEF_EXP,      "Experiment not defined"},
         {CM_UNDEF_ENVIRON,
-                            "\"exptab\" file not found and MIDAS_DIR environment variable not defined"},
+                            "\"exptab\" file not found and MIDAS_DIR or MIDAS_EXPTAB environment variable is not defined"},
         {RPC_NET_ERROR,     "Cannot connect to remote host"},
         {0, NULL}
 };
@@ -348,7 +348,6 @@ static std::vector<std::string> split(const char* sep, const std::string& s)
    std::string::size_type pos = 0;
    while (1) {
       std::string::size_type next = s.find(sep, pos);
-      //printf("pos %d, next %d\n", (int)pos, (int)next);
       if (next == std::string::npos) {
          v.push_back(s.substr(pos));
          break;
@@ -1755,36 +1754,101 @@ INT cm_read_exptab(exptab_struct *exptab) {
    if (f != NULL) {
       do {
          char buf[256];
+         memset(buf, 0, sizeof(buf));
          char* str = fgets(buf, sizeof(buf)-1, f);
          if (str == NULL)
             break;
-         if (str[0] && str[0] != '#' && str[0] != ' ' && str[0] != '\t'
-             && (strchr(str, ' ') || strchr(str, '\t'))) {
-            //sscanf(str, "%s %s %s", exptab[i].name, exptab[i].directory, exptab[i].user);
-            std::vector<std::string> str_split = split(" ", str);
-            if (str_split.size() != 3)
-               continue;
+         if (str[0] == 0) continue; // empty line
+         if (str[0] == '#') continue; // comment line
 
-            exptab_entry e;
-            e.name = str_split[0];
-            e.directory = str_split[1];
-            e.user = str_split[2];
+         exptab_entry e;
 
-            /* check for trailing directory separator */
-            if (!ends_with_char(e.directory, DIR_SEPARATOR)) {
-               e.directory += DIR_SEPARATOR_STR;
-            }
+         // following code emulates the function of this sprintf():
+         //sscanf(str, "%s %s %s", exptab[i].name, exptab[i].directory, exptab[i].user);
 
-            exptab->exptab.push_back(e);
+         // skip leading spaces
+         while (*str && isspace(*str))
+            str++;
+
+         char* p1 = str;
+         char* p2 = str;
+
+         while (*p2 && !isspace(*p2))
+            p2++;
+
+         ssize_t len = p2-p1;
+
+         if (len<1)
+            continue;
+         
+         //printf("str %d [%s] p1 [%s] p2 %d [%s] len %d\n", *str, str, p1, *p2, p2, (int)len);
+
+         e.name = std::string(p1, len);
+
+         if (*p2 == 0)
+            continue;
+
+         str = p2;
+
+         // skip leading spaces
+         while (*str && isspace(*str))
+            str++;
+         
+         p1 = str;
+         p2 = str;
+
+         while (*p2 && !isspace(*p2))
+            p2++;
+
+         len = p2-p1;
+
+         if (len<1)
+            continue;
+         
+         //printf("str %d [%s] p1 [%s] p2 %d [%s] len %d\n", *str, str, p1, *p2, p2, (int)len);
+
+         e.directory = std::string(p1, len);
+
+         if (*p2 == 0)
+            continue;
+
+         str = p2;
+
+         // skip leading spaces
+         while (*str && isspace(*str))
+            str++;
+         
+         p1 = str;
+         p2 = str;
+
+         while (*p2 && !isspace(*p2))
+            p2++;
+
+         len = p2-p1;
+
+         if (len<1)
+            continue;
+         
+         //printf("str %d [%s] p1 [%s] p2 %d [%s] len %d\n", *str, str, p1, *p2, p2, (int)len);
+
+         e.user = std::string(p1, len);
+         
+         /* check for trailing directory separator */
+         if (!ends_with_char(e.directory, DIR_SEPARATOR)) {
+            e.directory += DIR_SEPARATOR_STR;
          }
+         
+         exptab->exptab.push_back(e);
       } while (!feof(f));
       fclose(f);
    }
 
+#if 0
    cm_msg(MINFO, "cm_read_exptab", "Read exptab \"%s\":", exptab->filename.c_str()); 
    for (unsigned j=0; j<exptab->exptab.size(); j++) {
-      cm_msg(MINFO, "cm_read_exptab", "entry %d, experiment \"%s\", directory \"%s\", user \"%s\"", j, exptab->exptab[j].name.c_str(), exptab->exptab[j].directory.c_str(), exptab->exptab[j].name.c_str());
+      cm_msg(MINFO, "cm_read_exptab", "entry %d, experiment \"%s\", directory \"%s\", user \"%s\"", j, exptab->exptab[j].name.c_str(), exptab->exptab[j].directory.c_str(), exptab->exptab[j].user.c_str());
    }
+#endif
 
    return CM_SUCCESS;
 }
@@ -2238,6 +2302,11 @@ int cm_set_experiment_local(const char* exp_name)
    
    if (status != CM_SUCCESS) {
       cm_msg(MERROR, "cm_set_experiment_local", "Experiment \"%s\" not found in exptab file \"%s\"", exp_name1.c_str(), cm_get_exptab_filename().c_str());
+      return CM_UNDEF_EXP;
+   }
+
+   if (!ss_dir_exist(expdir.c_str())) {
+      cm_msg(MERROR, "cm_set_experiment_local", "Experiment \"%s\" directory \"%s\" does not exist", exp_name1.c_str(), expdir.c_str());
       return CM_UNDEF_EXP;
    }
    
@@ -2777,7 +2846,9 @@ INT cm_select_experiment_local(std::string *exp_name) {
    if (status != CM_SUCCESS)
       return status;
 
-   if (expts.size() > 1) {
+   if (expts.size() == 1) {
+      *exp_name = expts[0];
+   } else if (expts.size() > 1) {
       printf("Available experiments on local computer:\n");
 
       for (unsigned i = 0; i < expts.size(); i++) {
@@ -2797,7 +2868,7 @@ INT cm_select_experiment_local(std::string *exp_name) {
          break;
       }
    } else {
-      *exp_name = expts[0];
+      return CM_UNDEF_EXP;
    }
 
    return CM_SUCCESS;
@@ -14100,16 +14171,18 @@ INT rpc_server_accept(int lsock)
                found = true;
                idx = 0;
             } else {
-               for (idx = 0; idx < exptab.exptab.size(); idx++)
+               for (idx = 0; idx < exptab.exptab.size(); idx++) {
                   if (exptab.exptab[idx].name == callback.experiment) {
-                     found = true;
-                     break;
+                     if (ss_dir_exist(exptab.exptab[idx].directory.c_str())) {
+                        found = true;
+                        break;
+                     }
                   }
+               }
             }
 
             if (!found) {
-               sprintf(str, "experiment \'%s\' not defined in exptab file \'%s\'\r", callback.experiment.c_str(), exptab.filename.c_str());
-               cm_msg(MERROR, "rpc_server_accept", "%s", str);
+               cm_msg(MERROR, "rpc_server_accept", "experiment \'%s\' not defined in exptab file \'%s\'", callback.experiment.c_str(), exptab.filename.c_str());
 
                send(sock, "2", 2, 0);   /* 2 means exp. not found */
                closesocket(sock);
