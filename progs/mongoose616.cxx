@@ -2394,7 +2394,8 @@ size_t mg_match_prefix(const char *pattern, int pattern_len, const char *str) {
 #define MG_MAX_HOST_LEN 200
 
 #ifndef MG_TCP_IO_SIZE
-#define MG_TCP_IO_SIZE 1460
+//#define MG_TCP_IO_SIZE 1460
+#define MG_TCP_IO_SIZE 1460000
 #endif
 #ifndef MG_UDP_IO_SIZE
 #define MG_UDP_IO_SIZE 1460
