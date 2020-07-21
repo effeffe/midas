@@ -357,7 +357,7 @@ MhistoryGraph.prototype.initializePanel = function (index) {
    if (this.group === "" || this.panel === "")
       return;
 
-   this.index = index;
+   this.plotIndex = index;
    this.marker = {active: false};
    this.drag = {active: false};
    this.data = undefined;
@@ -2152,7 +2152,7 @@ MhistoryGraph.prototype.draw = function () {
    if (this.updateURLTimer !== undefined)
       window.clearTimeout(this.updateURLTimer);
 
-   if (this.index === 0)
+   if (this.plotIndex === 0)
       this.updateURLTimer = window.setTimeout(this.updateURL.bind(this), 500);
 };
 
