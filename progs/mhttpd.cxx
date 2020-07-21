@@ -3537,7 +3537,7 @@ void gen_odb_attachment(Return* r, const char *path, std::string& bout)
 void submit_elog(Param* pp, Return* r, Attachment* a)
 {
    char path[256], path1[256];
-   char mail_to[256], mail_from[256], mail_text[10000], mail_list[256],
+   char mail_to[256], mail_from[256], mail_list[256],
        smtp_host[256], tag[80], mail_param[1000];
    char *p, *pitem;
    HNDLE hDB, hkey;
@@ -3676,13 +3676,14 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
    n_mail = 0;
 
    for (int index = 0; index <= 1; index++) {
-      char str[256];
+      std::string str;
+      str += "/Elog/Email ";
       if (index == 0)
-         sprintf(str, "/Elog/Email %s", pp->getparam("type")); // FIXME: string overrun
+         str += pp->getparam("type");
       else
-         sprintf(str, "/Elog/Email %s", pp->getparam("system")); // FIXME: string overrun
+         str += pp->getparam("system");
 
-      if (db_find_key(hDB, 0, str, &hkey) == DB_SUCCESS) {
+      if (db_find_key(hDB, 0, str.c_str(), &hkey) == DB_SUCCESS) {
          size = sizeof(mail_list);
          db_get_data(hDB, hkey, mail_list, &size, TID_STRING);
 
@@ -3702,24 +3703,40 @@ void submit_elog(Param* pp, Return* r, Attachment* a)
 
             sprintf(mail_from, "MIDAS %s <MIDAS@%s>", exptname.c_str(), elog_host_name.c_str());
 
-            sprintf(mail_text, "A new entry has been submitted by %s:\n\n", pp->getparam("author"));
-            sprintf(mail_text + strlen(mail_text), "Experiment : %s\n", exptname.c_str());
-            sprintf(mail_text + strlen(mail_text), "Type       : %s\n", pp->getparam("type"));
-            sprintf(mail_text + strlen(mail_text), "System     : %s\n", pp->getparam("system"));
-            sprintf(mail_text + strlen(mail_text), "Subject    : %s\n", pp->getparam("subject"));
+            std::string mail_text;
+            mail_text += "A new entry has been submitted by ";
+            mail_text += pp->getparam("author");
+            mail_text += "\n";
+            mail_text += "\n";
 
-            sprintf(mail_text + strlen(mail_text), "Link       : %sEL/%s\n", mhttpd_full_url, tag);
+            mail_text += "Experiment : ";
+            mail_text += exptname.c_str();
+            mail_text += "\n";
 
-            assert(strlen(mail_text) + 100 < sizeof(mail_text));        // bomb out on array overrun.
+            mail_text += "Type       : ";
+            mail_text += pp->getparam("type");
+            mail_text += "\n";
 
-            strlcat(mail_text + strlen(mail_text), "\n", sizeof(mail_text));
-            strlcat(mail_text + strlen(mail_text), pp->getparam("text"),
-                    sizeof(mail_text) - strlen(mail_text) - 50);
-            strlcat(mail_text + strlen(mail_text), "\n", sizeof(mail_text));
+            mail_text += "System     : ";
+            mail_text += pp->getparam("system");
+            mail_text += "\n";
 
-            assert(strlen(mail_text) < sizeof(mail_text));      // bomb out on array overrun.
+            mail_text += "Subject    : ";
+            mail_text += pp->getparam("subject");
+            mail_text += "\n";
 
-            sendmail(elog_host_name.c_str(), smtp_host, mail_from, mail_to, pp->getparam("type"), mail_text);
+            mail_text += "Link       : ";
+            mail_text += mhttpd_full_url;
+            mail_text += "/EL/";
+            mail_text += tag;
+            mail_text += "\n";
+
+            mail_text += "\n";
+
+            mail_text += pp->getparam("text");
+            mail_text += "\n";
+
+            sendmail(elog_host_name.c_str(), smtp_host, mail_from, mail_to, pp->getparam("type"), mail_text.c_str());
 
             if (mail_param[0] == 0)
                strlcpy(mail_param, "?", sizeof(mail_param));
@@ -6374,7 +6391,7 @@ void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
    int status;
    int size, i, n, index, type;
    unsigned int t;
-   char str[TEXT_SIZE], ppath[256], format[256], facility[256], user[256];
+   char str[TEXT_SIZE], format[256], facility[256], user[256];
    HNDLE hDB, hkey;
    KEY key;
    char data[TEXT_SIZE];
@@ -6447,9 +6464,11 @@ void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
    if (equal_ustring(p->getparam("cmd"), "jset")) {
 
       if (*p->getparam("pnam")) {
-         sprintf(ppath, "/Custom/Pwd/%s", p->getparam("pnam"));
+         std::string ppath;
+         ppath += "/Custom/Pwd/";
+         ppath += p->getparam("pnam");
          str[0] = 0;
-         db_get_value(hDB, 0, ppath, str, &size, TID_STRING, TRUE);
+         db_get_value(hDB, 0, ppath.c_str(), str, &size, TID_STRING, TRUE);
          if (!equal_ustring(cookie_cpwd, str)) {
             show_text_header(r);
             r->rsprintf("Invalid password!");
@@ -6555,6 +6574,7 @@ void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
       if (p->isparam("odb0")) {
          show_text_header(r);
          for (i=0 ; ; i++) {
+            char ppath[256];
             sprintf(ppath, "odb%d", i);
             sprintf(format, "format%d", i);
             if (p->isparam(ppath)) {
@@ -11549,15 +11569,13 @@ time_t mktime_with_dst(const struct tm* ptms)
 
 /*------------------------------------------------------------------*/
 
-void add_param_to_url(char* buf, int bufsize, const char* name, const char* value)
+static std::string add_param_to_url(const char* name, const char* value)
 {
-   if (strstr(buf, "?"))
-      strlcat(buf, "&", bufsize);
-   else
-      strlcat(buf, "?", bufsize);
-   strlcat(buf, name, bufsize); // FIXME: should be URI-encoded
-   strlcat(buf, "=", bufsize);
-   strlcat(buf, value, bufsize); // FIXME: should be URI-encoded
+   std::string s;
+   s += name; // FIXME: should be URI-encoded
+   s += "=";
+   s += value; // FIXME: should be URI-encoded
+   return s;
 }
 
 /*------------------------------------------------------------------*/
@@ -11566,7 +11584,6 @@ void show_query_page(Param* p, Return* r)
 {
    int i;
    HNDLE hDB;
-   char str[256], redir[256];
 
    if (p->getparam("m1") && *p->getparam("m1")) {
       struct tm tms;
@@ -11574,9 +11591,9 @@ void show_query_page(Param* p, Return* r)
 
       tms.tm_year = atoi(p->getparam("y1")) % 100;
 
-      strlcpy(str, p->getparam("m1"), sizeof(str));
+      std::string m1 = p->getparam("m1");
       for (i = 0; i < 12; i++)
-         if (equal_ustring(str, mname[i]))
+         if (equal_ustring(m1.c_str(), mname[i]))
             break;
       if (i == 12)
          i = 0;
@@ -11593,9 +11610,9 @@ void show_query_page(Param* p, Return* r)
       memset(&tms, 0, sizeof(struct tm));
       tms.tm_year = atoi(p->getparam("y2")) % 100;
 
-      strlcpy(str, p->getparam("m2"), sizeof(str));
+      std::string m2 = p->getparam("m2");
       for (i = 0; i < 12; i++)
-         if (equal_ustring(str, mname[i]))
+         if (equal_ustring(m2.c_str(), mname[i]))
             break;
       if (i == 12)
          i = 0;
@@ -11612,12 +11629,20 @@ void show_query_page(Param* p, Return* r)
       if (ltime_end == ltime_start)
          ltime_end += 3600 * 24;
 
-      sprintf(redir, "?cmd=oldhistory&group=%s&panel=%s&scale=%d&time=%s",
-              p->getparam("group"), p->getparam("panel"),
-              (int) (ltime_end - ltime_start), time_to_string(ltime_end).c_str());
-      if (p->isparam("hindex"))
-         add_param_to_url(redir, sizeof(redir), "index", p->getparam("hindex"));
-      redirect(r, redir);
+      std::string redir;
+      redir += "?cmd=oldhistory&";
+      redir += add_param_to_url("group", p->getparam("group"));
+      redir += "&";
+      redir += add_param_to_url("panel", p->getparam("panel"));
+      redir += "&";
+      redir += add_param_to_url("scale", toString((int)(ltime_end - ltime_start)).c_str());
+      redir += "&";
+      redir += add_param_to_url("time", time_to_string(ltime_end).c_str());
+      if (p->isparam("hindex")) {
+         redir += "&";
+         redir += add_param_to_url("index", p->getparam("hindex"));
+      }
+      redirect(r, redir.c_str());
       return;
    }
 
@@ -16075,9 +16100,11 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
 
    if (equal_ustring(command, "MSCB")) {
       if (equal_ustring(command, "set")) {
-         char str[256];
-         sprintf(str, "%s?cmd=%s", dec_path, command);
-         if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str))
+         std::string str;
+         str += dec_path;
+         str += "?";
+         str += add_param_to_url("cmd", command);
+         if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str.c_str()))
             return;
       }
 
@@ -16105,10 +16132,12 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
    /*---- trigger equipment readout ---------------------------*/
 
    if (strncmp(command, "Trigger", 7) == 0) {
-      char str[256];
-      sprintf(str, "?cmd=%s", command);
-      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str))
+      std::string cmd;
+      cmd += "?cmd=";
+      cmd += command;
+      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), cmd.c_str())) {
          return;
+      }
 
       Lock(t);
 
@@ -16120,26 +16149,38 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
          *strchr(eq_name, ' ') = 0;
 
       /* get frontend name */
-      sprintf(str, "/Equipment/%s/Common/Frontend name", eq_name);
+      std::string path;
+      path += "/Equipment/";
+      path += eq_name;
+      path += "/Common/Frontend name";
       char fe_name[NAME_LENGTH];
       int size = NAME_LENGTH;
-      db_get_value(hDB, 0, str, fe_name, &size, TID_STRING, TRUE);
+      db_get_value(hDB, 0, path.c_str(), fe_name, &size, TID_STRING, TRUE);
 
       /* and ID */
-      sprintf(str, "/Equipment/%s/Common/Event ID", eq_name);
+      path = "";
+      path += "/Equipment/";
+      path += eq_name;
+      path += "/Common/Event ID";
       WORD event_id = 0;
       size = sizeof(event_id);
-      db_get_value(hDB, 0, str, &event_id, &size, TID_WORD, TRUE);
+      db_get_value(hDB, 0, path.c_str(), &event_id, &size, TID_WORD, TRUE);
 
       if (cm_exist(fe_name, FALSE) != CM_SUCCESS) {
-         sprintf(str, "Frontend \"%s\" not running!", fe_name);
-         show_error(r, str);
+         std::string str;
+         str += "Frontend \"";
+         str += fe_name;
+         str += "\" not running!";
+         show_error(r, str.c_str());
       } else {
          HNDLE hconn;
          status = cm_connect_client(fe_name, &hconn);
          if (status != RPC_SUCCESS) {
-            sprintf(str, "Cannot connect to frontend \"%s\" !", fe_name);
-            show_error(r, str);
+            std::string str;
+            str += "Cannot connect to frontend \"";
+            str += fe_name;
+            str +="\" !";
+            show_error(r, str.c_str());
          } else {
             status = rpc_client_call(hconn, RPC_MANUAL_TRIG, event_id);
             if (status != CM_SUCCESS)

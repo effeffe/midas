@@ -2014,6 +2014,8 @@ Data conversion flags */
    INT EXPRT ss_file_remove(const char *path);
    INT EXPRT ss_file_find(const char *path, const char *pattern, char **plist);
    INT EXPRT ss_dir_find(const char *path, const char *pattern, char **plist);
+   INT EXPRT ss_file_find(const char *path, const char *pattern, STRING_LIST*);
+   INT EXPRT ss_dir_find(const char *path, const char *pattern, STRING_LIST*);
    double EXPRT ss_disk_size(const char *path);
 
    /** @} */

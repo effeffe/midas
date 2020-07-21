@@ -5892,6 +5892,24 @@ LPWIN32_FIND_DATA lpfdata;
 #endif
 
 INT ss_file_find(const char *path, const char *pattern, char **plist)
+{
+   STRING_LIST list;
+
+   int count = ss_file_find(path, pattern, &list);
+   if (count <= 0)
+      return count;
+
+   size_t size = list.size();
+   *plist = (char *) malloc(size*MAX_STRING_LENGTH);
+   for (size_t i=0; i<size; i++) {
+      //printf("file %d [%s]\n", (int)i, list[i].c_str());
+      strlcpy((*plist)+i*MAX_STRING_LENGTH, list[i].c_str(), MAX_STRING_LENGTH);
+   }
+
+   return size;
+}
+
+INT ss_file_find(const char *path, const char *pattern, STRING_LIST *plist)
 /********************************************************************\
 
   Routine: ss_file_find
@@ -5910,20 +5928,17 @@ INT ss_file_find(const char *path, const char *pattern, char **plist)
 
 \********************************************************************/
 {
-   int i;
+   assert(plist);
 #ifdef OS_UNIX
    DIR *dir_pointer;
    struct dirent *dp;
 
-   *plist = (char *) malloc(MAX_STRING_LENGTH);
+   plist->clear();
    if ((dir_pointer = opendir(path)) == NULL)
       return 0;
-   i = 0;
    for (dp = readdir(dir_pointer); dp != NULL; dp = readdir(dir_pointer)) {
       if (fnmatch(pattern, dp->d_name, 0) == 0 && (dp->d_type == DT_REG || dp->d_type == DT_LNK || dp->d_type == DT_UNKNOWN)) {
-         *plist = (char *) realloc(*plist, (i + 1) * MAX_STRING_LENGTH);
-         strlcpy(*plist + (i * MAX_STRING_LENGTH), dp->d_name, MAX_STRING_LENGTH);
-         i++;
+         plist->push_back(dp->d_name);
          seekdir(dir_pointer, telldir(dir_pointer));
       }
    }
@@ -5937,29 +5952,42 @@ INT ss_file_find(const char *path, const char *pattern, char **plist)
    strcat(str, "\\");
    strcat(str, pattern);
    first = 1;
-   i = 0;
    lpfdata = (WIN32_FIND_DATA *) malloc(sizeof(WIN32_FIND_DATA));
-   *plist = (char *) malloc(MAX_STRING_LENGTH);
+   *plist->clear();
    pffile = FindFirstFile(str, lpfdata);
    if (pffile == INVALID_HANDLE_VALUE)
       return 0;
    first = 0;
-   *plist = (char *) realloc(*plist, (i + 1) * MAX_STRING_LENGTH);
-   strncpy(*plist + (i * MAX_STRING_LENGTH), lpfdata->cFileName, strlen(lpfdata->cFileName));
-   *(*plist + (i * MAX_STRING_LENGTH) + strlen(lpfdata->cFileName)) = '\0';
+   plist->push_back(lpfdata->cFileName);
    i++;
    while (FindNextFile(pffile, lpfdata)) {
-      *plist = (char *) realloc(*plist, (i + 1) * MAX_STRING_LENGTH);
-      strncpy(*plist + (i * MAX_STRING_LENGTH), lpfdata->cFileName, strlen(lpfdata->cFileName));
-      *(*plist + (i * MAX_STRING_LENGTH) + strlen(lpfdata->cFileName)) = '\0';
+      plist->push_back(lpfdata->cFileName);
       i++;
    }
    free(lpfdata);
 #endif
-   return i;
+   return plist->size();
 }
 
-INT ss_dir_find(const char *path, const char *pattern, char **plist)
+INT ss_dir_find(const char *path, const char *pattern, char** plist)
+{
+   STRING_LIST list;
+
+   int count = ss_dir_find(path, pattern, &list);
+   if (count <= 0)
+      return count;
+
+   size_t size = list.size();
+   *plist = (char *) malloc(size*MAX_STRING_LENGTH);
+   for (size_t i=0; i<size; i++) {
+      //printf("file %d [%s]\n", (int)i, list[i].c_str());
+      strlcpy((*plist)+i*MAX_STRING_LENGTH, list[i].c_str(), MAX_STRING_LENGTH);
+   }
+
+   return size;
+}
+
+INT ss_dir_find(const char *path, const char *pattern, STRING_LIST *plist)
 /********************************************************************\
 
  Routine: ss_dir_find
@@ -5978,20 +6006,17 @@ INT ss_dir_find(const char *path, const char *pattern, char **plist)
 
  \********************************************************************/
 {
-   int i;
+   assert(plist);
 #ifdef OS_UNIX
    DIR *dir_pointer;
    struct dirent *dp;
 
    if ((dir_pointer = opendir(path)) == NULL)
       return 0;
-   *plist = (char *) malloc(MAX_STRING_LENGTH);
-   i = 0;
+   plist->clear();
    for (dp = readdir(dir_pointer); dp != NULL; dp = readdir(dir_pointer)) {
       if (fnmatch(pattern, dp->d_name, 0) == 0 && dp->d_type == DT_DIR) {
-         *plist = (char *) realloc(*plist, (i + 1) * MAX_STRING_LENGTH);
-         strlcpy(*plist + (i * MAX_STRING_LENGTH), dp->d_name, MAX_STRING_LENGTH);
-         i++;
+         plist->push_back(dp->d_name);
          seekdir(dir_pointer, telldir(dir_pointer));
       }
    }
@@ -6005,26 +6030,19 @@ INT ss_dir_find(const char *path, const char *pattern, char **plist)
    strcat(str, "\\");
    strcat(str, pattern);
    first = 1;
-   i = 0;
+   plist->clear();
    lpfdata = (WIN32_FIND_DATA *) malloc(sizeof(WIN32_FIND_DATA));
-   *plist = (char *) malloc(MAX_STRING_LENGTH);
    pffile = FindFirstFile(str, lpfdata);
    if (pffile == INVALID_HANDLE_VALUE)
       return 0;
    first = 0;
-   *plist = (char *) realloc(*plist, (i + 1) * MAX_STRING_LENGTH);
-   strncpy(*plist + (i * MAX_STRING_LENGTH), lpfdata->cFileName, strlen(lpfdata->cFileName));
-   *(*plist + (i * MAX_STRING_LENGTH) + strlen(lpfdata->cFileName)) = '\0';
-   i++;
+   plist->push_back(lpfdata->cFileName);
    while (FindNextFile(pffile, lpfdata)) {
-      *plist = (char *) realloc(*plist, (i + 1) * MAX_STRING_LENGTH);
-      strncpy(*plist + (i * MAX_STRING_LENGTH), lpfdata->cFileName, strlen(lpfdata->cFileName));
-      *(*plist + (i * MAX_STRING_LENGTH) + strlen(lpfdata->cFileName)) = '\0';
-      i++;
+      plist->push_back(lpfdata->cFileName);
    }
    free(lpfdata);
 #endif
-   return i;
+   return plist->size();
 }
 
 INT ss_file_remove(const char *path)

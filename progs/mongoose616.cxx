@@ -2394,7 +2394,8 @@ size_t mg_match_prefix(const char *pattern, int pattern_len, const char *str) {
 #define MG_MAX_HOST_LEN 200
 
 #ifndef MG_TCP_IO_SIZE
-#define MG_TCP_IO_SIZE 1460
+//#define MG_TCP_IO_SIZE 1460
+#define MG_TCP_IO_SIZE 1460000
 #endif
 #ifndef MG_UDP_IO_SIZE
 #define MG_UDP_IO_SIZE 1460
@@ -5269,6 +5270,9 @@ static enum mg_ssl_if_result mg_ssl_if_mbed_err(struct mg_connection *nc,
     LOG(LL_DEBUG, ("%p TLS connection closed by peer", nc));
     nc->flags |= MG_F_CLOSE_IMMEDIATELY;
     res = MG_SSL_OK;
+  } else if (ret == MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE) {
+    nc->flags |= MG_F_CLOSE_IMMEDIATELY;
+    res = MG_SSL_ERROR;
   } else if (ret == MBEDTLS_ERR_SSL_INVALID_MAC) {
     nc->flags |= MG_F_CLOSE_IMMEDIATELY;
     res = MG_SSL_ERROR;
