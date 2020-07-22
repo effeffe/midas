@@ -189,16 +189,7 @@ void db_flush_msg(db_err_msg** msgp)
 *                                                                    *
 \********************************************************************/
 
-static int validate_free_key(DATABASE_HEADER * pheader, int free_key)
-{
-   if (free_key <= 0)
-      return 0;
-
-   if (free_key > pheader->key_size)
-      return 0;
-
-   return 1;
-}
+static bool db_validate_key_offset(const DATABASE_HEADER * pheader, int offset);
 
 /*------------------------------------------------------------------*/
 static void *malloc_key(DATABASE_HEADER * pheader, INT size, const char* caller)
@@ -211,20 +202,27 @@ static void *malloc_key(DATABASE_HEADER * pheader, INT size, const char* caller)
    /* quadword alignment for alpha CPU */
    size = ALIGN8(size);
 
-   if (!validate_free_key(pheader, pheader->first_free_key)) {
+   //printf("malloc_key(%d) from [%s]\n", size, caller);
+
+   if (!db_validate_key_offset(pheader, pheader->first_free_key)) {
       return NULL;
    }
 
    /* search for free block */
    pfree = (FREE_DESCRIP *) ((char *) pheader + pheader->first_free_key);
 
+   //printf("try free block %p size %d, next %d\n", pfree, pfree->size, pfree->next_free);
+
    while (pfree->size < size && pfree->next_free) {
-      if (!validate_free_key(pheader, pfree->next_free)) {
+      if (!db_validate_key_offset(pheader, pfree->next_free)) {
          return NULL;
       }
       pprev = pfree;
       pfree = (FREE_DESCRIP *) ((char *) pheader + pfree->next_free);
+      //printf("pfree %p size %d next_free %d\n", pfree, pfree->size, pfree->next_free);
    }
+
+   //printf("found free block %p size %d\n", pfree, pfree->size);
 
    /* return if not enough memory */
    if (pfree->size < size)
@@ -660,7 +658,6 @@ static INT print_key_info(HNDLE hDB, HNDLE hKey, KEY * pkey, INT level, void *in
    return SUCCESS;
 }
 
-static bool db_validate_key_offset(const DATABASE_HEADER * pheader, int offset);
 static bool db_validate_data_offset(const DATABASE_HEADER * pheader, int offset);
 
 INT db_show_mem(HNDLE hDB, char **result, BOOL verbose)
@@ -1042,7 +1039,7 @@ static const KEY* db_get_pkey(const DATABASE_HEADER* pheader, HNDLE hKey, int* p
    return pkey;
 }
 
-static const KEYLIST* db_get_pkeylist(const DATABASE_HEADER* pheader, HNDLE hKey, const KEY* pkey, const char* caller, db_err_msg **msg)
+static const KEYLIST* db_get_pkeylist(const DATABASE_HEADER* pheader, HNDLE hKey, const KEY* pkey, const char* caller, db_err_msg **msg, bool kludge_repair = false)
 {
    if (pkey->type != TID_KEY) {
       std::string path = db_get_path_locked(pheader, hKey);
@@ -1069,9 +1066,17 @@ static const KEYLIST* db_get_pkeylist(const DATABASE_HEADER* pheader, HNDLE hKey
    }
 
    if (pkeylist->first_key == 0 && pkeylist->num_keys != 0) {
+      if (!kludge_repair) {
+         std::string path = db_get_path_locked(pheader, hKey);
+         db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid pkeylist->first_key %d should be non zero for num_keys %d", hKey, path.c_str(), pkeylist->first_key, pkeylist->num_keys);
+         return NULL;
+      }
+
+      // FIXME: this repair should be done in db_validate_and_repair_key()
+
       std::string path = db_get_path_locked(pheader, hKey);
-      db_msg(msg, MERROR, caller, "hkey %d path \"%s\" invalid pkeylist->first_key %d should be non zero for num_keys %d", hKey, path.c_str(), pkeylist->first_key, pkeylist->num_keys);
-      return NULL;
+      db_msg(msg, MERROR, caller, "hkey %d path \"%s\" repaired invalid num_keys %d when pkeylist->first_key is zero", hKey, path.c_str(), pkeylist->num_keys);
+      ((KEYLIST*)pkeylist)->num_keys = 0;
    }
 
    return pkeylist;
@@ -1353,7 +1358,8 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
    if (pkey->type == TID_KEY) {
       bool pkeylist_ok = true;
       db_err_msg* msg = NULL;
-      const KEYLIST *pkeylist = db_get_pkeylist(pheader, hkey, pkey, "db_validate_key", &msg);
+      // FIXME: notice the kludged repair of pkeylist! K.O.
+      const KEYLIST *pkeylist = db_get_pkeylist(pheader, hkey, pkey, "db_validate_key", &msg, true);
 
       if (!pkeylist) {
          db_flush_msg(&msg);
@@ -1413,7 +1419,8 @@ static bool db_validate_and_repair_key(DATABASE_HEADER * pheader, int recurse, c
             }
 
             if (count != pkeylist->num_keys) {
-               cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", TID_KEY mismatch of pkeylist->num_keys %d against key chain length %d", hkey, path, pkeylist->num_keys, count);
+               cm_msg(MERROR, "db_validate_key", "hkey %d, path \"%s\", repaired TID_KEY mismatch of pkeylist->num_keys %d against key chain length %d", hkey, path, pkeylist->num_keys, count);
+               ((KEYLIST*)pkeylist)->num_keys = count;
                flag = false;
                pkeylist_ok = false;
             }
@@ -3347,6 +3354,8 @@ INT db_create_key(HNDLE hDB, HNDLE hKey, const char *key_name, DWORD type)
                pkey = (KEY *) malloc_key(pheader, sizeof(KEY), "db_create_key_A");
 
                if (pkey == NULL) {
+                  if (pkeylist->num_keys > 0)
+                     pkeylist->num_keys--;
                   db_unlock_database(hDB);
                   char str[MAX_ODB_PATH];
                   db_get_path(hDB, hKey, str, sizeof(str));
@@ -8684,10 +8693,7 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
 */
 static int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
 {
-   char type[256], data[256], test_str[256];
-   char *buf = NULL;
    int status;
-   HNDLE hKey;
 
    if (strcmp(mxml_get_name(node), "odb") == 0) {
       for (int i = 0; i < mxml_get_number_of_children(node); i++) {
@@ -8696,34 +8702,36 @@ static int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
             return status;
       }
    } else if (strcmp(mxml_get_name(node), "dir") == 0) {
-      status = db_find_link(hDB, hKeyRoot, mxml_get_attribute(node, "name"), &hKey);
+      const char* name = mxml_get_attribute(node, "name");
 
-      /* skip system client entries */
-      strlcpy(test_str, mxml_get_attribute(node, "name"), sizeof(test_str));
-      test_str[15] = 0;
-      if (equal_ustring(test_str, "/System/Clients"))
-         return DB_SUCCESS;
+      if (name == NULL) {
+         cm_msg(MERROR, "db_paste_node", "found key \"%s\" with no name in XML data", mxml_get_name(node));
+         return DB_TYPE_MISMATCH;
+      }
+
+      HNDLE hKey;
+      status = db_find_link(hDB, hKeyRoot, name, &hKey);
 
       if (status == DB_NO_KEY) {
-         status = db_create_key(hDB, hKeyRoot, mxml_get_attribute(node, "name"), TID_KEY);
+         status = db_create_key(hDB, hKeyRoot, name, TID_KEY);
          if (status == DB_NO_ACCESS) {
-            cm_msg(MINFO, "db_paste_node", "cannot load key \"%s\": write protected", mxml_get_attribute(node, "name"));
+            cm_msg(MINFO, "db_paste_node", "cannot load key \"%s\": write protected", name);
             return DB_SUCCESS;  /* key or tree is locked, just skip it */
          }
 
          if (status != DB_SUCCESS && status != DB_KEY_EXIST) {
-            cm_msg(MERROR, "db_paste_node", "cannot create key \"%s\" in ODB, status = %d", mxml_get_attribute(node, "name"), status);
+            cm_msg(MERROR, "db_paste_node", "cannot create key \"%s\" in ODB, status = %d", name, status);
             return status;
          }
-         status = db_find_link(hDB, hKeyRoot, mxml_get_attribute(node, "name"), &hKey);
+         status = db_find_link(hDB, hKeyRoot, name, &hKey);
          if (status != DB_SUCCESS) {
-            cm_msg(MERROR, "db_paste_node", "cannot find key \"%s\" in ODB", mxml_get_attribute(node, "name"));
+            cm_msg(MERROR, "db_paste_node", "cannot find key \"%s\" in ODB", name);
             return status;
          }
       }
 
-      db_get_path(hDB, hKey, data, sizeof(data));
-      if (strncmp(data, "/System/Clients", 15) != 0) {
+      std::string path = db_get_path(hDB, hKey);
+      if (!equal_ustring(path.c_str(), "/System/Clients")) {
          for (int i = 0; i < mxml_get_number_of_children(node); i++) {
             status = db_paste_node(hDB, hKey, mxml_subnode(node, i));
             if (status != DB_SUCCESS)
@@ -8732,44 +8740,54 @@ static int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
       }
    } else if (strcmp(mxml_get_name(node), "key") == 0 || strcmp(mxml_get_name(node), "keyarray") == 0) {
 
+      const char* name = mxml_get_attribute(node, "name");
+
+      if (name == NULL) {
+         cm_msg(MERROR, "db_paste_node", "found key \"%s\" with no name in XML data", mxml_get_name(node));
+         return DB_TYPE_MISMATCH;
+      }
+
       int num_values;
       if (strcmp(mxml_get_name(node), "keyarray") == 0)
          num_values = atoi(mxml_get_attribute(node, "num_values"));
       else
          num_values = 0;
 
-      if (mxml_get_attribute(node, "type") == NULL) {
+      const char* type = mxml_get_attribute(node, "type");
+
+      if (type == NULL) {
          cm_msg(MERROR, "db_paste_node", "found key \"%s\" with no type in XML data", mxml_get_name(node));
          return DB_TYPE_MISMATCH;
       }
 
-      strlcpy(type, mxml_get_attribute(node, "type"), sizeof(type));
       int tid = rpc_name_tid(type);
       if (tid == 0) {
          cm_msg(MERROR, "db_paste_node", "found unknown data type \"%s\" in XML data", type);
          return DB_TYPE_MISMATCH;
       }
 
-      status = db_find_link(hDB, hKeyRoot, mxml_get_attribute(node, "name"), &hKey);
+      HNDLE hKey;
+      status = db_find_link(hDB, hKeyRoot, name, &hKey);
       if (status == DB_NO_KEY) {
-         status = db_create_key(hDB, hKeyRoot, mxml_get_attribute(node, "name"), tid);
+         status = db_create_key(hDB, hKeyRoot, name, tid);
          if (status == DB_NO_ACCESS) {
-            cm_msg(MINFO, "db_paste_node", "cannot load key \"%s\": write protected", mxml_get_attribute(node, "name"));
+            cm_msg(MINFO, "db_paste_node", "cannot load key \"%s\": write protected", name);
             return DB_SUCCESS;  /* key or tree is locked, just skip it */
          }
 
          if (status != DB_SUCCESS) {
-            cm_msg(MERROR, "db_paste_node", "cannot create key \"%s\" in ODB, status = %d", mxml_get_attribute(node, "name"), status);
+            cm_msg(MERROR, "db_paste_node", "cannot create key \"%s\" in ODB, status = %d", name, status);
             return status;
          }
-         status = db_find_link(hDB, hKeyRoot, mxml_get_attribute(node, "name"), &hKey);
+         status = db_find_link(hDB, hKeyRoot, name, &hKey);
          if (status != DB_SUCCESS) {
-            cm_msg(MERROR, "db_paste_node", "cannot find key \"%s\" in ODB, status = %d", mxml_get_attribute(node, "name"), status);
+            cm_msg(MERROR, "db_paste_node", "cannot find key \"%s\" in ODB, status = %d", name, status);
             return status;
          }
       }
 
       int size = 0;
+      char *buf = NULL;
 
       if (tid == TID_STRING || tid == TID_LINK) {
          size = atoi(mxml_get_attribute(node, "size"));
@@ -8809,6 +8827,7 @@ static int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
                   }
                }
             } else {
+               char data[256];
                db_sscanf(mxml_get_value(child), data, &size, 0, tid);
                status = db_set_data_index(hDB, hKey, data, rpc_tid_size(tid), idx, tid);
                if (status == DB_NO_ACCESS) {
@@ -8845,6 +8864,7 @@ static int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
                }
             }
          } else {
+            char data[256];
             db_sscanf(mxml_get_value(node), data, &size, 0, tid);
             status = db_set_data(hDB, hKey, data, rpc_tid_size(tid), 1, tid);
             if (status == DB_NO_ACCESS) {
