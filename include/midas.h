@@ -257,7 +257,6 @@ typedef std::vector<std::string> STRING_LIST;
 #define MAX_EVENT_REQUESTS     10            /**< event requests per client   */
 #define MAX_OPEN_RECORDS       256           /**< number of open DB records   */
 #define MAX_ODB_PATH           256           /**< length of path in ODB       */
-#define MAX_EXPERIMENT         32            /**< number of different exp.    */
 #define BANKLIST_MAX           4096          /**< max # of banks in event     */
 #define STRING_BANKLIST_MAX    BANKLIST_MAX * 4   /**< for bk_list()          */
 
@@ -1672,13 +1671,18 @@ Data conversion flags */
    const char* EXPRT cm_get_version(void);
    const char* EXPRT cm_get_revision(void);
    INT EXPRT cm_get_experiment_name(char *name, int name_size);
-   INT EXPRT cm_get_environment(char *host_name, int host_name_size,
-                                char *exp_name, int exp_name_size);
-   INT EXPRT cm_list_experiments(const char *host_name,
-                                 char exp_name[MAX_EXPERIMENT][NAME_LENGTH]);
+   std::string cm_get_experiment_name();
+   INT EXPRT cm_get_environment(char *host_name, int host_name_size, char *exp_name, int exp_name_size);
+   INT EXPRT cm_get_environment(std::string *host_name, std::string *exp_name);
+   INT EXPRT cm_list_experiments_local(STRING_LIST* exp_names);
+   INT EXPRT cm_list_experiments_remote(const char *host_name, STRING_LIST* exp_names);
    INT EXPRT cm_get_exptab_filename(char* filename, int filename_size);
+   std::string cm_get_exptab_filename();
    INT EXPRT cm_get_exptab(const char* exp_name, char* expdir, int expdir_size, char* expuser, int expuser_size);
-   INT EXPRT cm_select_experiment(const char *host_name, char *exp_name);
+   INT EXPRT cm_get_exptab(const char* exp_name, std::string* expdir, std::string* expuser);
+   INT EXPRT cm_select_experiment_local(std::string *exp_name);
+   INT EXPRT cm_select_experiment_remote(const char *host_name, std::string *exp_name);
+   INT EXPRT cm_set_experiment_local(const char* exp_name);
    INT EXPRT cm_connect_experiment(const char *host_name, const char *exp_name,
                                    const char *client_name, void (*func) (char *));
    INT EXPRT cm_connect_experiment1(const char *host_name, const char *exp_name,
@@ -1743,6 +1747,7 @@ Data conversion flags */
 
    BOOL EXPRT equal_ustring(const char *str1, const char *str2);
    BOOL EXPRT ends_with_ustring(const char *str, const char *suffix);
+   bool EXPRT ends_with_char(const std::string& s, char c);
    BOOL EXPRT strmatch(char* pattern, char*str);
    void EXPRT strarrayindex(char* odbpath, int* index1, int* index2);
 
@@ -1928,7 +1933,7 @@ Data conversion flags */
    INT EXPRT rpc_get_option(HNDLE hConn, INT item);
    INT EXPRT rpc_set_option(HNDLE hConn, INT item, INT value);
    INT EXPRT rpc_set_name(const char *name);
-   INT EXPRT rpc_get_name(char *name);
+   std::string rpc_get_name();
    INT EXPRT rpc_is_remote(void);
    std::string rpc_get_mserver_hostname();
    INT EXPRT rpc_is_mserver(void);
@@ -1944,6 +1949,7 @@ Data conversion flags */
    INT EXPRT rpc_tid_size(INT id);
    const char EXPRT *rpc_tid_name(INT id);
    const char EXPRT *rpc_tid_name_old(INT id);
+   INT EXPRT rpc_name_tid(const char* name); // inverse of rpc_tid_name()
    INT EXPRT rpc_server_connect(const char *host_name, const char *exp_name);
    INT EXPRT rpc_client_connect(const char *host_name, INT midas_port, const char *client_name, HNDLE * hConnection);
    INT EXPRT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown);
@@ -2003,10 +2009,13 @@ Data conversion flags */
    /*---- disk routines ----*/
    double EXPRT ss_disk_free(const char *path);
    double EXPRT ss_file_size(const char *path);
+   INT EXPRT ss_dir_exist(const char *path);
    INT EXPRT ss_file_exist(const char *path);
    INT EXPRT ss_file_remove(const char *path);
    INT EXPRT ss_file_find(const char *path, const char *pattern, char **plist);
    INT EXPRT ss_dir_find(const char *path, const char *pattern, char **plist);
+   INT EXPRT ss_file_find(const char *path, const char *pattern, STRING_LIST*);
+   INT EXPRT ss_dir_find(const char *path, const char *pattern, STRING_LIST*);
    double EXPRT ss_disk_size(const char *path);
 
    /** @} */

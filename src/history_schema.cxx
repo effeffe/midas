@@ -166,14 +166,6 @@ static bool MatchTagName(const char* tag_name, int n_data, const char* var_tag_n
    return false;
 }
 
-static int midas_tid(const char* type_name)
-{
-   for (int i=0; i<TID_LAST; i++)
-      if (strcmp(type_name, rpc_tid_name(i)) == 0)
-         return i;
-   return 0;
-}
-
 static void PrintTags(int ntags, const TAG tags[])
 {
    for (int i=0; i<ntags; i++)
@@ -2202,8 +2194,8 @@ int HsFileSchema::read_data(const time_t start_time,
 
             switch (s->variables[si].type) {
             default:
-               // FIXME!!!
-               abort();
+               // unknown data type
+               v = 0;
                break;
             case TID_BYTE:
                v = ((unsigned char*)ptr)[ii];
@@ -4230,7 +4222,7 @@ int SqliteHistory::read_column_names(HsSchemaVector *sv, const char* table_name,
             if (col_name != s->column_names[j])
                continue;
             s->variables[j].name = tag_name;
-            s->variables[j].type = midas_tid(tag_type.c_str());
+            s->variables[j].type = rpc_name_tid(tag_type.c_str());
             s->variables[j].n_data = 1;
             s->variables[j].n_bytes = rpc_tid_size(s->variables[j].type);
          }
@@ -4533,7 +4525,7 @@ int MysqlHistory::read_column_names(HsSchemaVector *sv, const char* table_name, 
          if (s->time_from < schema_time)
             continue;
 
-         int tid = midas_tid(tag_type);
+         int tid = rpc_name_tid(tag_type);
          int tid_size = rpc_tid_size(tid);
 
          for (unsigned j=0; j<s->column_names.size(); j++) {
@@ -5306,7 +5298,18 @@ HsFileSchema* FileHistory::read_file_schema(const char* filename)
          if (bbb) {
             *bbb = 0;
             HsSchemaEntry t;
-            t.type = midas_tid(midas_type);
+            if (midas_type[0] == '/') {
+               t.type = 0;
+            } else {
+               t.type = rpc_name_tid(midas_type);
+               if (t.type == 0) {
+                  cm_msg(MERROR, "FileHistory::read_file_schema", "Unknown MIDAS data type \'%s\' in history file \'%s\'", midas_type, filename);
+                  if (s)
+                     delete s;
+                  s = NULL;
+                  break;
+               }
+            }
             bbb++;
             while (*bbb == ' ')
                bbb++;
