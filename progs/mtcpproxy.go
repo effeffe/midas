@@ -22,12 +22,12 @@ var g_done map[net.Conn]bool
 var g_done_mutex sync.Mutex
 
 func copy(c, w, r *net.TCPConn) {
-	_, e := io.Copy(w, r)
+	written, e := io.Copy(w, r)
 	if e != nil {
 		fmt.Fprintf(os.Stderr, "Connection from \"%v\": io.Copy() error %v\n", c.RemoteAddr(), e)
 	} else {
 		if *conf_verbose {
-			fmt.Fprintf(os.Stderr, "Connection from \"%v\": io.Copy() done\n", c.RemoteAddr())
+			fmt.Fprintf(os.Stderr, "Connection from \"%v\": io.Copy() copied %v bytes\n", c.RemoteAddr(), written)
 		}
 	}
 
