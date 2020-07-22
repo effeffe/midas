@@ -8682,16 +8682,15 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
 /*
   Only internally used by db_paste_xml
 */
-int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
+static int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
 {
    char type[256], data[256], test_str[256];
    char *buf = NULL;
-   int i, idx, status, size=0, tid, num_values;
+   int status;
    HNDLE hKey;
-   PMXML_NODE child;
 
    if (strcmp(mxml_get_name(node), "odb") == 0) {
-      for (i = 0; i < mxml_get_number_of_children(node); i++) {
+      for (int i = 0; i < mxml_get_number_of_children(node); i++) {
          status = db_paste_node(hDB, hKeyRoot, mxml_subnode(node, i));
          if (status != DB_SUCCESS)
             return status;
@@ -8725,7 +8724,7 @@ int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
 
       db_get_path(hDB, hKey, data, sizeof(data));
       if (strncmp(data, "/System/Clients", 15) != 0) {
-         for (i = 0; i < mxml_get_number_of_children(node); i++) {
+         for (int i = 0; i < mxml_get_number_of_children(node); i++) {
             status = db_paste_node(hDB, hKey, mxml_subnode(node, i));
             if (status != DB_SUCCESS)
                return status;
@@ -8733,6 +8732,7 @@ int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
       }
    } else if (strcmp(mxml_get_name(node), "key") == 0 || strcmp(mxml_get_name(node), "keyarray") == 0) {
 
+      int num_values;
       if (strcmp(mxml_get_name(node), "keyarray") == 0)
          num_values = atoi(mxml_get_attribute(node, "num_values"));
       else
@@ -8744,10 +8744,8 @@ int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
       }
 
       strlcpy(type, mxml_get_attribute(node, "type"), sizeof(type));
-      for (tid = 0; tid < TID_LAST; tid++)
-         if (strcmp(rpc_tid_name(tid), type) == 0)
-            break;
-      if (tid == TID_LAST) {
+      int tid = rpc_name_tid(type);
+      if (tid == 0) {
          cm_msg(MERROR, "db_paste_node", "found unknown data type \"%s\" in XML data", type);
          return DB_TYPE_MISMATCH;
       }
@@ -8771,6 +8769,8 @@ int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
          }
       }
 
+      int size = 0;
+
       if (tid == TID_STRING || tid == TID_LINK) {
          size = atoi(mxml_get_attribute(node, "size"));
          buf = (char *)malloc(size);
@@ -8780,8 +8780,9 @@ int db_paste_node(HNDLE hDB, HNDLE hKeyRoot, PMXML_NODE node)
 
       if (num_values) {
          /* evaluate array */
-         for (i = 0; i < mxml_get_number_of_children(node); i++) {
-            child = mxml_subnode(node, i);
+         for (int i = 0; i < mxml_get_number_of_children(node); i++) {
+            PMXML_NODE child = mxml_subnode(node, i);
+            int idx;
             if (mxml_get_attribute(child, "index"))
                idx = atoi(mxml_get_attribute(child, "index"));
             else
