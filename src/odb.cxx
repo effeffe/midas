@@ -3415,6 +3415,9 @@ int db_create_key_wlocked(DATABASE_HEADER* pheader, KEY* parentKey, const char *
             KEY* pkey = (KEY *) malloc_key(pheader, sizeof(KEY), "db_create_key_data");
             
             if (pkey == NULL) {
+               if (pkeylist->num_keys > 0)
+                  pkeylist->num_keys--;
+
                db_msg(msg, MERROR, "db_create_key", "online database full while creating \'%s\' in \'%s\'", key_name, db_get_path_locked(pheader, parentKey).c_str());
                return DB_FULL;
             }
