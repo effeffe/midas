@@ -5217,9 +5217,9 @@ static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_r
    }
 
    if (type == TID_STRING || type == TID_LINK) {
-      //printf("utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
+      //printf("db_set_value: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
       if (!is_utf8((const char*)data)) {
-         db_msg(msg, MERROR, "db_set_value", "odb \"%s\" set to invalid UTF8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), data);
+         db_msg(msg, MERROR, "db_set_value", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), data);
          // just a warning for now. K.O.
          //return DB_TYPE_MISMATCH;
       }
@@ -6975,6 +6975,7 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
          return DB_INVALID_PARAM;
 
       db_lock_database(hDB);
+      db_err_msg* msg = NULL;
 
       pheader = _database[hDB - 1].database_header;
 
@@ -7023,6 +7024,16 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
          return DB_TYPE_MISMATCH;
       }
 
+      /* check utf-8 encoding */
+      if (pkey->type == TID_STRING || pkey->type == TID_LINK) {
+         // FIXME: this test is wrong, if this is db_set_data() of an array, we should
+         // check every element of the array! K.O.
+         //printf("db_set_data: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
+         if (!is_utf8((const char*)data)) {
+            db_msg(&msg, MERROR, "db_set_data", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), data);
+         }
+      }
+
       db_allow_write_locked(&_database[hDB-1], "db_set_data");
 
       /* if no buf_size given (Java!), calculate it */
@@ -7036,6 +7047,8 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
          if (pkey->data == 0) {
             pkey->total_size = 0;
             db_unlock_database(hDB);
+            if (msg)
+               db_flush_msg(&msg);
             cm_msg(MERROR, "db_set_data", "online database full");
             return DB_FULL;
          }
@@ -7055,7 +7068,6 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
       /* update time */
       pkey->last_written = ss_time();
 
-      db_err_msg* msg = NULL;
       db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
       if (msg)
@@ -7233,6 +7245,7 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
          return DB_INVALID_PARAM;
 
       db_lock_database(hDB);
+      db_err_msg* msg = NULL;
 
       pheader = _database[hDB - 1].database_header;
 
@@ -7264,6 +7277,16 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
          db_unlock_database(hDB);
          cm_msg(MERROR, "db_set_link_data", "Key cannot contain data");
          return DB_TYPE_MISMATCH;
+      }
+
+      /* check utf-8 encoding */
+      if (pkey->type == TID_STRING || pkey->type == TID_LINK) {
+         // FIXME: this test is wrong, if this is db_set_data() of an array, we should
+         // check every element of the array! K.O.
+         //printf("db_set_link_data: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
+         if (!is_utf8((const char*)data)) {
+            db_msg(&msg, MERROR, "db_set_link_data", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), data);
+         }
       }
 
       /* if no buf_size given (Java!), calculate it */
@@ -7298,7 +7321,6 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
       /* update time */
       pkey->last_written = ss_time();
 
-      db_err_msg* msg = NULL;
       db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
       if (msg)
@@ -7487,6 +7509,7 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
       }
 
       db_lock_database(hDB);
+      db_err_msg* msg = NULL;
 
       pheader = _database[hDB - 1].database_header;
 
@@ -7532,6 +7555,14 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
          db_unlock_database(hDB);
          cm_msg(MERROR, "db_set_data_index", "key cannot contain data");
          return DB_TYPE_MISMATCH;
+      }
+
+      /* check utf-8 encoding */
+      if (pkey->type == TID_STRING || pkey->type == TID_LINK) {
+         //printf("db_set_data_index: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
+         if (!is_utf8((const char*)data)) {
+            db_msg(&msg, MERROR, "db_set_data_index", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), data);
+         }
       }
 
       /* check for valid idx */
@@ -7591,7 +7622,6 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
       /* update time */
       pkey->last_written = ss_time();
 
-      db_err_msg* msg = NULL;
       db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE, &msg);
       db_unlock_database(hDB);
       if (msg)
