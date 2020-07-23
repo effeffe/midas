@@ -379,6 +379,21 @@ bool ends_with_char(const std::string& s, char c)
    return s[s.length()-1] == c;
 }
 
+std::string msprintf(const char *format, ...) {
+   va_list ap, ap1;
+   va_start(ap, format);
+   va_copy(ap1, ap);
+   size_t size = vsnprintf(nullptr, 0, format, ap1) + 1;
+   char *buffer = (char *)malloc(size);
+   if (!buffer)
+      return "";
+   vsnprintf(buffer, size, format, ap);
+   va_end(ap);
+   std::string s(buffer);
+   free(buffer);
+   return s;
+}
+
 /********************************************************************\
 *                                                                    *
 *              Common message functions                              *
@@ -1826,9 +1841,6 @@ INT cm_read_exptab(exptab_struct *exptab) {
 
          len = p2-p1;
 
-         if (len<1)
-            continue;
-         
          //printf("str %d [%s] p1 [%s] p2 %d [%s] len %d\n", *str, str, p1, *p2, p2, (int)len);
 
          e.user = std::string(p1, len);

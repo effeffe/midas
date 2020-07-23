@@ -14,6 +14,17 @@ LN10 = 2.302585094;
 LOG2 = 0.301029996;
 LOG5 = 0.698970005;
 
+function profile(flag) {
+   if (flag === true) {
+      profile.startTime = new Date().getTime();
+      return;
+   }
+
+   let now = new Date().getTime();
+   console.log("Profile: " + flag + ": " + (now-profile.startTime) + "ms");
+   profile.startTime = new Date().getTime();
+}
+
 function mhistory_init() {
    // go through all data-name="mhistory" tags
    let mhist = Array.from(document.getElementsByTagName("div")).filter(d => {
@@ -313,6 +324,7 @@ function doQueryAB(t) {
    t.tMax = d2.getTime() / 1000;
    t.scroll = false;
    t.loadOldData();
+   t.redraw();
 
    if (t.callbacks.timeZoom !== undefined)
       t.callbacks.timeZoom(t);
@@ -552,6 +564,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   mhg.scroll = false;
                   mhg.marker.active = false;
                   mhg.loadOldData();
+                  mhg.redraw();
 
                   if (mhg.callbacks.timeZoom !== undefined)
                      mhg.callbacks.timeZoom(mhg);
@@ -584,6 +597,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   mhg.scroll = false;
                   mhg.marker.active = false;
                   mhg.loadOldData();
+                  mhg.redraw();
 
                   if (mhg.callbacks.timeZoom !== undefined)
                      mhg.callbacks.timeZoom(mhg);
@@ -687,6 +701,11 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    // load initial data
    this.tMinRequested = this.tMin - this.tScale; // look one window ahead in past
+
+   // limit one request to maximum one month
+   if (this.lastTimeStamp - this.tMinRequested > 3600*24*30)
+      this.tMinRequested = this.lastTimeStamp - 3600*24*30;
+
    this.pendingUpdates++;
    this.parentDiv.style.cursor = "progress";
    mjsonrpc_call("hs_read_arraybuffer",
@@ -699,12 +718,18 @@ MhistoryGraph.prototype.loadInitialData = function () {
       }, "arraybuffer")
       .then(function (rpc) {
 
+         this.receiveData(rpc);
+         this.redraw();
+
+         if (this.tMin - this.tScale < this.tMinRequested) {
+            this.pendingUpdates--;
+            this.loadOldData();
+            return;
+         }
+
          this.pendingUpdates--;
          if (this.pendingUpdates === 0)
             this.parentDiv.style.cursor = "default";
-
-         this.receiveData(rpc);
-         this.redraw();
 
          if (this.updateTimer === undefined)
             this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
@@ -726,6 +751,10 @@ MhistoryGraph.prototype.loadOldData = function () {
       let oldTMinRequested = this.tMinRequested;
       this.tMinRequested = this.tMin - dt;
 
+      // limit one request to maximum one month
+      if (oldTMinRequested - this.tMinRequested > 3600*24*30)
+         this.tMinRequested = oldTMinRequested - 3600*24*30;
+
       this.pendingUpdates++;
       this.parentDiv.style.cursor = "progress";
       mjsonrpc_call("hs_read_arraybuffer",
@@ -738,11 +767,21 @@ MhistoryGraph.prototype.loadOldData = function () {
          }, "arraybuffer")
          .then(function (rpc) {
 
+            this.receiveData(rpc);
+
+            if (this.tMin - dt / 2 < this.tMinRequested) {
+               this.lastDrawTime = 0; // force redraw
+               this.redraw();
+               this.pendingUpdates--;
+               this.loadOldData();
+               return;
+            }
+
             this.pendingUpdates--;
             if (this.pendingUpdates === 0)
                this.parentDiv.style.cursor = "default";
 
-            this.receiveData(rpc);
+            this.lastDrawTime = 0; // force redraw
             this.redraw();
 
          }.bind(this))
@@ -750,9 +789,7 @@ MhistoryGraph.prototype.loadOldData = function () {
             mjsonrpc_error_alert(error);
          });
    }
-   this.redraw();
 };
-
 
 MhistoryGraph.prototype.receiveData = function (rpc) {
 
@@ -766,7 +803,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       // RPC did not return any data
 
       if (this.data === undefined) {
-         // must initialize the arrays otherwise nothhing works.
+         // must initialize the arrays otherwise nothing works.
          this.data = [];
          for (let index = 0; index < nVars; index++) {
             this.data.push({time: [], value: []});
@@ -792,7 +829,6 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
 
       if (this.data[index].time.length === 0) {
          // initial data
-         // console.log("add new!");
 
          let formula = this.odb["Formula"];
 
@@ -815,7 +851,6 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          }
       } else if (t0 < this.data[index].time[0]) {
          // add data to the left
-         //console.log("add to the left!");
 
          let formula = this.odb["Formula"];
 
@@ -847,7 +882,6 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          this.data[index].value = v1.concat(this.data[index].value);
       } else {
          // add data to the right
-         //console.log("add to the right!");
 
          let formula = this.odb["Formula"];
 
@@ -884,6 +918,8 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          }
       }
    }
+
+   this.findMinMax();
 };
 
 MhistoryGraph.prototype.update = function () {
@@ -961,6 +997,12 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
    let cursor = this.pendingUpdates > 0 ? "progress" : "default";
    let title = "";
+   let cancel = false;
+
+   // cancel dragging in case we did not catch the mouseup event
+   if (e.type === "mousemove" && e.buttons === 0 &&
+      (this.drag.active || this.zoom.x.active || this.zoom.y.active))
+      cancel = true;
 
    if (e.type === "mousedown") {
 
@@ -995,8 +1037,15 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             let delta = this.tMax - this.tMin;
             this.tMin -= delta / 2;
             this.tMax += delta / 2;
+            // don't go into the future
+            let now = Math.floor(new Date() / 1000);
+            if (this.tMax > now) {
+               this.tMax = now;
+               this.tMin = now - 2*delta;
+            }
             this.drag.Vt = 0; // stop inertia
             this.loadOldData();
+            this.redraw();
          } else
             dlgMessage("Warning", "Don't press the '-' too fast!", true, false);
          e.preventDefault();
@@ -1033,7 +1082,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.zoom.y.v1 = this.yToValue(e.offsetY);
       }
 
-   } else if (e.type === "mouseup") {
+   } else if (cancel || e.type === "mouseup") {
 
       if (this.drag.active) {
          this.drag.active = false;
@@ -1097,6 +1146,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          }
 
          this.loadOldData();
+         this.redraw();
 
          if (this.callbacks.timeZoom !== undefined)
             this.callbacks.timeZoom(this);
@@ -1292,6 +1342,7 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
             }
 
             this.loadOldData();
+            this.redraw();
          }
 
          if (this.callbacks.timeZoom !== undefined)
@@ -1320,6 +1371,7 @@ MhistoryGraph.prototype.inertia = function () {
       }
 
       this.loadOldData();
+      this.redraw();
 
       if (this.callbacks.timeZoom !== undefined)
          this.callbacks.timeZoom(this);
@@ -1378,6 +1430,7 @@ MhistoryGraph.prototype.setTimespan = function (tMin, tMax, scroll) {
    this.tMax = tMax;
    this.scroll = scroll;
    this.loadOldData();
+   this.redraw();
 };
 
 MhistoryGraph.prototype.resize = function () {
@@ -1531,6 +1584,8 @@ MhistoryGraph.prototype.updateURL = function() {
 }
 
 MhistoryGraph.prototype.draw = function () {
+   profile(true);
+
    // draw maximal 20 times per second
    if (new Date().getTime() < this.lastDrawTime + 50)
       return;
@@ -1551,8 +1606,6 @@ MhistoryGraph.prototype.draw = function () {
       ctx.fillText("Data being loaded ...", this.width / 2, this.height / 2);
       return;
    }
-
-   this.findMinMax();
 
    ctx.lineWidth = 1;
    ctx.font = "14px sans-serif";
@@ -1596,8 +1649,7 @@ MhistoryGraph.prototype.draw = function () {
       4, 7, 10, 10, this.y2 - this.y1, this.tMin, this.tMax);
 
    // determine precision
-   let n_sig1 = 0;
-   let n_sig2 = 0;
+   let n_sig1, n_sig2;
    if (this.yMin === 0)
       n_sig1 = 1;
    else
@@ -1627,6 +1679,8 @@ MhistoryGraph.prototype.draw = function () {
    ctx.beginPath();
    ctx.rect(this.x1, this.y2, this.x2 - this.x1, this.y1 - this.y2);
    ctx.clip();
+
+   //profile("drawinit");
 
    // convert values to points
    for (let di = 0; di < this.data.length; di++) {
@@ -1674,6 +1728,8 @@ MhistoryGraph.prototype.draw = function () {
       }
       //console.log("draw: index: " + di + ", n: " + n);
    }
+
+   //("points to values");
 
    let avgN = [];
 
@@ -1741,9 +1797,9 @@ MhistoryGraph.prototype.draw = function () {
 
          if (avgN[di] > 2) {
             ctx.beginPath();
-            let x0;
-            let y0;
-            let xLast;
+            let x0 = undefined;
+            let y0 = 0;
+            let xLast = 0;
             for (let i = 0; i < this.p[di].length; i++) {
                let p = this.p[di][i];
                if (x0 === undefined) {
@@ -1764,9 +1820,9 @@ MhistoryGraph.prototype.draw = function () {
             ctx.globalAlpha = 1;
          } else {
             ctx.beginPath();
-            let x0;
-            let y0;
-            let xLast;
+            let x0 = 0;
+            let y0 = 0;
+            let xLast = 0;
             let i;
             for (i = 0; i < this.x[di].length; i++) {
                let x = this.x[di][i];
@@ -1876,7 +1932,7 @@ MhistoryGraph.prototype.draw = function () {
       this.variablesWidth = 0;
 
       this.odb["Variables"].forEach((v, i) => {
-         let width = 0;
+         let width;
          if (this.odb.Label[i] !== "")
             width = ctx.measureText(this.odb.Label[i]).width;
          else
@@ -1960,7 +2016,7 @@ MhistoryGraph.prototype.draw = function () {
    if (this.pendingUpdates > 0) {
       let str = "Updating data ...";
       ctx.strokeStyle = "#404040";
-      ctx.fillStyle = "#F0F0F0";
+      ctx.fillStyle = "#FFC0C0";
       ctx.fillRect(this.x1 + 5, this.y1 - 22, 10 + ctx.measureText(str).width, 17);
       ctx.strokeRect(this.x1 + 5, this.y1 - 22, 10 + ctx.measureText(str).width, 17);
       ctx.fillStyle = "#404040";
