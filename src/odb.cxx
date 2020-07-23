@@ -3458,7 +3458,6 @@ int db_create_key_wlocked(DATABASE_HEADER* pheader, KEY* parentKey, const char *
                db_msg(msg, MERROR, "db_create_key", "object of type %d already exists at \"%s\" while creating \'%s\' of type %d in \'%s\'", pitem->type, db_get_path_locked(pheader, pitem).c_str(), key_name, type, db_get_path_locked(pheader, parentKey).c_str());
                return DB_TYPE_MISMATCH;
             }
-            printf("here: [%s]: ", pkey_name);
             db_print_pkey(pheader, pitem);
 
             if (pnewkey)
@@ -5187,9 +5186,6 @@ static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_r
          return status;
    }
    
-   if (status != DB_SUCCESS)
-      return status;
-   
    /* check for write access */
    if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
       return DB_NO_ACCESS;
@@ -5218,8 +5214,9 @@ static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_r
 
    if (type == TID_STRING || type == TID_LINK) {
       //printf("db_set_value: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
-      if (!is_utf8((const char*)data)) {
-         db_msg(msg, MERROR, "db_set_value", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), data);
+      const char* value = (const char*)data;
+      if (!is_utf8(value)) {
+         db_msg(msg, MERROR, "db_set_value", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
          // just a warning for now. K.O.
          //return DB_TYPE_MISMATCH;
       }
@@ -7029,8 +7026,9 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
          // FIXME: this test is wrong, if this is db_set_data() of an array, we should
          // check every element of the array! K.O.
          //printf("db_set_data: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
-         if (!is_utf8((const char*)data)) {
-            db_msg(&msg, MERROR, "db_set_data", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), data);
+         const char* value = (const char*)data;
+         if (!is_utf8(value)) {
+            db_msg(&msg, MERROR, "db_set_data", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
          }
       }
 
@@ -7284,8 +7282,9 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
          // FIXME: this test is wrong, if this is db_set_data() of an array, we should
          // check every element of the array! K.O.
          //printf("db_set_link_data: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
-         if (!is_utf8((const char*)data)) {
-            db_msg(&msg, MERROR, "db_set_link_data", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), data);
+         const char* value = (const char*)data;
+         if (!is_utf8(value)) {
+            db_msg(&msg, MERROR, "db_set_link_data", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
          }
       }
 
