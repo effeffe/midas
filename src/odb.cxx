@@ -7559,8 +7559,9 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
       /* check utf-8 encoding */
       if (pkey->type == TID_STRING || pkey->type == TID_LINK) {
          //printf("db_set_data_index: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
-         if (!is_utf8((const char*)data)) {
-            db_msg(&msg, MERROR, "db_set_data_index", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), data);
+         const char* value = (const char*)data;
+         if (!is_utf8(value)) {
+            db_msg(&msg, MERROR, "db_set_data_index", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
          }
       }
 
