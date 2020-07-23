@@ -726,6 +726,10 @@ MhistoryGraph.prototype.loadOldData = function () {
       let oldTMinRequested = this.tMinRequested;
       this.tMinRequested = this.tMin - dt;
 
+      // limit one request to maximum one month
+      if (oldTMinRequested - this.tMinRequested > 3600*24*30)
+         this.tMinRequested = oldTMinRequested - 3600*24*30;
+
       this.pendingUpdates++;
       this.parentDiv.style.cursor = "progress";
       mjsonrpc_call("hs_read_arraybuffer",
@@ -738,12 +742,19 @@ MhistoryGraph.prototype.loadOldData = function () {
          }, "arraybuffer")
          .then(function (rpc) {
 
+            this.receiveData(rpc);
+            this.redraw();
+
+            if (this.tMin - dt / 2 < this.tMinRequested) {
+               console.log("Received block");
+               this.pendingUpdates--;
+               this.loadOldData();
+               return;
+            }
+
             this.pendingUpdates--;
             if (this.pendingUpdates === 0)
                this.parentDiv.style.cursor = "default";
-
-            this.receiveData(rpc);
-            this.redraw();
 
          }.bind(this))
          .catch(function (error) {
@@ -1596,8 +1607,7 @@ MhistoryGraph.prototype.draw = function () {
       4, 7, 10, 10, this.y2 - this.y1, this.tMin, this.tMax);
 
    // determine precision
-   let n_sig1 = 0;
-   let n_sig2 = 0;
+   let n_sig1, n_sig2;
    if (this.yMin === 0)
       n_sig1 = 1;
    else
@@ -1741,9 +1751,9 @@ MhistoryGraph.prototype.draw = function () {
 
          if (avgN[di] > 2) {
             ctx.beginPath();
-            let x0;
-            let y0;
-            let xLast;
+            let x0 = 0;
+            let y0 = 0;
+            let xLast = 0;
             for (let i = 0; i < this.p[di].length; i++) {
                let p = this.p[di][i];
                if (x0 === undefined) {
@@ -1764,9 +1774,9 @@ MhistoryGraph.prototype.draw = function () {
             ctx.globalAlpha = 1;
          } else {
             ctx.beginPath();
-            let x0;
-            let y0;
-            let xLast;
+            let x0 = 0;
+            let y0 = 0;
+            let xLast = 0;
             let i;
             for (i = 0; i < this.x[di].length; i++) {
                let x = this.x[di][i];
@@ -1876,7 +1886,7 @@ MhistoryGraph.prototype.draw = function () {
       this.variablesWidth = 0;
 
       this.odb["Variables"].forEach((v, i) => {
-         let width = 0;
+         let width;
          if (this.odb.Label[i] !== "")
             width = ctx.measureText(this.odb.Label[i]).width;
          else
