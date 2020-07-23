@@ -3458,7 +3458,6 @@ int db_create_key_wlocked(DATABASE_HEADER* pheader, KEY* parentKey, const char *
                db_msg(msg, MERROR, "db_create_key", "object of type %d already exists at \"%s\" while creating \'%s\' of type %d in \'%s\'", pitem->type, db_get_path_locked(pheader, pitem).c_str(), key_name, type, db_get_path_locked(pheader, parentKey).c_str());
                return DB_TYPE_MISMATCH;
             }
-            printf("here: [%s]: ", pkey_name);
             db_print_pkey(pheader, pitem);
 
             if (pnewkey)
@@ -5186,9 +5185,6 @@ static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_r
       if (status != DB_SUCCESS && status != DB_CREATED)
          return status;
    }
-   
-   if (status != DB_SUCCESS)
-      return status;
    
    /* check for write access */
    if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
