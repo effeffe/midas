@@ -5219,8 +5219,9 @@ static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_r
    if (type == TID_STRING || type == TID_LINK) {
       //printf("utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
       if (!is_utf8((const char*)data)) {
-         db_msg(msg, MERROR, "db_set_value", "cannot set odb \"%s\" to \"%s\": invalid UTF8 unicode", db_get_path_locked(pheader, pkey).c_str(), data);
-         return DB_TYPE_MISMATCH;
+         db_msg(msg, MERROR, "db_set_value", "odb \"%s\" set to invalid UTF8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), data);
+         // just a warning for now. K.O.
+         //return DB_TYPE_MISMATCH;
       }
    }
    
