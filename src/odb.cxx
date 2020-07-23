@@ -80,6 +80,8 @@ static int db_set_mode_wlocked(DATABASE_HEADER*,KEY*,WORD mode,int recurse,db_er
 static const KEY* db_resolve_link_locked(const DATABASE_HEADER*, const KEY*,int *pstatus, db_err_msg**);
 static int db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, HNDLE hKeyMod, int index, BOOL bWalk, db_err_msg** msg);
 static int db_create_key_wlocked(DATABASE_HEADER* pheader, KEY* parentKey, const char *key_name, DWORD type, KEY** pnewkey, db_err_msg** msg);
+static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_root, const char *key_name, const void *data, INT data_size, INT num_values, DWORD type, db_err_msg** msg);
+static INT db_get_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, int idx, void *data, INT * buf_size, DWORD type, db_err_msg** msg);
 #endif // LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
@@ -5154,100 +5156,30 @@ INT db_set_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *da
 
 #ifdef LOCAL_ROUTINES
    {
-      DATABASE_HEADER *pheader;
-      KEY *pkey;
-      HNDLE hKey;
       INT status;
 
       if (num_values == 0)
          return DB_INVALID_PARAM;
 
-      status = db_find_key(hDB, hKeyRoot, key_name, &hKey);
-      if (status == DB_NO_KEY) {
-         status = db_create_key(hDB, hKeyRoot, key_name, type);
-         if (status != DB_SUCCESS && status != DB_CREATED)
-            return status;
-         status = db_find_link(hDB, hKeyRoot, key_name, &hKey);
-      }
-
-      if (status != DB_SUCCESS)
-         return status;
-
       db_lock_database(hDB);
-      pheader = _database[hDB - 1].database_header;
 
-      /* get address from handle */
-      pkey = (KEY *) ((char *) pheader + hKey); // NB: hKey comes from db_find_key(), assumed to be valid
-
-      /* check for write access */
-      if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
-         db_unlock_database(hDB);
-         return DB_NO_ACCESS;
-      }
-
-      if (pkey->type != type) {
-         int pkey_type = pkey->type;
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_value", "\"%s\" is of type %s, not %s", key_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* keys cannot contain data */
-      if (pkey->type == TID_KEY) {
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_value", "key cannot contain data");
-         return DB_TYPE_MISMATCH;
-      }
-
-      if (data_size == 0) {
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_value", "zero data size not allowed");
-         return DB_TYPE_MISMATCH;
-      }
-
-      if (type != TID_STRING && type != TID_LINK && data_size != rpc_tid_size(type) * num_values) {
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_value", "\"%s\" data_size %d does not match tid %d size %d times num_values %d", key_name, data_size, type, rpc_tid_size(type), num_values);
-         return DB_TYPE_MISMATCH;
-      }
+      DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
 
       db_allow_write_locked(&_database[hDB-1], "db_set_value");
 
-      /* resize data size if necessary */
-      if (pkey->total_size != data_size) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size, "db_set_value");
+      db_err_msg* msg = NULL;
 
-         if (pkey->data == 0) {
-            pkey->total_size = 0;
-            db_unlock_database(hDB);
-            cm_msg(MERROR, "db_set_value", "online database full");
-            return DB_FULL;
-         }
+      KEY* pkey_root = (KEY*)db_get_pkey(pheader, hKeyRoot, &status, "db_set_value", &msg);
 
-         pkey->data -= (POINTER_T) pheader;
-         pkey->total_size = data_size;
+      if (pkey_root) {
+         status = db_set_value_wlocked(pheader, hDB, pkey_root, key_name, data, data_size, num_values, type, &msg);
       }
 
-      /* set number of values */
-      pkey->num_values = num_values;
-
-      if (type == TID_STRING || type == TID_LINK)
-         pkey->item_size = data_size / num_values;
-      else
-         pkey->item_size = rpc_tid_size(type);
-
-      /* copy data */
-      memcpy((char *) pheader + pkey->data, data, data_size);
-
-      /* update time */
-      pkey->last_written = ss_time();
-
-      db_err_msg* msg = NULL;
-      db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
       if (msg)
          db_flush_msg(&msg);
 
+      return status;
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -5255,28 +5187,23 @@ INT db_set_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *da
 }
 
 #ifdef LOCAL_ROUTINES
-#if 0
-static int db_set_value_wlocked(DATABASE_HEADER* pheader, const KEY* pkeyRoot, const char *key_name, const void *data, INT data_size, INT num_values, DWORD type, db_err_msg** msg)
+static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_root, const char *key_name, const void *data, INT data_size, INT num_values, DWORD type, db_err_msg** msg)
 {
    INT status;
-   
+
    if (num_values == 0)
       return DB_INVALID_PARAM;
    
-   KEY* pkey = (KEY*)db_find_pkey_locked(pheader, pkeyRoot, key_name, &status, msg);
+   KEY* pkey = (KEY*)db_find_pkey_locked(pheader, pkey_root, key_name, &status, msg);
 
    if (!pkey) {
-      status = db_create_key(hDB, hKeyRoot, key_name, type);
+      status = db_create_key_wlocked(pheader, pkey_root, key_name, type, &pkey, msg);
       if (status != DB_SUCCESS && status != DB_CREATED)
          return status;
-      status = db_find_link(hDB, hKeyRoot, key_name, &hKey);
    }
    
    if (status != DB_SUCCESS)
       return status;
-   
-   /* get address from handle */
-   pkey = (KEY *) ((char *) pheader + hKey); // NB: hKey comes from db_find_key(), assumed to be valid
    
    /* check for write access */
    if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
@@ -5332,11 +5259,10 @@ static int db_set_value_wlocked(DATABASE_HEADER* pheader, const KEY* pkeyRoot, c
    /* update time */
    pkey->last_written = ss_time();
    
-   db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, msg);
+   db_notify_clients_locked(pheader, hDB, db_pkey_to_hkey(pheader, pkey), -1, TRUE, msg);
    
    return DB_SUCCESS;
 }
-#endif
 #endif /* LOCAL_ROUTINES */
 
 /********************************************************************/
@@ -5420,11 +5346,7 @@ INT db_get_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, void *data, IN
 
 #ifdef LOCAL_ROUTINES
    {
-      DATABASE_HEADER *pheader;
-      HNDLE hkey;
-      KEY *pkey;
-      INT status, size, idx;
-      char *p, path[256], keyname[256];
+      INT status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_get_value", "invalid database handle %d", hDB);
@@ -5437,9 +5359,11 @@ INT db_get_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, void *data, IN
       }
 
       /* check if key name contains index */
+      char keyname[MAX_ODB_PATH];
       strlcpy(keyname, key_name, sizeof(keyname));
-      idx = -1;
+      int idx = -1;
       if (strchr(keyname, '[') && strchr(keyname, ']')) {
+         char* p;
          for (p = strchr(keyname, '[') + 1; *p && *p != ']'; p++)
             if (!isdigit(*p))
                break;
@@ -5450,89 +5374,101 @@ INT db_get_value(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, void *data, IN
          }
       }
 
-      status = db_find_key(hDB, hKeyRoot, keyname, &hkey);
-      if (status == DB_NO_KEY) {
+      /* now lock database */
+      db_lock_database(hDB);
+
+      DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
+      db_err_msg* msg = NULL;
+
+      const KEY* pkey_root = db_get_pkey(pheader, hKeyRoot, &status, "db_get_value", &msg);
+
+      if (!pkey_root) {
+         db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
+      }
+
+      const KEY* pkey = db_find_pkey_locked(pheader, pkey_root, keyname, &status, &msg);
+
+      if (!pkey) {
          if (create) {
-            db_create_key(hDB, hKeyRoot, keyname, type);
-            status = db_find_key(hDB, hKeyRoot, keyname, &hkey);
-            if (status != DB_SUCCESS)
-               return status;
+            db_allow_write_locked(&_database[hDB-1], "db_get_value");
+            /* set default value if key was created */
 
             /* get string size from data size */
+            int size;
             if (type == TID_STRING || type == TID_LINK)
                size = *buf_size;
             else
                size = rpc_tid_size(type);
 
-            if (size == 0)
-               return DB_TYPE_MISMATCH;
-
-            /* set default value if key was created */
-            status = db_set_value(hDB, hKeyRoot, keyname, data, *buf_size, *buf_size / size, type);
-         } else
+            status = db_set_value_wlocked(pheader, hDB, (KEY*)pkey_root, keyname, data, *buf_size, *buf_size / size, type, &msg);
+            db_unlock_database(hDB);
+            if (msg)
+               db_flush_msg(&msg);
+            return status;
+         } else {
+            db_unlock_database(hDB);
+            if (msg)
+               db_flush_msg(&msg);
             return DB_NO_KEY;
+         }
       }
 
-      if (status != DB_SUCCESS)
-         return status;
-
-      /* now lock database */
-      db_lock_database(hDB);
-      pheader = _database[hDB - 1].database_header;
-
-      /* get address from handle */
-      pkey = (KEY *) ((char *) pheader + hkey); // NB: hkey comes from db_find_key(), assumed to be valid
-
-      /* check for correct type */
-      if (pkey->type != (type)) {
-         int pkey_type = pkey->type;
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_value", "hkey %d entry \"%s\" is of type %s, not %s", hKeyRoot, keyname, rpc_tid_name(pkey_type), rpc_tid_name(type));
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* check for read access */
-      if (!(pkey->access_mode & MODE_READ)) {
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_value", "%s has no read access", keyname);
-         return DB_NO_ACCESS;
-      }
-
-      /* check if buffer is too small */
-      if ((idx == -1 && pkey->num_values * pkey->item_size > *buf_size) || (idx != -1 && pkey->item_size > *buf_size)) {
-         int pkey_num_values = pkey->num_values;
-         int pkey_item_size = pkey->item_size;
-         memcpy(data, (char *) pheader + pkey->data, *buf_size);
-         db_unlock_database(hDB);
-         char path[MAX_ODB_PATH];
-         db_get_path(hDB, hkey, path, sizeof(path));
-         cm_msg(MERROR, "db_get_value", "buffer size %d too small, data size %dx%d, truncated for key \"%s\"", *buf_size, pkey_num_values, pkey_item_size, path);
-         return DB_TRUNCATED;
-      }
-
-      /* check if index in boundaries */
-      if (idx != -1 && idx >= pkey->num_values) {
-         db_unlock_database(hDB);
-         db_get_path(hDB, hkey, path, sizeof(path));
-         cm_msg(MERROR, "db_get_value", "invalid index \"%d\" for key \"%s\"", idx, path);
-         return DB_INVALID_PARAM;
-      }
-
-      /* copy key data */
-      if (idx == -1) {
-         memcpy(data, (char *) pheader + pkey->data, pkey->num_values * pkey->item_size);
-         *buf_size = pkey->num_values * pkey->item_size;
-      } else {
-         memcpy(data, (char *) pheader + pkey->data + idx * pkey->item_size, pkey->item_size);
-         *buf_size = pkey->item_size;
-      }
+      status = db_get_data_locked(pheader, pkey, idx, data, buf_size, type, &msg);
 
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
+
+      return status;
    }
 #endif                          /* LOCAL_ROUTINES */
 
    return DB_SUCCESS;
 }
+
+#ifdef LOCAL_ROUTINES
+static INT db_get_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, int idx, void *data, INT * buf_size, DWORD type, db_err_msg** msg)
+{
+   /* check for correct type */
+   if (pkey->type != (type)) {
+      db_msg(msg, MERROR, "db_get_data_locked", "odb entry \"%s\" is of type %s, not %s", db_get_path_locked(pheader, pkey).c_str(), rpc_tid_name(pkey->type), rpc_tid_name(type));
+      return DB_TYPE_MISMATCH;
+   }
+
+   /* check for read access */
+   if (!(pkey->access_mode & MODE_READ)) {
+      db_msg(msg, MERROR, "db_get_data_locked", "odb entry \"%s\" has no read access", db_get_path_locked(pheader, pkey).c_str());
+      return DB_NO_ACCESS;
+   }
+
+   /* check if buffer is too small */
+   if ((idx == -1 && pkey->num_values * pkey->item_size > *buf_size) || (idx != -1 && pkey->item_size > *buf_size)) {
+      memcpy(data, (char *) pheader + pkey->data, *buf_size);
+      db_msg(msg, MERROR, "db_get_data_locked", "odb entry \"%s\" data truncated, size is %d (%d*%d), buffer size is only %d", db_get_path_locked(pheader, pkey).c_str(), pkey->num_values * pkey->item_size, pkey->num_values, pkey->item_size, *buf_size);
+      return DB_TRUNCATED;
+   }
+
+   /* check if index in boundaries */
+   if (idx != -1 && idx >= pkey->num_values) {
+      cm_msg(MERROR, "db_get_data_locked", "odb entry \"%s\" index %d is out of valid range 0..%d", db_get_path_locked(pheader, pkey).c_str(), idx, pkey->num_values-1);
+      return DB_INVALID_PARAM;
+   }
+
+   /* copy key data */
+   if (idx == -1) {
+      memcpy(data, (char *) pheader + pkey->data, pkey->num_values * pkey->item_size);
+      *buf_size = pkey->num_values * pkey->item_size;
+   } else {
+      memcpy(data, (char *) pheader + pkey->data + idx * pkey->item_size, pkey->item_size);
+      *buf_size = pkey->item_size;
+   }
+
+   return DB_SUCCESS;
+}
+#endif                          /* LOCAL_ROUTINES */
 
 /********************************************************************/
 /**
