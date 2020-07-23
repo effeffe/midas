@@ -1826,9 +1826,6 @@ INT cm_read_exptab(exptab_struct *exptab) {
 
          len = p2-p1;
 
-         if (len<1)
-            continue;
-         
          //printf("str %d [%s] p1 [%s] p2 %d [%s] len %d\n", *str, str, p1, *p2, p2, (int)len);
 
          e.user = std::string(p1, len);
