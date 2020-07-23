@@ -5438,6 +5438,12 @@ static INT db_get_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, int idx
       return DB_TYPE_MISMATCH;
    }
 
+   /* check for correct type */
+   if (pkey->type == TID_KEY) {
+      db_msg(msg, MERROR, "db_get_data_locked", "odb entry \"%s\" is of type %s, cannot contain data", db_get_path_locked(pheader, pkey).c_str(), rpc_tid_name(pkey->type));
+      return DB_TYPE_MISMATCH;
+   }
+
    /* check for read access */
    if (!(pkey->access_mode & MODE_READ)) {
       db_msg(msg, MERROR, "db_get_data_locked", "odb entry \"%s\" has no read access", db_get_path_locked(pheader, pkey).c_str());
@@ -6464,9 +6470,7 @@ INT db_get_data(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type)
 
 #ifdef LOCAL_ROUTINES
    {
-      DATABASE_HEADER *pheader;
-      KEY *pkey;
-      char str[256];
+      int status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_get_data", "Invalid database handle");
@@ -6485,91 +6489,80 @@ INT db_get_data(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, DWORD type)
 
       db_lock_database(hDB);
 
-      pheader = _database[hDB - 1].database_header;
+      DATABASE_HEADER* pheader = _database[hDB - 1].database_header;
+      db_err_msg* msg = NULL;
 
-      /* check if hKey argument is correct */
-      if (!db_validate_hkey(pheader, hKey)) {
+      const KEY* pkey = db_get_pkey(pheader, hKey, &status, "db_get_data", &msg);
+
+      if (!pkey) {
          db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
-
-      pkey = (KEY *) ((char *) pheader + hKey);
 
       /* check for read access */
       if (!(pkey->access_mode & MODE_READ)) {
          db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
          return DB_NO_ACCESS;
-      }
-
-      if (!pkey->type) {
-         int pkey_type = pkey->type;
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_get_data", "hkey %d invalid key type %d", hKey, pkey_type);
-         return DB_INVALID_HANDLE;
       }
 
       /* follow links to array index */
       if (pkey->type == TID_LINK) {
-         char link_name[256];
-         int i;
-         HNDLE hkey;
-         KEY key;
+         std::string link_name = (char *) pheader + pkey->data;
+         if (link_name.length() > 0 && link_name.back() == ']') {
+            size_t pos = link_name.rfind("[");
+            if (pos == std::string::npos) {
+               db_msg(&msg, MERROR, "db_get_data", "missing \"[\" in symlink to array element \"%s\" in \"%s\"", link_name.c_str(), db_get_path_locked(pheader, pkey).c_str());
+               db_unlock_database(hDB);
+               if (msg)
+                  db_flush_msg(&msg);
+               return DB_INVALID_LINK;
+            }
+            int idx = atoi(link_name.c_str()+pos+1);
+            link_name.resize(pos);
+            //printf("link name [%s] idx %d\n", link_name.c_str(), idx);
 
-         strlcpy(link_name, (char *) pheader + pkey->data, sizeof(link_name));
-         if (strlen(link_name) > 0 && link_name[strlen(link_name) - 1] == ']') {
+            // relative symlinks did not work in the old db_get_data(), make sure they do not work now. K.O.
+            if (link_name[0] != '/') {
+               db_msg(&msg, MERROR, "db_get_data", "symlink \"%s\" should start with \"/\" in \"%s\"", link_name.c_str(), db_get_path_locked(pheader, pkey).c_str());
+               db_unlock_database(hDB);
+               if (msg)
+                  db_flush_msg(&msg);
+               return DB_INVALID_LINK;
+            }
+
+            const KEY* pkey = db_find_pkey_locked(pheader, NULL, link_name.c_str(), &status, &msg);
+
+            if (!pkey) {
+               db_unlock_database(hDB);
+               if (msg)
+                  db_flush_msg(&msg);
+               return status;
+            }
+
+            //printf("db_get_data [%s] type [%s] idx %d\n", db_get_path_locked(pheader, pkey).c_str(), rpc_tid_name(type), idx);
+
+            status = db_get_data_locked(pheader, pkey, idx, data, buf_size, type, &msg);
+            
             db_unlock_database(hDB);
-            if (strchr(link_name, '[') == NULL)
-               return DB_INVALID_LINK;
-            i = atoi(strchr(link_name, '[') + 1);
-            *strchr(link_name, '[') = 0;
-            if (db_find_key(hDB, 0, link_name, &hkey) != DB_SUCCESS)
-               return DB_INVALID_LINK;
-            db_get_key(hDB, hkey, &key);
-            return db_get_data_index(hDB, hkey, data, buf_size, i, key.type);
+            if (msg)
+               db_flush_msg(&msg);
+            return status;
          }
       }
 
-      if (pkey->type != type) {
-         int pkey_type = pkey->type;
-         db_unlock_database(hDB);
-         db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_get_data", "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey_type), rpc_tid_name(type));
-         return DB_TYPE_MISMATCH;
-      }
+      //printf("db_get_data [%s] type [%s]\n", db_get_path_locked(pheader, pkey).c_str(), rpc_tid_name(type));
 
-      /* keys cannot contain data */
-      if (pkey->type == TID_KEY) {
-         db_unlock_database(hDB);
-         db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_get_data", "Key \"%s\" cannot contain data", str);
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* check if key has data */
-      if (pkey->data == 0) {
-         memset(data, 0, *buf_size);
-         *buf_size = 0;
-         db_unlock_database(hDB);
-         return DB_SUCCESS;
-      }
-
-      /* check if buffer is too small */
-      if (pkey->num_values * pkey->item_size > *buf_size) {
-         int pkey_size = pkey->num_values * pkey->item_size;
-         memcpy(data, (char *) pheader + pkey->data, *buf_size);
-         db_unlock_database(hDB);
-         char str[MAX_ODB_PATH];
-         db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_get_data", "data for key \"%s\" truncated from %d to %d bytes", str, pkey_size, *buf_size);
-         return DB_TRUNCATED;
-      }
-
-      /* copy key data */
-      memcpy(data, (char *) pheader + pkey->data, pkey->num_values * pkey->item_size);
-      *buf_size = pkey->num_values * pkey->item_size;
+      status = db_get_data_locked(pheader, pkey, -1, data, buf_size, type, &msg);
 
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
 
+      return status;
    }
 #endif                          /* LOCAL_ROUTINES */
 
