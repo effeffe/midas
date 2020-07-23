@@ -47,24 +47,18 @@ static size_t write_data(void *ptr, size_t size, size_t nmemb, void *stream)
 static std::vector<std::thread> _image_threads;
 static bool stop_all_threads = false;
 
-int mkpath(const char *dir, mode_t mode)
+int mkpath(std::string dir, mode_t mode)
 {
    struct stat sb;
 
-   if (!dir) {
-      errno = EINVAL;
-      return 1;
-   }
-
-   if (!stat(dir, &sb))
+   if (!stat(dir.c_str(), &sb))
       return 0;
-   char *p = (char *)malloc(strlen(dir)+1);
-   strncpy(p, dir, strlen(dir)+1);
-   *strrchr(p, '/') = 0;
-   mkpath(p, mode);
-   free(p);
+   std::string p = dir;
+   if (p.find_last_of(DIR_SEPARATOR) != std::string::npos)
+      p = p.substr(0, p.find_last_of(DIR_SEPARATOR));
+   mkpath(p.c_str(), mode);
 
-   return mkdir(dir, mode);
+   return mkdir(dir.c_str(), mode);
 }
 
 void image_thread(std::string name) {
@@ -114,7 +108,7 @@ void image_thread(std::string name) {
          std::string url = o["URL"];
          std::string filename = history_dir() + name;
          std::string dotname = filename;
-         int status = mkpath(filename.c_str(), 0755);
+         int status = mkpath(filename, 0755);
          if (status)
             cm_msg(MERROR, "image_thread", "Cannot create directory \"%s\": %s", filename.c_str(), strerror(errno));
 
