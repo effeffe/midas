@@ -1658,7 +1658,7 @@ static MidasHistoryInterface* GetHistory(const char* name)
 
    gHistoryChannels[name] = mh;
    
-   cm_msg(MINFO, "GetHistory", "Reading history channel \"%s\" from channel \'%s\' type \'%s\'", name, mh->name, mh->type);
+   // cm_msg(MINFO, "GetHistory", "Reading history channel \"%s\" from channel \'%s\' type \'%s\'", name, mh->name, mh->type);
 
    return mh;
 }
