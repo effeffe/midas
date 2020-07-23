@@ -1006,6 +1006,12 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             let delta = this.tMax - this.tMin;
             this.tMin -= delta / 2;
             this.tMax += delta / 2;
+            // don't go into the future
+            let now = Math.floor(new Date() / 1000);
+            if (this.tMax > now) {
+               this.tMax = now;
+               this.tMin = now - 2*delta;
+            }
             this.drag.Vt = 0; // stop inertia
             this.loadOldData();
          } else
@@ -1751,7 +1757,7 @@ MhistoryGraph.prototype.draw = function () {
 
          if (avgN[di] > 2) {
             ctx.beginPath();
-            let x0 = 0;
+            let x0 = undefined;
             let y0 = 0;
             let xLast = 0;
             for (let i = 0; i < this.p[di].length; i++) {
