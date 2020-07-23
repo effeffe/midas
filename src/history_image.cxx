@@ -49,14 +49,18 @@ static bool stop_all_threads = false;
 
 int mkpath(std::string dir, mode_t mode)
 {
-   struct stat sb;
+   if (dir.back() == DIR_SEPARATOR)
+      dir.pop_back();
 
+   struct stat sb;
    if (!stat(dir.c_str(), &sb))
       return 0;
+
    std::string p = dir;
-   if (p.find_last_of(DIR_SEPARATOR) != std::string::npos)
+   if (p.find_last_of(DIR_SEPARATOR) != std::string::npos) {
       p = p.substr(0, p.find_last_of(DIR_SEPARATOR));
-   mkpath(p.c_str(), mode);
+      mkpath(p.c_str(), mode);
+   }
 
    return mkdir(dir.c_str(), mode);
 }
