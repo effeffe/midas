@@ -896,9 +896,6 @@ static bool is_utf8(const char * string)
 
 #ifdef LOCAL_ROUTINES
 
-static BOOL utfCheckEnvVar = 0;
-static BOOL checkUtfValidString = 0;
-
 /*------------------------------------------------------------------*/
 static int db_validate_name(const char* name, int maybe_path, const char* caller_name, db_err_msg** msg)
 {
@@ -924,19 +921,7 @@ static int db_validate_name(const char* name, int maybe_path, const char* caller
       return DB_INVALID_NAME;
    }
    
-   // Disabled check for UTF-8 compatible names. 
-   // Check can be disabled by having an environment variable called "MIDAS_INVALID_STRING_IS_OK"
-   // Check the environment variable only first time
-   if(!utfCheckEnvVar){
-      if (getenv("MIDAS_INVALID_STRING_IS_OK")){
-         checkUtfValidString = 0;
-      }else{
-         checkUtfValidString = 1;
-      }
-      utfCheckEnvVar = 1;
-   }
-   
-   if (checkUtfValidString && !is_utf8(name)) {
+   if (!is_utf8(name)) {
       db_msg(msg, MERROR, "db_validate_name", "Invalid name \"%s\" passed to %s: invalid unicode UTF-8 encoding", name, caller_name);
       return DB_INVALID_NAME;
    }
@@ -5229,6 +5214,14 @@ static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_r
    if (type != TID_STRING && type != TID_LINK && data_size != rpc_tid_size(type) * num_values) {
       db_msg(msg, MERROR, "db_set_value", "\"%s\" data_size %d does not match tid %d size %d times num_values %d", key_name, data_size, type, rpc_tid_size(type), num_values);
       return DB_TYPE_MISMATCH;
+   }
+
+   if (type == TID_STRING || type == TID_LINK) {
+      //printf("utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
+      if (!is_utf8((const char*)data)) {
+         db_msg(msg, MERROR, "db_set_value", "cannot set odb \"%s\" to \"%s\": invalid UTF8 unicode", db_get_path_locked(pheader, pkey).c_str(), data);
+         return DB_TYPE_MISMATCH;
+      }
    }
    
    /* resize data size if necessary */
