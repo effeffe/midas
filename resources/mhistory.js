@@ -16,6 +16,7 @@ LOG5 = 0.698970005;
 
 function profile(flag) {
    if (flag === true) {
+      console.log("");
       profile.startTime = new Date().getTime();
       return;
    }
@@ -105,6 +106,8 @@ function MhistoryGraph(divElement) { // Constructor
    this.scroll = true;
    this.yZoom = false;
    this.showZoomButtons = true;
+   this.tMinRequested = 0;
+   this.tMinReceived = 0;
 
    // overwrite scale from URL if present
    let tMin = decodeURI(getUrlVars()["A"]);
@@ -205,7 +208,6 @@ function MhistoryGraph(divElement) { // Constructor
          click: function (t) {
             t.scroll = true;
             t.scrollRedraw();
-            t.drag.Vt = 0; // stop inertia
 
             if (t.callbacks.jumpToCurrent !== undefined) {
                t.callbacks.jumpToCurrent(t);
@@ -719,6 +721,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
       .then(function (rpc) {
 
          this.receiveData(rpc);
+         this.tMinReceived = this.tMinRequested;
          this.redraw();
 
          if (this.tMin - this.tScale < this.tMinRequested) {
@@ -770,6 +773,7 @@ MhistoryGraph.prototype.loadOldData = function () {
             this.receiveData(rpc);
 
             if (this.tMin - dt / 2 < this.tMinRequested) {
+               this.tMinReceived = this.tMinRequested;
                this.lastDrawTime = 0; // force redraw
                this.redraw();
                this.pendingUpdates--;
@@ -782,6 +786,7 @@ MhistoryGraph.prototype.loadOldData = function () {
                this.parentDiv.style.cursor = "default";
 
             this.lastDrawTime = 0; // force redraw
+            this.tMinReceived = this.tMinRequested;
             this.redraw();
 
          }.bind(this))
@@ -810,7 +815,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          }
       }
 
-      return;
+      return false;
    }
 
    // push initial data
@@ -920,6 +925,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
    }
 
    this.findMinMax();
+   return true;
 };
 
 MhistoryGraph.prototype.update = function () {
@@ -942,8 +948,10 @@ MhistoryGraph.prototype.update = function () {
       }, "arraybuffer")
       .then(function (rpc) {
 
-         this.receiveData(rpc);
-         this.redraw();
+         if (this.receiveData(rpc)) {
+            this.findMinMax();
+            this.redraw();
+         }
 
          this.updateTimer = window.setTimeout(this.update.bind(this), 1000);
 
@@ -957,6 +965,7 @@ MhistoryGraph.prototype.scrollRedraw = function () {
       let dt = this.tMax - this.tMin;
       this.tMax = Math.floor(new Date() / 1000);
       this.tMin = this.tMax - dt;
+      this.findMinMax();
       this.redraw();
 
       // calculate time for one pixel
@@ -1025,7 +1034,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          let delta = this.tMax - this.tMin;
          this.tMin += delta/4;
          this.tMax -= delta/4;
-         this.drag.Vt = 0; // stop inertia
+         this.findMinMax();
          this.redraw();
          e.preventDefault();
          return;
@@ -1033,7 +1042,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       if (e.offsetX > this.width - 30 - 24 && e.offsetX < this.width - 30 &&
          e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
          // zoom out
-         if (this.pendingUpdates === 0) {
+         if (this.pendingUpdates === 0 || this.tMinReceived < this.tMin) {
             let delta = this.tMax - this.tMin;
             this.tMin -= delta / 2;
             this.tMax += delta / 2;
@@ -1043,8 +1052,8 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
                this.tMax = now;
                this.tMin = now - 2*delta;
             }
-            this.drag.Vt = 0; // stop inertia
             this.loadOldData();
+            this.findMinMax();
             this.redraw();
          } else
             dlgMessage("Warning", "Don't press the '-' too fast!", true, false);
@@ -1086,13 +1095,6 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
       if (this.drag.active) {
          this.drag.active = false;
-         let now = new Date().getTime();
-         if (this.drag.lastDt !== undefined && now - this.drag.lastT !== 0)
-            this.drag.Vt = this.drag.lastDt / (now - this.drag.lastT);
-         else
-            this.drag.Vt = 0;
-         this.drag.lastMoveT = now;
-         window.setTimeout(this.inertia.bind(this), 50);
       }
 
       if (this.zoom.x.active) {
@@ -1105,6 +1107,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.tMin = t1;
          this.tMax = t2;
          this.zoom.x.active = false;
+         this.findMinMax();
          this.redraw();
 
          if (this.callbacks.timeZoom !== undefined)
@@ -1120,6 +1123,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.yMax = v2;
          this.zoom.y.active = false;
          this.yZoom = true;
+         this.findMinMax();
          this.redraw();
       }
 
@@ -1146,12 +1150,15 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          }
 
          this.loadOldData();
+         this.findMinMax();
          this.redraw();
 
          if (this.callbacks.timeZoom !== undefined)
             this.callbacks.timeZoom(this);
 
       } else {
+
+         let redraw = false;
 
          // change cursor to pointer over buttons
          this.button.forEach(b => {
@@ -1186,12 +1193,12 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          if (this.zoom.x.active) {
             this.zoom.x.x2 = Math.max(this.x1, Math.min(this.x2, e.offsetX));
             this.zoom.x.t2 = this.xToTime(e.offsetX);
-            this.redraw();
+            redraw = true;
          }
          if (this.zoom.y.active) {
             this.zoom.y.y2 = Math.max(this.y2, Math.min(this.y1, e.offsetY));
             this.zoom.y.v2 = this.yToValue(e.offsetY);
-            this.redraw();
+            redraw = true;
          }
 
          // check if cursor close to graph point
@@ -1229,7 +1236,16 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
                   this.marker.my = e.offsetY;
                }
             }
-            this.redraw();
+            if (this.marker.active)
+               redraw = true;
+            if (!this.marker.active && this.marker.activeOld) {
+               redraw = true;
+               this.lastDrawTime = 0; // force redraw to remove marker
+            }
+            this.marker.activeOld = this.marker.active;
+
+            if (redraw)
+               this.redraw();
          }
       }
    } else if (e.type === "dblclick") {
@@ -1356,31 +1372,6 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
    }
 };
 
-MhistoryGraph.prototype.inertia = function () {
-   if (this.drag.Vt !== 0) {
-      let now = new Date().getTime();
-      let dt = now - this.drag.lastMoveT;
-      this.drag.lastMoveT = now;
-
-      this.tMin -= this.drag.Vt * dt;
-      this.tMax -= this.drag.Vt * dt;
-
-      this.drag.Vt = this.drag.Vt * 0.85;
-      if (Math.abs(this.drag.Vt) < 0.005) {
-         this.drag.Vt = 0;
-      }
-
-      this.loadOldData();
-      this.redraw();
-
-      if (this.callbacks.timeZoom !== undefined)
-         this.callbacks.timeZoom(this);
-
-      if (this.drag.Vt !== 0)
-         window.setTimeout(this.inertia.bind(this), 50);
-   }
-};
-
 MhistoryGraph.prototype.resetAxes = function () {
    this.tMax = Math.floor(new Date() / 1000);
    this.tMin = this.tMax - this.tScale;
@@ -1422,6 +1413,7 @@ MhistoryGraph.prototype.resetAxes = function () {
    this.scroll = true;
    this.yZoom = false;
    this.showZoomButtons = true;
+   this.findMinMax();
    this.redraw();
 };
 
@@ -1443,6 +1435,8 @@ MhistoryGraph.prototype.resize = function () {
    if (this.intSelector !== undefined)
       this.intSelector.style.display = "none";
 
+   this.lastDrawTime = 0;
+   this.forceConvert = true;
    this.redraw();
 };
 
@@ -1500,7 +1494,8 @@ MhistoryGraph.prototype.findMinMax = function () {
    for (let index = 0; index < this.data.length; index++) {
       if (this.events[index] === "Run transitions")
          continue;
-      for (let i = 0; i < this.data[index].time.length; i++) {
+      let i1 = binarySearch(this.data[index].time, this.tMin);
+      for (let i = i1; i < this.data[index].time.length; i++) {
          let t = this.data[index].time[i];
          let v = this.data[index].value[i];
          if (Number.isNaN(v))
@@ -1521,6 +1516,8 @@ MhistoryGraph.prototype.findMinMax = function () {
                   this.yMax0 = v;
             }
          }
+         if (t > this.tMax)
+            break;
       }
    }
 
@@ -1584,10 +1581,10 @@ MhistoryGraph.prototype.updateURL = function() {
 }
 
 MhistoryGraph.prototype.draw = function () {
-   profile(true);
+   // profile(true);
 
-   // draw maximal 20 times per second
-   if (new Date().getTime() < this.lastDrawTime + 50)
+   // draw maximal 30 times per second
+   if (new Date().getTime() < this.lastDrawTime + 30)
       return;
    this.lastDrawTime = new Date().getTime();
 
@@ -1680,108 +1677,127 @@ MhistoryGraph.prototype.draw = function () {
    ctx.rect(this.x1, this.y2, this.x2 - this.x1, this.y1 - this.y2);
    ctx.clip();
 
-   //profile("drawinit");
+   // profile("drawinit");
 
-   // convert values to points
-   for (let di = 0; di < this.data.length; di++) {
-      this.x[di] = []; // x/y contain visible part of graph
-      this.y[di] = [];
-      this.t[di] = []; // t/v contain time/value pairs corresponding to x/y
-      this.v[di] = [];
+   let nPoints = 0;
+   for (let di = 0; di < this.data.length; di++)
+      nPoints += this.data[di].time.length;
 
-      let first = undefined;
-      let last = undefined;
-      let n = 0;
-      for (let i = 0; i < this.data[di].time.length; i++) {
-         let x = this.timeToX(this.data[di].time[i]);
-         let v = this.valueToY(this.data[di].value[i]);
-         //if (i === (this.data[di].time.length - 1) /*0*/) {
-         //console.log("draw: index: " + di + ", tMin: " + this.tMin + ", tMax: " + this.tMax + ", t: " + this.data[di].time[i]);
-         //console.log("draw: index: " + di + ", scale: " + (this.tMax - this.tMin) + ", tMin: " + convertLastWritten(this.tMin) + ", tMax: " + convertLastWritten(this.tMax) + ", t: " + convertLastWritten(this.data[di].time[i]));
-         //console.log("draw: index: " + di + ", x1: " + this.x1 + ", x2: " + this.x2 + ", x: " + x);
-         //}
-         if (!Number.isNaN(v) && x >= this.x1 && x <= this.x2) {
-            this.x[di][n] = x;
-            this.y[di][n] = v;
-            this.t[di][n] = this.data[di].time[i];
-            this.v[di][n] = this.data[di].value[i];
-            if (first === undefined)
-               first = i;
-            last = i;
+   // convert values to points if window has changed or number of points have changed
+   if (this.tMin !== this.tMinOld || this.tMax !== this.tMaxOld ||
+      this.yMin !== this.yMinOld || this.yMax !== this.yMaxOld ||
+      nPoints !== this.nPointsOld || this.forceConvert) {
+
+      this.tMinOld = this.tMin;
+      this.tMaxOld = this.tMax;
+      this.yMinOld = this.yMin;
+      this.yMaxOld = this.yMax;
+      this.nPointsOld = nPoints;
+      this.forceConvert = false;
+
+      for (let di = 0; di < this.data.length; di++) {
+         this.x[di] = []; // x/y contain visible part of graph
+         this.y[di] = [];
+         this.t[di] = []; // t/v contain time/value pairs corresponding to x/y
+         this.v[di] = [];
+
+         let first = undefined;
+         let last = undefined;
+         let n = 0;
+
+         let i1 = binarySearch(this.data[di].time, this.tMin);
+         for (let i = i1; i < this.data[di].time.length; i++) {
+            let t = this.data[di].time[i];
+            if (t >= this.tMin && t <= this.tMax) {
+               let x = this.timeToX(t);
+               let v = this.valueToY(this.data[di].value[i]);
+               if (!Number.isNaN(v) && x >= this.x1 && x <= this.x2) {
+                  this.x[di][n] = x;
+                  this.y[di][n] = v;
+                  this.t[di][n] = this.data[di].time[i];
+                  this.v[di][n] = this.data[di].value[i];
+                  if (first === undefined)
+                     first = i;
+                  last = i;
+                  n++;
+               }
+            }
+            if (t > this.tMax)
+               break;
+         }
+         // add one point beyond right limit
+         if (last + 1 < this.data[di].time.length) {
+            this.x[di][n] = this.timeToX(this.data[di].time[last + 1]);
+            this.y[di][n] = this.valueToY(this.data[di].value[last + 1]);
+            this.t[di][n] = this.data[di].time[last + 1];
+            this.v[di][n] = this.data[di].value[last + 1];
             n++;
          }
-      }
-      // add one point beyond right limit
-      if (last + 1 < this.data[di].time.length) {
-         this.x[di][n] = this.timeToX(this.data[di].time[last + 1]);
-         this.y[di][n] = this.valueToY(this.data[di].value[last + 1]);
-         this.t[di][n] = this.data[di].time[last + 1];
-         this.v[di][n] = this.data[di].value[last + 1];
-         n++;
-      }
-      // add one point beyond left limit
-      if (first > 0) {
-         this.x[di].unshift(this.timeToX(this.data[di].time[first - 1]));
-         this.y[di].unshift(this.valueToY(this.data[di].value[first - 1]));
-         this.t[di].unshift(this.data[di].value[first - 1]);
-         this.v[di].unshift(this.data[di].time[first - 1]);
-      }
-      //console.log("draw: index: " + di + ", n: " + n);
-   }
-
-   //("points to values");
-
-   let avgN = [];
-
-   // compress points to aggregate values
-   for (let di = 0; di < this.data.length; di++) {
-      if (this.events[di] === "Run transitions")
-         continue;
-      this.p[di] = [];
-      let p = {};
-
-      let sum0 = 0;
-      let sum1 = 0;
-
-      let xLast = undefined;
-      for (let i = 0; i < this.x[di].length; i++) {
-         let x = Math.floor(this.x[di][i]);
-         let y = this.y[di][i];
-
-         if (i === 0 || x > xLast) {
-
-            if (p.x !== undefined) {
-               // store point
-               if (p.n > 0)
-                  p.avg = p.avg / p.n;
-               sum0 += 1;
-               sum1 += p.n;
-               this.p[di].push(p);
-               p = {};
-            }
-            p.n = 1;
-            p.x = x;
-            xLast = x;
-            p.min = y;
-            p.max = y;
-            p.avg = y;
-            p.first = y;
-            p.last = y;
-         } else {
-            p.n++;
-            if (y < p.min)
-               p.min = y;
-            if (y > p.max)
-               p.max = y;
-            p.avg += y;
-            p.last = y;
+         // add one point beyond left limit
+         if (first > 0) {
+            this.x[di].unshift(this.timeToX(this.data[di].time[first - 1]));
+            this.y[di].unshift(this.valueToY(this.data[di].value[first - 1]));
+            this.t[di].unshift(this.data[di].value[first - 1]);
+            this.v[di].unshift(this.data[di].time[first - 1]);
          }
       }
 
-      if (sum0 > 0)
-         avgN.push(sum1 / sum0);
-      else
-         avgN.push(0);
+      // profile("Value to points");
+
+      this.avgN = [];
+
+      // compress points to aggregate values
+      for (let di = 0; di < this.data.length; di++) {
+         if (this.events[di] === "Run transitions")
+            continue;
+         this.p[di] = [];
+         let p = {};
+
+         let sum0 = 0;
+         let sum1 = 0;
+
+         let xLast = undefined;
+         for (let i = 0; i < this.x[di].length; i++) {
+            let x = Math.floor(this.x[di][i]);
+            let y = this.y[di][i];
+
+            if (i === 0 || x > xLast) {
+
+               if (p.x !== undefined) {
+                  // store point
+                  if (p.n > 0)
+                     p.avg = p.avg / p.n;
+                  sum0 += 1;
+                  sum1 += p.n;
+                  this.p[di].push(p);
+                  p = {};
+               }
+               p.n = 1;
+               p.x = x;
+               xLast = x;
+               p.min = y;
+               p.max = y;
+               p.avg = y;
+               p.first = y;
+               p.last = y;
+            } else {
+               p.n++;
+               if (y < p.min)
+                  p.min = y;
+               if (y > p.max)
+                  p.max = y;
+               p.avg += y;
+               p.last = y;
+            }
+         }
+
+         if (sum0 > 0)
+            this.avgN.push(sum1 / sum0);
+         else
+            this.avgN.push(0);
+      }
+
+      // profile("Compress points");
    }
 
    // draw shaded areas
@@ -1795,7 +1811,7 @@ MhistoryGraph.prototype.draw = function () {
 
          ctx.fillStyle = this.odb["Colour"][di];
 
-         if (avgN[di] > 2) {
+         if (typeof this.avgN !== 'undefined' && this.avgN[di] > 2) {
             ctx.beginPath();
             let x0 = undefined;
             let y0 = 0;
@@ -1846,6 +1862,8 @@ MhistoryGraph.prototype.draw = function () {
       }
    }
 
+   // profile("Draw shaded areas");
+
    // draw graphs
    for (let di = 0; di < this.data.length; di++) {
       if (this.solo.active && this.solo.index !== di)
@@ -1883,22 +1901,21 @@ MhistoryGraph.prototype.draw = function () {
 
          ctx.strokeStyle = this.odb["Colour"][di];
 
-         if (avgN[di] > 2) {
-            let prevX = undefined;
-            let prevY = undefined;
+         if (typeof this.avgN !== 'undefined' && this.avgN[di] > 2) {
+            ctx.beginPath();
             for (let i = 0; i < this.p[di].length; i++) {
                let p = this.p[di][i];
 
-               // draw line from end of previous cluster to beginning of current cluster
-               if (prevX !== undefined)
-                  ctx.drawLine(prevX, prevY, p.x, p.first);
-
-               // draw min-max line
-               ctx.drawLine(p.x, p.min, p.x, p.max + 1);
-
-               prevX = p.x;
-               prevY = p.last;
+               // draw lines first - max - min - last
+               if (i === 0)
+                  ctx.moveTo(p.x, p.first);
+               else
+                  ctx.lineTo(p.x, p.first);
+               ctx.lineTo(p.x, p.max + 1); // in case min==max
+               ctx.lineTo(p.x, p.min);
+               ctx.lineTo(p.x, p.last);
             }
+            ctx.stroke();
          } else {
             if (this.x[di].length === 1) {
                let x = this.x[di][0];
@@ -1925,6 +1942,8 @@ MhistoryGraph.prototype.draw = function () {
    }
 
    ctx.restore(); // remove clipping
+
+   // profile("Draw graphs");
 
    // labels with variable names and values
    if (this.showLabels) {
@@ -2013,7 +2032,7 @@ MhistoryGraph.prototype.draw = function () {
    }
 
    // "updating" notice
-   if (this.pendingUpdates > 0) {
+   if (this.pendingUpdates > 0 && this.tMinReceived > this.tMin) {
       let str = "Updating data ...";
       ctx.strokeStyle = "#404040";
       ctx.fillStyle = "#FFC0C0";
@@ -2204,6 +2223,8 @@ MhistoryGraph.prototype.draw = function () {
 
    this.lastDrawTime = new Date().getTime();
 
+   // profile("Finished draw");
+
    // update URL
    if (this.updateURLTimer !== undefined)
       window.clearTimeout(this.updateURLTimer);
@@ -2211,192 +2232,6 @@ MhistoryGraph.prototype.draw = function () {
    if (this.plotIndex === 0)
       this.updateURLTimer = window.setTimeout(this.updateURL.bind(this), 500);
 };
-
-
-
-/*
-MhistoryGraph.prototype.drawHAxis = function haxisDraw(ctx, x1, y1, width, minor, major,
-                                                       text, label, grid, xmin, xmax, logaxis) {
-   let dx, int_dx, frac_dx, x_act, label_dx, major_dx, x_screen, maxwidth;
-   let tick_base, major_base, label_base, n_sig1, n_sig2, xs;
-   let base = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
-
-   ctx.textAlign = "center";
-   ctx.textBaseline = "top";
-
-   if (xmax <= xmin || width <= 0)
-      return;
-
-   if (logaxis) {
-      dx = Math.pow(10, Math.floor(Math.log(xmin) / Math.log(10)));
-      if (dx === 0)
-         dx = 1E-10;
-      label_dx = dx;
-      major_dx = dx * 10;
-      n_sig1 = 4;
-   } else {
-      // use 6 as min tick distance
-      dx = (xmax - xmin) / (width / 6);
-
-      int_dx = Math.floor(Math.log(dx) / Math.log(10));
-      frac_dx = Math.log(dx) / Math.log(10) - int_dx;
-
-      if (frac_dx < 0) {
-         frac_dx += 1;
-         int_dx -= 1;
-      }
-
-      tick_base = frac_dx < (Math.log(2) / Math.log(10)) ? 1 : frac_dx < (Math.log(5) / Math.log(10)) ? 2 : 3;
-      major_base = label_base = tick_base + 1;
-
-      /!* rounding up of dx, label_dx *!/
-      dx = Math.pow(10, int_dx) * base[tick_base];
-      major_dx = Math.pow(10, int_dx) * base[major_base];
-      label_dx = major_dx;
-
-      do {
-         // number of significant digits
-         if (xmin === 0)
-            n_sig1 = 0;
-         else
-            n_sig1 = Math.floor(Math.log(Math.abs(xmin)) /
-               Math.log(10)) - Math.floor(Math.log(Math.abs(label_dx)) / Math.log(10)) + 1;
-
-         if (xmax === 0)
-            n_sig2 = 0;
-         else
-            n_sig2 = Math.floor(Math.log(Math.abs(xmax)) /
-               Math.log(10)) - Math.floor(Math.log(Math.abs(label_dx)) / Math.log(10)) + 1;
-
-         n_sig1 = Math.max(n_sig1, n_sig2);
-
-         // toPrecision displays 1050 with 3 digits as 1.05e+3, so increase precision to number of digits
-         if (Math.abs(xmin) < 100000)
-            n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(xmin)) / Math.log(10) + 0.001) + 1);
-         if (Math.abs(xmax) < 100000)
-            n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(xmax)) / Math.log(10) + 0.001) + 1);
-
-         // determination of maximal width of labels
-         let str = (Math.floor(xmin / dx) * dx).toPrecision(n_sig1);
-         let ext = ctx.measureText(str);
-         maxwidth = ext.width;
-
-         str = (Math.floor(xmax / dx) * dx).toPrecision(n_sig1).stripZeros();
-         ext = ctx.measureText(str);
-         maxwidth = Math.max(maxwidth, ext.width);
-         str = (Math.floor(xmax / dx) * dx + label_dx).toPrecision(n_sig1).stripZeros();
-         maxwidth = Math.max(maxwidth, ext.width);
-
-         // increasing label_dx, if labels would overlap
-         if (maxwidth > 0.5 * label_dx / (xmax - xmin) * width) {
-            label_base++;
-            label_dx = Math.pow(10, int_dx) * base[label_base];
-            if (label_base % 3 === 2 && major_base % 3 === 1) {
-               major_base++;
-               major_dx = Math.pow(10, int_dx) * base[major_base];
-            }
-         } else
-            break;
-
-      } while (true);
-   }
-
-   x_act = Math.floor(xmin / dx) * dx;
-
-   let last_label_x = x1;
-
-   ctx.strokeStyle = this.color.axis;
-   ctx.drawLine(x1, y1, x1 + width, y1);
-
-   do {
-      if (logaxis)
-         x_screen = (Math.log(x_act) - Math.log(xmin)) /
-            (Math.log(xmax) - Math.log(xmin)) * width + x1;
-      else
-         x_screen = (x_act - xmin) / (xmax - xmin) * width + x1;
-      xs = Math.round(x_screen);
-
-      if (x_screen > x1 + width + 0.001)
-         break;
-
-      if (x_screen >= x1) {
-         if (Math.abs(Math.round(x_act / major_dx) - x_act / major_dx) <
-            dx / major_dx / 10.0) {
-
-            if (Math.abs(Math.round(x_act / label_dx) - x_act / label_dx) <
-               dx / label_dx / 10.0) {
-               // label tick mark
-               ctx.strokeStyle = this.color.axis;
-               ctx.drawLine(xs, y1, xs, y1 + text);
-
-               // grid line
-               if (grid !== 0 && xs > x1 && xs < x1 + width) {
-                  ctx.strokeStyle = this.color.grid;
-                  ctx.drawLine(xs, y1, xs, y1 + grid);
-               }
-
-               // label
-               if (label !== 0) {
-                  let str = x_act.toPrecision(n_sig1).stripZeros();
-                  let ext = ctx.measureText(str);
-                  if (xs - ext.width / 2 > x1 &&
-                     xs + ext.width / 2 < x1 + width) {
-                     ctx.strokeStyle = this.color.label;
-                     ctx.fillStyle = this.color.label;
-                     ctx.fillText(str, xs, y1 + label);
-                  }
-                  last_label_x = xs + ext.width / 2;
-               }
-            } else {
-               // major tick mark
-               ctx.strokeStyle = this.color.axis;
-               ctx.drawLine(xs, y1, xs, y1 + major);
-
-               // grid line
-               if (grid !== 0 && xs > x1 && xs < x1 + width) {
-                  ctx.strokeStyle = this.color.grid;
-                  ctx.drawLine(xs, y1 - 1, xs, y1 + grid);
-               }
-            }
-
-            if (logaxis) {
-               dx *= 10;
-               major_dx *= 10;
-               label_dx *= 10;
-            }
-         } else {
-            // minor tick mark
-            ctx.strokeStyle = this.color.axis;
-            ctx.drawLine(xs, y1, xs, y1 + minor);
-         }
-
-         // for logaxis, also put labels on minor tick marks
-         if (logaxis) {
-            if (label !== 0) {
-               let str = x_act.toPrecision(n_sig1).stripZeros();
-               let ext = ctx.measureText(str);
-               if (xs - ext.width / 2 > x1 &&
-                  xs + ext.width / 2 < x1 + width &&
-                  xs - ext.width / 2 > last_label_x + 2) {
-                  ctx.strokeStyle = this.color.label;
-                  ctx.fillStyle = this.color.label;
-                  ctx.fillText(str, xs, y1 + label);
-               }
-
-               last_label_x = xs + ext.width / 2;
-            }
-         }
-      }
-
-      x_act += dx;
-
-      /!* suppress 1.23E-17 ... *!/
-      if (Math.abs(x_act) < dx / 100)
-         x_act = 0;
-
-   } while (1);
-};
-*/
 
 MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
                                               text, label, grid, ymin, ymax, logaxis, draw) {
@@ -2662,8 +2497,8 @@ function timeToLabel(sec, base, forceDate) {
 
 MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, major,
                                               text, label, grid, xmin, xmax) {
-   const base = [1, 5, 10, 60, 15 * 60, 30 * 60, 60 * 60, 3 * 60 * 60, 6 * 60 * 60,
-      12 * 60 * 60, 24 * 60 * 60, 0];
+   const base = [1, 5, 10, 60, 15 * 60, 30 * 60, 3600, 3 * 3600, 6 * 3600,
+      12 * 3600, 24 * 3600, 2 * 24 * 3600, 10 * 24 * 3600, 30 * 24 * 3600, 0];
 
    ctx.textAlign = "left";
    ctx.textBaseline = "top";
@@ -2703,20 +2538,20 @@ MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, maj
          if (base[label_base + 1])
             label_dx = base[++label_base];
          else
-            label_dx += 3600 * 24;
+            label_dx += 3600 * 24 * 30;
 
          if (label_base > major_base + 1) {
             if (base[major_base + 1])
                major_dx = base[++major_base];
             else
-               major_dx += 3600 * 24;
+               major_dx += 3600 * 24 * 30;
          }
 
          if (major_base > tick_base + 1) {
             if (base[tick_base + 1])
                dx = base[++tick_base];
             else
-               dx += 3600 * 24;
+               dx += 3600 * 24 * 30;
          }
 
       } else
