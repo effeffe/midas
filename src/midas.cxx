@@ -3322,42 +3322,27 @@ INT cm_set_watchdog_params_local(BOOL call_watchdog, DWORD timeout)
 #ifdef LOCAL_ROUTINES
    _watchdog_timeout = timeout;
 
-   if (rpc_is_mserver()) { // we are the mserver
-      HNDLE hDB, hKey;
-
-      rpc_set_server_option(RPC_WATCHDOG_TIMEOUT, timeout);
-
-      /* write timeout value to client enty in ODB */
-      cm_get_experiment_database(&hDB, &hKey);
-
-      if (hDB) {
-         db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE, TRUE);
-         db_set_value(hDB, hKey, "Link timeout", &timeout, sizeof(timeout), 1, TID_INT32);
-         db_set_mode(hDB, hKey, MODE_READ, TRUE);
-      }
-   } else {
-
-      /* set watchdog flag of all open buffers */
-      for (int i = _buffer_entries; i > 0; i--) {
-         BUFFER *pbuf = &_buffer[i - 1];
-
-         if (!pbuf->attached)
-            continue;
-
-         BUFFER_HEADER *pheader = pbuf->buffer_header;
-         BUFFER_CLIENT *pclient = bm_get_my_client(pbuf, pheader);
-
-         /* clear entry from client structure in buffer header */
-         pclient->watchdog_timeout = timeout;
-
-         /* show activity */
-         pclient->last_activity = ss_millitime();
-      }
-
-      db_set_watchdog_params(timeout);
+   /* set watchdog timeout of all open buffers */
+   for (int i = _buffer_entries; i > 0; i--) {
+      BUFFER *pbuf = &_buffer[i - 1];
+      
+      if (!pbuf->attached)
+         continue;
+      
+      BUFFER_HEADER *pheader = pbuf->buffer_header;
+      BUFFER_CLIENT *pclient = bm_get_my_client(pbuf, pheader);
+      
+      /* clear entry from client structure in buffer header */
+      pclient->watchdog_timeout = timeout;
+      
+      /* show activity */
+      pclient->last_activity = ss_millitime();
    }
 
-#endif                          /* LOCAL_ROUTINES */
+   /* set watchdog timeout for ODB */
+   db_set_watchdog_params(timeout);
+
+#endif /* LOCAL_ROUTINES */
 
    return CM_SUCCESS;
 }
@@ -3367,10 +3352,25 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
    /* set also local timeout to requested value (needed by cm_enable_watchdog()) */
    _watchdog_timeout = timeout;
 
-   if (rpc_is_remote())
+   if (rpc_is_remote()) { // we are connected remotely
       return rpc_call(RPC_CM_SET_WATCHDOG_PARAMS, call_watchdog, timeout);
-   else
+   } else if (rpc_is_mserver()) { // we are the mserver
+      HNDLE hDB, hKey;
+      
+      rpc_set_server_option(RPC_WATCHDOG_TIMEOUT, timeout);
+      
+      /* write timeout value to client enty in ODB */
+      cm_get_experiment_database(&hDB, &hKey);
+      
+      if (hDB) {
+         db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE, TRUE);
+         db_set_value(hDB, hKey, "Link timeout", &timeout, sizeof(timeout), 1, TID_INT32);
+         db_set_mode(hDB, hKey, MODE_READ, TRUE);
+      }
+      return DB_SUCCESS;
+   } else {
       return cm_set_watchdog_params_local(call_watchdog, timeout);
+   }
 }
 
 /********************************************************************/
