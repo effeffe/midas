@@ -398,6 +398,35 @@ MhistoryGraph.prototype.initializePanel = function (index) {
    });
 };
 
+MhistoryGraph.prototype.updateLastWritten = function (index) {
+   //console.log("update last_written!!!\n");
+
+   // load date of latest data points
+   mjsonrpc_call("hs_get_last_written",
+      {
+         "time": this.tMin,
+         "events": this.events,
+         "tags": this.tags,
+         "index": this.index
+      }).then(function (rpc) {
+	 this.lastWritten = rpc.result.last_written;
+	 // protect against an infinite loop from draw() if rpc returns invalid times.
+	 // by definition, last_written returned by RPC is supposed to be less then tMin.
+	 for (let i = 0; i < this.lastWritten.length; i++) {
+            let l = this.lastWritten[i];
+	    //console.log("updated last_written: event: " + this.events[i] + ", l: " + l + ", tmin: " + this.tMin + ", diff: " + (l - this.tMin));
+	    if (l > this.tMin) {
+	       this.lastWritten[i] = this.tMin;
+	    }
+	 }
+         this.lastDrawTime = 0; // force redraw
+	 this.draw();
+      }.bind(this))
+      .catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
+}
+
 MhistoryGraph.prototype.loadInitialData = function () {
 
    this.lastTimeStamp = Math.floor(Date.now() / 1000);
@@ -559,17 +588,19 @@ MhistoryGraph.prototype.loadInitialData = function () {
                      last = Math.max(last, l);
                   }
 
-                  let scale = mhg.tMax - mhg.tMin;
-                  mhg.tMax = last + scale / 2;
-                  mhg.tMin = last - scale / 2;
+  		  if (last !== 0) { // no data, at all!
+                     let scale = mhg.tMax - mhg.tMin;
+                     mhg.tMax = last + scale / 2;
+                     mhg.tMin = last - scale / 2;
 
-                  mhg.scroll = false;
-                  mhg.marker.active = false;
-                  mhg.loadOldData();
-                  mhg.redraw();
+                     mhg.scroll = false;
+                     mhg.marker.active = false;
+                     mhg.loadOldData();
+                     mhg.redraw();
 
-                  if (mhg.callbacks.timeZoom !== undefined)
-                     mhg.callbacks.timeZoom(mhg);
+                     if (mhg.callbacks.timeZoom !== undefined)
+			mhg.callbacks.timeZoom(mhg);
+		  }
 
                }.bind(this))
                .catch(function (error) {
@@ -587,22 +618,36 @@ MhistoryGraph.prototype.loadInitialData = function () {
                })
                .then(function (rpc) {
 
-                  let last = rpc.result.last_written[0];
-                  rpc.result.last_written.forEach(l => {
-                     last = Math.min(last, l);
-                  });
+                  let last = 0;
+                  for (let i = 0; i < rpc.result.last_written.length; i++) {
+                     let l = rpc.result.last_written[i];
+                     if (this.events[i] === "Run transitions") {
+                        continue;
+                     }
+		     if (last === 0) {
+			// no data for first variable
+			last = l;
+		     } else if (l === 0) {
+			// no data for this variable
+		     } else {
+			last = Math.min(last, l);
+		     }
+                  }
+		  //console.log("last: " + last);
 
-                  let scale = mhg.tMax - mhg.tMin;
-                  mhg.tMax = last + scale / 2;
-                  mhg.tMin = last - scale / 2;
+		  if (last !== 0) { // no data, at all!
+                     let scale = mhg.tMax - mhg.tMin;
+                     mhg.tMax = last + scale / 2;
+                     mhg.tMin = last - scale / 2;
 
-                  mhg.scroll = false;
-                  mhg.marker.active = false;
-                  mhg.loadOldData();
-                  mhg.redraw();
+                     mhg.scroll = false;
+                     mhg.marker.active = false;
+                     mhg.loadOldData();
+                     mhg.redraw();
 
-                  if (mhg.callbacks.timeZoom !== undefined)
-                     mhg.callbacks.timeZoom(mhg);
+                     if (mhg.callbacks.timeZoom !== undefined)
+			mhg.callbacks.timeZoom(mhg);
+		  }
 
                }.bind(this))
                .catch(function (error) {
@@ -687,19 +732,6 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    this.downloadSelector.appendChild(table);
    document.body.appendChild(this.downloadSelector);
-
-   // load date of latest data points
-   mjsonrpc_call("hs_get_last_written",
-      {
-         "events": this.events,
-         "tags": this.tags,
-         "index": this.index
-      }).then(function (rpc) {
-      this.lastWritten = rpc.result.last_written;
-   }.bind(this))
-      .catch(function (error) {
-         mjsonrpc_error_alert(error);
-      });
 
    // load initial data
    this.tMinRequested = this.tMin - this.tScale; // look one window ahead in past
@@ -1250,41 +1282,49 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       }
    } else if (e.type === "dblclick") {
 
-      // measure distance to graphs
-      if (this.data !== undefined && this.x.length && this.y.length) {
-         let minDist = 100;
-         for (let di = 0; di < this.data.length; di++) {
-            for (let i = 0; i < this.x[di].length; i++) {
-               if (this.x[di][i] > this.x1 && this.x[di][i] < this.x2) {
-                  let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
-                     Math.pow(e.offsetY - this.y[di][i], 2));
-                  if (d < minDist) {
-                     minDist = d;
-                     this.solo.index = di;
-                  }
-               }
-            }
-         }
-         // check if close to graph point
-         if (minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2) {
-            this.solo.active = !this.solo.active;
-         } else {
-            // check if inside label area
-            if (this.showLabels) {
-               if (e.offsetX > this.x1 && e.offsetX < this.x1 + 25 + this.variablesWidth + 7) {
-                  let i = Math.floor((e.offsetY - 30) / 17);
-                  if (i < this.data.length) {
-                     if (this.solo.active && this.solo.index === i) {
-                        this.solo.active = false;
-                     } else {
-                        this.solo.active = true;
-                        this.solo.index = i;
+      // check if inside zoom buttons
+      if (e.offsetX > this.width - 30 - 48 && e.offsetX < this.width - 30 &&
+         e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
+         // just ignore it
+
+      } else {
+
+         // measure distance to graphs
+         if (this.data !== undefined && this.x.length && this.y.length) {
+            let minDist = 100;
+            for (let di = 0; di < this.data.length; di++) {
+               for (let i = 0; i < this.x[di].length; i++) {
+                  if (this.x[di][i] > this.x1 && this.x[di][i] < this.x2) {
+                     let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
+                        Math.pow(e.offsetY - this.y[di][i], 2));
+                     if (d < minDist) {
+                        minDist = d;
+                        this.solo.index = di;
                      }
                   }
                }
             }
+            // check if close to graph point
+            if (minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2) {
+               this.solo.active = !this.solo.active;
+            } else {
+               // check if inside label area
+               if (this.showLabels) {
+                  if (e.offsetX > this.x1 && e.offsetX < this.x1 + 25 + this.variablesWidth + 7) {
+                     let i = Math.floor((e.offsetY - 30) / 17);
+                     if (i < this.data.length) {
+                        if (this.solo.active && this.solo.index === i) {
+                           this.solo.active = false;
+                        } else {
+                           this.solo.active = true;
+                           this.solo.index = i;
+                        }
+                     }
+                  }
+               }
+            }
+            this.redraw();
          }
-         this.redraw();
       }
    }
 
@@ -1580,6 +1620,50 @@ MhistoryGraph.prototype.updateURL = function() {
       window.history.replaceState({}, "Midas History", url);
 }
 
+function createPinstripeCanvas() {
+   const patternCanvas = document.createElement("canvas");
+   const pctx = patternCanvas.getContext('2d', { antialias: true });
+   const colour = "#FFC0C0";
+
+   const CANVAS_SIDE_LENGTH = 90;
+   const WIDTH = CANVAS_SIDE_LENGTH;
+   const HEIGHT = CANVAS_SIDE_LENGTH;
+   const DIVISIONS = 4;
+
+   patternCanvas.width = WIDTH;
+   patternCanvas.height = HEIGHT;
+   pctx.fillStyle = colour;
+
+   // Top line
+   pctx.beginPath();
+   pctx.moveTo(0, HEIGHT * (1 / DIVISIONS));
+   pctx.lineTo(WIDTH * (1 / DIVISIONS), 0);
+   pctx.lineTo(0, 0);
+   pctx.lineTo(0, HEIGHT * (1 / DIVISIONS));
+   pctx.fill();
+
+   // Middle line
+   pctx.beginPath();
+   pctx.moveTo(WIDTH, HEIGHT * (1 / DIVISIONS));
+   pctx.lineTo(WIDTH * (1 / DIVISIONS), HEIGHT);
+   pctx.lineTo(0, HEIGHT);
+   pctx.lineTo(0, HEIGHT * ((DIVISIONS - 1) / DIVISIONS));
+   pctx.lineTo(WIDTH * ((DIVISIONS - 1) / DIVISIONS), 0);
+   pctx.lineTo(WIDTH, 0);
+   pctx.lineTo(WIDTH, HEIGHT * (1 / DIVISIONS));
+   pctx.fill();
+
+   // Bottom line
+   pctx.beginPath();
+   pctx.moveTo(WIDTH, HEIGHT * ((DIVISIONS - 1) / DIVISIONS));
+   pctx.lineTo(WIDTH * ((DIVISIONS - 1) / DIVISIONS), HEIGHT);
+   pctx.lineTo(WIDTH, HEIGHT);
+   pctx.lineTo(WIDTH, HEIGHT * ((DIVISIONS - 1) / DIVISIONS));
+   pctx.fill();
+
+   return patternCanvas;
+}
+
 MhistoryGraph.prototype.draw = function () {
    // profile(true);
 
@@ -1587,6 +1671,8 @@ MhistoryGraph.prototype.draw = function () {
    if (new Date().getTime() < this.lastDrawTime + 30)
       return;
    this.lastDrawTime = new Date().getTime();
+
+   let update_last_written = false;
 
    let ctx = this.canvas.getContext("2d");
 
@@ -1632,6 +1718,7 @@ MhistoryGraph.prototype.draw = function () {
    ctx.fillStyle = "#808080";
    ctx.fillText(this.group + " - " + this.panel, (this.x2 + this.x1) / 2, 16);
 
+   // draw axis
    ctx.strokeStyle = this.color.axis;
    ctx.drawLine(this.x1, this.y2, this.x2, this.y2);
    ctx.drawLine(this.x2, this.y2, this.x2, this.y1);
@@ -1644,6 +1731,17 @@ MhistoryGraph.prototype.draw = function () {
       -4, -7, -10, -12, this.x2 - this.x1, this.yMin, this.yMax, this.logAxis, true);
    this.drawTAxis(ctx, this.x1, this.y1, this.x2 - this.x1, this.width,
       4, 7, 10, 10, this.y2 - this.y1, this.tMin, this.tMax);
+
+   // draw hatched area for "future"
+   let t = Math.floor(new Date() / 1000);
+   if (this.tMax > t) {
+      let x = this.timeToX(t);
+      ctx.fillStyle = ctx.createPattern(createPinstripeCanvas(), 'repeat');
+      ctx.fillRect(x, 26, this.x2 - x, this.y1 - this.y2);
+
+      ctx.strokeStyle = this.color.axis;
+      ctx.strokeRect(x, 26, this.x2 - x, this.y1 - this.y2);
+   }
 
    // determine precision
    let n_sig1, n_sig2;
@@ -1814,7 +1912,7 @@ MhistoryGraph.prototype.draw = function () {
          if (typeof this.avgN !== 'undefined' && this.avgN[di] > 2) {
             ctx.beginPath();
             let x0 = undefined;
-            let y0 = 0;
+            let y0 = undefined;
             let xLast = 0;
             for (let i = 0; i < this.p[di].length; i++) {
                let p = this.p[di][i];
@@ -1836,8 +1934,8 @@ MhistoryGraph.prototype.draw = function () {
             ctx.globalAlpha = 1;
          } else {
             ctx.beginPath();
-            let x0 = 0;
-            let y0 = 0;
+            let x0 = undefined;
+            let y0 = undefined;
             let xLast = 0;
             let i;
             for (i = 0; i < this.x[di].length; i++) {
@@ -2022,8 +2120,17 @@ MhistoryGraph.prototype.draw = function () {
                ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
             }
          } else {
-            ctx.fillText(convertLastWritten(this.lastWritten[i]),
-               this.x1 + 25 + this.variablesWidth, 40 + i * 17);
+	    if (this.lastWritten.length > 0) {
+	       if (this.lastWritten[i] > this.tMax) {
+		  //console.log("last written is in the future: " + this.events[i] + ", lw: " + this.lastWritten[i], ", this.tMax: " + this.tMax, ", diff: " + (this.lastWritten[i] - this.tMax));
+		  update_last_written = true;
+	       }
+               ctx.fillText(convertLastWritten(this.lastWritten[i]),
+			    this.x1 + 25 + this.variablesWidth, 40 + i * 17);
+	    } else {
+	       //console.log("last_written was not loaded yet");
+	       update_last_written = true;
+	    }
          }
 
       });
@@ -2224,6 +2331,10 @@ MhistoryGraph.prototype.draw = function () {
    this.lastDrawTime = new Date().getTime();
 
    // profile("Finished draw");
+
+   if (update_last_written) {
+      this.updateLastWritten();
+   }
 
    // update URL
    if (this.updateURLTimer !== undefined)

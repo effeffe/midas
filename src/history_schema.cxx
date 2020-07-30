@@ -3485,11 +3485,21 @@ static int CreateSqlTable(SqlBase* sql, const char* table_name, bool* have_trans
 
    status = sql->Exec(table_name, cmd.c_str());
 
-   cm_msg(MINFO, "CreateSqlTable", "Adding SQL table \"%s\", status %d", table_name, status);
-   cm_msg_flush_buffer();
 
-   if (status != DB_SUCCESS)
+   if (status == DB_KEY_EXIST) {
+      cm_msg(MINFO, "CreateSqlTable", "Adding SQL table \"%s\", but it already exists", table_name);
+      cm_msg_flush_buffer();
+      return status;
+   }
+
+   if (status != DB_SUCCESS) {
+      cm_msg(MINFO, "CreateSqlTable", "Adding SQL table \"%s\", error status %d", table_name, status);
+      cm_msg_flush_buffer();
       return HS_FILE_ERROR;
+   }
+
+   cm_msg(MINFO, "CreateSqlTable", "Adding SQL table \"%s\"", table_name);
+   cm_msg_flush_buffer();
 
    std::string i_index_name;
    i_index_name = table_name;
@@ -4658,9 +4668,20 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
 
       //printf("event [%s] create table [%s] status %d\n", event_name, xtable_name.c_str(), status);
 
-      if (status != HS_SUCCESS) {
+      if (status == DB_KEY_EXIST) {
+         // already exists, try with different name!
          fSql->RollbackTransaction(table_name.c_str());
          continue;
+      }
+
+      if (status != HS_SUCCESS) {
+         // MYSQL cannot roll back "create table", if we cannot create SQL tables, nothing will work. Give up now.
+         cm_msg(MERROR, "MysqlHistory::create_table", "Could not create table [%s] for event [%s], timestamp %s, please fix the SQL database configuration and try again", table_name.c_str(), event_name, TimeToString(timestamp).c_str());
+         abort();
+
+         // fatal error, give up!
+         fSql->RollbackTransaction(table_name.c_str());
+         break;
       }
 
       for (int j=0; j<2; j++) {
@@ -4701,7 +4722,7 @@ int MysqlHistory::create_table(HsSchemaVector* sv, const char* event_name, time_
       return ReadMysqlTableNames(fSql, sv, xtable_name.c_str(), fDebug, event_name, xtable_name.c_str());
    }
 
-   cm_msg(MERROR, "MysqlHistory::create_table", "Could not create table [%s] for event [%s], timestamp %s, after %d attempts\n", table_name.c_str(), event_name, TimeToString(timestamp).c_str(), max_attempts);
+   cm_msg(MERROR, "MysqlHistory::create_table", "Could not create table [%s] for event [%s], timestamp %s, after %d attempts", table_name.c_str(), event_name, TimeToString(timestamp).c_str(), max_attempts);
 
    return HS_FILE_ERROR;
 }

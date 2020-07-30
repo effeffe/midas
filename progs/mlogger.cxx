@@ -61,7 +61,16 @@ void create_runlog_ascii_tree();
 #define STRLCPY(dst, src) strlcpy((dst), (src), sizeof(dst))
 #define STRLCAT(dst, src) strlcat((dst), (src), sizeof(dst))
 
+std::string IntToString(int value)
+{
+   char buf[256];
+   sprintf(buf, "%d", value);
+   return buf;
+}
+
 /*---- Logging channel information ---------------------------------*/
+
+// NOTE: [Settings] here MUST be exactly same as CHN_SETTINGS_STR below
 
 #define CHN_TREE_STR(_name) const char *_name[] = {\
 "[Settings]",\
@@ -86,6 +95,11 @@ void create_runlog_ascii_tree();
 "File checksum = STRING : [256] CRC32C",\
 "Compress = STRING : [256] lz4",\
 "Output = STRING : [256] FILE",\
+"Gzip compression = UINT32 : 0",\
+"Bzip2 compression = UINT32 : 0",\
+"Pbzip2 num cpu = UINT32 : 0",\
+"Pbzip2 compression = UINT32 : 0",\
+"Pbzip2 options = STRING : [256]",\
 "",\
 "[Statistics]",\
 "Events written = DOUBLE : 0",\
@@ -120,15 +134,23 @@ typedef struct {
    char file_checksum[256];
    char compress[256];
    char output[256];
+   uint32_t gzip_compression;
+   uint32_t bzip2_compression;
+   uint32_t pbzip2_num_cpu;
+   uint32_t pbzip2_compression;
+   char pbzip2_options[256];
 } CHN_SETTINGS;
 
-#define CHN_SETTINGS_STR(_name) const char *_name[] = {\
+// NOTE: CHN_SETTINGS here MUST be exactly same as [Settings] in CHN_TREE_STR above.
+
+#define CHN_SETTINGS_STR(_name) const char *_name[] = { \
 "Active = BOOL : 1",\
 "Type = STRING : [8] Disk",\
 "Filename = STRING : [256] run%05d.mid",\
 "Format = STRING : [8] MIDAS",\
 "Compression = INT32 : 0",\
 "ODB dump = BOOL : 1",\
+"ODB dump format = STRING : [32] json",\
 "Log messages = UINT32 : 0",\
 "Buffer = STRING : [32] SYSTEM",\
 "Event ID = INT32 : -1",\
@@ -143,6 +165,11 @@ typedef struct {
 "File checksum = STRING : [256]",\
 "Compress = STRING : [256]",\
 "Output = STRING : [256]",\
+"Gzip compression = UINT32 : 0",\
+"Bzip2 compression = UINT32 : 0",\
+"Pbzip2 num cpu = UINT32 : 0",\
+"Pbzip2 compression = UINT32 : 0",\
+"Pbzip2 options = STRING : [256]",\
 "",\
 NULL}
 
@@ -532,7 +559,11 @@ public:
       if (fTrace)
          printf("WriterGzip: path [%s]\n", log_chn->path.c_str());
       fGzfp = 0;
-      fCompress = compress;
+      if (log_chn->settings.gzip_compression) {
+         fCompress = log_chn->settings.gzip_compression;
+      } else {
+         fCompress = compress;
+      }
       fLastCheckTime = time(NULL);
    }
 
@@ -560,6 +591,8 @@ public:
          cm_msg(MERROR, "WriterGzip::wr_open", "Cannot write to file \'%s\', gzopen() errno %d (%s)", log_chn->path.c_str(), errno, strerror(errno));
          return SS_FILE_ERROR;
       }
+
+      //printf("WriterGzip::wr_open: compress %d\n", fCompress);
 
       if (fCompress) {
          zerror = gzsetparams(fGzfp, fCompress, Z_DEFAULT_STRATEGY);
@@ -3631,12 +3664,36 @@ private:
 
 WriterInterface* NewWriterBzip2(LOG_CHN* log_chn)
 {
-   return new WriterPopen(log_chn, "bzip2 -z > ", ".bz2");
+   std::string bzip2_command = "bzip2 -z";
+
+   if (log_chn->settings.bzip2_compression) {
+      bzip2_command += " -";
+      bzip2_command += IntToString(log_chn->settings.bzip2_compression);
+   }
+
+   return new WriterPopen(log_chn, (bzip2_command + " > ").c_str(), ".bz2");
 }
 
 WriterInterface* NewWriterPbzip2(LOG_CHN* log_chn)
 {
-   return new WriterPopen(log_chn, "pbzip2 -c -z > ", ".bz2");
+   std::string pbzip2_command = "pbzip2 -c -z";
+
+   if (log_chn->settings.pbzip2_num_cpu) {
+      pbzip2_command += " -p";
+      pbzip2_command += IntToString(log_chn->settings.pbzip2_num_cpu);
+   }
+
+   if (log_chn->settings.pbzip2_compression) {
+      pbzip2_command += " -";
+      pbzip2_command += IntToString(log_chn->settings.pbzip2_compression);
+   }
+
+   if (strlen(log_chn->settings.pbzip2_options) > 0) {
+      pbzip2_command += " ";
+      pbzip2_command += log_chn->settings.pbzip2_options;
+   }
+
+   return new WriterPopen(log_chn, (pbzip2_command + " > ").c_str(), ".bz2");
 }
 
 #define CHECKSUM_NONE   0
