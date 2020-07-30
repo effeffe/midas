@@ -398,6 +398,35 @@ MhistoryGraph.prototype.initializePanel = function (index) {
    });
 };
 
+MhistoryGraph.prototype.updateLastWritten = function (index) {
+   //console.log("update last_written!!!\n");
+
+   // load date of latest data points
+   mjsonrpc_call("hs_get_last_written",
+      {
+         "time": this.tMin,
+         "events": this.events,
+         "tags": this.tags,
+         "index": this.index
+      }).then(function (rpc) {
+	 this.lastWritten = rpc.result.last_written;
+	 // protect against an infinite loop from draw() if rpc returns invalid times.
+	 // by definition, last_written returned by RPC is supposed to be less then tMin.
+	 for (let i = 0; i < this.lastWritten.length; i++) {
+            let l = this.lastWritten[i];
+	    //console.log("updated last_written: event: " + this.events[i] + ", l: " + l + ", tmin: " + this.tMin + ", diff: " + (l - this.tMin));
+	    if (l > this.tMin) {
+	       this.lastWritten[i] = this.tMin;
+	    }
+	 }
+         this.lastDrawTime = 0; // force redraw
+	 this.draw();
+      }.bind(this))
+      .catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
+}
+
 MhistoryGraph.prototype.loadInitialData = function () {
 
    this.lastTimeStamp = Math.floor(Date.now() / 1000);
@@ -592,7 +621,6 @@ MhistoryGraph.prototype.loadInitialData = function () {
                   let last = 0;
                   for (let i = 0; i < rpc.result.last_written.length; i++) {
                      let l = rpc.result.last_written[i];
-		     console.log("event: " + this.events[i] + ", last: " + last + ", l: " + l);
                      if (this.events[i] === "Run transitions") {
                         continue;
                      }
@@ -605,7 +633,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
 			last = Math.min(last, l);
 		     }
                   }
-		  console.log("last: " + last);
+		  //console.log("last: " + last);
 
 		  if (last !== 0) { // no data, at all!
                      let scale = mhg.tMax - mhg.tMin;
@@ -704,24 +732,6 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    this.downloadSelector.appendChild(table);
    document.body.appendChild(this.downloadSelector);
-
-   // load date of latest data points
-   mjsonrpc_call("hs_get_last_written",
-      {
-         "time": this.tMin,
-         "events": this.events,
-         "tags": this.tags,
-         "index": this.index
-      }).then(function (rpc) {
-      for (let i = 0; i < rpc.result.last_written.length; i++) {
-         let l = rpc.result.last_written[i];
-	 console.log("event: " + this.events[i] + ", l: " + l + ", tmin: " + this.tMin + ", diff: " + (l - this.tMin));
-      }
-      this.lastWritten = rpc.result.last_written;
-   }.bind(this))
-      .catch(function (error) {
-         mjsonrpc_error_alert(error);
-      });
 
    // load initial data
    this.tMinRequested = this.tMin - this.tScale; // look one window ahead in past
@@ -1662,6 +1672,8 @@ MhistoryGraph.prototype.draw = function () {
       return;
    this.lastDrawTime = new Date().getTime();
 
+   let update_last_written = false;
+
    let ctx = this.canvas.getContext("2d");
 
    ctx.fillStyle = this.color.background;
@@ -2108,8 +2120,17 @@ MhistoryGraph.prototype.draw = function () {
                ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
             }
          } else {
-            ctx.fillText(convertLastWritten(this.lastWritten[i]),
-               this.x1 + 25 + this.variablesWidth, 40 + i * 17);
+	    if (this.lastWritten.length > 0) {
+	       if (this.lastWritten[i] > this.tMax) {
+		  //console.log("last written is in the future: " + this.events[i] + ", lw: " + this.lastWritten[i], ", this.tMax: " + this.tMax, ", diff: " + (this.lastWritten[i] - this.tMax));
+		  update_last_written = true;
+	       }
+               ctx.fillText(convertLastWritten(this.lastWritten[i]),
+			    this.x1 + 25 + this.variablesWidth, 40 + i * 17);
+	    } else {
+	       //console.log("last_written was not loaded yet");
+	       update_last_written = true;
+	    }
          }
 
       });
@@ -2310,6 +2331,10 @@ MhistoryGraph.prototype.draw = function () {
    this.lastDrawTime = new Date().getTime();
 
    // profile("Finished draw");
+
+   if (update_last_written) {
+      this.updateLastWritten();
+   }
 
    // update URL
    if (this.updateURLTimer !== undefined)
