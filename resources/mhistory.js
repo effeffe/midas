@@ -1580,6 +1580,50 @@ MhistoryGraph.prototype.updateURL = function() {
       window.history.replaceState({}, "Midas History", url);
 }
 
+function createPinstripeCanvas() {
+   const patternCanvas = document.createElement("canvas");
+   const pctx = patternCanvas.getContext('2d', { antialias: true });
+   const colour = "#FFC0C0";
+
+   const CANVAS_SIDE_LENGTH = 90;
+   const WIDTH = CANVAS_SIDE_LENGTH;
+   const HEIGHT = CANVAS_SIDE_LENGTH;
+   const DIVISIONS = 4;
+
+   patternCanvas.width = WIDTH;
+   patternCanvas.height = HEIGHT;
+   pctx.fillStyle = colour;
+
+   // Top line
+   pctx.beginPath();
+   pctx.moveTo(0, HEIGHT * (1 / DIVISIONS));
+   pctx.lineTo(WIDTH * (1 / DIVISIONS), 0);
+   pctx.lineTo(0, 0);
+   pctx.lineTo(0, HEIGHT * (1 / DIVISIONS));
+   pctx.fill();
+
+   // Middle line
+   pctx.beginPath();
+   pctx.moveTo(WIDTH, HEIGHT * (1 / DIVISIONS));
+   pctx.lineTo(WIDTH * (1 / DIVISIONS), HEIGHT);
+   pctx.lineTo(0, HEIGHT);
+   pctx.lineTo(0, HEIGHT * ((DIVISIONS - 1) / DIVISIONS));
+   pctx.lineTo(WIDTH * ((DIVISIONS - 1) / DIVISIONS), 0);
+   pctx.lineTo(WIDTH, 0);
+   pctx.lineTo(WIDTH, HEIGHT * (1 / DIVISIONS));
+   pctx.fill();
+
+   // Bottom line
+   pctx.beginPath();
+   pctx.moveTo(WIDTH, HEIGHT * ((DIVISIONS - 1) / DIVISIONS));
+   pctx.lineTo(WIDTH * ((DIVISIONS - 1) / DIVISIONS), HEIGHT);
+   pctx.lineTo(WIDTH, HEIGHT);
+   pctx.lineTo(WIDTH, HEIGHT * ((DIVISIONS - 1) / DIVISIONS));
+   pctx.fill();
+
+   return patternCanvas;
+}
+
 MhistoryGraph.prototype.draw = function () {
    // profile(true);
 
@@ -1632,6 +1676,7 @@ MhistoryGraph.prototype.draw = function () {
    ctx.fillStyle = "#808080";
    ctx.fillText(this.group + " - " + this.panel, (this.x2 + this.x1) / 2, 16);
 
+   // draw axis
    ctx.strokeStyle = this.color.axis;
    ctx.drawLine(this.x1, this.y2, this.x2, this.y2);
    ctx.drawLine(this.x2, this.y2, this.x2, this.y1);
@@ -1644,6 +1689,17 @@ MhistoryGraph.prototype.draw = function () {
       -4, -7, -10, -12, this.x2 - this.x1, this.yMin, this.yMax, this.logAxis, true);
    this.drawTAxis(ctx, this.x1, this.y1, this.x2 - this.x1, this.width,
       4, 7, 10, 10, this.y2 - this.y1, this.tMin, this.tMax);
+
+   // draw hatched area for "future"
+   let t = Math.floor(new Date() / 1000);
+   if (this.tMax > t) {
+      let x = this.timeToX(t);
+      ctx.fillStyle = ctx.createPattern(createPinstripeCanvas(), 'repeat');
+      ctx.fillRect(x, 26, this.x2 - x, this.y1 - this.y2);
+
+      ctx.strokeStyle = this.color.axis;
+      ctx.strokeRect(x, 26, this.x2 - x, this.y1 - this.y2);
+   }
 
    // determine precision
    let n_sig1, n_sig2;
@@ -1814,7 +1870,7 @@ MhistoryGraph.prototype.draw = function () {
          if (typeof this.avgN !== 'undefined' && this.avgN[di] > 2) {
             ctx.beginPath();
             let x0 = undefined;
-            let y0 = 0;
+            let y0 = undefined;
             let xLast = 0;
             for (let i = 0; i < this.p[di].length; i++) {
                let p = this.p[di][i];
@@ -1836,8 +1892,8 @@ MhistoryGraph.prototype.draw = function () {
             ctx.globalAlpha = 1;
          } else {
             ctx.beginPath();
-            let x0 = 0;
-            let y0 = 0;
+            let x0 = undefined;
+            let y0 = undefined;
             let xLast = 0;
             let i;
             for (i = 0; i < this.x[di].length; i++) {
