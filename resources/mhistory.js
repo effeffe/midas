@@ -1250,41 +1250,49 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       }
    } else if (e.type === "dblclick") {
 
-      // measure distance to graphs
-      if (this.data !== undefined && this.x.length && this.y.length) {
-         let minDist = 100;
-         for (let di = 0; di < this.data.length; di++) {
-            for (let i = 0; i < this.x[di].length; i++) {
-               if (this.x[di][i] > this.x1 && this.x[di][i] < this.x2) {
-                  let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
-                     Math.pow(e.offsetY - this.y[di][i], 2));
-                  if (d < minDist) {
-                     minDist = d;
-                     this.solo.index = di;
-                  }
-               }
-            }
-         }
-         // check if close to graph point
-         if (minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2) {
-            this.solo.active = !this.solo.active;
-         } else {
-            // check if inside label area
-            if (this.showLabels) {
-               if (e.offsetX > this.x1 && e.offsetX < this.x1 + 25 + this.variablesWidth + 7) {
-                  let i = Math.floor((e.offsetY - 30) / 17);
-                  if (i < this.data.length) {
-                     if (this.solo.active && this.solo.index === i) {
-                        this.solo.active = false;
-                     } else {
-                        this.solo.active = true;
-                        this.solo.index = i;
+      // check if inside zoom buttons
+      if (e.offsetX > this.width - 30 - 48 && e.offsetX < this.width - 30 &&
+         e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
+         // just ignore it
+
+      } else {
+
+         // measure distance to graphs
+         if (this.data !== undefined && this.x.length && this.y.length) {
+            let minDist = 100;
+            for (let di = 0; di < this.data.length; di++) {
+               for (let i = 0; i < this.x[di].length; i++) {
+                  if (this.x[di][i] > this.x1 && this.x[di][i] < this.x2) {
+                     let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
+                        Math.pow(e.offsetY - this.y[di][i], 2));
+                     if (d < minDist) {
+                        minDist = d;
+                        this.solo.index = di;
                      }
                   }
                }
             }
+            // check if close to graph point
+            if (minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2) {
+               this.solo.active = !this.solo.active;
+            } else {
+               // check if inside label area
+               if (this.showLabels) {
+                  if (e.offsetX > this.x1 && e.offsetX < this.x1 + 25 + this.variablesWidth + 7) {
+                     let i = Math.floor((e.offsetY - 30) / 17);
+                     if (i < this.data.length) {
+                        if (this.solo.active && this.solo.index === i) {
+                           this.solo.active = false;
+                        } else {
+                           this.solo.active = true;
+                           this.solo.index = i;
+                        }
+                     }
+                  }
+               }
+            }
+            this.redraw();
          }
-         this.redraw();
       }
    }
 
