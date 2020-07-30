@@ -559,17 +559,19 @@ MhistoryGraph.prototype.loadInitialData = function () {
                      last = Math.max(last, l);
                   }
 
-                  let scale = mhg.tMax - mhg.tMin;
-                  mhg.tMax = last + scale / 2;
-                  mhg.tMin = last - scale / 2;
+  		  if (last !== 0) { // no data, at all!
+                     let scale = mhg.tMax - mhg.tMin;
+                     mhg.tMax = last + scale / 2;
+                     mhg.tMin = last - scale / 2;
 
-                  mhg.scroll = false;
-                  mhg.marker.active = false;
-                  mhg.loadOldData();
-                  mhg.redraw();
+                     mhg.scroll = false;
+                     mhg.marker.active = false;
+                     mhg.loadOldData();
+                     mhg.redraw();
 
-                  if (mhg.callbacks.timeZoom !== undefined)
-                     mhg.callbacks.timeZoom(mhg);
+                     if (mhg.callbacks.timeZoom !== undefined)
+			mhg.callbacks.timeZoom(mhg);
+		  }
 
                }.bind(this))
                .catch(function (error) {
@@ -587,22 +589,37 @@ MhistoryGraph.prototype.loadInitialData = function () {
                })
                .then(function (rpc) {
 
-                  let last = rpc.result.last_written[0];
-                  rpc.result.last_written.forEach(l => {
-                     last = Math.min(last, l);
-                  });
+                  let last = 0;
+                  for (let i = 0; i < rpc.result.last_written.length; i++) {
+                     let l = rpc.result.last_written[i];
+		     console.log("event: " + this.events[i] + ", last: " + last + ", l: " + l);
+                     if (this.events[i] === "Run transitions") {
+                        continue;
+                     }
+		     if (last === 0) {
+			// no data for first variable
+			last = l;
+		     } else if (l === 0) {
+			// no data for this variable
+		     } else {
+			last = Math.min(last, l);
+		     }
+                  }
+		  console.log("last: " + last);
 
-                  let scale = mhg.tMax - mhg.tMin;
-                  mhg.tMax = last + scale / 2;
-                  mhg.tMin = last - scale / 2;
+		  if (last !== 0) { // no data, at all!
+                     let scale = mhg.tMax - mhg.tMin;
+                     mhg.tMax = last + scale / 2;
+                     mhg.tMin = last - scale / 2;
 
-                  mhg.scroll = false;
-                  mhg.marker.active = false;
-                  mhg.loadOldData();
-                  mhg.redraw();
+                     mhg.scroll = false;
+                     mhg.marker.active = false;
+                     mhg.loadOldData();
+                     mhg.redraw();
 
-                  if (mhg.callbacks.timeZoom !== undefined)
-                     mhg.callbacks.timeZoom(mhg);
+                     if (mhg.callbacks.timeZoom !== undefined)
+			mhg.callbacks.timeZoom(mhg);
+		  }
 
                }.bind(this))
                .catch(function (error) {
@@ -691,10 +708,15 @@ MhistoryGraph.prototype.loadInitialData = function () {
    // load date of latest data points
    mjsonrpc_call("hs_get_last_written",
       {
+         "time": this.tMin,
          "events": this.events,
          "tags": this.tags,
          "index": this.index
       }).then(function (rpc) {
+      for (let i = 0; i < rpc.result.last_written.length; i++) {
+         let l = rpc.result.last_written[i];
+	 console.log("event: " + this.events[i] + ", l: " + l + ", tmin: " + this.tMin + ", diff: " + (l - this.tMin));
+      }
       this.lastWritten = rpc.result.last_written;
    }.bind(this))
       .catch(function (error) {
