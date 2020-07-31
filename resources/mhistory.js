@@ -15,7 +15,7 @@ LOG2 = 0.301029996;
 LOG5 = 0.698970005;
 
 function profile(flag) {
-   if (flag === true) {
+   if (flag === true || flag === undefined) {
       console.log("");
       profile.startTime = new Date().getTime();
       return;
@@ -892,9 +892,16 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          }
       } else if (t0 < this.data[index].time[0]) {
          // add data to the left
+         profile();
 
          let formula = this.odb["Formula"];
 
+         // if (this.t1 === undefined) {
+         //    this.t1 = [];
+         //    this.v1 = [];
+         // }
+         // this.t1.length = 0;
+         // this.v1.length = 0;
          let t1 = [];
          let v1 = [];
 
@@ -905,6 +912,8 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
                x = array[i++];
                let v = eval(formula[index]);
                if (t < this.data[index].time[0]) {
+                  // this.t1.push(t);
+                  // this.v1.push(v);
                   t1.push(t);
                   v1.push(v);
                }
@@ -914,13 +923,19 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
                let t = array[i++];
                let v = array[i++];
                if (t < this.data[index].time[0]) {
+                  // this.t1.push(t);
+                  // this.v1.push(v);
                   t1.push(t);
                   v1.push(v);
                }
             }
          }
+         // this.data[index].time = this.t1.concat(this.data[index].time);
+         // this.data[index].value = this.v1.concat(this.data[index].value);
          this.data[index].time = t1.concat(this.data[index].time);
          this.data[index].value = v1.concat(this.data[index].value);
+
+         profile("concat");
       } else {
          // add data to the right
 
@@ -1807,11 +1822,14 @@ MhistoryGraph.prototype.draw = function () {
       this.nPointsOld = nPoints;
       this.forceConvert = false;
 
+      //profile();
       for (let di = 0; di < this.data.length; di++) {
-         this.x[di] = []; // x/y contain visible part of graph
-         this.y[di] = [];
-         this.t[di] = []; // t/v contain time/value pairs corresponding to x/y
-         this.v[di] = [];
+         if (this.x[di] === undefined) {
+            this.x[di] = []; // x/y contain visible part of graph
+            this.y[di] = [];
+            this.t[di] = []; // t/v contain time/value pairs corresponding to x/y
+            this.v[di] = [];
+         }
 
          let first = undefined;
          let last = undefined;
@@ -1854,7 +1872,7 @@ MhistoryGraph.prototype.draw = function () {
          }
       }
 
-      // profile("Value to points");
+      //profile("Value to points");
 
       this.avgN = [];
 
