@@ -2608,8 +2608,9 @@ function timeToLabel(sec, base, forceDate) {
 
 MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, major,
                                               text, label, grid, xmin, xmax) {
-   const base = [1, 5, 10, 60, 15 * 60, 30 * 60, 3600, 3 * 3600, 6 * 3600,
-      12 * 3600, 24 * 3600, 2 * 24 * 3600, 10 * 24 * 3600, 30 * 24 * 3600, 0];
+   const base = [1, 5, 10, 60, 2 * 60, 5 * 60, 10 * 60, 15 * 60, 30 * 60, 3600,
+      3 * 3600, 6 * 3600, 12 * 3600, 24 * 3600, 2 * 24 * 3600, 10 * 24 * 3600,
+      30 * 24 * 3600, 0];
 
    ctx.textAlign = "left";
    ctx.textBaseline = "top";
