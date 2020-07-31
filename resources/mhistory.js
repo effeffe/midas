@@ -1539,8 +1539,6 @@ MhistoryGraph.prototype.yToValue = function (y) {
 
 MhistoryGraph.prototype.findMinMax = function () {
 
-   let n = 0;
-
    if (this.yZoom)
       return;
 
@@ -1556,39 +1554,35 @@ MhistoryGraph.prototype.findMinMax = function () {
       return;
    }
 
-   if (this.autoscaleMin)
-      this.yMin0 = undefined;
-   if (this.autoscaleMax)
-      this.yMax0 = undefined;
+   let minValue = undefined;
+   let maxValue = undefined;
+   let n = 0;
    for (let index = 0; index < this.data.length; index++) {
       if (this.events[index] === "Run transitions")
          continue;
       let i1 = binarySearch(this.data[index].time, this.tMin);
-      for (let i = i1; i < this.data[index].time.length; i++) {
-         let t = this.data[index].time[i];
+      let i2 = binarySearch(this.data[index].time, this.tMax);
+      if (minValue === undefined) {
+         minValue = this.data[index].value[i1];
+         maxValue = this.data[index].value[i1];
+      }
+      for (let i = i1; i < i2; i++) {
          let v = this.data[index].value[i];
          if (Number.isNaN(v))
             continue;
-         if (t > this.tMin && t < this.tMax) {
-            n++;
 
-            if (this.yMin0 === undefined)
-               this.yMin0 = v;
-            if (this.yMax0 === undefined)
-               this.yMax0 = v;
-            if (this.autoscaleMin) {
-               if (v < this.yMin0)
-                  this.yMin0 = v;
-            }
-            if (this.autoscaleMax) {
-               if (v > this.yMax0)
-                  this.yMax0 = v;
-            }
-         }
-         if (t > this.tMax)
-            break;
+         n++;
+         if (v < minValue)
+            minValue = v;
+         if (v > maxValue)
+            maxValue = v;
       }
    }
+
+   if (this.autoscaleMin)
+      this.yMin0 = this.yMin = minValue;
+   if (this.autoscaleMax)
+      this.yMax0 = this.yMax = maxValue;
 
    if (n === 0) {
       this.yMin0 = -0.5;
@@ -1836,7 +1830,8 @@ MhistoryGraph.prototype.draw = function () {
          let n = 0;
 
          let i1 = binarySearch(this.data[di].time, this.tMin);
-         for (let i = i1; i < this.data[di].time.length; i++) {
+         let i2 = this.data[di].time.length;
+         for (let i = i1; i < i2 ; i++) {
             let t = this.data[di].time[i];
             if (t >= this.tMin && t <= this.tMax) {
                let x = this.timeToX(t);
@@ -1870,6 +1865,10 @@ MhistoryGraph.prototype.draw = function () {
             this.t[di].unshift(this.data[di].value[first - 1]);
             this.v[di].unshift(this.data[di].time[first - 1]);
          }
+         this.x[di].length = n;
+         this.y[di].length = n;
+         this.t[di].length = n;
+         this.v[di].length = n;
       }
 
       //profile("Value to points");
@@ -1887,7 +1886,8 @@ MhistoryGraph.prototype.draw = function () {
          let sum1 = 0;
 
          let xLast = undefined;
-         for (let i = 0; i < this.x[di].length; i++) {
+         let l = this.x[di].length;
+         for (let i = 0; i < l; i++) {
             let x = Math.floor(this.x[di][i]);
             let y = this.y[di][i];
 
