@@ -754,6 +754,9 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
          this.receiveData(rpc);
          this.tMinReceived = this.tMinRequested;
+
+         this.lastDrawTime = 0; // force redraw
+         this.findMinMax();
          this.redraw();
 
          if (this.tMin - this.tScale < this.tMinRequested) {
@@ -807,6 +810,7 @@ MhistoryGraph.prototype.loadOldData = function () {
             if (this.tMin - dt / 2 < this.tMinRequested) {
                this.tMinReceived = this.tMinRequested;
                this.lastDrawTime = 0; // force redraw
+               this.findMinMax();
                this.redraw();
                this.pendingUpdates--;
                this.loadOldData();
