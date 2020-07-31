@@ -398,7 +398,7 @@ MhistoryGraph.prototype.initializePanel = function (index) {
    });
 };
 
-MhistoryGraph.prototype.updateLastWritten = function (index) {
+MhistoryGraph.prototype.updateLastWritten = function () {
    //console.log("update last_written!!!\n");
 
    // load date of latest data points
@@ -409,19 +409,19 @@ MhistoryGraph.prototype.updateLastWritten = function (index) {
          "tags": this.tags,
          "index": this.index
       }).then(function (rpc) {
-	 this.lastWritten = rpc.result.last_written;
-	 // protect against an infinite loop from draw() if rpc returns invalid times.
-	 // by definition, last_written returned by RPC is supposed to be less then tMin.
-	 for (let i = 0; i < this.lastWritten.length; i++) {
-            let l = this.lastWritten[i];
-	    //console.log("updated last_written: event: " + this.events[i] + ", l: " + l + ", tmin: " + this.tMin + ", diff: " + (l - this.tMin));
-	    if (l > this.tMin) {
-	       this.lastWritten[i] = this.tMin;
-	    }
-	 }
-         this.lastDrawTime = 0; // force redraw
-	 this.draw();
-      }.bind(this))
+      this.lastWritten = rpc.result.last_written;
+      // protect against an infinite loop from draw() if rpc returns invalid times.
+      // by definition, last_written returned by RPC is supposed to be less then tMin.
+      for (let i = 0; i < this.lastWritten.length; i++) {
+         let l = this.lastWritten[i];
+         //console.log("updated last_written: event: " + this.events[i] + ", l: " + l + ", tmin: " + this.tMin + ", diff: " + (l - this.tMin));
+         if (l > this.tMin) {
+            this.lastWritten[i] = this.tMin;
+         }
+      }
+      this.lastDrawTime = 0; // force redraw
+      this.draw();
+   }.bind(this))
       .catch(function (error) {
          mjsonrpc_error_alert(error);
       });
@@ -1407,6 +1407,16 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
          if (this.callbacks.timeZoom !== undefined)
             this.callbacks.timeZoom(this);
+      } else  if (e.deltxX !== 0) {
+
+         let dt = (this.tMax - this.tMin) / 1000 * e.deltaX;
+         this.tMin += dt;
+         this.tMax += dt;
+
+         if (dt < 0)
+            this.loadOldData();
+
+         this.redraw();
       } else
          return;
 
