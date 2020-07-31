@@ -892,7 +892,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          }
       } else if (t0 < this.data[index].time[0]) {
          // add data to the left
-         profile();
+         //profile();
 
          let formula = this.odb["Formula"];
 
@@ -935,7 +935,7 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          this.data[index].time = t1.concat(this.data[index].time);
          this.data[index].value = v1.concat(this.data[index].value);
 
-         profile("concat");
+         //profile("concat");
       } else {
          // add data to the right
 
