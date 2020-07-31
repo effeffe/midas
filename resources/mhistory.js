@@ -15,7 +15,7 @@ LOG2 = 0.301029996;
 LOG5 = 0.698970005;
 
 function profile(flag) {
-   if (flag === true) {
+   if (flag === true || flag === undefined) {
       console.log("");
       profile.startTime = new Date().getTime();
       return;
@@ -398,7 +398,7 @@ MhistoryGraph.prototype.initializePanel = function (index) {
    });
 };
 
-MhistoryGraph.prototype.updateLastWritten = function (index) {
+MhistoryGraph.prototype.updateLastWritten = function () {
    //console.log("update last_written!!!\n");
 
    // load date of latest data points
@@ -409,19 +409,19 @@ MhistoryGraph.prototype.updateLastWritten = function (index) {
          "tags": this.tags,
          "index": this.index
       }).then(function (rpc) {
-	 this.lastWritten = rpc.result.last_written;
-	 // protect against an infinite loop from draw() if rpc returns invalid times.
-	 // by definition, last_written returned by RPC is supposed to be less then tMin.
-	 for (let i = 0; i < this.lastWritten.length; i++) {
-            let l = this.lastWritten[i];
-	    //console.log("updated last_written: event: " + this.events[i] + ", l: " + l + ", tmin: " + this.tMin + ", diff: " + (l - this.tMin));
-	    if (l > this.tMin) {
-	       this.lastWritten[i] = this.tMin;
-	    }
-	 }
-         this.lastDrawTime = 0; // force redraw
-	 this.draw();
-      }.bind(this))
+      this.lastWritten = rpc.result.last_written;
+      // protect against an infinite loop from draw() if rpc returns invalid times.
+      // by definition, last_written returned by RPC is supposed to be less then tMin.
+      for (let i = 0; i < this.lastWritten.length; i++) {
+         let l = this.lastWritten[i];
+         //console.log("updated last_written: event: " + this.events[i] + ", l: " + l + ", tmin: " + this.tMin + ", diff: " + (l - this.tMin));
+         if (l > this.tMin) {
+            this.lastWritten[i] = this.tMin;
+         }
+      }
+      this.lastDrawTime = 0; // force redraw
+      this.draw();
+   }.bind(this))
       .catch(function (error) {
          mjsonrpc_error_alert(error);
       });
@@ -754,6 +754,9 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
          this.receiveData(rpc);
          this.tMinReceived = this.tMinRequested;
+
+         this.lastDrawTime = 0; // force redraw
+         this.findMinMax();
          this.redraw();
 
          if (this.tMin - this.tScale < this.tMinRequested) {
@@ -807,6 +810,7 @@ MhistoryGraph.prototype.loadOldData = function () {
             if (this.tMin - dt / 2 < this.tMinRequested) {
                this.tMinReceived = this.tMinRequested;
                this.lastDrawTime = 0; // force redraw
+               this.findMinMax();
                this.redraw();
                this.pendingUpdates--;
                this.loadOldData();
@@ -888,9 +892,16 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
          }
       } else if (t0 < this.data[index].time[0]) {
          // add data to the left
+         //profile();
 
          let formula = this.odb["Formula"];
 
+         // if (this.t1 === undefined) {
+         //    this.t1 = [];
+         //    this.v1 = [];
+         // }
+         // this.t1.length = 0;
+         // this.v1.length = 0;
          let t1 = [];
          let v1 = [];
 
@@ -901,6 +912,8 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
                x = array[i++];
                let v = eval(formula[index]);
                if (t < this.data[index].time[0]) {
+                  // this.t1.push(t);
+                  // this.v1.push(v);
                   t1.push(t);
                   v1.push(v);
                }
@@ -910,13 +923,19 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
                let t = array[i++];
                let v = array[i++];
                if (t < this.data[index].time[0]) {
+                  // this.t1.push(t);
+                  // this.v1.push(v);
                   t1.push(t);
                   v1.push(v);
                }
             }
          }
+         // this.data[index].time = this.t1.concat(this.data[index].time);
+         // this.data[index].value = this.v1.concat(this.data[index].value);
          this.data[index].time = t1.concat(this.data[index].time);
          this.data[index].value = v1.concat(this.data[index].value);
+
+         //profile("concat");
       } else {
          // add data to the right
 
@@ -1403,6 +1422,16 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
          if (this.callbacks.timeZoom !== undefined)
             this.callbacks.timeZoom(this);
+      } else  if (e.deltxX !== 0) {
+
+         let dt = (this.tMax - this.tMin) / 1000 * e.deltaX;
+         this.tMin += dt;
+         this.tMax += dt;
+
+         if (dt < 0)
+            this.loadOldData();
+
+         this.redraw();
       } else
          return;
 
@@ -1510,8 +1539,6 @@ MhistoryGraph.prototype.yToValue = function (y) {
 
 MhistoryGraph.prototype.findMinMax = function () {
 
-   let n = 0;
-
    if (this.yZoom)
       return;
 
@@ -1527,39 +1554,35 @@ MhistoryGraph.prototype.findMinMax = function () {
       return;
    }
 
-   if (this.autoscaleMin)
-      this.yMin0 = undefined;
-   if (this.autoscaleMax)
-      this.yMax0 = undefined;
+   let minValue = undefined;
+   let maxValue = undefined;
+   let n = 0;
    for (let index = 0; index < this.data.length; index++) {
       if (this.events[index] === "Run transitions")
          continue;
       let i1 = binarySearch(this.data[index].time, this.tMin);
-      for (let i = i1; i < this.data[index].time.length; i++) {
-         let t = this.data[index].time[i];
+      let i2 = binarySearch(this.data[index].time, this.tMax);
+      if (minValue === undefined) {
+         minValue = this.data[index].value[i1];
+         maxValue = this.data[index].value[i1];
+      }
+      for (let i = i1; i < i2; i++) {
          let v = this.data[index].value[i];
          if (Number.isNaN(v))
             continue;
-         if (t > this.tMin && t < this.tMax) {
-            n++;
 
-            if (this.yMin0 === undefined)
-               this.yMin0 = v;
-            if (this.yMax0 === undefined)
-               this.yMax0 = v;
-            if (this.autoscaleMin) {
-               if (v < this.yMin0)
-                  this.yMin0 = v;
-            }
-            if (this.autoscaleMax) {
-               if (v > this.yMax0)
-                  this.yMax0 = v;
-            }
-         }
-         if (t > this.tMax)
-            break;
+         n++;
+         if (v < minValue)
+            minValue = v;
+         if (v > maxValue)
+            maxValue = v;
       }
    }
+
+   if (this.autoscaleMin)
+      this.yMin0 = this.yMin = minValue;
+   if (this.autoscaleMax)
+      this.yMax0 = this.yMax = maxValue;
 
    if (n === 0) {
       this.yMin0 = -0.5;
@@ -1793,18 +1816,22 @@ MhistoryGraph.prototype.draw = function () {
       this.nPointsOld = nPoints;
       this.forceConvert = false;
 
+      //profile();
       for (let di = 0; di < this.data.length; di++) {
-         this.x[di] = []; // x/y contain visible part of graph
-         this.y[di] = [];
-         this.t[di] = []; // t/v contain time/value pairs corresponding to x/y
-         this.v[di] = [];
+         if (this.x[di] === undefined) {
+            this.x[di] = []; // x/y contain visible part of graph
+            this.y[di] = [];
+            this.t[di] = []; // t/v contain time/value pairs corresponding to x/y
+            this.v[di] = [];
+         }
 
          let first = undefined;
          let last = undefined;
          let n = 0;
 
          let i1 = binarySearch(this.data[di].time, this.tMin);
-         for (let i = i1; i < this.data[di].time.length; i++) {
+         let i2 = this.data[di].time.length;
+         for (let i = i1; i < i2 ; i++) {
             let t = this.data[di].time[i];
             if (t >= this.tMin && t <= this.tMax) {
                let x = this.timeToX(t);
@@ -1838,9 +1865,13 @@ MhistoryGraph.prototype.draw = function () {
             this.t[di].unshift(this.data[di].value[first - 1]);
             this.v[di].unshift(this.data[di].time[first - 1]);
          }
+         this.x[di].length = n;
+         this.y[di].length = n;
+         this.t[di].length = n;
+         this.v[di].length = n;
       }
 
-      // profile("Value to points");
+      //profile("Value to points");
 
       this.avgN = [];
 
@@ -1855,7 +1886,8 @@ MhistoryGraph.prototype.draw = function () {
          let sum1 = 0;
 
          let xLast = undefined;
-         for (let i = 0; i < this.x[di].length; i++) {
+         let l = this.x[di].length;
+         for (let i = 0; i < l; i++) {
             let x = Math.floor(this.x[di][i]);
             let y = this.y[di][i];
 
@@ -2608,8 +2640,9 @@ function timeToLabel(sec, base, forceDate) {
 
 MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, major,
                                               text, label, grid, xmin, xmax) {
-   const base = [1, 5, 10, 60, 15 * 60, 30 * 60, 3600, 3 * 3600, 6 * 3600,
-      12 * 3600, 24 * 3600, 2 * 24 * 3600, 10 * 24 * 3600, 30 * 24 * 3600, 0];
+   const base = [1, 5, 10, 60, 2 * 60, 5 * 60, 10 * 60, 15 * 60, 30 * 60, 3600,
+      3 * 3600, 6 * 3600, 12 * 3600, 24 * 3600, 2 * 24 * 3600, 10 * 24 * 3600,
+      30 * 24 * 3600, 0];
 
    ctx.textAlign = "left";
    ctx.textBaseline = "top";
