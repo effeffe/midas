@@ -1136,12 +1136,14 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.zoom.x.active = true;
          this.scroll = false;
          this.zoom.x.x1 = e.offsetX;
+         this.zoom.x.x2 = undefined;
          this.zoom.x.t1 = this.xToTime(e.offsetX);
       }
       if (e.offsetY < this.y1 && e.offsetY > this.y2 && e.offsetX < this.x1) {
          this.zoom.y.active = true;
          this.scroll = false;
          this.zoom.y.y1 = e.offsetY;
+         this.zoom.y.y2 = undefined;
          this.zoom.y.v1 = this.yToValue(e.offsetY);
       }
 
@@ -1152,14 +1154,17 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       }
 
       if (this.zoom.x.active) {
-         let t1 = this.zoom.x.t1;
-         let t2 = this.xToTime(this.zoom.x.x2);
-         if (t1 > t2)
-            [t1, t2] = [t2, t1];
-         if (t2 - t1 < 1)
-            t1 -= 1;
-         this.tMin = t1;
-         this.tMax = t2;
+         if (this.zoom.x.x2 !== undefined &&
+            Math.abs(this.zoom.x.x1 - this.zoom.x.x2) > 5) {
+            let t1 = this.zoom.x.t1;
+            let t2 = this.xToTime(this.zoom.x.x2);
+            if (t1 > t2)
+               [t1, t2] = [t2, t1];
+            if (t2 - t1 < 1)
+               t1 -= 1;
+            this.tMin = t1;
+            this.tMax = t2;
+         }
          this.zoom.x.active = false;
          this.findMinMax();
          this.redraw(true);
@@ -1169,12 +1174,15 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
       }
 
       if (this.zoom.y.active) {
-         let v1 = this.zoom.y.v1;
-         let v2 = this.yToValue(this.zoom.y.y2);
-         if (v1 > v2)
-            [v1, v2] = [v2, v1];
-         this.yMin = v1;
-         this.yMax = v2;
+         if (this.zoom.y.y2 !== undefined &&
+            Math.abs(this.zoom.y.y1 - this.zoom.y.y2) > 5) {
+            let v1 = this.zoom.y.v1;
+            let v2 = this.yToValue(this.zoom.y.y2);
+            if (v1 > v2)
+               [v1, v2] = [v2, v1];
+            this.yMin = v1;
+            this.yMax = v2;
+         }
          this.zoom.y.active = false;
          this.yZoom = true;
          this.findMinMax();
