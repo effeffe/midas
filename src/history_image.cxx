@@ -24,11 +24,18 @@ std::string history_dir() {
    static std::string dir;
 
    if (dir.empty()) {
-      midas::odb l("/Logger");
-      if (l.is_subkey("History dir"))
-         dir = l["History dir"];
-      else
+      midas::odb o = {
+         {"History dir", ""}
+      };
+      o.connect("/Logger/History/IMAGE");
+
+      if (o["History dir"] != std::string(""))
+         dir = o["History dir"];
+      else {
+         midas::odb l("/Logger");
          dir = l["Data dir"];
+      }
+
       if (dir.back() != '/')
          dir += "/";
    }
