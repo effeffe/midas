@@ -461,6 +461,11 @@ MhistoryGraph.prototype.loadInitialData = function () {
    this.autoscaleMax = (this.odb["Minimum"] === this.odb["Maximum"] ||
       this.odb["Maximum"] === "-Infinity" || this.odb["Maximum"] === "Infinity");
 
+   if (this.odb["Zero ylow"]) {
+      this.autoscaleMin = false;
+      this.odb["Minimum"] = 0;
+   }
+
    this.logAxis = this.odb["Log axis"];
 
    // if only one variable present, convert it to array[0]
