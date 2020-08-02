@@ -1494,9 +1494,17 @@ MhistoryGraph.prototype.redraw = function (force) {
    window.requestAnimationFrame(f);
 };
 
+MhistoryGraph.prototype.timeToXInit = function () {
+   this.timeToXScale = 1 / (this.tMax - this.tMin) * (this.x2 - this.x1);
+}
+
 MhistoryGraph.prototype.timeToX = function (t) {
-   return (t - this.tMin) / (this.tMax - this.tMin) * (this.x2 - this.x1) + this.x1;
+   return (t - this.tMin) * this.timeToXScale + this.x1;
 };
+
+MhistoryGraph.prototype.valueToYInit = function () {
+   this.valueToYScale = 1 / (this.yMax - this.yMin) * (this.y1 - this.y2);
+}
 
 MhistoryGraph.prototype.valueToY = function (v) {
    if (this.logAxis) {
@@ -1505,8 +1513,7 @@ MhistoryGraph.prototype.valueToY = function (v) {
       return this.y1 - (Math.log(v) - Math.log(this.yMin)) /
          (Math.log(this.yMax) - Math.log(this.yMin)) * (this.y1 - this.y2);
    } else
-      return this.y1 - (v - this.yMin) /
-         (this.yMax - this.yMin) * (this.y1 - this.y2);
+      return this.y1 - (v - this.yMin) * this.valueToYScale;
 };
 
 MhistoryGraph.prototype.xToTime = function (x) {
@@ -1546,12 +1553,9 @@ MhistoryGraph.prototype.findMinMax = function () {
          minValue = this.data[index].value[i1];
          maxValue = this.data[index].value[i1];
       }
+      let v;
       for (let i = i1; i < i2; i++) {
-         let v = this.data[index].value[i];
-         if (Number.isNaN(v))
-            continue;
-
-         n++;
+         v = this.data[index].value[i];
          if (v < minValue)
             minValue = v;
          if (v > maxValue)
@@ -1564,7 +1568,7 @@ MhistoryGraph.prototype.findMinMax = function () {
    if (this.autoscaleMax)
       this.yMax0 = this.yMax = maxValue;
 
-   if (n === 0) {
+   if (minValue === undefined || maxValue === undefined) {
       this.yMin0 = -0.5;
       this.yMax0 = 0.5;
    }
@@ -1668,7 +1672,7 @@ function createPinstripeCanvas() {
 }
 
 MhistoryGraph.prototype.draw = function () {
-   // profile(true);
+   //profile(true);
 
    // draw maximal 30 times per second
    if (!this.forceRedraw) {
@@ -1705,6 +1709,9 @@ MhistoryGraph.prototype.draw = function () {
       return;
    if (this.yMax === undefined || Number.isNaN(this.yMax))
       return;
+
+   this.timeToXInit();  // initialize scale factor t -> x
+   this.valueToYInit(); // initialize scale factor v -> y
 
    let axisLabelWidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35,
       -4, -7, -10, -12, 0, this.yMin, this.yMax, this.logAxis, false);
