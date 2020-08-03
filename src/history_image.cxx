@@ -33,7 +33,12 @@ std::string history_dir() {
          dir = o["History dir"];
       else {
          midas::odb l("/Logger");
-         dir = l["Data dir"];
+         if (l.is_subkey("History dir")) {
+            dir = l["History dir"];
+            if (dir == "")
+               dir = l["Data dir"];
+         } else
+            dir = l["Data dir"];
       }
 
       if (dir.back() != '/')
