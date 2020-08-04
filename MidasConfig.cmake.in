@@ -27,11 +27,6 @@ if (MIDAS_FOUND)
 endif (MIDAS_FOUND)
 set (MIDAS_FOUND TRUE)
 
-set (ROOT_FOUND @ROOT_FOUND@)
-if (ROOT_FOUND)
-    include_directories(@ROOT_INCLUDES@)
-endif (ROOT_FOUND)
-
 set (MIDAS_PACKAGE_NAME midas )
 
 list (APPEND MIDAS_INCLUDE_DIRS @SYSINC_DIR@)

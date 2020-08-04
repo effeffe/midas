@@ -1004,6 +1004,11 @@ std::vector<std::string> get_resource_paths()
    if (status == DB_SUCCESS && !buf.empty())
       paths.push_back(buf);
 
+   // add /Logger/History/IMAGE/History dir
+   status = db_get_value_string(hDB, 0, "/Logger/History/IMAGE/History dir", 0, &buf, FALSE);
+   if (status == DB_SUCCESS && !buf.empty())
+      paths.push_back(buf);
+
    // add /Logger/Data dir
    status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &buf, FALSE);
    if (status == DB_SUCCESS && !buf.empty())

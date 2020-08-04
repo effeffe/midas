@@ -865,7 +865,7 @@ MihistoryGraph.prototype.mouseWheelEvent = function (e) {
       this.tMin = this.tMax - this.tScale;
    }
 
-   // seach image closest to current time
+   // search image closest to current time
    if (this.imageArray.length > 0)
       this.setCurrentIndex(this.tMax);
 

@@ -250,7 +250,7 @@ void help()
    fprintf(stderr,"  --hs-debug <hs_debug_flag> --- set the history debug flag\n");
    fprintf(stderr,"  --odbc <ODBC_DSN> --- write to ODBC (SQL) history using given ODBC DSN\n");
    fprintf(stderr,"  --sqlite <path> --- write to SQLITE database at the given path\n");
-   fprintf(stderr,"  --mysql <connect string> --- write to MYSQL database\n");
+   fprintf(stderr,"  --mysql mysql_writer.txt --- write to MYSQL database\n");
    fprintf(stderr,"  --file <path> --- write to FILE database at the given path\n");
    fprintf(stderr,"\n");
    fprintf(stderr,"Examples:\n");

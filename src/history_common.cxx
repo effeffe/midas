@@ -239,13 +239,13 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
 
       std::string writer_dsn = "mysql_writer.txt";
       std::string reader_dsn = "mysql_reader.txt";
-      
+
       status = db_get_value_string(hDB, hKey, "MYSQL Writer", 0, &writer_dsn, TRUE);
       assert(status == DB_SUCCESS);
 
       status = db_get_value_string(hDB, hKey, "MYSQL Reader", 0, &reader_dsn, TRUE);
       assert(status == DB_SUCCESS);
-      
+
       std::string dsn;
 
       if (flags & HS_GET_READER)
@@ -262,7 +262,7 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
 
          path = expt_path;
          // normally expt_path has the trailing '/', see midas.c::cm_set_path()
-         if (path[path.length()-1] != DIR_SEPARATOR)
+         if (path[path.length() - 1] != DIR_SEPARATOR)
             path += DIR_SEPARATOR_STR;
          path += dsn;
       }
@@ -271,20 +271,24 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
          *mh = MakeMidasHistoryMysql();
          if (*mh == NULL)
             return HS_FILE_ERROR;
-         
+
          (*mh)->hs_set_debug(debug);
-         
+
          status = (*mh)->hs_connect(path.c_str());
          if (status != HS_SUCCESS) {
             cm_msg(MERROR, "hs_get_history", "Cannot connect to MYSQL history, status %d", status);
             return status;
          }
-         
+
          if (debug_flag)
-            cm_msg(MINFO, "hs_get_history", "Connected history channel \'%s\' type MYSQL at \'%s\'", key.name, path.c_str());
+            cm_msg(MINFO, "hs_get_history", "Connected history channel \'%s\' type MYSQL at \'%s\'", key.name,
+                   path.c_str());
       }
+   } else if (strcasecmp(type.c_str(), "IMAGE")==0) {
+      if (debug_flag)
+         cm_msg(MINFO, "hs_get_history", "History channel \'IMAGE\' handled by image facility");
    } else {
-      cm_msg(MERROR, "hs_get_history", "Logger history channel /Logger/History/%s/Type has invalid value \'%s\', valid values are MIDAS, ODBC, SQLITE, MYSQL and FILE", key.name, type.c_str());
+      cm_msg(MERROR, "hs_get_history", "Logger history channel /Logger/History/%s/Type has invalid value \'%s\', valid values are MIDAS, ODBC, SQLITE, MYSQL, FILE and IMAGE", key.name, type.c_str());
       return HS_FILE_ERROR;
    }
 
