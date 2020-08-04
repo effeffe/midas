@@ -139,7 +139,7 @@ static bool MatchEventName(const char* event_name, const char* var_event_name)
             break;
          }
 
-         if (tolower(var_event_name[j]) != tolower(s[j])) {
+         if (tolower(var_event_name[j]) != tolower(s[j])) { // does not work for UTF-8 Unicode
             match = false;
             break;
          }
@@ -181,7 +181,7 @@ static std::string MidasNameToSqlName(const char* s)
    for (int i=0; s[i]!=0; i++) {
       char c = s[i];
       if (isalpha(c) || isdigit(c))
-         out += tolower(c);
+         out += tolower(c); // does not work for UTF-8 Unicode
       else
          out += '_';
    }
@@ -198,12 +198,26 @@ static std::string MidasNameToFileName(const char* s)
    for (int i=0; s[i]!=0; i++) {
       char c = s[i];
       if (isalpha(c) || isdigit(c))
-         out += tolower(c);
+         out += tolower(c); // does not work for UTF-8 Unicode
       else
          out += '_';
    }
 
    return out;
+}
+
+// compare event names
+
+static int event_name_cmp(const std::string& e1, const char* e2)
+{
+   return strcasecmp(e1.c_str(), e2);
+}
+
+// compare variable names
+
+static int var_name_cmp(const std::string& v1, const char* v2)
+{
+   return strcasecmp(v1.c_str(), v2);
 }
 
 ////////////////////////////////////////
@@ -454,7 +468,7 @@ void HsSchemaVector::add(HsSchema* s)
    std::vector<HsSchema*>::iterator it_last = data.end();
 
    for (std::vector<HsSchema*>::iterator it = data.begin(); it != data.end(); it++) {
-      if ((*it)->event_name == s->event_name) {
+      if (event_name_cmp((*it)->event_name, s->event_name.c_str())==0) {
          if (s->time_from == (*it)->time_from) {
             s->time_to = (*it)->time_to;
             delete (*it);
@@ -486,7 +500,7 @@ HsSchema* HsSchemaVector::find_event(const char* event_name, time_t t, int debug
       for (unsigned i=0; i<data.size(); i++) {
          HsSchema* s = data[i];
          printf("find_event: schema %d name [%s]\n", i, s->event_name.c_str());
-         if (s->event_name != event_name)
+         if (event_name_cmp(s->event_name, event_name)!=0)
             continue;
          s->print();
          found++;
@@ -501,7 +515,7 @@ HsSchema* HsSchemaVector::find_event(const char* event_name, time_t t, int debug
       HsSchema* s = data[i];
 
       // wrong event
-      if (s->event_name != event_name)
+      if (event_name_cmp(s->event_name, event_name)!=0)
          continue;
 
       // schema is from after the time we are looking for
@@ -521,7 +535,7 @@ HsSchema* HsSchemaVector::find_event(const char* event_name, time_t t, int debug
       HsSchema* s = data[i];
 
       // wrong event
-      if (s->event_name != event_name)
+      if (event_name_cmp(s->event_name, event_name)!=0)
          continue;
 
       // schema is from after the time we are looking for
@@ -1799,6 +1813,8 @@ int Sqlite::Exec(const char* table_name, const char* sql)
    if (status != SQLITE_OK) {
       if (status == SQLITE_ERROR && strstr(errmsg, "duplicate column name"))
          return DB_KEY_EXIST;
+      if (status == SQLITE_ERROR && strstr(errmsg, "already exists"))
+         return DB_KEY_EXIST;
       std::string sqlstring = sql;
       cm_msg(MERROR, "Sqlite::Exec", "Table %s: sqlite3_exec(%s...) error %d (%s)", table_name, sqlstring.substr(0,60).c_str(), status, errmsg);
       sqlite3_free(errmsg);
@@ -2576,7 +2592,7 @@ int SchemaHistoryBase::hs_define_event(const char* event_name, time_t timestamp,
    // delete all events with the same name
    for (unsigned int i=0; i<fEvents.size(); i++)
       if (fEvents[i])
-         if (fEvents[i]->event_name == event_name) {
+         if (event_name_cmp(fEvents[i]->event_name, event_name)==0) {
             if (fDebug)
                printf("deleting exising event %s\n", event_name);
             fEvents[i]->close();
@@ -2640,7 +2656,7 @@ int SchemaHistoryBase::hs_write_event(const char* event_name, time_t timestamp, 
 
    // find this event
    for (size_t i=0; i<fEvents.size(); i++)
-      if (fEvents[i] && fEvents[i]->event_name == event_name) {
+      if (fEvents[i] && (event_name_cmp(fEvents[i]->event_name, event_name)==0)) {
          s = fEvents[i];
          break;
       }
@@ -2756,7 +2772,7 @@ int SchemaHistoryBase::hs_get_events(time_t t, std::vector<std::string> *pevents
          continue;
       bool dupe = false;
       for (unsigned j=0; j<pevents->size(); j++)
-         if ((*pevents)[j] == s->event_name) {
+         if (event_name_cmp((*pevents)[j], s->event_name.c_str())==0) {
             dupe = true;
             break;
          }
@@ -2794,7 +2810,7 @@ int SchemaHistoryBase::hs_get_tags(const char* event_name, time_t t, std::vector
       if (t && s->time_to && s->time_to < t)
          continue;
 
-      if (s->event_name != event_name)
+      if (event_name_cmp(s->event_name, event_name) != 0)
          continue;
 
       found_event = true;
@@ -2972,6 +2988,12 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
    for (int i=slist.size()-1; i>=0; i--) {
       HsSchema* s = slist[i];
 
+      if (0) {
+         printf("slist %d, read data %d -> %d from ", i, start_time, end_time);
+         s->print();
+         printf("\n");
+      }
+
       int status = s->read_data(start_time, end_time, num_var, smap[s], var_index, fDebug, buffer);
 
       if (status == HS_SUCCESS)
@@ -3124,9 +3146,9 @@ int HsSchema::match_event_var(const char* event_name, const char* var_name, cons
 
 int HsSqlSchema::match_event_var(const char* event_name, const char* var_name, const int var_index)
 {
-   if (this->table_name == event_name) {
+   if (event_name_cmp(this->table_name, event_name)==0) {
       for (unsigned j=0; j<this->variables.size(); j++) {
-         if (this->column_names[j] == var_name)
+         if (var_name_cmp(this->column_names[j], var_name)==0)
             return j;
       }
    }
@@ -4256,6 +4278,10 @@ int SqliteHistory::create_table(HsSchemaVector* sv, const char* event_name, time
    // FIXME: what about duplicate table names?
    status = CreateSqlTable(fSql, table_name.c_str(), &have_transaction);
 
+   //if (status == DB_KEY_EXIST) {
+   //   return ReadSqliteTableSchema(fSql, sv, table_name.c_str(), fDebug);
+   //}
+
    if (status != HS_SUCCESS) {
       // FIXME: ???
       // FIXME: at least close or revert the transaction
@@ -4395,7 +4421,7 @@ static int ReadMysqlTableNames(SqlBase* sql, HsSchemaVector *sv, const char* tab
 
       if (must_have_table_name && (strcmp(xtable_name, must_have_table_name) == 0)) {
          assert(must_have_event_name != NULL);
-         if (strcmp(xevent_name, must_have_event_name) == 0) {
+         if (event_name_cmp(xevent_name, must_have_event_name) == 0) {
             found_must_have_table = true;
             //printf("Found table [%s]: event name [%s] table name [%s] time %s\n", must_have_table_name, xevent_name, xtable_name, TimeToString(xevent_time).c_str());
          } else {
@@ -4425,6 +4451,12 @@ static int ReadMysqlTableNames(SqlBase* sql, HsSchemaVector *sv, const char* tab
       cm_msg_flush_buffer();
       abort();
       return HS_FILE_ERROR;
+   }
+
+   if (0) {
+      // print accumulated schema
+      printf("ReadMysqlTableNames: table_name [%s] event_name [%s] table_name [%s]\n", table_name, must_have_event_name, must_have_table_name);
+      sv->print(false);
    }
 
    return HS_SUCCESS;
@@ -4619,6 +4651,12 @@ int MysqlHistory::read_table_and_event_names(HsSchemaVector *sv)
          s->table_name = table_name;
          sv->add(s);
       }
+   }
+
+   if (0) {
+      // print accumulated schema
+      printf("read_table_and_event_names:\n");
+      sv->print(false);
    }
 
    status = ReadMysqlTableNames(fSql, sv, NULL, fDebug, NULL, NULL);
