@@ -405,7 +405,7 @@ struct HsSchema
                          const time_t end_time,
                          const int num_var, const int var_schema_index[], const int var_index[],
                          const int debug,
-                         time_t* plast_time,
+                         std::vector<time_t>& last_time,
                          MidasHistoryBufferInterface* buffer[]) = 0;
 };
 
@@ -654,7 +654,7 @@ struct HsSqlSchema : public HsSchema {
                  const time_t end_time,
                  const int num_var, const int var_schema_index[], const int var_index[],
                  const int debug,
-                 time_t* plast_time,
+                 std::vector<time_t>& last_time,
                  MidasHistoryBufferInterface* buffer[]);
 };
 
@@ -693,7 +693,7 @@ struct HsFileSchema : public HsSchema {
                  const time_t end_time,
                  const int num_var, const int var_schema_index[], const int var_index[],
                  const int debug,
-                 time_t* plast_time,
+                 std::vector<time_t>& last_time,
                  MidasHistoryBufferInterface* buffer[]);
 };
 
@@ -2117,10 +2117,11 @@ int HsFileSchema::read_data(const time_t start_time,
                             const time_t end_time,
                             const int num_var, const int var_schema_index[], const int var_index[],
                             const int debug,
-                            time_t* plast_time,
+                            std::vector<time_t>& last_time,
                             MidasHistoryBufferInterface* buffer[])
 {
    int status;
+   bool bad_last_time = false;
    HsFileSchema* s = this;
 
    if (debug)
@@ -2199,9 +2200,12 @@ int HsFileSchema::read_data(const time_t start_time,
 
          char* data = buf + 4;
 
-
          count++;
          for (int i=0; i<num_var; i++) {
+            if (t < last_time[i]) { // protect against duplicate and non-monotonous data
+               bad_last_time = true;
+               continue;
+            }
             int si = var_schema_index[i];
             if (si < 0)
                continue;
@@ -2250,7 +2254,7 @@ int HsFileSchema::read_data(const time_t start_time,
             }
 
             buffer[i]->Add(t, v);
-            *plast_time = t;
+            last_time[i] = t;
          }
       }
 
@@ -2258,6 +2262,10 @@ int HsFileSchema::read_data(const time_t start_time,
    }
 
    ::close(fd);
+
+   if (bad_last_time) {
+      cm_msg(MERROR, "FileHistory::read_data", "Detected duplicated or non-monotonous data in history file \'%s\'", s->file_name.c_str());
+   }
 
    if (debug)
       printf("FileHistory::read: file %s, schema time %s..%s, read time %s..%s, %d vars, read %d rows\n", s->file_name.c_str(), TimeToString(s->time_from).c_str(), TimeToString(s->time_to).c_str(), TimeToString(start_time).c_str(), TimeToString(end_time).c_str(), num_var, count);
@@ -2990,7 +2998,11 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
       }
    }
 
-   time_t t0 = start_time;
+   std::vector<time_t> last_time;
+
+   for (int i=0; i<num_var; i++) {
+      last_time.push_back(start_time);
+   }
 
    for (int i=slist.size()-1; i>=0; i--) {
       HsSchema* s = slist[i];
@@ -3003,9 +3015,7 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
       }
 #endif
 
-      time_t t1 = t0;
-
-      int status = s->read_data(t0, end_time, num_var, smap[s], var_index, fDebug, &t1, buffer);
+      int status = s->read_data(start_time, end_time, num_var, smap[s], var_index, fDebug, last_time, buffer);
 
       if (status == HS_SUCCESS)
          for (int j=0; j<num_var; j++) {
@@ -3014,8 +3024,6 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
             if (si[j] >= 0)
                hs_status[j] = HS_SUCCESS;
          }
-
-      t0 = t1;
 
       delete smap[s];
       smap[s] = NULL;
@@ -3416,9 +3424,11 @@ int HsSqlSchema::read_data(const time_t start_time,
                            const time_t end_time,
                            const int num_var, const int var_schema_index[], const int var_index[],
                            const int debug,
-                           time_t* plast_time,
+                           std::vector<time_t>& last_time,
                            MidasHistoryBufferInterface* buffer[])
 {
+   bool bad_last_time = false;
+
    if (debug)
       printf("SqlHistory::read_data: table [%s], start %s, end %s\n", table_name.c_str(), TimeToString(start_time).c_str(), TimeToString(end_time).c_str());
 
@@ -3471,17 +3481,26 @@ int HsSqlSchema::read_data(const time_t start_time,
          if (j < 0)
             continue;
 
+         if (t < last_time[i]) { // protect against duplicate and non-monotonous data
+            bad_last_time = true;
+            continue;
+         }
+
          double v = sql->GetDouble(1+k);
 
          //printf("Column %d, index %d, Row %d, time %d, value %f\n", k, colindex[k], count, t, v);
 
          buffer[i]->Add(t, v);
-         *plast_time = t;
+         last_time[i] = t;
          k++;
       }
    }
 
    sql->Finalize();
+
+   if (bad_last_time) {
+      cm_msg(MERROR, "SqlHistory::read_data", "Detected duplicate or non-monotonous data in table \"%s\"", table_name.c_str());
+   }
 
    if (debug)
       printf("SqlHistory::read_data: table [%s], start %s, end %s, read %d rows\n", table_name.c_str(), TimeToString(start_time).c_str(), TimeToString(end_time).c_str(), count);
