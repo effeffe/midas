@@ -2202,13 +2202,15 @@ int HsFileSchema::read_data(const time_t start_time,
 
          count++;
          for (int i=0; i<num_var; i++) {
+            int si = var_schema_index[i];
+            if (si < 0)
+               continue;
+
             if (t < last_time[i]) { // protect against duplicate and non-monotonous data
                bad_last_time = true;
                continue;
             }
-            int si = var_schema_index[i];
-            if (si < 0)
-               continue;
+
             double v = 0;
             void* ptr = data + s->offsets[si];
 
@@ -3476,6 +3478,7 @@ int HsSqlSchema::read_data(const time_t start_time,
          continue;
 
       int k = 0;
+
       for (int i=0; i<num_var; i++) {
          int j = var_schema_index[i];
          if (j < 0)
@@ -3483,15 +3486,15 @@ int HsSqlSchema::read_data(const time_t start_time,
 
          if (t < last_time[i]) { // protect against duplicate and non-monotonous data
             bad_last_time = true;
-            continue;
+         } else {
+            double v = sql->GetDouble(1+k);
+
+            //printf("Column %d, index %d, Row %d, time %d, value %f\n", k, colindex[k], count, t, v);
+
+            buffer[i]->Add(t, v);
+            last_time[i] = t;
          }
 
-         double v = sql->GetDouble(1+k);
-
-         //printf("Column %d, index %d, Row %d, time %d, value %f\n", k, colindex[k], count, t, v);
-
-         buffer[i]->Add(t, v);
-         last_time[i] = t;
          k++;
       }
    }
