@@ -405,6 +405,7 @@ struct HsSchema
                          const time_t end_time,
                          const int num_var, const int var_schema_index[], const int var_index[],
                          const int debug,
+                         time_t* plast_time,
                          MidasHistoryBufferInterface* buffer[]) = 0;
 };
 
@@ -653,6 +654,7 @@ struct HsSqlSchema : public HsSchema {
                  const time_t end_time,
                  const int num_var, const int var_schema_index[], const int var_index[],
                  const int debug,
+                 time_t* plast_time,
                  MidasHistoryBufferInterface* buffer[]);
 };
 
@@ -691,6 +693,7 @@ struct HsFileSchema : public HsSchema {
                  const time_t end_time,
                  const int num_var, const int var_schema_index[], const int var_index[],
                  const int debug,
+                 time_t* plast_time,
                  MidasHistoryBufferInterface* buffer[]);
 };
 
@@ -2114,6 +2117,7 @@ int HsFileSchema::read_data(const time_t start_time,
                             const time_t end_time,
                             const int num_var, const int var_schema_index[], const int var_index[],
                             const int debug,
+                            time_t* plast_time,
                             MidasHistoryBufferInterface* buffer[])
 {
    int status;
@@ -2246,6 +2250,7 @@ int HsFileSchema::read_data(const time_t start_time,
             }
 
             buffer[i]->Add(t, v);
+            *plast_time = t;
          }
       }
 
@@ -2985,6 +2990,8 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
       }
    }
 
+   time_t t0 = start_time;
+
    for (int i=slist.size()-1; i>=0; i--) {
       HsSchema* s = slist[i];
 
@@ -2994,7 +3001,9 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
          printf("\n");
       }
 
-      int status = s->read_data(start_time, end_time, num_var, smap[s], var_index, fDebug, buffer);
+      time_t t1 = t0;
+
+      int status = s->read_data(t0, end_time, num_var, smap[s], var_index, fDebug, &t1, buffer);
 
       if (status == HS_SUCCESS)
          for (int j=0; j<num_var; j++) {
@@ -3003,6 +3012,8 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
             if (si[j] >= 0)
                hs_status[j] = HS_SUCCESS;
          }
+
+      t0 = t1;
 
       delete smap[s];
       smap[s] = NULL;
@@ -3403,6 +3414,7 @@ int HsSqlSchema::read_data(const time_t start_time,
                            const time_t end_time,
                            const int num_var, const int var_schema_index[], const int var_index[],
                            const int debug,
+                           time_t* plast_time,
                            MidasHistoryBufferInterface* buffer[])
 {
    if (debug)
@@ -3462,6 +3474,7 @@ int HsSqlSchema::read_data(const time_t start_time,
          //printf("Column %d, index %d, Row %d, time %d, value %f\n", k, colindex[k], count, t, v);
 
          buffer[i]->Add(t, v);
+         *plast_time = t;
          k++;
       }
    }
