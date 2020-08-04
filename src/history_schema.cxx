@@ -2995,11 +2995,13 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
    for (int i=slist.size()-1; i>=0; i--) {
       HsSchema* s = slist[i];
 
+#if 0
       if (0) {
          printf("slist %d, read data %d -> %d from ", i, start_time, end_time);
          s->print();
          printf("\n");
       }
+#endif
 
       time_t t1 = t0;
 
