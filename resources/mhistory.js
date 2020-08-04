@@ -1710,9 +1710,6 @@ MhistoryGraph.prototype.draw = function () {
    if (this.yMax === undefined || Number.isNaN(this.yMax))
       return;
 
-   this.timeToXInit();  // initialize scale factor t -> x
-   this.valueToYInit(); // initialize scale factor v -> y
-
    let axisLabelWidth = this.drawVAxis(ctx, 50, this.height - 25, this.height - 35,
       -4, -7, -10, -12, 0, this.yMin, this.yMax, this.logAxis, false);
 
@@ -1720,6 +1717,9 @@ MhistoryGraph.prototype.draw = function () {
    this.y1 = this.height - 25;
    this.x2 = this.width - 30;
    this.y2 = 26;
+
+   this.timeToXInit();  // initialize scale factor t -> x
+   this.valueToYInit(); // initialize scale factor v -> y
 
    // title
    ctx.strokeStyle = this.color.axis;
