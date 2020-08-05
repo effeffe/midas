@@ -763,9 +763,9 @@ MhistoryGraph.prototype.loadInitialData = function () {
       }, "arraybuffer")
       .then(function (rpc) {
 
-         this.receiveData(rpc);
          this.tMinReceived = this.tMinRequested;
 
+         this.receiveData(rpc);
          this.findMinMax();
          this.redraw(true);
 
@@ -831,6 +831,7 @@ MhistoryGraph.prototype.loadOldData = function () {
                this.parentDiv.style.cursor = "default";
 
             this.tMinReceived = this.tMinRequested;
+            this.findMinMax();
             this.redraw(true);
 
          }.bind(this))
@@ -983,7 +984,6 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       }
    }
 
-   this.findMinMax();
    return true;
 };
 
@@ -1419,6 +1419,7 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
                this.tMax -= dtMax;
             }
 
+            this.findMinMax();
             this.redraw();
          }
          if ((this.tMax + dtMax) - (this.tMin - dtMin) < 3600 * 24 * 365 && e.deltaY > 0) {
@@ -1431,12 +1432,13 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
             }
 
             this.loadOldData();
+            this.findMinMax();
             this.redraw();
          }
 
          if (this.callbacks.timeZoom !== undefined)
             this.callbacks.timeZoom(this);
-      } else  if (e.deltxX !== 0) {
+      } else if (e.deltaX !== 0) {
 
          let dt = (this.tMax - this.tMin) / 1000 * e.deltaX;
          this.tMin += dt;
@@ -1444,7 +1446,7 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
          if (dt < 0)
             this.loadOldData();
-
+         this.findMinMax();
          this.redraw();
       } else
          return;
@@ -1549,13 +1551,18 @@ MhistoryGraph.prototype.findMinMax = function () {
          continue;
       let i1 = binarySearch(this.data[index].time, this.tMin);
       let i2 = binarySearch(this.data[index].time, this.tMax);
-      if (minValue === undefined) {
-         minValue = this.data[index].value[i1];
-         maxValue = this.data[index].value[i1];
+      while (minValue === undefined) {
+         let v = this.data[index].value[i1];
+         if (!Number.isNaN(v)) {
+            minValue = this.data[index].value[i1];
+            maxValue = this.data[index].value[i1];
+         } else
+            i1++;
       }
-      let v;
       for (let i = i1; i < i2; i++) {
          v = this.data[index].value[i];
+         if (Number.isNaN(v))
+            continue;
          if (v < minValue)
             minValue = v;
          if (v > maxValue)
@@ -1933,6 +1940,8 @@ MhistoryGraph.prototype.draw = function () {
 
          // don't draw lines over "gaps"
          let gap = this.timeToXScale * 600; // 10 min
+         if (gap < 5)
+            gap = 5; // minimum of 5 pixels
 
          if (typeof this.avgN !== 'undefined' && this.avgN[di] > 2) {
             ctx.beginPath();
@@ -2032,6 +2041,8 @@ MhistoryGraph.prototype.draw = function () {
 
          // don't draw lines over "gaps"
          let gap = this.timeToXScale * 600; // 10 min
+         if (gap < 5)
+            gap = 5; // minimum of 5 pixels
 
          if (typeof this.avgN !== 'undefined' && this.avgN[di] > 2) {
             ctx.beginPath();
