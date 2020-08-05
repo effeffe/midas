@@ -999,20 +999,8 @@ std::vector<std::string> get_resource_paths()
    if (status == DB_SUCCESS && buf.length() > 0)
       paths.push_back(buf);
 
-   // add /Logger/History dir
-   status = db_get_value_string(hDB, 0, "/Logger/History dir", 0, &buf, FALSE);
-   if (status == DB_SUCCESS && !buf.empty())
-      paths.push_back(buf);
-
-   // add /Logger/History/IMAGE/History dir
-   status = db_get_value_string(hDB, 0, "/Logger/History/IMAGE/History dir", 0, &buf, FALSE);
-   if (status == DB_SUCCESS && !buf.empty())
-      paths.push_back(buf);
-
-   // add /Logger/Data dir
-   status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &buf, FALSE);
-   if (status == DB_SUCCESS && !buf.empty())
-      paths.push_back(buf);
+   // add  "/Logger/History/IMAGE/History dir"
+   paths.push_back(cm_get_history_path("IMAGE"));
 
    paths.push_back(".");
    paths.push_back("resources");
@@ -1643,28 +1631,6 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");
-   r->rsprintf("          <td style=\"text-align:right;\">Experiment:</td>\n");
-   cm_get_experiment_name(str, sizeof(str));
-   r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
-   r->rsprintf("        </tr>\n");
-
-   r->rsprintf("        <tr>\n");
-   r->rsprintf("          <td style=\"text-align:right;\">MIDAS_EXPTAB:</td>\n");
-   s = getenv("MIDAS_EXPTAB");
-   if (!s) s = "(unset)";
-   strlcpy(str, s, sizeof(str));
-   r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
-   r->rsprintf("        </tr>\n");
-
-   r->rsprintf("        <tr>\n");
-   r->rsprintf("          <td style=\"text-align:right;\">MIDAS_DIR:</td>\n");
-   s = getenv("MIDAS_DIR");
-   if (!s) s = "(unset)";
-   strlcpy(str, s, sizeof(str));
-   r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
-   r->rsprintf("        </tr>\n");
-
-   r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">MIDASSYS:</td>\n");
    s = getenv("MIDASSYS");
    if (!s) s = "(unset)";
@@ -1673,10 +1639,25 @@ void show_help_page(Return* r, const char* dec_path)
    r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");
-   r->rsprintf("          <td style=\"text-align:right;\">CWD:</td>\n");
+   r->rsprintf("          <td style=\"text-align:right;\">mhttpd current directory:</td>\n");
    if (!getcwd(str, sizeof(str)))
       str[0] = 0;
    r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
+   r->rsprintf("        </tr>\n");
+
+   r->rsprintf("        <tr>\n");
+   r->rsprintf("          <td style=\"text-align:right;\">Exptab file:</td>\n");
+   r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", cm_get_exptab_filename().c_str());
+   r->rsprintf("        </tr>\n");
+
+   r->rsprintf("        <tr>\n");
+   r->rsprintf("          <td style=\"text-align:right;\">Experiment:</td>\n");
+   r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", cm_get_experiment_name().c_str());
+   r->rsprintf("        </tr>\n");
+
+   r->rsprintf("        <tr>\n");
+   r->rsprintf("          <td style=\"text-align:right;\">Experiment directory:</td>\n");
+   r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", cm_get_path().c_str());
    r->rsprintf("        </tr>\n");
 
    STRING_LIST list;
@@ -1703,6 +1684,11 @@ void show_help_page(Return* r, const char* dec_path)
          r->rsprintf("        </tr>\n");
       }
    }
+
+   r->rsprintf("        <tr>\n");
+   r->rsprintf("          <td style=\"text-align:right;\">Image history:</td>\n");
+   r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", cm_get_history_path("IMAGE").c_str());
+   r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">Resource paths:</td>\n");
