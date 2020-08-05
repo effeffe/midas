@@ -5767,6 +5767,56 @@ INT cm_register_function(INT id, INT(*func)(INT, void **))
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
+//
+// Return "/"-terminated file path for given history channel
+//
+
+std::string cm_get_history_path(const char* history_channel)
+{
+   int status;
+   HNDLE hDB;
+   std::string path;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   if (history_channel && (strlen(history_channel) > 0)) {
+      std::string p;
+      p += "/Logger/History/";
+      p += history_channel;
+      p += "/History dir";
+
+      // NB: be careful to avoid creating odb entries under /logger
+      // for whatever values of "history_channel" we get called with!
+      status = db_get_value_string(hDB, 0, p.c_str(), 0, &path, FALSE);
+      if (status == DB_SUCCESS && path.length() > 0) {
+         if (path.back() != DIR_SEPARATOR)
+            path += DIR_SEPARATOR_STR;
+         printf("for [%s] returning [%s] from [%s]\n", history_channel, path.c_str(), p.c_str());
+         return path;
+      }
+   }
+
+   status = db_get_value_string(hDB, 0, "/Logger/History dir", 0, &path, TRUE);
+   if (status == DB_SUCCESS && path.length() > 0) {
+      if (path.back() != DIR_SEPARATOR)
+         path += DIR_SEPARATOR_STR;
+      printf("for [%s] returning /Logger/History dir [%s]\n", history_channel, path.c_str());
+      return path;
+   }
+
+   status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &path, TRUE);
+   if (status == DB_SUCCESS && path.length() > 0) {
+      if (path.back() != DIR_SEPARATOR)
+         path += DIR_SEPARATOR_STR;
+      printf("for [%s] returning /Logger/Data dir [%s]\n", history_channel, path.c_str());
+      return path;
+   }
+
+   printf("for [%s] returning experiment dir [%s]\n", history_channel, cm_get_path().c_str());
+
+   return cm_get_path();
+}
+
 /**dox***************************************************************/
 /** @} *//* end of cmfunctionc */
 
