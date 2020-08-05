@@ -19544,7 +19544,6 @@ int main(int argc, const char *argv[])
 {
    int status;
    int daemon = FALSE;
-   char str[256];
 #ifdef HAVE_MONGOOSE6
    int user_http_port = 0;
    int user_https_port = 0;
@@ -19715,11 +19714,11 @@ int main(int argc, const char *argv[])
    if (status == CM_WRONG_PASSWORD)
       return 1;
    else if (status == DB_INVALID_HANDLE) {
-      cm_get_error(status, str);
-      puts(str);
+      std::string s = cm_get_error(status);
+      puts(s.c_str());
    } else if (status != CM_SUCCESS) {
-      cm_get_error(status, str);
-      puts(str);
+      std::string s = cm_get_error(status);
+      puts(s.c_str());
       return 1;
    }
 

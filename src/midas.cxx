@@ -422,17 +422,15 @@ error string in command line programs or windows programs.
 @param string Error string
 @return CM_SUCCESS
 */
-INT cm_get_error(INT code, char *string) {
-   INT i;
-
-   for (i = 0; _error_table[i].code; i++)
+std::string cm_get_error(INT code)
+{
+   for (int i = 0; _error_table[i].code; i++) {
       if (_error_table[i].code == code) {
-         strcpy(string, _error_table[i].string);
-         return CM_SUCCESS;
+         return _error_table[i].string;
       }
+   }
 
-   sprintf(string, "Unexpected error #%d", code);
-   return CM_SUCCESS;
+   return msprintf("unlisted status code %d", code);
 }
 
 /********************************************************************/
@@ -2410,13 +2408,12 @@ CM_VERSION_MISMATCH MIDAS library version different on local and remote computer
 */
 INT cm_connect_experiment(const char *host_name, const char *exp_name, const char *client_name, void (*func)(char *)) {
    INT status;
-   char str[256];
 
    status = cm_connect_experiment1(host_name, exp_name, client_name, func, DEFAULT_ODB_SIZE, DEFAULT_WATCHDOG_TIMEOUT);
    cm_msg_flush_buffer();
    if (status != CM_SUCCESS) {
-      cm_get_error(status, str);
-      puts(str);
+      std::string s = cm_get_error(status);
+      puts(s.c_str());
    }
 
    return status;

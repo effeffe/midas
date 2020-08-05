@@ -1994,7 +1994,6 @@ int main(int argc, const char *argv[])
 {
    int daemon = FALSE;
    int status, ch;
-   char str[256];
    char midas_hostname[256];
    char midas_expt[256];
 
@@ -2050,11 +2049,11 @@ int main(int argc, const char *argv[])
    if (status == CM_WRONG_PASSWORD)
       return 1;
    else if (status == DB_INVALID_HANDLE) {
-      cm_get_error(status, str);
-      puts(str);
+      std::string s = cm_get_error(status);
+      puts(s.c_str());
    } else if (status != CM_SUCCESS) {
-      cm_get_error(status, str);
-      puts(str);
+      std::string s = cm_get_error(status);
+      puts(s.c_str());
       return 1;
    }
 

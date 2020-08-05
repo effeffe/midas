@@ -1667,7 +1667,7 @@ Data conversion flags */
 #endif
 
    /*---- common routines ----*/
-   INT EXPRT cm_get_error(INT code, char *string);
+   std::string cm_get_error(INT code);
    const char* EXPRT cm_get_version(void);
    const char* EXPRT cm_get_revision(void);
    INT EXPRT cm_get_experiment_name(char *name, int name_size);
