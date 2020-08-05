@@ -5789,31 +5789,42 @@ std::string cm_get_history_path(const char* history_channel)
       // for whatever values of "history_channel" we get called with!
       status = db_get_value_string(hDB, 0, p.c_str(), 0, &path, FALSE);
       if (status == DB_SUCCESS && path.length() > 0) {
+         // if not absolute path, prepend with experiment directory
+         if (path[0] != DIR_SEPARATOR)
+            path = cm_get_path() + path;
+         // append directory separator
          if (path.back() != DIR_SEPARATOR)
             path += DIR_SEPARATOR_STR;
-         printf("for [%s] returning [%s] from [%s]\n", history_channel, path.c_str(), p.c_str());
+         //printf("for [%s] returning [%s] from [%s]\n", history_channel, path.c_str(), p.c_str());
          return path;
       }
    }
 
    status = db_get_value_string(hDB, 0, "/Logger/History dir", 0, &path, TRUE);
    if (status == DB_SUCCESS && path.length() > 0) {
+      // if not absolute path, prepend with experiment directory
+      if (path[0] != DIR_SEPARATOR)
+         path = cm_get_path() + path;
+      // append directory separator
       if (path.back() != DIR_SEPARATOR)
          path += DIR_SEPARATOR_STR;
-      printf("for [%s] returning /Logger/History dir [%s]\n", history_channel, path.c_str());
+      //printf("for [%s] returning /Logger/History dir [%s]\n", history_channel, path.c_str());
       return path;
    }
 
    status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &path, TRUE);
    if (status == DB_SUCCESS && path.length() > 0) {
+      // if not absolute path, prepend with experiment directory
+      if (path[0] != DIR_SEPARATOR)
+         path = cm_get_path() + path;
+      // append directory separator
       if (path.back() != DIR_SEPARATOR)
          path += DIR_SEPARATOR_STR;
-      printf("for [%s] returning /Logger/Data dir [%s]\n", history_channel, path.c_str());
+      //printf("for [%s] returning /Logger/Data dir [%s]\n", history_channel, path.c_str());
       return path;
    }
 
-   printf("for [%s] returning experiment dir [%s]\n", history_channel, cm_get_path().c_str());
-
+   //printf("for [%s] returning experiment dir [%s]\n", history_channel, cm_get_path().c_str());
    return cm_get_path();
 }
 
