@@ -1750,7 +1750,7 @@ Data conversion flags */
    bool EXPRT ends_with_char(const std::string& s, char c);
    BOOL EXPRT strmatch(char* pattern, char*str);
    void EXPRT strarrayindex(char* odbpath, int* index1, int* index2);
-   std::string msprintf(const char *format, ...);
+   std::string msprintf(const char *format, ...) MATTRPRINTF(1,2);
 
    std::string cm_expand_env(const char* str);
 
