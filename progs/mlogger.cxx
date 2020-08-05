@@ -2221,7 +2221,7 @@ int sql_update(MYSQL * db, char *database, char *table, HNDLE hKeyRoot, BOOL cre
 
 void create_runlog_sql_tree()
 {
-   char hostname[80], username[80], password[80], database[80], table[80], filename[80];
+   char hostname[80], username[80], password[80], table[80], filename[80];
    int size, write_flag, create_flag;
    HNDLE hKeyRoot, hKey;
 
@@ -2246,9 +2246,9 @@ void create_runlog_sql_tree()
    db_get_value(hDB, 0, "/Logger/Runlog/SQL/Password", password, &size, TID_STRING, TRUE);
 
    /* use experiment name as default database name */
-   size = sizeof(database);
-   db_get_value(hDB, 0, "/Experiment/Name", database, &size, TID_STRING, TRUE);
-   db_get_value(hDB, 0, "/Logger/Runlog/SQL/Database", database, &size, TID_STRING, TRUE);
+   std::string database;
+   db_get_value_string(hDB, 0, "/Experiment/Name", 0, &database, TRUE);
+   db_get_value_string(hDB, 0, "/Logger/Runlog/SQL/Database", 0, &database, TRUE);
 
    size = sizeof(table);
    strcpy(table, "Runlog");
@@ -6087,7 +6087,7 @@ void receive_event(HNDLE hBuf, HNDLE request_id, EVENT_HEADER * pheader, void *p
 int main(int argc, char *argv[])
 {
    INT status, msg, i, size, ch = 0;
-   char host_name[HOST_NAME_LENGTH], exp_name[NAME_LENGTH], dir[256];
+   char host_name[HOST_NAME_LENGTH], exp_name[NAME_LENGTH];
    BOOL debug, daemon, save_mode;
    DWORD last_time_kb = 0;
    DWORD last_time_stat = 0;
@@ -6222,43 +6222,31 @@ int main(int argc, char *argv[])
    cm_set_msg_print(MT_ALL, 0, NULL);
 
    /* print startup message */
-   size = sizeof(dir);
-   db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
-   printf("Log     directory is %s\n", dir);
-   printf("Data    directory is same as Log unless specified in /Logger/channels/\n");
+   std::string data_dir;
+   db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &data_dir, TRUE);
+   if (data_dir.length() <= 0)
+      data_dir = cm_get_path();
+   printf("Data    directory is \"%s\" unless specified in /Logger/channels/\n", data_dir.c_str());
 
    /* Alternate History and Elog path */
-   size = sizeof(dir);
-   dir[0] = 0;
-   status = db_find_key(hDB, 0, "/Logger/History dir", &hktemp);
-   if (status == DB_SUCCESS)
-      db_get_value(hDB, 0, "/Logger/History dir", dir, &size, TID_STRING, TRUE);
-   else
-      sprintf(dir, "same as Log");
-   printf("History directory is %s unless specified in /Logger/history/\n", dir);
-
-   size = sizeof(dir);
-   dir[0] = 0;
-   status = db_find_key(hDB, 0, "/Logger/Elog dir", &hktemp);
-   if (status == DB_SUCCESS)
-      db_get_value(hDB, 0, "/Logger/Elog dir", dir, &size, TID_STRING, TRUE);
-   else
-      sprintf(dir, "same as Log");
-   printf("ELog    directory is %s\n", dir);
+   std::string history_dir;
+   db_get_value_string(hDB, 0, "/Logger/History dir", 0, &history_dir, TRUE);
+   if (history_dir.length() <= 0)
+      history_dir = data_dir;
+   printf("History directory is \"%s\" unless specified in /Logger/history/\n", history_dir.c_str());
 
 #ifdef HAVE_MYSQL
    {
-      char sql_host[256], sql_db[256], sql_table[256];
+      std::string sql_host;
+      std::string sql_db;
+      std::string sql_table;
 
       status = db_find_key(hDB, 0, "/Logger/Runlog/SQL/Hostname", &hktemp);
       if (status == DB_SUCCESS) {
-         size = 256;
-         db_get_value(hDB, 0, "/Logger/Runlog/SQL/Hostname", sql_host, &size, TID_STRING, FALSE);
-         size = 256;
-         db_get_value(hDB, 0, "/Logger/Runlog/SQL/Database", sql_db, &size, TID_STRING, FALSE);
-         size = 256;
-         db_get_value(hDB, 0, "/Logger/Runlog/SQL/Table", sql_table, &size, TID_STRING, FALSE);
-         printf("SQL     database is %s/%s/%s", sql_host, sql_db, sql_table);
+         db_get_value_string(hDB, 0, "/Logger/Runlog/SQL/Hostname", 0, &sql_host, FALSE);
+         db_get_value_string(hDB, 0, "/Logger/Runlog/SQL/Database", 0, &sql_db, FALSE);
+         db_get_value_string(hDB, 0, "/Logger/Runlog/SQL/Table", 0, &sql_table, FALSE);
+         printf("SQL     database is %s/%s/%s", sql_host.c_str(), sql_db.c_str(), sql_table.c_str());
       }
    }
 #endif
