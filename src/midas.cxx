@@ -23,6 +23,9 @@
 #include "strlcpy.h"
 #endif
 
+#include <mutex>
+#include <deque>
+
 /**dox***************************************************************/
 /** @file midas.c
 The main core C-code for Midas.
@@ -173,8 +176,10 @@ static BUFFER *_buffer;
 static INT _buffer_entries = 0;
 
 static INT _msg_buffer = 0;
+#if 0
 static INT _msg_rb = 0;
 static MUTEX_T *_msg_mutex = NULL;
+#endif
 static EVENT_HANDLER *_msg_dispatch = NULL;
 
 static REQUEST_LIST *_request_list;
@@ -437,6 +442,7 @@ std::string cm_get_error(INT code)
 int cm_msg_early_init(void) {
    int status;
 
+#if 0
    if (!_msg_rb) {
       status = rb_create(100 * 1024, 1024, &_msg_rb);
       assert(status == SUCCESS);
@@ -446,6 +452,7 @@ int cm_msg_early_init(void) {
       status = ss_mutex_create(&_msg_mutex, FALSE);
       assert(status == SS_SUCCESS || status == SS_CREATED);
    }
+#endif
 
    return CM_SUCCESS;
 }
@@ -893,7 +900,26 @@ static INT cm_msg_send_event(DWORD ts, INT message_type, const char *send_messag
    return CM_SUCCESS;
 }
 
+struct msg_buffer_entry {
+   DWORD ts;
+   int message_type;
+   std::string message;
+};
+
+static std::deque<msg_buffer_entry> gMsgBuf;
+static std::mutex gMsgBufMutex;
+
 static INT cm_msg_buffer(DWORD ts, int message_type, const char *message) {
+   msg_buffer_entry e;
+   e.ts = ts;
+   e.message_type = message_type;
+   e.message = message;
+
+   std::lock_guard<std::mutex> lock(gMsgBufMutex);
+   gMsgBuf.push_back(e);
+   // implicit unlock on return
+   
+#if 0
    int status;
    int len;
    char *wp;
@@ -937,6 +963,7 @@ static INT cm_msg_buffer(DWORD ts, int message_type, const char *message) {
 
    // unlock
    ss_mutex_release(_msg_mutex);
+#endif
 
    return CM_SUCCESS;
 }
@@ -952,10 +979,31 @@ INT cm_msg_flush_buffer() {
 
    //printf("cm_msg_flush_buffer!\n");
 
+#if 0
    if (!_msg_rb)
       return CM_SUCCESS;
+#endif
 
    for (i = 0; i < 100; i++) {
+      msg_buffer_entry e;
+      {
+         std::lock_guard<std::mutex> lock(gMsgBufMutex);
+         if (gMsgBuf.empty())
+            break;
+         e = gMsgBuf.front();
+         gMsgBuf.pop_front();
+         // implicit unlock
+      }
+
+      /* log message */
+      cm_msg_log(e.message_type, "midas", e.message.c_str());
+
+      /* send message to SYSMSG */
+      int status = cm_msg_send_event(e.ts, e.message_type, e.message.c_str());
+      if (status != CM_SUCCESS)
+         return status;
+
+#if 0
       int status;
       int ts;
       int message_type;
@@ -1012,6 +1060,7 @@ INT cm_msg_flush_buffer() {
       status = cm_msg_send_event(ts, message_type, message);
       if (status != CM_SUCCESS)
          return status;
+#endif
    }
 
    return CM_SUCCESS;
@@ -3100,6 +3149,7 @@ INT cm_disconnect_experiment(void) {
    /* last flush before we delete the message ring buffer */
    cm_msg_flush_buffer();
 
+#if 0
    /* delete the message ring buffer and semaphore */
    if (_msg_mutex)
       ss_mutex_delete(_msg_mutex);
@@ -3107,6 +3157,7 @@ INT cm_disconnect_experiment(void) {
    if (_msg_rb)
       rb_delete(_msg_rb);
    _msg_rb = 0;
+#endif
 
    //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after deleting message ring buffer");
    //cm_msg_flush_buffer();
@@ -14912,6 +14963,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
          cm_set_experiment_database(0, 0);
 
+#if 0
          if (_msg_mutex)
             ss_mutex_delete(_msg_mutex);
          _msg_mutex = 0;
@@ -14919,6 +14971,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
          if (_msg_rb)
             rb_delete(_msg_rb);
          _msg_rb = 0;
+#endif
       }
    }
 
