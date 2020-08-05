@@ -10268,12 +10268,22 @@ static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer
 INT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
 {
    int status;
-   status = db_lock_database(hDB);
-   if (status != DB_SUCCESS) {
-      return status;
+   bool unlock = false;
+
+   if (!rpc_is_remote()) {
+      status = db_lock_database(hDB);
+      if (status != DB_SUCCESS) {
+         return status;
+      }
+      unlock = true;
    }
+
    status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, JS_MUST_BE_SUBDIR, JSFLAG_SAVE_KEYS|JSFLAG_FOLLOW_LINKS, 0);
-   db_unlock_database(hDB);
+
+   if (unlock) {
+      db_unlock_database(hDB);
+   }
+
    return status;
 }
 
@@ -10289,24 +10299,45 @@ INT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, 
       flags |= JSFLAG_OMIT_OLD;
    if (!preserve_case)
       flags |= JSFLAG_LOWERCASE;
-   status = db_lock_database(hDB);
-   if (status != DB_SUCCESS) {
-      return status;
+
+   bool unlock = false;
+
+   if (!rpc_is_remote()) {
+      status = db_lock_database(hDB);
+      if (status != DB_SUCCESS) {
+         return status;
+      }
+      unlock = true;
    }
+
    status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, 0, flags, omit_old_timestamp);
-   db_unlock_database(hDB);
+
+   if (unlock) {
+      db_unlock_database(hDB);
+   }
+   
    return status;
 }
 
 INT db_copy_json_save(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
 {
    int status;
-   status = db_lock_database(hDB);
-   if (status != DB_SUCCESS) {
-      return status;
+   bool unlock = false;
+
+   if (!rpc_is_remote()) {
+      status = db_lock_database(hDB);
+      if (status != DB_SUCCESS) {
+         return status;
+      }
+      unlock = true;
    }
+
    status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, JS_MUST_BE_SUBDIR, JSFLAG_SAVE_KEYS|JSFLAG_RECURSE, 0);
-   db_unlock_database(hDB);
+
+   if (unlock) {
+      db_unlock_database(hDB);
+   }
+   
    return status;
 }
 
@@ -10342,71 +10373,78 @@ be saved (hkey equal zero) or only a sub-tree.
 */
 INT db_save_json(HNDLE hDB, HNDLE hKey, const char *filename)
 {
-#ifdef LOCAL_ROUTINES
-   {
-      INT status, buffer_size, buffer_end;
-      char path[MAX_ODB_PATH];
-      FILE *fp;
-      char *buffer;
-
-      /* open file */
-      fp = fopen(filename, "w");
-      if (fp == NULL) {
-         cm_msg(MERROR, "db_save_json", "Cannot open file \"%s\", fopen() errno %d (%s)", filename, errno, strerror(errno));
-         return DB_FILE_ERROR;
+   INT status;
+   
+   /* open file */
+   FILE *fp = fopen(filename, "w");
+   if (fp == NULL) {
+      cm_msg(MERROR, "db_save_json", "Cannot open file \"%s\", fopen() errno %d (%s)", filename, errno, strerror(errno));
+      return DB_FILE_ERROR;
+   }
+   
+   bool unlock = false;
+   
+   if (!rpc_is_remote()) {
+      status = db_lock_database(hDB);
+      if (status != DB_SUCCESS) {
+         return status;
       }
+      unlock = true;
+   }
+   
+   std::string path = db_get_path(hDB, hKey);
+   
+   char* buffer = NULL;
+   int buffer_size = 0;
+   int buffer_end = 0;
+   
+   json_write(&buffer, &buffer_size, &buffer_end, 0, "{\n", 0);
+   
+   json_write(&buffer, &buffer_size, &buffer_end, 1, "/MIDAS version", 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, MIDAS_VERSION, 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
+   
+   json_write(&buffer, &buffer_size, &buffer_end, 1, "/MIDAS git revision", 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, GIT_REVISION, 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
+   
+   json_write(&buffer, &buffer_size, &buffer_end, 1, "/filename", 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, filename, 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
+   
+   json_write(&buffer, &buffer_size, &buffer_end, 1, "/ODB path", 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, path.c_str(), 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
+   
+   //status = db_save_json_key_obsolete(hDB, hKey, -1, &buffer, &buffer_size, &buffer_end, 1, 0, 1);
+   status = json_write_bare_subdir(hDB, hKey, &buffer, &buffer_size, &buffer_end, JS_LEVEL_1, JSFLAG_SAVE_KEYS|JSFLAG_RECURSE, 0);
+   
+   json_write(&buffer, &buffer_size, &buffer_end, 0, "\n}\n", 0);
 
-      db_get_path(hDB, hKey, path, sizeof(path));
-
-      buffer = NULL;
-      buffer_size = 0;
-      buffer_end = 0;
-
-      json_write(&buffer, &buffer_size, &buffer_end, 0, "{\n", 0);
-
-      json_write(&buffer, &buffer_size, &buffer_end, 1, "/MIDAS version", 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, MIDAS_VERSION, 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
-
-      json_write(&buffer, &buffer_size, &buffer_end, 1, "/MIDAS git revision", 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, GIT_REVISION, 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
-
-      json_write(&buffer, &buffer_size, &buffer_end, 1, "/filename", 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, filename, 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
-
-      json_write(&buffer, &buffer_size, &buffer_end, 1, "/ODB path", 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, path, 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
-
-      //status = db_save_json_key_obsolete(hDB, hKey, -1, &buffer, &buffer_size, &buffer_end, 1, 0, 1);
-      status = json_write_bare_subdir(hDB, hKey, &buffer, &buffer_size, &buffer_end, JS_LEVEL_1, JSFLAG_SAVE_KEYS|JSFLAG_RECURSE, 0);
-
-      json_write(&buffer, &buffer_size, &buffer_end, 0, "\n}\n", 0);
-
-      if (status == DB_SUCCESS) {
-         if (buffer) {
-            size_t wr = fwrite(buffer, 1, buffer_end, fp);
-            if (wr != (size_t)buffer_end) {
-               cm_msg(MERROR, "db_save_json", "Cannot write to file \"%s\", fwrite() errno %d (%s)", filename, errno, strerror(errno));
-               free(buffer);
-               fclose(fp);
-               return DB_FILE_ERROR;
-            }
+   if (unlock) {
+      db_unlock_database(hDB);
+   }
+   
+   if (status == DB_SUCCESS) {
+      if (buffer) {
+         size_t wr = fwrite(buffer, 1, buffer_end, fp);
+         if (wr != (size_t)buffer_end) {
+            cm_msg(MERROR, "db_save_json", "Cannot write to file \"%s\", fwrite() errno %d (%s)", filename, errno, strerror(errno));
+            free(buffer);
+            fclose(fp);
+            return DB_FILE_ERROR;
          }
       }
-
-      if (buffer)
-         free(buffer);
-
-      fclose(fp);
    }
-#endif                          /* LOCAL_ROUTINES */
+   
+   if (buffer)
+      free(buffer);
+   
+   fclose(fp);
 
    return DB_SUCCESS;
 }
