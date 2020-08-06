@@ -84,6 +84,8 @@ static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_r
 static INT db_get_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, int idx, void *data, INT * buf_size, DWORD type, db_err_msg** msg);
 static INT db_set_data_wlocked(DATABASE_HEADER* pheader, KEY* pkey, const void *data, INT data_size, INT num_values, DWORD type, const char* caller, db_err_msg** msg);
 static INT db_set_data_index_wlocked(DATABASE_HEADER* pheader, KEY* pkey, int idx, const void *data, INT data_size, DWORD type, const char* caller, db_err_msg** msg);
+static INT db_check_set_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, const void *data, INT data_size, INT num_values, DWORD type, const char* caller, db_err_msg** msg);
+static INT db_check_set_data_index_locked(DATABASE_HEADER* pheader, const KEY* pkey, int idx, const void *data, INT data_size, DWORD type, const char* caller, db_err_msg** msg);
 #endif // LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
@@ -5187,23 +5189,7 @@ static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_r
       if (status != DB_SUCCESS && status != DB_CREATED)
          return status;
    }
-   
-   /* check for write access */
-   if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
-      return DB_NO_ACCESS;
-   }
-   
-   if (pkey->type != type) {
-      db_msg(msg, MERROR, "db_set_value", "\"%s\" is of type %s, not %s", key_name, rpc_tid_name(pkey->type), rpc_tid_name(pkey->type));
-      return DB_TYPE_MISMATCH;
-   }
-   
-   /* keys cannot contain data */
-   if (pkey->type == TID_KEY) {
-      db_msg(msg, MERROR, "db_set_value", "key cannot contain data");
-      return DB_TYPE_MISMATCH;
-   }
-   
+
    if (data_size == 0) {
       db_msg(msg, MERROR, "db_set_value", "zero data size not allowed");
       return DB_TYPE_MISMATCH;
@@ -5214,15 +5200,10 @@ static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_r
       return DB_TYPE_MISMATCH;
    }
 
-   if (type == TID_STRING || type == TID_LINK) {
-      //printf("db_set_value: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
-      const char* value = (const char*)data;
-      if (!is_utf8(value)) {
-         db_msg(msg, MERROR, "db_set_value", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
-         // just a warning for now. K.O.
-         //return DB_TYPE_MISMATCH;
-      }
-   }
+   status = db_check_set_data_locked(pheader, pkey, data, data_size, num_values, type, "db_set_value", msg);
+
+   if (status != DB_SUCCESS)
+      return status;
 
    status = db_set_data_wlocked(pheader, pkey, data, data_size, num_values, type, "db_set_value", msg);
 
@@ -6993,6 +6974,85 @@ static INT db_set_data_index_wlocked(DATABASE_HEADER* pheader, KEY* pkey, int id
 
    return DB_SUCCESS;
 }
+
+static INT db_check_set_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, const void *data, INT data_size, INT num_values, DWORD type, const char* caller, db_err_msg** msg)
+{
+   /* check for write access */
+   if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
+      return DB_NO_ACCESS;
+   }
+   
+   if (pkey->type != type) {
+      db_msg(msg, MERROR, caller, "\"%s\" is of type %s, not %s", db_get_path_locked(pheader, pkey).c_str(), rpc_tid_name(pkey->type), rpc_tid_name(pkey->type));
+      return DB_TYPE_MISMATCH;
+   }
+   
+   /* keys cannot contain data */
+   if (pkey->type == TID_KEY) {
+      db_msg(msg, MERROR, caller, "\"%s\" of type TID_KEY cannot contain data", db_get_path_locked(pheader, pkey).c_str());
+      return DB_TYPE_MISMATCH;
+   }
+   
+   if (type == TID_STRING || type == TID_LINK) {
+      if (num_values > 1) {
+         printf("db_check_set_data for %s: utf8 check for odb \"%s\" string array size %d value \"%s\"\n", caller, db_get_path_locked(pheader, pkey).c_str(), num_values, data);
+      } else {
+         //printf("db_check_set_data for %s: utf8 check for odb \"%s\" value \"%s\"\n", caller, db_get_path_locked(pheader, pkey).c_str(), data);
+         const char* value = (const char*)data;
+         if (!is_utf8(value)) {
+            db_msg(msg, MERROR, caller, "\"%s\" set to invalid UTF-8 Unicode string value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
+            // just a warning for now. K.O.
+            //return DB_TYPE_MISMATCH;
+         }
+      }
+   }
+
+   return DB_SUCCESS;
+}
+
+static INT db_check_set_data_index_locked(DATABASE_HEADER* pheader, const KEY* pkey, int idx, const void *data, INT data_size, DWORD type, const char* caller, db_err_msg** msg)
+{
+   /* check for write access */
+   if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
+      return DB_NO_ACCESS;
+   }
+   
+   if (pkey->type != type) {
+      db_msg(msg, MERROR, caller, "\"%s\" is of type %s, not %s", db_get_path_locked(pheader, pkey).c_str(), rpc_tid_name(pkey->type), rpc_tid_name(type));
+      return DB_TYPE_MISMATCH;
+   }
+   
+   /* keys cannot contain data */
+   if (pkey->type == TID_KEY) {
+      db_msg(msg, MERROR, "db_set_data_index", "\"%s\" of type TID_KEY cannot contain data", db_get_path_locked(pheader, pkey).c_str());
+      return DB_TYPE_MISMATCH;
+   }
+   
+   /* check utf-8 encoding */
+   if (pkey->type == TID_STRING || pkey->type == TID_LINK) {
+      //printf("db_check_set_data_index for %s: utf8 check for odb \"%s\" value \"%s\"\n", caller, db_get_path_locked(pheader, pkey).c_str(), data);
+      const char* value = (const char*)data;
+      if (!is_utf8(value)) {
+         db_msg(msg, MERROR, "db_set_data_index", "\"%s\" set to invalid UTF-8 Unicode string value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
+      }
+   }
+
+   /* check for valid idx */
+   if (idx < 0) {
+      db_msg(msg, MERROR, caller, "\%s\" given invalid index %d",  db_get_path_locked(pheader, pkey).c_str(), idx);
+      return DB_INVALID_PARAM;
+   }
+   
+   /* check for valid array element size: if new element size
+      is different from existing size, ODB becomes corrupted */
+   if (pkey->item_size != 0 && data_size != pkey->item_size) {
+      db_msg(msg, MERROR, caller, "\"%s\" invalid element data size %d, expected %d", db_get_path_locked(pheader, pkey).c_str(), data_size, pkey->item_size);
+      return DB_TYPE_MISMATCH;
+   }
+
+   return DB_SUCCESS;
+}
+
 #endif // LOCAL_ROUTINES
 
 /********************************************************************/
@@ -7027,6 +7087,7 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
       HNDLE hkeylink;
       int link_idx;
       char link_name[256];
+      int status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_set_data", "invalid database handle");
@@ -7080,36 +7141,18 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
          }
       }
 
-      if (pkey->type != type) {
-         int pkey_type = pkey->type;
-         char pkey_name[NAME_LENGTH];
-         strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
-         return DB_TYPE_MISMATCH;
-      }
+      status = db_check_set_data_locked(pheader, pkey, data, buf_size, num_values, type, "db_set_data", &msg);
 
-      /* keys cannot contain data */
-      if (pkey->type == TID_KEY) {
+      if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data", "Key cannot contain data");
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* check utf-8 encoding */
-      if (pkey->type == TID_STRING || pkey->type == TID_LINK) {
-         // FIXME: this test is wrong, if this is db_set_data() of an array, we should
-         // check every element of the array! K.O.
-         //printf("db_set_data: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
-         const char* value = (const char*)data;
-         if (!is_utf8(value)) {
-            db_msg(&msg, MERROR, "db_set_data", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
-         }
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
 
       db_allow_write_locked(&_database[hDB-1], "db_set_data");
 
-      int status = db_set_data_wlocked(pheader, pkey, data, buf_size, num_values, type, "db_set_data", &msg);
+      status = db_set_data_wlocked(pheader, pkey, data, buf_size, num_values, type, "db_set_data", &msg);
 
       if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
@@ -7147,6 +7190,7 @@ INT db_set_data1(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_
    HNDLE hkeylink;
    int link_idx;
    char link_name[256];
+   int status;
    
    if (hDB > _database_entries || hDB <= 0) {
       cm_msg(MERROR, "db_set_data1", "invalid database handle");
@@ -7199,26 +7243,19 @@ INT db_set_data1(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_
          return db_set_data_index1(hDB, hkeylink, data, buf_size, link_idx, type, FALSE);
       }
    }
-   
-   if (pkey->type != type) {
-      int pkey_type = pkey->type;
-      char pkey_name[NAME_LENGTH];
-      strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
+
+   status = db_check_set_data_locked(pheader, pkey, data, buf_size, num_values, type, "db_set_data1", &msg);
+
+   if (status != DB_SUCCESS) {
       db_unlock_database(hDB);
-      cm_msg(MERROR, "db_set_data1", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
-      return DB_TYPE_MISMATCH;
-   }
-   
-   /* keys cannot contain data */
-   if (pkey->type == TID_KEY) {
-      db_unlock_database(hDB);
-      cm_msg(MERROR, "db_set_data1", "Key cannot contain data");
-      return DB_TYPE_MISMATCH;
+      if (msg)
+         db_flush_msg(&msg);
+      return status;
    }
    
    db_allow_write_locked(&_database[hDB - 1], "db_set_data1");
 
-   int status = db_set_data_wlocked(pheader, pkey, data, buf_size, num_values, type, "db_set_data1", &msg);
+   status = db_set_data_wlocked(pheader, pkey, data, buf_size, num_values, type, "db_set_data1", &msg);
    
    if (status != DB_SUCCESS) {
       db_unlock_database(hDB);
@@ -7257,6 +7294,7 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
    {
       DATABASE_HEADER *pheader;
       KEY *pkey;
+      int status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_set_data", "invalid database handle");
@@ -7289,42 +7327,18 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
 
       pkey = (KEY *) ((char *) pheader + hKey);
 
-      /* check for write access */
-      if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
+      status = db_check_set_data_locked(pheader, pkey, data, buf_size, num_values, type, "db_set_link_data", &msg);
+      
+      if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
-         return DB_NO_ACCESS;
-      }
-
-      if (pkey->type != type) {
-         int pkey_type = pkey->type;
-         char pkey_name[NAME_LENGTH];
-         strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_link_data", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* keys cannot contain data */
-      if (pkey->type == TID_KEY) {
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_link_data", "Key cannot contain data");
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* check utf-8 encoding */
-      if (pkey->type == TID_STRING || pkey->type == TID_LINK) {
-         // FIXME: this test is wrong, if this is db_set_data() of an array, we should
-         // check every element of the array! K.O.
-         //printf("db_set_link_data: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
-         const char* value = (const char*)data;
-         if (!is_utf8(value)) {
-            db_msg(&msg, MERROR, "db_set_link_data", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
-         }
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
 
       db_allow_write_locked(&_database[hDB - 1], "db_set_link_data");
 
-      int status = db_set_data_wlocked(pheader, pkey, data, buf_size, num_values, type, "db_set_link_data", &msg);
+      status = db_set_data_wlocked(pheader, pkey, data, buf_size, num_values, type, "db_set_link_data", &msg);
       
       if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
@@ -7503,9 +7517,10 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
    {
       DATABASE_HEADER *pheader;
       KEY *pkey;
-      char link_name[256], str[256];
+      char link_name[256];
       int link_idx;
       HNDLE hkeylink;
+      int status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_set_data_index", "invalid database handle");
@@ -7556,49 +7571,18 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
          }
       }
 
-      if (pkey->type != type) {
-         int pkey_type = pkey->type;
-         db_unlock_database(hDB);
-         db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_set_data_index", "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey_type), rpc_tid_name(type));
-         return DB_TYPE_MISMATCH;
-      }
+      status = db_check_set_data_index_locked(pheader, pkey, idx, data, data_size, type, "db_set_data_index", &msg);
 
-      /* keys cannot contain data */
-      if (pkey->type == TID_KEY) {
+      if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index", "key cannot contain data");
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* check utf-8 encoding */
-      if (pkey->type == TID_STRING || pkey->type == TID_LINK) {
-         //printf("db_set_data_index: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
-         const char* value = (const char*)data;
-         if (!is_utf8(value)) {
-            db_msg(&msg, MERROR, "db_set_data_index", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
-         }
-      }
-
-      /* check for valid idx */
-      if (idx < 0) {
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index", "invalid index %d", idx);
-         return DB_FULL;
-      }
-
-      /* check for valid array element size: if new element size
-         is different from existing size, ODB becomes corrupted */
-      if (pkey->item_size != 0 && data_size != pkey->item_size) {
-         int pkey_item_size = pkey->item_size;
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index", "invalid element data size %d, expected %d", data_size, pkey_item_size);
-         return DB_TYPE_MISMATCH;
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
 
       db_allow_write_locked(&_database[hDB-1], "db_set_data_index");
 
-      int status = db_set_data_index_wlocked(pheader, pkey, idx, data, data_size, type, "db_set_data_index", &msg);
+      status = db_set_data_index_wlocked(pheader, pkey, idx, data, data_size, type, "db_set_data_index", &msg);
       
       if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
@@ -7639,7 +7623,7 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
    {
       DATABASE_HEADER *pheader;
       KEY *pkey;
-      char str[256];
+      int status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_set_link_data_index", "invalid database handle");
@@ -7669,39 +7653,18 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
 
       pkey = (KEY *) ((char *) pheader + hKey);
 
-      /* check for write access */
-      if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
+      status = db_check_set_data_index_locked(pheader, pkey, idx, data, data_size, type, "db_set_link_data_index", &msg);
+      
+      if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
-         return DB_NO_ACCESS;
-      }
-
-      if (pkey->type != type) {
-         int pkey_type = pkey->type;
-         db_unlock_database(hDB);
-         db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_set_link_data_index", "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey_type), rpc_tid_name(type));
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* keys cannot contain data */
-      if (pkey->type == TID_KEY) {
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_link_data_index", "key cannot contain data");
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* check for valid array element size: if new element size
-         is different from existing size, ODB becomes corrupted */
-      if (pkey->item_size != 0 && data_size != pkey->item_size) {
-         int pkey_item_size = pkey->item_size;
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_link_data_index", "invalid element data size %d, expected %d", data_size, pkey_item_size);
-         return DB_TYPE_MISMATCH;
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
 
       db_allow_write_locked(&_database[hDB - 1], "db_set_link_data_index");
 
-      int status = db_set_data_index_wlocked(pheader, pkey, idx, data, data_size, type, "db_set_link_data_index", &msg);
+      status = db_set_data_index_wlocked(pheader, pkey, idx, data, data_size, type, "db_set_link_data_index", &msg);
       
       if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
@@ -7760,6 +7723,7 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
    {
       DATABASE_HEADER *pheader;
       KEY *pkey;
+      int status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_set_data_index1", "invalid database handle");
@@ -7789,38 +7753,18 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
 
       pkey = (KEY *) ((char *) pheader + hKey);
 
-      /* check for write access */
-      if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
-         db_unlock_database(hDB);
-         return DB_NO_ACCESS;
-      }
+      status = db_check_set_data_index_locked(pheader, pkey, idx, data, data_size, type, "db_set_data_index1", &msg);
 
-      if (pkey->type != type) {
-         int pkey_type = pkey->type;
-         char pkey_name[NAME_LENGTH];
-         strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
+      if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index1", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* keys cannot contain data */
-      if (pkey->type == TID_KEY) {
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index1", "key cannot contain data");
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* check for valid index */
-      if (idx < 0) {
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index1", "invalid index");
-         return DB_FULL;
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
 
       db_allow_write_locked(&_database[hDB - 1], "db_set_data_index1");
 
-      int status = db_set_data_index_wlocked(pheader, pkey, idx, data, data_size, type, "db_set_data_index1", &msg);
+      status = db_set_data_index_wlocked(pheader, pkey, idx, data, data_size, type, "db_set_data_index1", &msg);
 
       if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
