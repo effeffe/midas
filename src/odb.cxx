@@ -6995,10 +6995,22 @@ static INT db_check_set_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, c
    
    if (type == TID_STRING || type == TID_LINK) {
       if (num_values > 1) {
-         printf("db_check_set_data for %s: utf8 check for odb \"%s\" string array size %d value \"%s\"\n", caller, db_get_path_locked(pheader, pkey).c_str(), num_values, data);
+         int item_size = pkey->item_size;
+         if (!item_size)
+            item_size = data_size/num_values;
+         //printf("db_check_set_data for %s: utf8 check for odb \"%s\" string array size %d\n", caller, db_get_path_locked(pheader, pkey).c_str(), num_values);
+         for (int i=0; i<num_values; i++) {
+            const char* value = ((const char*)data) + i * item_size;
+            //printf("db_check_set_data for %s: utf8 check for odb \"%s\" string array size %d item_size %d, index %d, value \"%s\"\n", caller, db_get_path_locked(pheader, pkey).c_str(), num_values, item_size, i, value);
+            if (!is_utf8(value)) {
+               db_msg(msg, MERROR, caller, "\"%s\" index %d set to invalid UTF-8 Unicode string value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), i, value);
+               // just a warning for now. K.O.
+               //return DB_TYPE_MISMATCH;
+            }
+         }
       } else {
-         //printf("db_check_set_data for %s: utf8 check for odb \"%s\" value \"%s\"\n", caller, db_get_path_locked(pheader, pkey).c_str(), data);
          const char* value = (const char*)data;
+         //printf("db_check_set_data for %s: utf8 check for odb \"%s\" value \"%s\"\n", caller, db_get_path_locked(pheader, pkey).c_str(), value);
          if (!is_utf8(value)) {
             db_msg(msg, MERROR, caller, "\"%s\" set to invalid UTF-8 Unicode string value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
             // just a warning for now. K.O.
@@ -7033,7 +7045,9 @@ static INT db_check_set_data_index_locked(DATABASE_HEADER* pheader, const KEY* p
       //printf("db_check_set_data_index for %s: utf8 check for odb \"%s\" value \"%s\"\n", caller, db_get_path_locked(pheader, pkey).c_str(), data);
       const char* value = (const char*)data;
       if (!is_utf8(value)) {
-         db_msg(msg, MERROR, "db_set_data_index", "\"%s\" set to invalid UTF-8 Unicode string value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
+         db_msg(msg, MERROR, "db_set_data_index", "\"%s\" index %d set to invalid UTF-8 Unicode string value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), idx, value);
+         // just a warning for now. K.O.
+         //return DB_TYPE_MISMATCH;
       }
    }
 
