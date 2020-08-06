@@ -24,7 +24,6 @@ Good: no ODB save file
 Checking shared memory...
 Deleting old ODB shared memory...
 [system.cxx:1003:ss_shm_delete,ERROR] shm_unlink(/testexpt_ODB_SHM) errno 2 (No such file or directory)
-cm_msg_buffer: Error: dropped message [[system.cxx:1003:ss_shm_delete,ERROR] shm_unlink(/testexpt_ODB_SHM) errno 2 (No such file or directory)] because message ring buffer is not initialized
 Good: no ODB shared memory
 Deleting old ODB semaphore...
 Deleting old ODB semaphore... create status 1, delete status 1
@@ -111,6 +110,7 @@ MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh logger"
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh mhttpd"
 
 cut -b25- < testexpt/midas.log | sed 's/checksum: 0x.*, .* bytes/checksum: (omitted)/'
+[system.cxx:1003:ss_shm_delete,ERROR] shm_unlink(/testexpt_ODB_SHM) errno 2 (No such file or directory)
 [ODBInit,INFO] Program ODBInit on host localhost started
 [mhttpd,INFO] Program mhttpd on host localhost started
 [mhttpd,INFO] ODB subtree /Runinfo corrected successfully

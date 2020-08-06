@@ -547,6 +547,7 @@ typedef struct {
    INT EXPRT cm_msg_log(INT message_type, const char *facility, const char *message);
    void EXPRT name2c(char *str);
    INT cm_delete_client_info(HNDLE hDB, INT pid);
+   std::string EXPRT cm_get_history_path(const char* history_channel);
 
    /*---- online database ----*/
    INT EXPRT db_lock_database(HNDLE database_handle);

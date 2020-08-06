@@ -763,9 +763,9 @@ MhistoryGraph.prototype.loadInitialData = function () {
       }, "arraybuffer")
       .then(function (rpc) {
 
-         this.receiveData(rpc);
          this.tMinReceived = this.tMinRequested;
 
+         this.receiveData(rpc);
          this.findMinMax();
          this.redraw(true);
 
@@ -831,6 +831,7 @@ MhistoryGraph.prototype.loadOldData = function () {
                this.parentDiv.style.cursor = "default";
 
             this.tMinReceived = this.tMinRequested;
+            this.findMinMax();
             this.redraw(true);
 
          }.bind(this))
@@ -983,7 +984,6 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       }
    }
 
-   this.findMinMax();
    return true;
 };
 
@@ -1419,6 +1419,7 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
                this.tMax -= dtMax;
             }
 
+            this.findMinMax();
             this.redraw();
          }
          if ((this.tMax + dtMax) - (this.tMin - dtMin) < 3600 * 24 * 365 && e.deltaY > 0) {
@@ -1431,12 +1432,13 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
             }
 
             this.loadOldData();
+            this.findMinMax();
             this.redraw();
          }
 
          if (this.callbacks.timeZoom !== undefined)
             this.callbacks.timeZoom(this);
-      } else  if (e.deltxX !== 0) {
+      } else if (e.deltaX !== 0) {
 
          let dt = (this.tMax - this.tMin) / 1000 * e.deltaX;
          this.tMin += dt;
@@ -1444,7 +1446,7 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
          if (dt < 0)
             this.loadOldData();
-
+         this.findMinMax();
          this.redraw();
       } else
          return;
@@ -1549,13 +1551,18 @@ MhistoryGraph.prototype.findMinMax = function () {
          continue;
       let i1 = binarySearch(this.data[index].time, this.tMin);
       let i2 = binarySearch(this.data[index].time, this.tMax);
-      if (minValue === undefined) {
-         minValue = this.data[index].value[i1];
-         maxValue = this.data[index].value[i1];
+      while (minValue === undefined) {
+         let v = this.data[index].value[i1];
+         if (!Number.isNaN(v)) {
+            minValue = this.data[index].value[i1];
+            maxValue = this.data[index].value[i1];
+         } else
+            i1++;
       }
-      let v;
       for (let i = i1; i < i2; i++) {
          v = this.data[index].value[i];
+         if (Number.isNaN(v))
+            continue;
          if (v < minValue)
             minValue = v;
          if (v > maxValue)
@@ -1931,24 +1938,33 @@ MhistoryGraph.prototype.draw = function () {
 
          ctx.fillStyle = this.odb["Colour"][di];
 
+         // don't draw lines over "gaps"
+         let gap = this.timeToXScale * 600; // 10 min
+         if (gap < 5)
+            gap = 5; // minimum of 5 pixels
+
          if (typeof this.avgN !== 'undefined' && this.avgN[di] > 2) {
             ctx.beginPath();
-            let x0 = undefined;
-            let y0 = undefined;
-            let xLast = 0;
-            for (let i = 0; i < this.p[di].length; i++) {
-               let p = this.p[di][i];
-               if (x0 === undefined) {
-                  x0 = p.x;
-                  y0 = p.first;
-                  ctx.moveTo(p.x, p.first);
-               } else {
+            let p = this.p[di][0];
+            let x0 = p.x;
+            let xold = p.x;
+            let y0 = p.first;
+            ctx.moveTo(p.x, p.first);
+            ctx.lineTo(p.x, p.last);
+            for (let i = 1; i < this.p[di].length; i++) {
+               p = this.p[di][i];
+               if (p.x - xold < gap) {
                   ctx.lineTo(p.x, p.first);
+                  ctx.lineTo(p.x, p.last);
+               } else {
+                  ctx.lineTo(xold, this.valueToY(0));
+                  ctx.lineTo(p.x, this.valueToY(0));
+                  ctx.lineTo(p.x, p.first);
+                  ctx.lineTo(p.x, p.last);
                }
-               xLast = p.x;
-               ctx.lineTo(p.x, p.last);
+               xold = p.x;
             }
-            ctx.lineTo(xLast, this.valueToY(0));
+            ctx.lineTo(xold, this.valueToY(0));
             ctx.lineTo(x0, this.valueToY(0));
             ctx.lineTo(x0, y0);
             ctx.globalAlpha = 0.1;
@@ -1956,23 +1972,25 @@ MhistoryGraph.prototype.draw = function () {
             ctx.globalAlpha = 1;
          } else {
             ctx.beginPath();
-            let x0 = undefined;
-            let y0 = undefined;
-            let xLast = 0;
-            let i;
-            for (i = 0; i < this.x[di].length; i++) {
-               let x = this.x[di][i];
-               let y = this.y[di][i];
-               if (x0 === undefined) {
-                  x0 = x;
-                  y0 = y;
-                  ctx.moveTo(x, y);
-               } else {
+            let x = this.x[di][0];
+            let y = this.y[di][0];
+            let x0 = x;
+            let y0 = y;
+            let xold = x;
+            ctx.moveTo(x, y);
+            for (let i = 1; i < this.x[di].length; i++) {
+               x = this.x[di][i];
+               y = this.y[di][i];
+               if (x - xold < gap)
+                  ctx.lineTo(x, y);
+               else {
+                  ctx.lineTo(xold, this.valueToY(0));
+                  ctx.lineTo(x, this.valueToY(0));
                   ctx.lineTo(x, y);
                }
-               xLast = x;
+               xold = x;
             }
-            ctx.lineTo(xLast, this.valueToY(0));
+            ctx.lineTo(xold, this.valueToY(0));
             ctx.lineTo(x0, this.valueToY(0));
             ctx.lineTo(x0, y0);
             ctx.globalAlpha = 0.1;
@@ -2021,19 +2039,35 @@ MhistoryGraph.prototype.draw = function () {
 
          ctx.strokeStyle = this.odb["Colour"][di];
 
+         // don't draw lines over "gaps"
+         let gap = this.timeToXScale * 600; // 10 min
+         if (gap < 5)
+            gap = 5; // minimum of 5 pixels
+
          if (typeof this.avgN !== 'undefined' && this.avgN[di] > 2) {
             ctx.beginPath();
-            for (let i = 0; i < this.p[di].length; i++) {
-               let p = this.p[di][i];
-
-               // draw lines first - max - min - last
-               if (i === 0)
-                  ctx.moveTo(p.x, p.first);
-               else
+            let p = this.p[di][0];
+            let xold = p.x;
+            ctx.moveTo(p.x, p.first);
+            ctx.lineTo(p.x, p.max + 1); // in case min==max
+            ctx.lineTo(p.x, p.min);
+            ctx.lineTo(p.x, p.last);
+            for (let i = 1; i < this.p[di].length; i++) {
+               p = this.p[di][i];
+               if (p.x - xold < gap) {
+                  // draw lines first - max - min - last
                   ctx.lineTo(p.x, p.first);
-               ctx.lineTo(p.x, p.max + 1); // in case min==max
-               ctx.lineTo(p.x, p.min);
-               ctx.lineTo(p.x, p.last);
+                  ctx.lineTo(p.x, p.max + 1); // in case min==max
+                  ctx.lineTo(p.x, p.min);
+                  ctx.lineTo(p.x, p.last);
+               } else { // don't draw gap
+                  // draw lines first - max - min - last
+                  ctx.moveTo(p.x, p.first);
+                  ctx.lineTo(p.x, p.max + 1); // in case min==max
+                  ctx.lineTo(p.x, p.min);
+                  ctx.lineTo(p.x, p.last);
+               }
+               old = p.x;
             }
             ctx.stroke();
          } else {
@@ -2044,16 +2078,18 @@ MhistoryGraph.prototype.draw = function () {
                ctx.fillRect(x - 1, y - 1, 3, 3);
             } else {
                ctx.beginPath();
-               let first = true;
-               for (let i = 0; i < this.x[di].length; i++) {
+               let x = this.x[di][0];
+               let y = this.y[di][0];
+               let xold = x;
+               ctx.moveTo(x, y);
+               for (let i = 1; i < this.x[di].length; i++) {
                   let x = this.x[di][i];
                   let y = this.y[di][i];
-                  if (first) {
-                     first = false;
+                  if (x - xold > gap)
                      ctx.moveTo(x, y);
-                  } else {
+                  else
                      ctx.lineTo(x, y);
-                  }
+                  xold = x;
                }
                ctx.stroke();
             }

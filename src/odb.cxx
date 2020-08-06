@@ -82,6 +82,10 @@ static int db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, H
 static int db_create_key_wlocked(DATABASE_HEADER* pheader, KEY* parentKey, const char *key_name, DWORD type, KEY** pnewkey, db_err_msg** msg);
 static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_root, const char *key_name, const void *data, INT data_size, INT num_values, DWORD type, db_err_msg** msg);
 static INT db_get_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, int idx, void *data, INT * buf_size, DWORD type, db_err_msg** msg);
+static INT db_set_data_wlocked(DATABASE_HEADER* pheader, KEY* pkey, const void *data, INT data_size, INT num_values, DWORD type, const char* caller, db_err_msg** msg);
+static INT db_set_data_index_wlocked(DATABASE_HEADER* pheader, KEY* pkey, int idx, const void *data, INT data_size, DWORD type, const char* caller, db_err_msg** msg);
+static INT db_check_set_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, const void *data, INT data_size, INT num_values, DWORD type, const char* caller, db_err_msg** msg);
+static INT db_check_set_data_index_locked(DATABASE_HEADER* pheader, const KEY* pkey, int idx, const void *data, INT data_size, DWORD type, const char* caller, db_err_msg** msg);
 #endif // LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
@@ -5185,23 +5189,7 @@ static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_r
       if (status != DB_SUCCESS && status != DB_CREATED)
          return status;
    }
-   
-   /* check for write access */
-   if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
-      return DB_NO_ACCESS;
-   }
-   
-   if (pkey->type != type) {
-      db_msg(msg, MERROR, "db_set_value", "\"%s\" is of type %s, not %s", key_name, rpc_tid_name(pkey->type), rpc_tid_name(pkey->type));
-      return DB_TYPE_MISMATCH;
-   }
-   
-   /* keys cannot contain data */
-   if (pkey->type == TID_KEY) {
-      db_msg(msg, MERROR, "db_set_value", "key cannot contain data");
-      return DB_TYPE_MISMATCH;
-   }
-   
+
    if (data_size == 0) {
       db_msg(msg, MERROR, "db_set_value", "zero data size not allowed");
       return DB_TYPE_MISMATCH;
@@ -5212,43 +5200,15 @@ static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_r
       return DB_TYPE_MISMATCH;
    }
 
-   if (type == TID_STRING || type == TID_LINK) {
-      //printf("db_set_value: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
-      const char* value = (const char*)data;
-      if (!is_utf8(value)) {
-         db_msg(msg, MERROR, "db_set_value", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
-         // just a warning for now. K.O.
-         //return DB_TYPE_MISMATCH;
-      }
-   }
-   
-   /* resize data size if necessary */
-   if (pkey->total_size != data_size) {
-      pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size, "db_set_value");
-      
-      if (pkey->data == 0) {
-         pkey->total_size = 0;
-         db_msg(msg, MERROR, "db_set_value", "online database full");
-         return DB_FULL;
-      }
-      
-      pkey->data -= (POINTER_T) pheader;
-      pkey->total_size = data_size;
-   }
-   
-   /* set number of values */
-   pkey->num_values = num_values;
-   
-   if (type == TID_STRING || type == TID_LINK)
-      pkey->item_size = data_size / num_values;
-   else
-      pkey->item_size = rpc_tid_size(type);
-   
-   /* copy data */
-   memcpy((char *) pheader + pkey->data, data, data_size);
-   
-   /* update time */
-   pkey->last_written = ss_time();
+   status = db_check_set_data_locked(pheader, pkey, data, data_size, num_values, type, "db_set_value", msg);
+
+   if (status != DB_SUCCESS)
+      return status;
+
+   status = db_set_data_wlocked(pheader, pkey, data, data_size, num_values, type, "db_set_value", msg);
+
+   if (status != DB_SUCCESS)
+      return status;
    
    db_notify_clients_locked(pheader, hDB, db_pkey_to_hkey(pheader, pkey), -1, TRUE, msg);
    
@@ -6920,6 +6880,181 @@ INT db_get_data_index(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT idx
    return DB_SUCCESS;
 }
 
+#ifdef LOCAL_ROUTINES
+/********************************************************************/
+/**
+Set key data, adjust number of values if previous data has different size.
+@param pkey Key to change
+@param idx  Data index to change, "-1" means the whole array of data
+@param data Buffer from which data gets copied to.
+@param data_size Size of data buffer.
+@param num_values Number of data values (for arrays).
+@param type Type of key, one of TID_xxx (see @ref Midas_Data_Types).
+@return DB_SUCCESS, DB_FULL
+*/
+
+static INT db_set_data_wlocked(DATABASE_HEADER* pheader, KEY* pkey, const void *data, INT data_size, INT num_values, DWORD type, const char* caller, db_err_msg** msg)
+{
+   /* if no buf_size given (Java!), calculate it */
+   if (data_size == 0)
+      data_size = pkey->item_size * num_values;
+
+   /* resize data size if necessary */
+   if (pkey->total_size != data_size) {
+      // FIXME: validate pkey->data!
+      pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size, caller);
+      
+      if (pkey->data == 0) {
+         pkey->total_size = 0;
+         db_msg(msg, MERROR, caller, "Cannot reallocate \"%s\" with new size %d bytes, online database full", db_get_path_locked(pheader, pkey).c_str(), data_size);
+         return DB_FULL;
+      }
+      
+      pkey->data -= (POINTER_T) pheader;
+      pkey->total_size = data_size;
+   }
+   
+   /* set number of values */
+   pkey->num_values = num_values;
+
+   if (type == TID_STRING || type == TID_LINK)
+      pkey->item_size = data_size / num_values;
+   else
+      pkey->item_size = rpc_tid_size(type);
+   
+   /* copy data */
+   memcpy((char *) pheader + pkey->data, data, data_size);
+   
+   /* update time */
+   pkey->last_written = ss_time();
+
+   return DB_SUCCESS;
+}
+
+static INT db_set_data_index_wlocked(DATABASE_HEADER* pheader, KEY* pkey, int idx, const void *data, INT data_size, DWORD type, const char* caller, db_err_msg** msg)
+{
+   /* increase key size if necessary */
+   if (idx >= pkey->num_values || pkey->item_size == 0) {
+      // FIXME: validate pkey->data
+      pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1), caller);
+      
+      if (pkey->data == 0) {
+         pkey->total_size = 0;
+         pkey->num_values = 0;
+         db_msg(msg, MERROR, caller, "Cannot reallocate \"%s\" with new num_values %d and new size %d bytes, online database full", db_get_path_locked(pheader, pkey).c_str(), idx + 1, data_size * (idx + 1));
+         return DB_FULL;
+      }
+      
+      pkey->data -= (POINTER_T) pheader;
+      if (!pkey->item_size)
+         pkey->item_size = data_size;
+      pkey->total_size = data_size * (idx + 1);
+      pkey->num_values = idx + 1;
+   }
+
+#if 0
+   /* cut strings which are too long */
+   if ((type == TID_STRING || type == TID_LINK) && (int) strlen((char *) data) + 1 > pkey->item_size)
+      *((char *) data + pkey->item_size - 1) = 0;
+   
+   /* copy data */
+   memcpy((char *) pheader + pkey->data + idx * pkey->item_size, data, pkey->item_size);
+#endif
+
+   if ((type == TID_STRING || type == TID_LINK)) {
+      /* cut strings which are too long */
+      strlcpy((char *) pheader + pkey->data + idx * pkey->item_size, (char*)data, pkey->item_size);
+   } else {
+      /* copy data */
+      memcpy((char *) pheader + pkey->data + idx * pkey->item_size, data, pkey->item_size);
+   }
+
+   /* update time */
+   pkey->last_written = ss_time();
+
+   return DB_SUCCESS;
+}
+
+static INT db_check_set_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, const void *data, INT data_size, INT num_values, DWORD type, const char* caller, db_err_msg** msg)
+{
+   /* check for write access */
+   if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
+      return DB_NO_ACCESS;
+   }
+   
+   if (pkey->type != type) {
+      db_msg(msg, MERROR, caller, "\"%s\" is of type %s, not %s", db_get_path_locked(pheader, pkey).c_str(), rpc_tid_name(pkey->type), rpc_tid_name(pkey->type));
+      return DB_TYPE_MISMATCH;
+   }
+   
+   /* keys cannot contain data */
+   if (pkey->type == TID_KEY) {
+      db_msg(msg, MERROR, caller, "\"%s\" of type TID_KEY cannot contain data", db_get_path_locked(pheader, pkey).c_str());
+      return DB_TYPE_MISMATCH;
+   }
+   
+   if (type == TID_STRING || type == TID_LINK) {
+      if (num_values > 1) {
+         printf("db_check_set_data for %s: utf8 check for odb \"%s\" string array size %d value \"%s\"\n", caller, db_get_path_locked(pheader, pkey).c_str(), num_values, data);
+      } else {
+         //printf("db_check_set_data for %s: utf8 check for odb \"%s\" value \"%s\"\n", caller, db_get_path_locked(pheader, pkey).c_str(), data);
+         const char* value = (const char*)data;
+         if (!is_utf8(value)) {
+            db_msg(msg, MERROR, caller, "\"%s\" set to invalid UTF-8 Unicode string value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
+            // just a warning for now. K.O.
+            //return DB_TYPE_MISMATCH;
+         }
+      }
+   }
+
+   return DB_SUCCESS;
+}
+
+static INT db_check_set_data_index_locked(DATABASE_HEADER* pheader, const KEY* pkey, int idx, const void *data, INT data_size, DWORD type, const char* caller, db_err_msg** msg)
+{
+   /* check for write access */
+   if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
+      return DB_NO_ACCESS;
+   }
+   
+   if (pkey->type != type) {
+      db_msg(msg, MERROR, caller, "\"%s\" is of type %s, not %s", db_get_path_locked(pheader, pkey).c_str(), rpc_tid_name(pkey->type), rpc_tid_name(type));
+      return DB_TYPE_MISMATCH;
+   }
+   
+   /* keys cannot contain data */
+   if (pkey->type == TID_KEY) {
+      db_msg(msg, MERROR, "db_set_data_index", "\"%s\" of type TID_KEY cannot contain data", db_get_path_locked(pheader, pkey).c_str());
+      return DB_TYPE_MISMATCH;
+   }
+   
+   /* check utf-8 encoding */
+   if (pkey->type == TID_STRING || pkey->type == TID_LINK) {
+      //printf("db_check_set_data_index for %s: utf8 check for odb \"%s\" value \"%s\"\n", caller, db_get_path_locked(pheader, pkey).c_str(), data);
+      const char* value = (const char*)data;
+      if (!is_utf8(value)) {
+         db_msg(msg, MERROR, "db_set_data_index", "\"%s\" set to invalid UTF-8 Unicode string value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
+      }
+   }
+
+   /* check for valid idx */
+   if (idx < 0) {
+      db_msg(msg, MERROR, caller, "\%s\" given invalid index %d",  db_get_path_locked(pheader, pkey).c_str(), idx);
+      return DB_INVALID_PARAM;
+   }
+   
+   /* check for valid array element size: if new element size
+      is different from existing size, ODB becomes corrupted */
+   if (pkey->item_size != 0 && data_size != pkey->item_size) {
+      db_msg(msg, MERROR, caller, "\"%s\" invalid element data size %d, expected %d", db_get_path_locked(pheader, pkey).c_str(), data_size, pkey->item_size);
+      return DB_TYPE_MISMATCH;
+   }
+
+   return DB_SUCCESS;
+}
+
+#endif // LOCAL_ROUTINES
+
 /********************************************************************/
 /**
 Set key data from a handle. Adjust number of values if
@@ -6952,6 +7087,7 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
       HNDLE hkeylink;
       int link_idx;
       char link_name[256];
+      int status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_set_data", "invalid database handle");
@@ -7005,66 +7141,25 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
          }
       }
 
-      if (pkey->type != type) {
-         int pkey_type = pkey->type;
-         char pkey_name[NAME_LENGTH];
-         strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
-         return DB_TYPE_MISMATCH;
-      }
+      status = db_check_set_data_locked(pheader, pkey, data, buf_size, num_values, type, "db_set_data", &msg);
 
-      /* keys cannot contain data */
-      if (pkey->type == TID_KEY) {
+      if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data", "Key cannot contain data");
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* check utf-8 encoding */
-      if (pkey->type == TID_STRING || pkey->type == TID_LINK) {
-         // FIXME: this test is wrong, if this is db_set_data() of an array, we should
-         // check every element of the array! K.O.
-         //printf("db_set_data: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
-         const char* value = (const char*)data;
-         if (!is_utf8(value)) {
-            db_msg(&msg, MERROR, "db_set_data", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
-         }
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
 
       db_allow_write_locked(&_database[hDB-1], "db_set_data");
 
-      /* if no buf_size given (Java!), calculate it */
-      if (buf_size == 0)
-         buf_size = pkey->item_size * num_values;
+      status = db_set_data_wlocked(pheader, pkey, data, buf_size, num_values, type, "db_set_data", &msg);
 
-      /* resize data size if necessary */
-      if (pkey->total_size != buf_size) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size, "db_set_data");
-
-         if (pkey->data == 0) {
-            pkey->total_size = 0;
-            db_unlock_database(hDB);
-            if (msg)
-               db_flush_msg(&msg);
-            cm_msg(MERROR, "db_set_data", "online database full");
-            return DB_FULL;
-         }
-
-         pkey->data -= (POINTER_T) pheader;
-         pkey->total_size = buf_size;
+      if (status != DB_SUCCESS) {
+         db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
-
-      /* set number of values */
-      pkey->num_values = num_values;
-      if (num_values)
-         pkey->item_size = buf_size / num_values;
-
-      /* copy data */
-      memcpy((char *) pheader + pkey->data, data, buf_size);
-
-      /* update time */
-      pkey->last_written = ss_time();
 
       db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
@@ -7095,6 +7190,7 @@ INT db_set_data1(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_
    HNDLE hkeylink;
    int link_idx;
    char link_name[256];
+   int status;
    
    if (hDB > _database_entries || hDB <= 0) {
       cm_msg(MERROR, "db_set_data1", "invalid database handle");
@@ -7115,6 +7211,7 @@ INT db_set_data1(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_
       return DB_INVALID_PARAM;
    
    db_lock_database(hDB);
+   db_err_msg* msg = NULL;
    
    pheader = _database[hDB - 1].database_header;
    
@@ -7146,56 +7243,30 @@ INT db_set_data1(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_
          return db_set_data_index1(hDB, hkeylink, data, buf_size, link_idx, type, FALSE);
       }
    }
-   
-   if (pkey->type != type) {
-      int pkey_type = pkey->type;
-      char pkey_name[NAME_LENGTH];
-      strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
+
+   status = db_check_set_data_locked(pheader, pkey, data, buf_size, num_values, type, "db_set_data1", &msg);
+
+   if (status != DB_SUCCESS) {
       db_unlock_database(hDB);
-      cm_msg(MERROR, "db_set_data1", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
-      return DB_TYPE_MISMATCH;
-   }
-   
-   /* keys cannot contain data */
-   if (pkey->type == TID_KEY) {
-      db_unlock_database(hDB);
-      cm_msg(MERROR, "db_set_data1", "Key cannot contain data");
-      return DB_TYPE_MISMATCH;
+      if (msg)
+         db_flush_msg(&msg);
+      return status;
    }
    
    db_allow_write_locked(&_database[hDB - 1], "db_set_data1");
 
-   /* if no buf_size given (Java!), calculate it */
-   if (buf_size == 0)
-      buf_size = pkey->item_size * num_values;
+   status = db_set_data_wlocked(pheader, pkey, data, buf_size, num_values, type, "db_set_data1", &msg);
    
-   /* resize data size if necessary */
-   if (pkey->total_size != buf_size) {
-      pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size, "db_set_data1");
-      
-      if (pkey->data == 0) {
-         pkey->total_size = 0;
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data1", "online database full");
-         return DB_FULL;
-      }
-      
-      pkey->data -= (POINTER_T) pheader;
-      pkey->total_size = buf_size;
+   if (status != DB_SUCCESS) {
+      db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
+      return status;
    }
    
-   /* set number of values */
-   pkey->num_values = num_values;
-   if (num_values)
-      pkey->item_size = buf_size / num_values;
-   
-   /* copy data */
-   memcpy((char *) pheader + pkey->data, data, buf_size);
-   
-   /* update time */
-   pkey->last_written = ss_time();
-   
    db_unlock_database(hDB);
+   if (msg)
+      db_flush_msg(&msg);
    
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -7223,6 +7294,7 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
    {
       DATABASE_HEADER *pheader;
       KEY *pkey;
+      int status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_set_data", "invalid database handle");
@@ -7255,70 +7327,25 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
 
       pkey = (KEY *) ((char *) pheader + hKey);
 
-      /* check for write access */
-      if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
+      status = db_check_set_data_locked(pheader, pkey, data, buf_size, num_values, type, "db_set_link_data", &msg);
+      
+      if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
-         return DB_NO_ACCESS;
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
-
-      if (pkey->type != type) {
-         int pkey_type = pkey->type;
-         char pkey_name[NAME_LENGTH];
-         strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_link_data", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* keys cannot contain data */
-      if (pkey->type == TID_KEY) {
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_link_data", "Key cannot contain data");
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* check utf-8 encoding */
-      if (pkey->type == TID_STRING || pkey->type == TID_LINK) {
-         // FIXME: this test is wrong, if this is db_set_data() of an array, we should
-         // check every element of the array! K.O.
-         //printf("db_set_link_data: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
-         const char* value = (const char*)data;
-         if (!is_utf8(value)) {
-            db_msg(&msg, MERROR, "db_set_link_data", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
-         }
-      }
-
-      /* if no buf_size given (Java!), calculate it */
-      if (buf_size == 0)
-         buf_size = pkey->item_size * num_values;
 
       db_allow_write_locked(&_database[hDB - 1], "db_set_link_data");
 
-      /* resize data size if necessary */
-      if (pkey->total_size != buf_size) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size, "db_set_link_data");
-
-         if (pkey->data == 0) {
-            pkey->total_size = 0;
-            db_unlock_database(hDB);
-            cm_msg(MERROR, "db_set_link_data", "online database full");
-            return DB_FULL;
-         }
-
-         pkey->data -= (POINTER_T) pheader;
-         pkey->total_size = buf_size;
+      status = db_set_data_wlocked(pheader, pkey, data, buf_size, num_values, type, "db_set_link_data", &msg);
+      
+      if (status != DB_SUCCESS) {
+         db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
-
-      /* set number of values */
-      pkey->num_values = num_values;
-      if (num_values)
-         pkey->item_size = buf_size / num_values;
-
-      /* copy data */
-      memcpy((char *) pheader + pkey->data, data, buf_size);
-
-      /* update time */
-      pkey->last_written = ss_time();
 
       db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
@@ -7389,6 +7416,7 @@ INT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values)
          return DB_INVALID_PARAM;
 
       db_lock_database(hDB);
+      db_err_msg* msg = NULL;
 
       pheader = _database[hDB - 1].database_header;
 
@@ -7436,8 +7464,10 @@ INT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values)
          if (pkey->data == 0) {
             pkey->total_size = 0;
             pkey->num_values = 0;
+            db_msg(&msg, MERROR, "db_set_num_values", "Cannot resize \"%s\" with num_values %d and new size %d bytes, online database full", db_get_path_locked(pheader, pkey).c_str(), num_values, new_size);
             db_unlock_database(hDB);
-            cm_msg(MERROR, "db_set_num_values", "hkey %d, num_values %d, new_size %d, online database full", hKey, num_values, new_size);
+            if (msg)
+               db_flush_msg(&msg);
             return DB_FULL;
          }
 
@@ -7449,7 +7479,6 @@ INT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values)
       /* update time */
       pkey->last_written = ss_time();
 
-      db_err_msg* msg = NULL;
       db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
       if (msg)
@@ -7488,9 +7517,10 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
    {
       DATABASE_HEADER *pheader;
       KEY *pkey;
-      char link_name[256], str[256];
+      char link_name[256];
       int link_idx;
       HNDLE hkeylink;
+      int status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_set_data_index", "invalid database handle");
@@ -7541,86 +7571,25 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
          }
       }
 
-      if (pkey->type != type) {
-         int pkey_type = pkey->type;
-         db_unlock_database(hDB);
-         db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_set_data_index", "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey_type), rpc_tid_name(type));
-         return DB_TYPE_MISMATCH;
-      }
+      status = db_check_set_data_index_locked(pheader, pkey, idx, data, data_size, type, "db_set_data_index", &msg);
 
-      /* keys cannot contain data */
-      if (pkey->type == TID_KEY) {
+      if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index", "key cannot contain data");
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* check utf-8 encoding */
-      if (pkey->type == TID_STRING || pkey->type == TID_LINK) {
-         //printf("db_set_data_index: utf8 check for odb \"%s\" value \"%s\"\n", db_get_path_locked(pheader, pkey).c_str(), data);
-         const char* value = (const char*)data;
-         if (!is_utf8(value)) {
-            db_msg(&msg, MERROR, "db_set_data_index", "odb \"%s\" set to invalid UTF-8 Unicode value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
-         }
-      }
-
-      /* check for valid idx */
-      if (idx < 0) {
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index", "invalid index %d", idx);
-         return DB_FULL;
-      }
-
-      /* check for valid array element size: if new element size
-         is different from existing size, ODB becomes corrupted */
-      if (pkey->item_size != 0 && data_size != pkey->item_size) {
-         int pkey_item_size = pkey->item_size;
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index", "invalid element data size %d, expected %d", data_size, pkey_item_size);
-         return DB_TYPE_MISMATCH;
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
 
       db_allow_write_locked(&_database[hDB-1], "db_set_data_index");
 
-      /* increase data size if necessary */
-      if (idx >= pkey->num_values || pkey->item_size == 0) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1), "db_set_data_index_A");
-
-         if (pkey->data == 0) {
-            pkey->total_size = 0;
-            pkey->num_values = 0;
-            db_unlock_database(hDB);
-            cm_msg(MERROR, "db_set_data_index", "online database full");
-            return DB_FULL;
-         }
-
-         pkey->data -= (POINTER_T) pheader;
-         if (!pkey->item_size)
-            pkey->item_size = data_size;
-         pkey->total_size = data_size * (idx + 1);
-         pkey->num_values = idx + 1;
+      status = db_set_data_index_wlocked(pheader, pkey, idx, data, data_size, type, "db_set_data_index", &msg);
+      
+      if (status != DB_SUCCESS) {
+         db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
-
-      /* cut strings which are too long */
-      if ((type == TID_STRING || type == TID_LINK) && (int) strlen((char *) data) + 1 > pkey->item_size)
-         *((char *) data + pkey->item_size - 1) = 0;
-
-      /* copy data */
-      memcpy((char *) pheader + pkey->data + idx * pkey->item_size, data, pkey->item_size);
-
-#if 0
-      /* ensure strings are NUL terminated */
-      if ((type == TID_STRING || type == TID_LINK)) {
-         int len = strlen(data);
-         int end_of_string = idx * pkey->item_size + pkey->item_size - 1;
-         printf("db_set_data_index: len %d, item_size %d, idx %d, end_of_string %d, char %d\n", len, pkey->item_size, idx, end_of_string, ((char*) pheader + pkey->data)[end_of_string]);
-         ((char*) pheader + pkey->data)[end_of_string] = 0;
-      }
-#endif
-
-      /* update time */
-      pkey->last_written = ss_time();
 
       db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE, &msg);
       db_unlock_database(hDB);
@@ -7654,7 +7623,7 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
    {
       DATABASE_HEADER *pheader;
       KEY *pkey;
-      char str[256];
+      int status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_set_link_data_index", "invalid database handle");
@@ -7672,6 +7641,7 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
       }
 
       db_lock_database(hDB);
+      db_err_msg* msg = NULL;
 
       pheader = _database[hDB - 1].database_header;
 
@@ -7683,68 +7653,26 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
 
       pkey = (KEY *) ((char *) pheader + hKey);
 
-      /* check for write access */
-      if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
+      status = db_check_set_data_index_locked(pheader, pkey, idx, data, data_size, type, "db_set_link_data_index", &msg);
+      
+      if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
-         return DB_NO_ACCESS;
-      }
-
-      if (pkey->type != type) {
-         int pkey_type = pkey->type;
-         db_unlock_database(hDB);
-         db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_set_link_data_index", "\"%s\" is of type %s, not %s", str, rpc_tid_name(pkey_type), rpc_tid_name(type));
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* keys cannot contain data */
-      if (pkey->type == TID_KEY) {
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_link_data_index", "key cannot contain data");
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* check for valid array element size: if new element size
-         is different from existing size, ODB becomes corrupted */
-      if (pkey->item_size != 0 && data_size != pkey->item_size) {
-         int pkey_item_size = pkey->item_size;
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_link_data_index", "invalid element data size %d, expected %d", data_size, pkey_item_size);
-         return DB_TYPE_MISMATCH;
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
 
       db_allow_write_locked(&_database[hDB - 1], "db_set_link_data_index");
 
-      /* increase data size if necessary */
-      if (idx >= pkey->num_values || pkey->item_size == 0) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1), "db_set_data_index_B");
-
-         if (pkey->data == 0) {
-            pkey->total_size = 0;
-            pkey->num_values = 0;
-            db_unlock_database(hDB);
-            cm_msg(MERROR, "db_set_link_data_index", "online database full");
-            return DB_FULL;
-         }
-
-         pkey->data -= (POINTER_T) pheader;
-         if (!pkey->item_size)
-            pkey->item_size = data_size;
-         pkey->total_size = data_size * (idx + 1);
-         pkey->num_values = idx + 1;
+      status = db_set_data_index_wlocked(pheader, pkey, idx, data, data_size, type, "db_set_link_data_index", &msg);
+      
+      if (status != DB_SUCCESS) {
+         db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
 
-      /* cut strings which are too long */
-      if ((type == TID_STRING || type == TID_LINK) && (int) strlen((char *) data) + 1 > pkey->item_size)
-         *((char *) data + pkey->item_size - 1) = 0;
-
-      /* copy data */
-      memcpy((char *) pheader + pkey->data + idx * pkey->item_size, data, pkey->item_size);
-
-      /* update time */
-      pkey->last_written = ss_time();
-
-      db_err_msg* msg = NULL;
       db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE, &msg);
       db_unlock_database(hDB);
       if (msg)
@@ -7795,6 +7723,7 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
    {
       DATABASE_HEADER *pheader;
       KEY *pkey;
+      int status;
 
       if (hDB > _database_entries || hDB <= 0) {
          cm_msg(MERROR, "db_set_data_index1", "invalid database handle");
@@ -7812,6 +7741,7 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
       }
 
       db_lock_database(hDB);
+      db_err_msg* msg = NULL;
 
       pheader = _database[hDB - 1].database_header;
 
@@ -7823,67 +7753,26 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
 
       pkey = (KEY *) ((char *) pheader + hKey);
 
-      /* check for write access */
-      if (!(pkey->access_mode & MODE_WRITE) || (pkey->access_mode & MODE_EXCLUSIVE)) {
-         db_unlock_database(hDB);
-         return DB_NO_ACCESS;
-      }
+      status = db_check_set_data_index_locked(pheader, pkey, idx, data, data_size, type, "db_set_data_index1", &msg);
 
-      if (pkey->type != type) {
-         int pkey_type = pkey->type;
-         char pkey_name[NAME_LENGTH];
-         strlcpy(pkey_name, pkey->name, sizeof(pkey_name));
+      if (status != DB_SUCCESS) {
          db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index1", "\"%s\" is of type %s, not %s", pkey_name, rpc_tid_name(pkey_type), rpc_tid_name(type));
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* keys cannot contain data */
-      if (pkey->type == TID_KEY) {
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index1", "key cannot contain data");
-         return DB_TYPE_MISMATCH;
-      }
-
-      /* check for valid index */
-      if (idx < 0) {
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data_index1", "invalid index");
-         return DB_FULL;
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
 
       db_allow_write_locked(&_database[hDB - 1], "db_set_data_index1");
 
-      /* increase key size if necessary */
-      if (idx >= pkey->num_values) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1), "db_set_data_index1");
+      status = db_set_data_index_wlocked(pheader, pkey, idx, data, data_size, type, "db_set_data_index1", &msg);
 
-         if (pkey->data == 0) {
-            pkey->total_size = 0;
-            pkey->num_values = 0;
-            db_unlock_database(hDB);
-            cm_msg(MERROR, "db_set_data_index1", "online database full");
-            return DB_FULL;
-         }
-
-         pkey->data -= (POINTER_T) pheader;
-         if (!pkey->item_size)
-            pkey->item_size = data_size;
-         pkey->total_size = data_size * (idx + 1);
-         pkey->num_values = idx + 1;
+      if (status != DB_SUCCESS) {
+         db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
 
-      /* cut strings which are too long */
-      if ((type == TID_STRING || type == TID_LINK) && (int) strlen((char *) data) + 1 > pkey->item_size)
-         *((char *) data + pkey->item_size - 1) = 0;
-
-      /* copy data */
-      memcpy((char *) pheader + pkey->data + idx * pkey->item_size, data, pkey->item_size);
-
-      /* update time */
-      pkey->last_written = ss_time();
-
-      db_err_msg* msg = NULL;
       if (bNotify)
          db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE, &msg);
       
@@ -10326,12 +10215,22 @@ static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer
 INT db_copy_json_ls(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
 {
    int status;
-   status = db_lock_database(hDB);
-   if (status != DB_SUCCESS) {
-      return status;
+   bool unlock = false;
+
+   if (!rpc_is_remote()) {
+      status = db_lock_database(hDB);
+      if (status != DB_SUCCESS) {
+         return status;
+      }
+      unlock = true;
    }
+
    status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, JS_MUST_BE_SUBDIR, JSFLAG_SAVE_KEYS|JSFLAG_FOLLOW_LINKS, 0);
-   db_unlock_database(hDB);
+
+   if (unlock) {
+      db_unlock_database(hDB);
+   }
+
    return status;
 }
 
@@ -10347,24 +10246,45 @@ INT db_copy_json_values(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, 
       flags |= JSFLAG_OMIT_OLD;
    if (!preserve_case)
       flags |= JSFLAG_LOWERCASE;
-   status = db_lock_database(hDB);
-   if (status != DB_SUCCESS) {
-      return status;
+
+   bool unlock = false;
+
+   if (!rpc_is_remote()) {
+      status = db_lock_database(hDB);
+      if (status != DB_SUCCESS) {
+         return status;
+      }
+      unlock = true;
    }
+
    status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, 0, flags, omit_old_timestamp);
-   db_unlock_database(hDB);
+
+   if (unlock) {
+      db_unlock_database(hDB);
+   }
+   
    return status;
 }
 
 INT db_copy_json_save(HNDLE hDB, HNDLE hKey, char **buffer, int* buffer_size, int* buffer_end)
 {
    int status;
-   status = db_lock_database(hDB);
-   if (status != DB_SUCCESS) {
-      return status;
+   bool unlock = false;
+
+   if (!rpc_is_remote()) {
+      status = db_lock_database(hDB);
+      if (status != DB_SUCCESS) {
+         return status;
+      }
+      unlock = true;
    }
+
    status = json_write_anything(hDB, hKey, buffer, buffer_size, buffer_end, JS_LEVEL_0, JS_MUST_BE_SUBDIR, JSFLAG_SAVE_KEYS|JSFLAG_RECURSE, 0);
-   db_unlock_database(hDB);
+
+   if (unlock) {
+      db_unlock_database(hDB);
+   }
+   
    return status;
 }
 
@@ -10400,71 +10320,78 @@ be saved (hkey equal zero) or only a sub-tree.
 */
 INT db_save_json(HNDLE hDB, HNDLE hKey, const char *filename)
 {
-#ifdef LOCAL_ROUTINES
-   {
-      INT status, buffer_size, buffer_end;
-      char path[MAX_ODB_PATH];
-      FILE *fp;
-      char *buffer;
-
-      /* open file */
-      fp = fopen(filename, "w");
-      if (fp == NULL) {
-         cm_msg(MERROR, "db_save_json", "Cannot open file \"%s\", fopen() errno %d (%s)", filename, errno, strerror(errno));
-         return DB_FILE_ERROR;
+   INT status;
+   
+   /* open file */
+   FILE *fp = fopen(filename, "w");
+   if (fp == NULL) {
+      cm_msg(MERROR, "db_save_json", "Cannot open file \"%s\", fopen() errno %d (%s)", filename, errno, strerror(errno));
+      return DB_FILE_ERROR;
+   }
+   
+   bool unlock = false;
+   
+   if (!rpc_is_remote()) {
+      status = db_lock_database(hDB);
+      if (status != DB_SUCCESS) {
+         return status;
       }
+      unlock = true;
+   }
+   
+   std::string path = db_get_path(hDB, hKey);
+   
+   char* buffer = NULL;
+   int buffer_size = 0;
+   int buffer_end = 0;
+   
+   json_write(&buffer, &buffer_size, &buffer_end, 0, "{\n", 0);
+   
+   json_write(&buffer, &buffer_size, &buffer_end, 1, "/MIDAS version", 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, MIDAS_VERSION, 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
+   
+   json_write(&buffer, &buffer_size, &buffer_end, 1, "/MIDAS git revision", 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, GIT_REVISION, 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
+   
+   json_write(&buffer, &buffer_size, &buffer_end, 1, "/filename", 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, filename, 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
+   
+   json_write(&buffer, &buffer_size, &buffer_end, 1, "/ODB path", 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, path.c_str(), 1);
+   json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
+   
+   //status = db_save_json_key_obsolete(hDB, hKey, -1, &buffer, &buffer_size, &buffer_end, 1, 0, 1);
+   status = json_write_bare_subdir(hDB, hKey, &buffer, &buffer_size, &buffer_end, JS_LEVEL_1, JSFLAG_SAVE_KEYS|JSFLAG_RECURSE, 0);
+   
+   json_write(&buffer, &buffer_size, &buffer_end, 0, "\n}\n", 0);
 
-      db_get_path(hDB, hKey, path, sizeof(path));
-
-      buffer = NULL;
-      buffer_size = 0;
-      buffer_end = 0;
-
-      json_write(&buffer, &buffer_size, &buffer_end, 0, "{\n", 0);
-
-      json_write(&buffer, &buffer_size, &buffer_end, 1, "/MIDAS version", 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, MIDAS_VERSION, 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
-
-      json_write(&buffer, &buffer_size, &buffer_end, 1, "/MIDAS git revision", 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, GIT_REVISION, 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
-
-      json_write(&buffer, &buffer_size, &buffer_end, 1, "/filename", 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, filename, 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
-
-      json_write(&buffer, &buffer_size, &buffer_end, 1, "/ODB path", 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, path, 1);
-      json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
-
-      //status = db_save_json_key_obsolete(hDB, hKey, -1, &buffer, &buffer_size, &buffer_end, 1, 0, 1);
-      status = json_write_bare_subdir(hDB, hKey, &buffer, &buffer_size, &buffer_end, JS_LEVEL_1, JSFLAG_SAVE_KEYS|JSFLAG_RECURSE, 0);
-
-      json_write(&buffer, &buffer_size, &buffer_end, 0, "\n}\n", 0);
-
-      if (status == DB_SUCCESS) {
-         if (buffer) {
-            size_t wr = fwrite(buffer, 1, buffer_end, fp);
-            if (wr != (size_t)buffer_end) {
-               cm_msg(MERROR, "db_save_json", "Cannot write to file \"%s\", fwrite() errno %d (%s)", filename, errno, strerror(errno));
-               free(buffer);
-               fclose(fp);
-               return DB_FILE_ERROR;
-            }
+   if (unlock) {
+      db_unlock_database(hDB);
+   }
+   
+   if (status == DB_SUCCESS) {
+      if (buffer) {
+         size_t wr = fwrite(buffer, 1, buffer_end, fp);
+         if (wr != (size_t)buffer_end) {
+            cm_msg(MERROR, "db_save_json", "Cannot write to file \"%s\", fwrite() errno %d (%s)", filename, errno, strerror(errno));
+            free(buffer);
+            fclose(fp);
+            return DB_FILE_ERROR;
          }
       }
-
-      if (buffer)
-         free(buffer);
-
-      fclose(fp);
    }
-#endif                          /* LOCAL_ROUTINES */
+   
+   if (buffer)
+      free(buffer);
+   
+   fclose(fp);
 
    return DB_SUCCESS;
 }
