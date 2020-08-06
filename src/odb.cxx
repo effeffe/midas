@@ -82,6 +82,8 @@ static int db_notify_clients_locked(const DATABASE_HEADER* pheader, HNDLE hDB, H
 static int db_create_key_wlocked(DATABASE_HEADER* pheader, KEY* parentKey, const char *key_name, DWORD type, KEY** pnewkey, db_err_msg** msg);
 static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_root, const char *key_name, const void *data, INT data_size, INT num_values, DWORD type, db_err_msg** msg);
 static INT db_get_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, int idx, void *data, INT * buf_size, DWORD type, db_err_msg** msg);
+static INT db_set_data_wlocked(DATABASE_HEADER* pheader, KEY* pkey, const void *data, INT data_size, INT num_values, DWORD type, const char* caller, db_err_msg** msg);
+static INT db_set_data_index_wlocked(DATABASE_HEADER* pheader, KEY* pkey, int idx, const void *data, INT data_size, DWORD type, const char* caller, db_err_msg** msg);
 #endif // LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
@@ -5221,34 +5223,11 @@ static int db_set_value_wlocked(DATABASE_HEADER* pheader, HNDLE hDB, KEY* pkey_r
          //return DB_TYPE_MISMATCH;
       }
    }
-   
-   /* resize data size if necessary */
-   if (pkey->total_size != data_size) {
-      pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size, "db_set_value");
-      
-      if (pkey->data == 0) {
-         pkey->total_size = 0;
-         db_msg(msg, MERROR, "db_set_value", "online database full");
-         return DB_FULL;
-      }
-      
-      pkey->data -= (POINTER_T) pheader;
-      pkey->total_size = data_size;
-   }
-   
-   /* set number of values */
-   pkey->num_values = num_values;
-   
-   if (type == TID_STRING || type == TID_LINK)
-      pkey->item_size = data_size / num_values;
-   else
-      pkey->item_size = rpc_tid_size(type);
-   
-   /* copy data */
-   memcpy((char *) pheader + pkey->data, data, data_size);
-   
-   /* update time */
-   pkey->last_written = ss_time();
+
+   status = db_set_data_wlocked(pheader, pkey, data, data_size, num_values, type, "db_set_value", msg);
+
+   if (status != DB_SUCCESS)
+      return status;
    
    db_notify_clients_locked(pheader, hDB, db_pkey_to_hkey(pheader, pkey), -1, TRUE, msg);
    
@@ -6920,6 +6899,102 @@ INT db_get_data_index(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT idx
    return DB_SUCCESS;
 }
 
+#ifdef LOCAL_ROUTINES
+/********************************************************************/
+/**
+Set key data, adjust number of values if previous data has different size.
+@param pkey Key to change
+@param idx  Data index to change, "-1" means the whole array of data
+@param data Buffer from which data gets copied to.
+@param data_size Size of data buffer.
+@param num_values Number of data values (for arrays).
+@param type Type of key, one of TID_xxx (see @ref Midas_Data_Types).
+@return DB_SUCCESS, DB_FULL
+*/
+
+static INT db_set_data_wlocked(DATABASE_HEADER* pheader, KEY* pkey, const void *data, INT data_size, INT num_values, DWORD type, const char* caller, db_err_msg** msg)
+{
+   /* if no buf_size given (Java!), calculate it */
+   if (data_size == 0)
+      data_size = pkey->item_size * num_values;
+
+   /* resize data size if necessary */
+   if (pkey->total_size != data_size) {
+      // FIXME: validate pkey->data!
+      pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size, caller);
+      
+      if (pkey->data == 0) {
+         pkey->total_size = 0;
+         db_msg(msg, MERROR, caller, "Cannot reallocate \"%s\" with new size %d bytes, online database full", db_get_path_locked(pheader, pkey).c_str(), data_size);
+         return DB_FULL;
+      }
+      
+      pkey->data -= (POINTER_T) pheader;
+      pkey->total_size = data_size;
+   }
+   
+   /* set number of values */
+   pkey->num_values = num_values;
+
+   if (type == TID_STRING || type == TID_LINK)
+      pkey->item_size = data_size / num_values;
+   else
+      pkey->item_size = rpc_tid_size(type);
+   
+   /* copy data */
+   memcpy((char *) pheader + pkey->data, data, data_size);
+   
+   /* update time */
+   pkey->last_written = ss_time();
+
+   return DB_SUCCESS;
+}
+
+static INT db_set_data_index_wlocked(DATABASE_HEADER* pheader, KEY* pkey, int idx, const void *data, INT data_size, DWORD type, const char* caller, db_err_msg** msg)
+{
+   /* increase key size if necessary */
+   if (idx >= pkey->num_values || pkey->item_size == 0) {
+      // FIXME: validate pkey->data
+      pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1), caller);
+      
+      if (pkey->data == 0) {
+         pkey->total_size = 0;
+         pkey->num_values = 0;
+         db_msg(msg, MERROR, caller, "Cannot reallocate \"%s\" with new num_values %d and new size %d bytes, online database full", db_get_path_locked(pheader, pkey).c_str(), idx + 1, data_size * (idx + 1));
+         return DB_FULL;
+      }
+      
+      pkey->data -= (POINTER_T) pheader;
+      if (!pkey->item_size)
+         pkey->item_size = data_size;
+      pkey->total_size = data_size * (idx + 1);
+      pkey->num_values = idx + 1;
+   }
+
+#if 0
+   /* cut strings which are too long */
+   if ((type == TID_STRING || type == TID_LINK) && (int) strlen((char *) data) + 1 > pkey->item_size)
+      *((char *) data + pkey->item_size - 1) = 0;
+   
+   /* copy data */
+   memcpy((char *) pheader + pkey->data + idx * pkey->item_size, data, pkey->item_size);
+#endif
+
+   if ((type == TID_STRING || type == TID_LINK)) {
+      /* cut strings which are too long */
+      strlcpy((char *) pheader + pkey->data + idx * pkey->item_size, (char*)data, pkey->item_size);
+   } else {
+      /* copy data */
+      memcpy((char *) pheader + pkey->data + idx * pkey->item_size, data, pkey->item_size);
+   }
+
+   /* update time */
+   pkey->last_written = ss_time();
+
+   return DB_SUCCESS;
+}
+#endif // LOCAL_ROUTINES
+
 /********************************************************************/
 /**
 Set key data from a handle. Adjust number of values if
@@ -7034,37 +7109,14 @@ INT db_set_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_v
 
       db_allow_write_locked(&_database[hDB-1], "db_set_data");
 
-      /* if no buf_size given (Java!), calculate it */
-      if (buf_size == 0)
-         buf_size = pkey->item_size * num_values;
+      int status = db_set_data_wlocked(pheader, pkey, data, buf_size, num_values, type, "db_set_data", &msg);
 
-      /* resize data size if necessary */
-      if (pkey->total_size != buf_size) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size, "db_set_data");
-
-         if (pkey->data == 0) {
-            pkey->total_size = 0;
-            db_unlock_database(hDB);
-            if (msg)
-               db_flush_msg(&msg);
-            cm_msg(MERROR, "db_set_data", "online database full");
-            return DB_FULL;
-         }
-
-         pkey->data -= (POINTER_T) pheader;
-         pkey->total_size = buf_size;
+      if (status != DB_SUCCESS) {
+         db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
-
-      /* set number of values */
-      pkey->num_values = num_values;
-      if (num_values)
-         pkey->item_size = buf_size / num_values;
-
-      /* copy data */
-      memcpy((char *) pheader + pkey->data, data, buf_size);
-
-      /* update time */
-      pkey->last_written = ss_time();
 
       db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
@@ -7115,6 +7167,7 @@ INT db_set_data1(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_
       return DB_INVALID_PARAM;
    
    db_lock_database(hDB);
+   db_err_msg* msg = NULL;
    
    pheader = _database[hDB - 1].database_header;
    
@@ -7165,37 +7218,18 @@ INT db_set_data1(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT num_
    
    db_allow_write_locked(&_database[hDB - 1], "db_set_data1");
 
-   /* if no buf_size given (Java!), calculate it */
-   if (buf_size == 0)
-      buf_size = pkey->item_size * num_values;
+   int status = db_set_data_wlocked(pheader, pkey, data, buf_size, num_values, type, "db_set_data1", &msg);
    
-   /* resize data size if necessary */
-   if (pkey->total_size != buf_size) {
-      pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size, "db_set_data1");
-      
-      if (pkey->data == 0) {
-         pkey->total_size = 0;
-         db_unlock_database(hDB);
-         cm_msg(MERROR, "db_set_data1", "online database full");
-         return DB_FULL;
-      }
-      
-      pkey->data -= (POINTER_T) pheader;
-      pkey->total_size = buf_size;
+   if (status != DB_SUCCESS) {
+      db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
+      return status;
    }
    
-   /* set number of values */
-   pkey->num_values = num_values;
-   if (num_values)
-      pkey->item_size = buf_size / num_values;
-   
-   /* copy data */
-   memcpy((char *) pheader + pkey->data, data, buf_size);
-   
-   /* update time */
-   pkey->last_written = ss_time();
-   
    db_unlock_database(hDB);
+   if (msg)
+      db_flush_msg(&msg);
    
    }
 #endif                          /* LOCAL_ROUTINES */
@@ -7288,37 +7322,16 @@ INT db_set_link_data(HNDLE hDB, HNDLE hKey, const void *data, INT buf_size, INT 
          }
       }
 
-      /* if no buf_size given (Java!), calculate it */
-      if (buf_size == 0)
-         buf_size = pkey->item_size * num_values;
-
       db_allow_write_locked(&_database[hDB - 1], "db_set_link_data");
 
-      /* resize data size if necessary */
-      if (pkey->total_size != buf_size) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, buf_size, "db_set_link_data");
-
-         if (pkey->data == 0) {
-            pkey->total_size = 0;
-            db_unlock_database(hDB);
-            cm_msg(MERROR, "db_set_link_data", "online database full");
-            return DB_FULL;
-         }
-
-         pkey->data -= (POINTER_T) pheader;
-         pkey->total_size = buf_size;
+      int status = db_set_data_wlocked(pheader, pkey, data, buf_size, num_values, type, "db_set_link_data", &msg);
+      
+      if (status != DB_SUCCESS) {
+         db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
-
-      /* set number of values */
-      pkey->num_values = num_values;
-      if (num_values)
-         pkey->item_size = buf_size / num_values;
-
-      /* copy data */
-      memcpy((char *) pheader + pkey->data, data, buf_size);
-
-      /* update time */
-      pkey->last_written = ss_time();
 
       db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
@@ -7389,6 +7402,7 @@ INT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values)
          return DB_INVALID_PARAM;
 
       db_lock_database(hDB);
+      db_err_msg* msg = NULL;
 
       pheader = _database[hDB - 1].database_header;
 
@@ -7436,8 +7450,10 @@ INT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values)
          if (pkey->data == 0) {
             pkey->total_size = 0;
             pkey->num_values = 0;
+            db_msg(&msg, MERROR, "db_set_num_values", "Cannot resize \"%s\" with num_values %d and new size %d bytes, online database full", db_get_path_locked(pheader, pkey).c_str(), num_values, new_size);
             db_unlock_database(hDB);
-            cm_msg(MERROR, "db_set_num_values", "hkey %d, num_values %d, new_size %d, online database full", hKey, num_values, new_size);
+            if (msg)
+               db_flush_msg(&msg);
             return DB_FULL;
          }
 
@@ -7449,7 +7465,6 @@ INT db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values)
       /* update time */
       pkey->last_written = ss_time();
 
-      db_err_msg* msg = NULL;
       db_notify_clients_locked(pheader, hDB, hKey, -1, TRUE, &msg);
       db_unlock_database(hDB);
       if (msg)
@@ -7583,44 +7598,14 @@ INT db_set_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, IN
 
       db_allow_write_locked(&_database[hDB-1], "db_set_data_index");
 
-      /* increase data size if necessary */
-      if (idx >= pkey->num_values || pkey->item_size == 0) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1), "db_set_data_index_A");
-
-         if (pkey->data == 0) {
-            pkey->total_size = 0;
-            pkey->num_values = 0;
-            db_unlock_database(hDB);
-            cm_msg(MERROR, "db_set_data_index", "online database full");
-            return DB_FULL;
-         }
-
-         pkey->data -= (POINTER_T) pheader;
-         if (!pkey->item_size)
-            pkey->item_size = data_size;
-         pkey->total_size = data_size * (idx + 1);
-         pkey->num_values = idx + 1;
+      int status = db_set_data_index_wlocked(pheader, pkey, idx, data, data_size, type, "db_set_data_index", &msg);
+      
+      if (status != DB_SUCCESS) {
+         db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
-
-      /* cut strings which are too long */
-      if ((type == TID_STRING || type == TID_LINK) && (int) strlen((char *) data) + 1 > pkey->item_size)
-         *((char *) data + pkey->item_size - 1) = 0;
-
-      /* copy data */
-      memcpy((char *) pheader + pkey->data + idx * pkey->item_size, data, pkey->item_size);
-
-#if 0
-      /* ensure strings are NUL terminated */
-      if ((type == TID_STRING || type == TID_LINK)) {
-         int len = strlen(data);
-         int end_of_string = idx * pkey->item_size + pkey->item_size - 1;
-         printf("db_set_data_index: len %d, item_size %d, idx %d, end_of_string %d, char %d\n", len, pkey->item_size, idx, end_of_string, ((char*) pheader + pkey->data)[end_of_string]);
-         ((char*) pheader + pkey->data)[end_of_string] = 0;
-      }
-#endif
-
-      /* update time */
-      pkey->last_written = ss_time();
 
       db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE, &msg);
       db_unlock_database(hDB);
@@ -7672,6 +7657,7 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
       }
 
       db_lock_database(hDB);
+      db_err_msg* msg = NULL;
 
       pheader = _database[hDB - 1].database_header;
 
@@ -7715,36 +7701,15 @@ INT db_set_link_data_index(HNDLE hDB, HNDLE hKey, const void *data, INT data_siz
 
       db_allow_write_locked(&_database[hDB - 1], "db_set_link_data_index");
 
-      /* increase data size if necessary */
-      if (idx >= pkey->num_values || pkey->item_size == 0) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1), "db_set_data_index_B");
-
-         if (pkey->data == 0) {
-            pkey->total_size = 0;
-            pkey->num_values = 0;
-            db_unlock_database(hDB);
-            cm_msg(MERROR, "db_set_link_data_index", "online database full");
-            return DB_FULL;
-         }
-
-         pkey->data -= (POINTER_T) pheader;
-         if (!pkey->item_size)
-            pkey->item_size = data_size;
-         pkey->total_size = data_size * (idx + 1);
-         pkey->num_values = idx + 1;
+      int status = db_set_data_index_wlocked(pheader, pkey, idx, data, data_size, type, "db_set_link_data_index", &msg);
+      
+      if (status != DB_SUCCESS) {
+         db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
 
-      /* cut strings which are too long */
-      if ((type == TID_STRING || type == TID_LINK) && (int) strlen((char *) data) + 1 > pkey->item_size)
-         *((char *) data + pkey->item_size - 1) = 0;
-
-      /* copy data */
-      memcpy((char *) pheader + pkey->data + idx * pkey->item_size, data, pkey->item_size);
-
-      /* update time */
-      pkey->last_written = ss_time();
-
-      db_err_msg* msg = NULL;
       db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE, &msg);
       db_unlock_database(hDB);
       if (msg)
@@ -7812,6 +7777,7 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
       }
 
       db_lock_database(hDB);
+      db_err_msg* msg = NULL;
 
       pheader = _database[hDB - 1].database_header;
 
@@ -7854,36 +7820,15 @@ INT db_set_data_index1(HNDLE hDB, HNDLE hKey, const void *data, INT data_size, I
 
       db_allow_write_locked(&_database[hDB - 1], "db_set_data_index1");
 
-      /* increase key size if necessary */
-      if (idx >= pkey->num_values) {
-         pkey->data = (POINTER_T) realloc_data(pheader, (char *) pheader + pkey->data, pkey->total_size, data_size * (idx + 1), "db_set_data_index1");
+      int status = db_set_data_index_wlocked(pheader, pkey, idx, data, data_size, type, "db_set_data_index1", &msg);
 
-         if (pkey->data == 0) {
-            pkey->total_size = 0;
-            pkey->num_values = 0;
-            db_unlock_database(hDB);
-            cm_msg(MERROR, "db_set_data_index1", "online database full");
-            return DB_FULL;
-         }
-
-         pkey->data -= (POINTER_T) pheader;
-         if (!pkey->item_size)
-            pkey->item_size = data_size;
-         pkey->total_size = data_size * (idx + 1);
-         pkey->num_values = idx + 1;
+      if (status != DB_SUCCESS) {
+         db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
+         return status;
       }
 
-      /* cut strings which are too long */
-      if ((type == TID_STRING || type == TID_LINK) && (int) strlen((char *) data) + 1 > pkey->item_size)
-         *((char *) data + pkey->item_size - 1) = 0;
-
-      /* copy data */
-      memcpy((char *) pheader + pkey->data + idx * pkey->item_size, data, pkey->item_size);
-
-      /* update time */
-      pkey->last_written = ss_time();
-
-      db_err_msg* msg = NULL;
       if (bNotify)
          db_notify_clients_locked(pheader, hDB, hKey, idx, TRUE, &msg);
       
