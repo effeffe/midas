@@ -43,6 +43,12 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
    status = db_get_key(hDB, hKey, &key);
    assert(status == DB_SUCCESS);
 
+   if (strcasecmp(key.name, "image") == 0) {
+      if (debug_flag)
+         cm_msg(MINFO, "hs_get_history", "History channel \'IMAGE\' handled by image facility");
+      return DB_NO_KEY;
+   }
+
    active = 0;
    size = sizeof(active);
    status = db_get_value(hDB, hKey, "Active", &active, &size, TID_BOOL, TRUE);
@@ -60,6 +66,13 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
       printf("hs_get_history: see channel hkey %d, name \'%s\', active %d, type [%s], debug %d\n", hKey, key.name, active, type.c_str(), debug);
 
    if (strcasecmp(type.c_str(), "MIDAS")==0) {
+
+      std::string tmp;
+      // create ODB "History dir"
+      db_get_value_string(hDB, hKey, "History dir", 0, &tmp, TRUE);
+
+      std::string path = cm_get_history_path(key.name);
+
       int i;
       
       i = 1;
@@ -77,14 +90,14 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
          
          (*mh)->hs_set_debug(debug);
          
-         status = (*mh)->hs_connect(NULL);
+         status = (*mh)->hs_connect(path.c_str());
          if (status != HS_SUCCESS) {
             cm_msg(MERROR, "hs_get_history", "Cannot connect to MIDAS history, status %d", status);
             return status;
          }
 
          if (debug_flag)
-            cm_msg(MINFO, "hs_get_history", "Connected history channel \'%s\' type MIDAS history", key.name);
+            cm_msg(MINFO, "hs_get_history", "Connected history channel \'%s\' type MIDAS history in \"%s\"", key.name, path.c_str());
       }
       
    } else if (strcasecmp(type.c_str(), "ODBC")==0) {
@@ -156,24 +169,11 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
       }
    } else if (strcasecmp(type.c_str(), "SQLITE")==0) {
 
-      std::string expt_path = cm_get_path();
+      std::string tmp;
+      // create ODB "History dir"
+      db_get_value_string(hDB, hKey, "History dir", 0, &tmp, TRUE);
 
-      std::string dir;
-
-      std::string path;
-
-      status = db_get_value_string(hDB, hKey, "Sqlite dir", 0, &dir, TRUE);
-      assert(status == DB_SUCCESS);
-
-      if (dir[0] == DIR_SEPARATOR)
-         path = dir;
-      else {
-         path = expt_path;
-         // normally expt_path has the trailing '/', see midas.c::cm_set_path()
-         if (path[path.length()-1] != DIR_SEPARATOR)
-            path += DIR_SEPARATOR_STR;
-         path += dir;
-      }
+      std::string path = cm_get_history_path(key.name);
 
       if (active || (flags & HS_GET_INACTIVE)) {
          *mh = MakeMidasHistorySqlite();
@@ -193,29 +193,11 @@ int hs_get_history(HNDLE hDB, HNDLE hKey, int flags, int debug_flag, MidasHistor
       }
    } else if (strcasecmp(type.c_str(), "FILE")==0) {
 
-      std::string expt_path;
+      std::string tmp;
+      // create ODB "History dir"
+      db_get_value_string(hDB, hKey, "History dir", 0, &tmp, TRUE);
 
-      status = db_get_value_string(hDB, 0, "/Logger/History dir", 0, &expt_path, FALSE);
-      if (status != DB_SUCCESS)
-         status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &expt_path, TRUE);
-      if (status != DB_SUCCESS || expt_path.length() < 1)
-         expt_path = cm_get_path();
-
-      std::string dir;
-      std::string path;
-
-      status = db_get_value_string(hDB, hKey, "History dir", 0, &dir, TRUE);
-      assert(status == DB_SUCCESS);
-
-      if (dir[0] == DIR_SEPARATOR)
-         path = dir;
-      else {
-         path = expt_path;
-         // normally expt_path has the trailing '/', see midas.c::cm_set_path()
-         if (path[path.length()-1] != DIR_SEPARATOR)
-            path += DIR_SEPARATOR_STR;
-         path += dir;
-      }
+      std::string path = cm_get_history_path(key.name);
 
       //printf("FILE path [%s], expt_path [%s], local History Dir [%s]\n", path.c_str(), expt_path, dir);
 

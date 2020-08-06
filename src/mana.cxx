@@ -5465,8 +5465,8 @@ int main(int argc, char *argv[])
       }
       return 1;
    } else if (status != CM_SUCCESS) {
-      cm_get_error(status, str);
-      printf("\nError: %s\n", str);
+      std::string s = cm_get_error(status);
+      printf("\nError: %s\n", s.c_str());
       return 1;
    }
 

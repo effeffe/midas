@@ -23,6 +23,9 @@
 #include "strlcpy.h"
 #endif
 
+#include <mutex>
+#include <deque>
+
 /**dox***************************************************************/
 /** @file midas.c
 The main core C-code for Midas.
@@ -173,8 +176,10 @@ static BUFFER *_buffer;
 static INT _buffer_entries = 0;
 
 static INT _msg_buffer = 0;
+#if 0
 static INT _msg_rb = 0;
 static MUTEX_T *_msg_mutex = NULL;
+#endif
 static EVENT_HANDLER *_msg_dispatch = NULL;
 
 static REQUEST_LIST *_request_list;
@@ -422,23 +427,22 @@ error string in command line programs or windows programs.
 @param string Error string
 @return CM_SUCCESS
 */
-INT cm_get_error(INT code, char *string) {
-   INT i;
-
-   for (i = 0; _error_table[i].code; i++)
+std::string cm_get_error(INT code)
+{
+   for (int i = 0; _error_table[i].code; i++) {
       if (_error_table[i].code == code) {
-         strcpy(string, _error_table[i].string);
-         return CM_SUCCESS;
+         return _error_table[i].string;
       }
+   }
 
-   sprintf(string, "Unexpected error #%d", code);
-   return CM_SUCCESS;
+   return msprintf("unlisted status code %d", code);
 }
 
 /********************************************************************/
 int cm_msg_early_init(void) {
    int status;
 
+#if 0
    if (!_msg_rb) {
       status = rb_create(100 * 1024, 1024, &_msg_rb);
       assert(status == SUCCESS);
@@ -448,6 +452,7 @@ int cm_msg_early_init(void) {
       status = ss_mutex_create(&_msg_mutex, FALSE);
       assert(status == SS_SUCCESS || status == SS_CREATED);
    }
+#endif
 
    return CM_SUCCESS;
 }
@@ -797,79 +802,97 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
 }
 
 
-static INT
-cm_msg_format(char *message, int sizeof_message, INT message_type, const char *filename, INT line, const char *routine,
-              const char *format, va_list *argptr) {
-   char type_str[256], str[1000], format_cpy[900];
-   const char *pc;
-
+static std::string cm_msg_format(INT message_type, const char *filename, INT line, const char *routine, const char *format, va_list *argptr)
+{
    /* strip path */
-   pc = filename + strlen(filename);
+   const char* pc = filename + strlen(filename);
    while (*pc != '\\' && *pc != '/' && pc != filename)
       pc--;
    if (pc != filename)
       pc++;
 
    /* convert type to string */
-   type_str[0] = 0;
+   std::string type_str;
    if (message_type & MT_ERROR)
-      strlcat(type_str, MT_ERROR_STR, sizeof(type_str));
+      type_str += MT_ERROR_STR;
    if (message_type & MT_INFO)
-      strlcat(type_str, MT_INFO_STR, sizeof(type_str));
+      type_str += MT_INFO_STR;
    if (message_type & MT_DEBUG)
-      strlcat(type_str, MT_DEBUG_STR, sizeof(type_str));
+      type_str += MT_DEBUG_STR;
    if (message_type & MT_USER)
-      strlcat(type_str, MT_USER_STR, sizeof(type_str));
+      type_str += MT_USER_STR;
    if (message_type & MT_LOG)
-      strlcat(type_str, MT_LOG_STR, sizeof(type_str));
+      type_str += MT_LOG_STR;
    if (message_type & MT_TALK)
-      strlcat(type_str, MT_TALK_STR, sizeof(type_str));
+      type_str += MT_TALK_STR;
+
+   std::string message;
 
    /* print client name into string */
    if (message_type == MT_USER)
-      sprintf(message, "[%s] ", routine);
+      message = msprintf("[%s] ", routine);
    else {
       std::string name = rpc_get_name();
-      strlcpy(str, name.c_str(), sizeof(str));
-      if (str[0])
-         sprintf(message, "[%s,%s] ", str, type_str);
+      if (name.length() > 0)
+         message = msprintf("[%s,%s] ", name.c_str(), type_str.c_str());
       else
-         message[0] = 0;
+         message = "";
    }
 
    /* preceed error messages with file and line info */
    if (message_type == MT_ERROR) {
-      sprintf(str, "[%s:%d:%s,%s] ", pc, line, routine, type_str);
-      strlcat(message, str, sizeof_message);
-   } else if (message_type == MT_USER)
-      sprintf(message, "[%s,%s] ", routine, type_str);
+      message = msprintf("[%s:%d:%s,%s] ", pc, line, routine, type_str.c_str());
+   } else if (message_type == MT_USER) {
+      message = msprintf("[%s,%s] ", routine, type_str.c_str());
+   }
 
-   /* limit length of format */
-   strlcpy(format_cpy, format, sizeof(format_cpy));
+   int bufsize = 1024;
+   char* buf = (char*)malloc(bufsize);
+   assert(buf);
 
-   /* print argument list into message */
-   vsprintf(str, (char *) format, *argptr);
+   for (int i=0; i<10; i++) {
+      va_list ap;
+      va_copy(ap, *argptr);
+      
+      /* print argument list into message */
+      int n = vsnprintf(buf, bufsize-1, format, ap);
 
-   strlcat(message, str, sizeof_message);
+      //printf("vsnprintf [%s] %d %d\n", format, bufsize, n);
 
-   return CM_SUCCESS;
+      if (n < bufsize) {
+         break;
+      }
+
+      bufsize += 100;
+      bufsize *= 2;
+      buf = (char*)realloc(buf, bufsize);
+      assert(buf);
+   }
+
+   message += buf;
+   free(buf);
+
+   return message;
 }
 
-static INT cm_msg_send_event(INT ts, INT message_type, const char *send_message) {
+static INT cm_msg_send_event(DWORD ts, INT message_type, const char *send_message) {
    //printf("cm_msg_send: ts %d, type %d, message [%s]\n", ts, message_type, send_message);
 
    /* send event if not of type MLOG */
    if (message_type != MT_LOG) {
       if (_msg_buffer) {
          /* copy message to event */
-         char event[1000];
+         size_t len = strlen(send_message);
+         int event_length = sizeof(EVENT_HEADER) + len + 1;
+         char event[event_length];
          EVENT_HEADER *pevent = (EVENT_HEADER *) event;
 
-         strlcpy(event + sizeof(EVENT_HEADER), send_message, sizeof(event) - sizeof(EVENT_HEADER));
+         memcpy(event + sizeof(EVENT_HEADER), send_message, len + 1);
 
          /* setup the event header and send the message */
-         bm_compose_event(pevent, EVENTID_MESSAGE, (WORD) message_type, strlen(event + sizeof(EVENT_HEADER)) + 1, 0);
-         pevent->time_stamp = ts;
+         bm_compose_event(pevent, EVENTID_MESSAGE, (WORD) message_type, event_length, 0);
+         if (ts)
+            pevent->time_stamp = ts;
          bm_send_event(_msg_buffer, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
       }
    }
@@ -877,7 +900,26 @@ static INT cm_msg_send_event(INT ts, INT message_type, const char *send_message)
    return CM_SUCCESS;
 }
 
-static INT cm_msg_buffer(int ts, int message_type, const char *message) {
+struct msg_buffer_entry {
+   DWORD ts;
+   int message_type;
+   std::string message;
+};
+
+static std::deque<msg_buffer_entry> gMsgBuf;
+static std::mutex gMsgBufMutex;
+
+static INT cm_msg_buffer(DWORD ts, int message_type, const char *message) {
+   msg_buffer_entry e;
+   e.ts = ts;
+   e.message_type = message_type;
+   e.message = message;
+
+   std::lock_guard<std::mutex> lock(gMsgBufMutex);
+   gMsgBuf.push_back(e);
+   // implicit unlock on return
+   
+#if 0
    int status;
    int len;
    char *wp;
@@ -921,6 +963,7 @@ static INT cm_msg_buffer(int ts, int message_type, const char *message) {
 
    // unlock
    ss_mutex_release(_msg_mutex);
+#endif
 
    return CM_SUCCESS;
 }
@@ -936,10 +979,31 @@ INT cm_msg_flush_buffer() {
 
    //printf("cm_msg_flush_buffer!\n");
 
+#if 0
    if (!_msg_rb)
       return CM_SUCCESS;
+#endif
 
    for (i = 0; i < 100; i++) {
+      msg_buffer_entry e;
+      {
+         std::lock_guard<std::mutex> lock(gMsgBufMutex);
+         if (gMsgBuf.empty())
+            break;
+         e = gMsgBuf.front();
+         gMsgBuf.pop_front();
+         // implicit unlock
+      }
+
+      /* log message */
+      cm_msg_log(e.message_type, "midas", e.message.c_str());
+
+      /* send message to SYSMSG */
+      int status = cm_msg_send_event(e.ts, e.message_type, e.message.c_str());
+      if (status != CM_SUCCESS)
+         return status;
+
+#if 0
       int status;
       int ts;
       int message_type;
@@ -996,6 +1060,7 @@ INT cm_msg_flush_buffer() {
       status = cm_msg_send_event(ts, message_type, message);
       if (status != CM_SUCCESS)
          return status;
+#endif
    }
 
    return CM_SUCCESS;
@@ -1025,21 +1090,21 @@ formated line as it is already added by the client on the receiving side.
 */
 INT cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) {
    va_list argptr;
-   char message[1000];
    INT status;
+   std::string message;
    static BOOL in_routine = FALSE;
    int ts = ss_time();
 
    /* print argument list into message */
    va_start(argptr, format);
-   cm_msg_format(message, sizeof(message), message_type, filename, line, routine, format, &argptr);
+   message = cm_msg_format(message_type, filename, line, routine, format, &argptr);
    va_end(argptr);
 
    //printf("message [%s]\n", message);
 
    /* avoid recursive calls */
    if (in_routine) {
-      fprintf(stderr, "cm_msg: Error: dropped message [%s] to break recursion\n", message);
+      fprintf(stderr, "cm_msg: Error: dropped message [%s] to break recursion\n", message.c_str());
       return CM_SUCCESS;
    }
 
@@ -1047,7 +1112,7 @@ INT cm_msg(INT message_type, const char *filename, INT line, const char *routine
 
    /* call user function if set via cm_set_msg_print */
    if (_message_print != NULL && (message_type & _message_mask_user) != 0)
-      _message_print(message);
+      _message_print(message.c_str());
 
    /* return if system mask is not set */
    if ((message_type & _message_mask_system) == 0) {
@@ -1055,7 +1120,7 @@ INT cm_msg(INT message_type, const char *filename, INT line, const char *routine
       return CM_SUCCESS;
    }
 
-   status = cm_msg_buffer(ts, message_type, message);
+   status = cm_msg_buffer(ts, message_type, message.c_str());
 
    in_routine = FALSE;
 
@@ -1090,7 +1155,7 @@ Thu Nov  8 17:59:28 2001 [my_program] My message status:1
 INT cm_msg1(INT message_type, const char *filename, INT line,
             const char *facility, const char *routine, const char *format, ...) {
    va_list argptr;
-   char message[256];
+   std::string message;
    static BOOL in_routine = FALSE;
 
    /* avoid recursive calles */
@@ -1101,12 +1166,12 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
 
    /* print argument list into message */
    va_start(argptr, format);
-   cm_msg_format(message, sizeof(message), message_type, filename, line, routine, format, &argptr);
+   message = cm_msg_format(message_type, filename, line, routine, format, &argptr);
    va_end(argptr);
 
    /* call user function if set via cm_set_msg_print */
    if (_message_print != NULL && (message_type & _message_mask_user) != 0)
-      _message_print(message);
+      _message_print(message.c_str());
 
    /* return if system mask is not set */
    if ((message_type & _message_mask_system) == 0) {
@@ -1114,24 +1179,11 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
       return CM_SUCCESS;
    }
 
-   /* send event if not of type MLOG */
-   if (message_type != MT_LOG) {
-      /* if no message buffer already opened, do so now */
-      if (_msg_buffer) {
-         /* copy message to event */
-         char event[1000];
-         EVENT_HEADER *pevent = (EVENT_HEADER *) event;
-
-         strlcpy(event + sizeof(EVENT_HEADER), message, sizeof(event) - sizeof(EVENT_HEADER));
-
-         /* setup the event header and send the message */
-         bm_compose_event(pevent, EVENTID_MESSAGE, (WORD) message_type, strlen(event + sizeof(EVENT_HEADER)) + 1, 0);
-         bm_send_event(_msg_buffer, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
-      }
-   }
+   /* send message to SYSMSG */
+   cm_msg_send_event(0, message_type, message.c_str());
 
    /* log message */
-   cm_msg_log(message_type, facility, message);
+   cm_msg_log(message_type, facility, message.c_str());
 
    in_routine = FALSE;
 
@@ -2410,13 +2462,12 @@ CM_VERSION_MISMATCH MIDAS library version different on local and remote computer
 */
 INT cm_connect_experiment(const char *host_name, const char *exp_name, const char *client_name, void (*func)(char *)) {
    INT status;
-   char str[256];
 
    status = cm_connect_experiment1(host_name, exp_name, client_name, func, DEFAULT_ODB_SIZE, DEFAULT_WATCHDOG_TIMEOUT);
    cm_msg_flush_buffer();
    if (status != CM_SUCCESS) {
-      cm_get_error(status, str);
-      puts(str);
+      std::string s = cm_get_error(status);
+      puts(s.c_str());
    }
 
    return status;
@@ -3098,6 +3149,7 @@ INT cm_disconnect_experiment(void) {
    /* last flush before we delete the message ring buffer */
    cm_msg_flush_buffer();
 
+#if 0
    /* delete the message ring buffer and semaphore */
    if (_msg_mutex)
       ss_mutex_delete(_msg_mutex);
@@ -3105,6 +3157,7 @@ INT cm_disconnect_experiment(void) {
    if (_msg_rb)
       rb_delete(_msg_rb);
    _msg_rb = 0;
+#endif
 
    //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after deleting message ring buffer");
    //cm_msg_flush_buffer();
@@ -5766,6 +5819,67 @@ INT cm_register_function(INT id, INT(*func)(INT, void **))
 
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
+
+//
+// Return "/"-terminated file path for given history channel
+//
+
+std::string cm_get_history_path(const char* history_channel)
+{
+   int status;
+   HNDLE hDB;
+   std::string path;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   if (history_channel && (strlen(history_channel) > 0)) {
+      std::string p;
+      p += "/Logger/History/";
+      p += history_channel;
+      p += "/History dir";
+
+      // NB: be careful to avoid creating odb entries under /logger
+      // for whatever values of "history_channel" we get called with!
+      status = db_get_value_string(hDB, 0, p.c_str(), 0, &path, FALSE);
+      if (status == DB_SUCCESS && path.length() > 0) {
+         // if not absolute path, prepend with experiment directory
+         if (path[0] != DIR_SEPARATOR)
+            path = cm_get_path() + path;
+         // append directory separator
+         if (path.back() != DIR_SEPARATOR)
+            path += DIR_SEPARATOR_STR;
+         //printf("for [%s] returning [%s] from [%s]\n", history_channel, path.c_str(), p.c_str());
+         return path;
+      }
+   }
+
+   status = db_get_value_string(hDB, 0, "/Logger/History dir", 0, &path, TRUE);
+   if (status == DB_SUCCESS && path.length() > 0) {
+      // if not absolute path, prepend with experiment directory
+      if (path[0] != DIR_SEPARATOR)
+         path = cm_get_path() + path;
+      // append directory separator
+      if (path.back() != DIR_SEPARATOR)
+         path += DIR_SEPARATOR_STR;
+      //printf("for [%s] returning /Logger/History dir [%s]\n", history_channel, path.c_str());
+      return path;
+   }
+
+   status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &path, TRUE);
+   if (status == DB_SUCCESS && path.length() > 0) {
+      // if not absolute path, prepend with experiment directory
+      if (path[0] != DIR_SEPARATOR)
+         path = cm_get_path() + path;
+      // append directory separator
+      if (path.back() != DIR_SEPARATOR)
+         path += DIR_SEPARATOR_STR;
+      //printf("for [%s] returning /Logger/Data dir [%s]\n", history_channel, path.c_str());
+      return path;
+   }
+
+   //printf("for [%s] returning experiment dir [%s]\n", history_channel, cm_get_path().c_str());
+   return cm_get_path();
+}
 
 /**dox***************************************************************/
 /** @} *//* end of cmfunctionc */
@@ -14849,6 +14963,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
          cm_set_experiment_database(0, 0);
 
+#if 0
          if (_msg_mutex)
             ss_mutex_delete(_msg_mutex);
          _msg_mutex = 0;
@@ -14856,6 +14971,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
          if (_msg_rb)
             rb_delete(_msg_rb);
          _msg_rb = 0;
+#endif
       }
    }
 

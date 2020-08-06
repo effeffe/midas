@@ -2890,7 +2890,7 @@ int main(int argc, char *argv[])
 {
    INT status, i, odb_size, size;
    char host_name[HOST_NAME_LENGTH], exp_name[NAME_LENGTH];
-   char cmd[2000], dir[256], str[2000];
+   char cmd[2000], dir[256];
    BOOL debug;
    BOOL corrupted;
    BOOL reload_from_file = FALSE;
@@ -2985,12 +2985,12 @@ int main(int argc, char *argv[])
    cm_msg_flush_buffer();
 
    if ((status == DB_INVALID_HANDLE) && corrupted) {
-      cm_get_error(status, str);
-      puts(str);
+      std::string s = cm_get_error(status);
+      puts(s.c_str());
       printf("ODB is corrupted, connecting anyway...\n");
    } else if (status != CM_SUCCESS) {
-      cm_get_error(status, str);
-      puts(str);
+      std::string s = cm_get_error(status);
+      puts(s.c_str());
       return 1;
    }
 

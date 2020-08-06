@@ -1667,7 +1667,7 @@ Data conversion flags */
 #endif
 
    /*---- common routines ----*/
-   INT EXPRT cm_get_error(INT code, char *string);
+   std::string cm_get_error(INT code);
    const char* EXPRT cm_get_version(void);
    const char* EXPRT cm_get_revision(void);
    INT EXPRT cm_get_experiment_name(char *name, int name_size);
@@ -1750,7 +1750,7 @@ Data conversion flags */
    bool EXPRT ends_with_char(const std::string& s, char c);
    BOOL EXPRT strmatch(char* pattern, char*str);
    void EXPRT strarrayindex(char* odbpath, int* index1, int* index2);
-   std::string msprintf(const char *format, ...);
+   std::string msprintf(const char *format, ...) MATTRPRINTF(1,2);
 
    std::string cm_expand_env(const char* str);
 

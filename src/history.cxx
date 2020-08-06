@@ -2333,37 +2333,23 @@ public:
 
    /*------------------------------------------------------------------*/
 
-   int hs_connect(const char* unused_connect_string)
+   int hs_connect(const char* path)
    {
-      int status;
-      char str[MAX_STRING_LENGTH];
-
-      status = cm_get_experiment_database(&fDB, NULL);
-      assert(status == CM_SUCCESS);
-      assert(fDB != 0);
+      cm_get_experiment_database(&fDB, NULL);
 
       /* delete obsolete odb entries */
 
       if (1) {
          HNDLE hKey;
-         status = db_find_key(fDB, 0, "/History/ListSource", &hKey);
+         int status = db_find_key(fDB, 0, "/History/ListSource", &hKey);
          if (status == DB_SUCCESS)
             db_delete_key(fDB, hKey, FALSE);
       }
 
-      /* check dedicated history path */
-      int size = sizeof(str);
-      memset(str, 0, size);
-      
-      status = db_get_value(fDB, 0, "/Logger/History dir", str, &size, TID_STRING, FALSE);
-      if (status != DB_SUCCESS)
-         status = db_get_value(fDB, 0, "/Logger/Data dir", str, &size, TID_STRING, TRUE);
-
-      if (status == DB_SUCCESS)
-         ::hs_set_path(str);
+      ::hs_set_path(path);
 
       if (fDebug)
-         printf("hs_connect: path [%s]\n", str);
+         printf("hs_connect: path [%s]\n", path);
 
       return HS_SUCCESS;
    }
