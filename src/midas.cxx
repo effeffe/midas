@@ -440,9 +440,9 @@ std::string cm_get_error(INT code)
 
 /********************************************************************/
 int cm_msg_early_init(void) {
+#if 0
    int status;
 
-#if 0
    if (!_msg_rb) {
       status = rb_create(100 * 1024, 1024, &_msg_rb);
       assert(status == SUCCESS);
@@ -490,29 +490,33 @@ int cm_msg_close_buffer(void) {
  */
 
 INT EXPRT cm_msg_facilities(STRING_LIST *list) {
-   char path[256], *flist;
+   std::string path;
 
-   cm_msg_get_logfile("midas", 0, path, sizeof(path), NULL, 0);
+   cm_msg_get_logfile("midas", 0, &path, NULL);
 
-   if (strrchr(path, DIR_SEPARATOR))
-      *strrchr(path, DIR_SEPARATOR) = 0;
-   else
-      path[0] = 0;
-
-   int n = ss_file_find(path, "*.log", &flist);
-
-   for (int i = 0; i < n; i++) {
-      char *p = flist + i * MAX_STRING_LENGTH;
-      if (strchr(p, '_') == NULL && !(p[0] >= '0' && p[0] <= '9')) {
-         char *s = strchr(p, '.');
-         if (s)
-            *s = 0;
-         list->push_back(p);
-      }
+   /* extract directory name from full path name of midas.log */
+   size_t pos = path.rfind(DIR_SEPARATOR);
+   if (pos != std::string::npos) {
+      path.resize(pos);
+   } else {
+      path = "";
    }
 
-   if (n > 0) {
-      free(flist);
+   //printf("cm_msg_facilities: path [%s]\n", path.c_str());
+
+   STRING_LIST flist;
+   
+   ss_file_find(path.c_str(), "*.log", &flist);
+
+   for (size_t i = 0; i < flist.size(); i++) {
+      const char *p = flist[i].c_str();
+      if (strchr(p, '_') == NULL && !(p[0] >= '0' && p[0] <= '9')) {
+         size_t pos = flist[i].rfind('.');
+         if (pos != std::string::npos) {
+            flist[i].resize(pos);
+         }
+         list->push_back(flist[i]);
+      }
    }
 
    return SUCCESS;
@@ -521,42 +525,44 @@ INT EXPRT cm_msg_facilities(STRING_LIST *list) {
 /********************************************************************/
 
 int
-cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_size, char *linkname, int linkname_size) {
-   HNDLE hDB, hKey;
-   char dir[256];
-   char str[256];
+cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::string* linkname) {
+   HNDLE hDB;
+   std::string dir;
    char date_ext[256];
-   char facility[256];
-   int status, size, flag;
+   std::string facility;
+   int status;
 
    status = cm_get_experiment_database(&hDB, NULL);
 
    if (status != CM_SUCCESS)
       return -1;
-   if (!hDB)
-      return -1;
+
+   if (filename)
+      *filename = "";
 
    if (linkname)
-      linkname[0] = 0;
-   flag = 0;
+      *linkname = "";
+
+   int flag = 0;
 
    if (fac && fac[0])
-      strlcpy(facility, fac, sizeof(facility));
+      facility = fac;
    else
-      strlcpy(facility, "midas", sizeof(facility));
+      facility = "midas";
 
-   strlcpy(str, "midas.log", sizeof(str));
-   size = sizeof(str);
-   status = db_get_value(hDB, 0, "/Logger/Message file", str, &size, TID_STRING, TRUE);
+   std::string name = "midas.log";
+   status = db_get_value_string(hDB, 0, "/Logger/Message file", 0, &name, TRUE);
 
    if (status != DB_SUCCESS)
       return -1;
 
    /* extension must be .log and will be added later */
-   if (strchr(str, '.'))
-      *strchr(str, '.') = 0;
+   size_t pos = name.rfind('.');
+   if (pos != std::string::npos)
+      name.resize(pos);
 
-   if (strchr(str, '%')) {
+   pos = name.find('%');
+   if (pos != std::string::npos) {
       /* replace stings such as %y%m%d with current date */
       struct tm *tms;
 
@@ -567,98 +573,98 @@ cm_msg_get_logfile(const char *fac, time_t t, char *filename, int filename_size,
       tms = localtime(&t);
 
       date_ext[0] = '_';
-      strftime(date_ext + 1, sizeof(date_ext), strchr(str, '%'), tms);
+      strftime(date_ext + 1, sizeof(date_ext) - 1, name.c_str() + pos, tms);
    } else {
       date_ext[0] = 0;
    }
 
-   if (strchr(str, DIR_SEPARATOR) == NULL) {
-      status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
+   pos = name.rfind(DIR_SEPARATOR);
+   if (pos == std::string::npos) {
+      status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &dir, FALSE);
       if (status == DB_SUCCESS) {
-         size = sizeof(dir);
-         memset(dir, 0, size);
-         status = db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
-         if (status != DB_SUCCESS)
-            return -1;
-         if (dir[0] != 0) {
-            if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-               strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
-         } else {
-            cm_get_path(dir, sizeof(dir));
-            if (dir[0] == 0) {
-               const char *s = getcwd(dir, sizeof(dir));
-               // per "man getcwd" we must check the return value and if it is NULL, contents of "dir" may be undefined and we must fix it.
-               if (s == NULL)
-                  dir[0] = 0;
-            }
-            if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-               strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
-         }
       } else {
-         cm_get_path(dir, sizeof(dir));
-         if (dir[0] != 0)
-            if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-               strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
+         dir = cm_get_path();
       }
    } else {
-      strlcpy(dir, str, sizeof(dir));
-      *(strrchr(dir, DIR_SEPARATOR) + 1) = 0;
+      dir = name.substr(0, pos);
    }
 
-   strlcpy(filename, dir, filename_size);
-   strlcat(filename, facility, filename_size);
-   strlcat(filename, date_ext, filename_size);
-   strlcat(filename, ".log", filename_size);
+   if (dir.empty()) {
+      dir = cm_get_path();
+      if (dir.empty()) {
+         char *s = getcwd(NULL, 0);
+         if (s) {
+            dir = s;
+            free(s);
+         }
+      }
+   }
 
+   if (!dir.empty()) {
+      if (dir.back() != DIR_SEPARATOR)
+         dir += DIR_SEPARATOR_STR;
+   }
+
+   if (filename) {
+      *filename = "";
+      *filename += dir;
+      *filename += facility;
+      *filename += date_ext;
+      *filename += ".log";
+   }
+   
    if (date_ext[0] && linkname) {
-      strlcpy(linkname, dir, filename_size);
-      strlcat(linkname, facility, filename_size);
-      strlcat(linkname, ".log", filename_size);
+      *linkname = "";
+      *linkname += dir;
+      *linkname += facility;
+      *linkname += ".log";
    }
 
    return flag;
 }
 
 int
-cm_msg_get_logfile1(const char *fac, time_t t, char *filename, int filename_size, char *linkname, int linkname_size) {
+cm_msg_get_logfile1(const char *fac, time_t t, std::string* filename, std::string* linkname) {
    static int first_time = 1;
    static int prev_flag = 0;
-   static char prev_filename[256];
-   static char prev_linkname[256];
+   static std::string prev_filename;
+   static std::string prev_linkname;
+
+   // NB: this code is not thread-safe wrt updating static std::string objects!
 
    if (first_time) {
       first_time = 0;
       if (fac && fac[0]) {
-         strlcpy(prev_filename, fac, sizeof(prev_filename));
+         prev_filename = fac;
       } else {
-         strlcpy(prev_filename, "midas", sizeof(prev_filename));
+         prev_filename = "midas";
       }
-      strlcat(prev_filename, ".log", sizeof(prev_filename));
-      prev_linkname[0] = 0;
+      prev_filename += ".log";
+      prev_linkname = "";
    }
 
    if (filename)
-      filename[0] = 0;
+      *filename = "";
    if (linkname)
-      linkname[0] = 0;
+      *linkname = "";
 
-   int flag = cm_msg_get_logfile(fac, t, filename, filename_size, linkname, linkname_size);
+   int flag = cm_msg_get_logfile(fac, t, filename, linkname);
 
    //printf("cm_msg_get_logfile1: flag %d prev %d, filename [%s] prev [%s], linkname [%s] prev [%s]\n", flag, prev_flag, filename, prev_filename, linkname, prev_linkname);
 
    if (flag >= 0) {
       prev_flag = flag;
       if (filename)
-         strlcpy(prev_filename, filename, sizeof(prev_filename));
+         prev_filename = *filename;
       if (linkname)
-         strlcpy(prev_linkname, linkname, sizeof(prev_linkname));
+         prev_linkname = *linkname;
       return flag;
    }
 
    if (filename)
-      strlcpy(filename, prev_filename, filename_size);
+      *filename = prev_filename;
    if (linkname)
-      strlcpy(linkname, prev_linkname, linkname_size);
+      *linkname = prev_linkname;
    return prev_flag;
 }
 
@@ -711,10 +717,7 @@ Write message to logging file. Called by cm_msg.
 @return CM_SUCCESS
 */
 INT cm_msg_log(INT message_type, const char *facility, const char *message) {
-   char filename[256], linkname[256];
-   INT status, fh, semaphore;
-
-   filename[0] = 0;
+   INT status;
 
    if (rpc_is_remote()) {
       status = rpc_call(RPC_CM_MSG_LOG, message_type, facility, message);
@@ -727,7 +730,9 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
    }
 
    if (message_type != MT_DEBUG) {
-      int flag = cm_msg_get_logfile1(facility, 0, filename, sizeof(filename), linkname, sizeof(linkname));
+      std::string filename, linkname;
+
+      int flag = cm_msg_get_logfile1(facility, 0, &filename, &linkname);
 
       if (flag < 0) {
          fprintf(stderr,
@@ -736,12 +741,13 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
          return CM_SUCCESS;
       }
 
-      fh = open(filename, O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
+      int fh = open(filename.c_str(), O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
       if (fh < 0) {
          fprintf(stderr,
                  "cm_msg_log: Message \"%s\" not written to midas.log because open(%s) failed with errno %d (%s)\n",
-                 message, filename, errno, strerror(errno));
+                 message, filename.c_str(), errno, strerror(errno));
       } else {
+         int semaphore;
          char str[256];
 
          cm_get_experiment_semaphore(NULL, NULL, NULL, &semaphore);
@@ -749,7 +755,7 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
          if (semaphore == -1) {
             fprintf(stderr,
                     "cm_msg_log: Message \"%s\" not written to midas.log (%s) because the message semaphore is not initialized yet.\n",
-                    message, filename);
+                    message, filename.c_str());
             return CM_SUCCESS;
          }
 
@@ -776,20 +782,20 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
          sprintf(str + strlen(str), ".%03d ", (int) (tv.tv_usec / 1000));
          strftime(str + strlen(str), sizeof(str), "%G/%m/%d", tms);
 
-         xwrite(filename, fh, str, strlen(str));
-         xwrite(filename, fh, " ", 1);
-         xwrite(filename, fh, message, strlen(message));
-         xwrite(filename, fh, "\n", 1);
+         xwrite(filename.c_str(), fh, str, strlen(str));
+         xwrite(filename.c_str(), fh, " ", 1);
+         xwrite(filename.c_str(), fh, message, strlen(message));
+         xwrite(filename.c_str(), fh, "\n", 1);
          close(fh);
 
 #ifdef OS_LINUX
-         if (linkname[0]) {
-            unlink(linkname);
-            status = symlink(filename, linkname);
+         if (!linkname.empty()) {
+            unlink(linkname.c_str());
+            status = symlink(filename.c_str(), linkname.c_str());
             if (status != 0) {
                fprintf(stderr,
                        "cm_msg_log: Error: Cannot symlink message log file \'%s' to \'%s\', symlink() errno: %d (%s)\n",
-                       filename, linkname, errno, strerror(errno));
+                       filename.c_str(), linkname.c_str(), errno, strerror(errno));
             }
          }
 #endif
@@ -1274,7 +1280,7 @@ static void add_message(char **messages, int *length, int *allocated, time_t tst
 }
 
 /* Retrieve message from an individual file. Internal use only */
-static int cm_msg_retrieve1(char *filename, time_t t, INT n_messages, char **messages, int *length, int *allocated,
+static int cm_msg_retrieve1(const char *filename, time_t t, INT n_messages, char **messages, int *length, int *allocated,
                             int *num_messages) {
    BOOL stop;
    int fh;
@@ -1440,14 +1446,14 @@ Retrieve old messages from log file
 @return CM_SUCCESS
 */
 INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char **messages, int *num_messages) {
-   char filename[256], linkname[256];
+   std::string filename, linkname;
    INT n, i, flag;
    time_t filedate;
    int length = 0;
    int allocated = 0;
 
    time(&filedate);
-   flag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), linkname, sizeof(linkname));
+   flag = cm_msg_get_logfile(facility, filedate, &filename, &linkname);
 
    if (flag < 0) {
       *num_messages = 0;
@@ -1457,13 +1463,13 @@ INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char **messa
    //printf("facility %s, filename \"%s\" \"%s\"\n", facility, filename, linkname);
 
    // see if file exists, use linkname if not
-   if (strlen(linkname) > 0) {
-      if (!ss_file_exist(filename))
-         strlcpy(filename, linkname, sizeof(filename));
+   if (!linkname.empty()) {
+      if (!ss_file_exist(filename.c_str()))
+         filename = linkname;
    }
 
-   if (ss_file_exist(filename))
-      cm_msg_retrieve1(filename, t, n_message, messages, &length, &allocated, &n);
+   if (ss_file_exist(filename.c_str()))
+      cm_msg_retrieve1(filename.c_str(), t, n_message, messages, &length, &allocated, &n);
    else
       n = 0;
 
@@ -1471,10 +1477,10 @@ INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char **messa
    while (n < n_message && flag) {
       filedate -= 3600 * 24;         // go one day back
 
-      int xflag = cm_msg_get_logfile(facility, filedate, filename, sizeof(filename), NULL, 0);
+      int xflag = cm_msg_get_logfile(facility, filedate, &filename, NULL);
 
-      if ((xflag >= 0) && ss_file_exist(filename)) {
-         cm_msg_retrieve1(filename, t, n_message - n, messages, &length, &allocated, &i);
+      if ((xflag >= 0) && ss_file_exist(filename.c_str())) {
+         cm_msg_retrieve1(filename.c_str(), t, n_message - n, messages, &length, &allocated, &i);
          n += i;
          missing = 0;
       } else {
@@ -2685,9 +2691,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    /* save the filename of midas.log */
    {
       const char *facility = "midas";
-      char filename[256];
-      char linkname[256];
-      cm_msg_get_logfile1(facility, 0, filename, sizeof(filename), linkname, sizeof(linkname));
+      std::string filename;
+      std::string linkname;
+      cm_msg_get_logfile1(facility, 0, &filename, &linkname);
    }
 
 
