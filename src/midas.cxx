@@ -526,12 +526,11 @@ INT EXPRT cm_msg_facilities(STRING_LIST *list) {
 
 int
 cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::string* linkname) {
-   HNDLE hDB, hKey;
-   char dir[256];
-   char str[256];
+   HNDLE hDB;
+   std::string dir;
    char date_ext[256];
-   char facility[256];
-   int status, size;
+   std::string facility;
+   int status;
 
    status = cm_get_experiment_database(&hDB, NULL);
 
@@ -547,22 +546,23 @@ cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::string
    int flag = 0;
 
    if (fac && fac[0])
-      strlcpy(facility, fac, sizeof(facility));
+      facility = fac;
    else
-      strlcpy(facility, "midas", sizeof(facility));
+      facility = "midas";
 
-   strlcpy(str, "midas.log", sizeof(str));
-   size = sizeof(str);
-   status = db_get_value(hDB, 0, "/Logger/Message file", str, &size, TID_STRING, TRUE);
+   std::string name = "midas.log";
+   status = db_get_value_string(hDB, 0, "/Logger/Message file", 0, &name, TRUE);
 
    if (status != DB_SUCCESS)
       return -1;
 
    /* extension must be .log and will be added later */
-   if (strchr(str, '.'))
-      *strchr(str, '.') = 0;
+   size_t pos = name.rfind('.');
+   if (pos != std::string::npos)
+      name.resize(pos);
 
-   if (strchr(str, '%')) {
+   pos = name.find('%');
+   if (pos != std::string::npos) {
       /* replace stings such as %y%m%d with current date */
       struct tm *tms;
 
@@ -573,42 +573,36 @@ cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::string
       tms = localtime(&t);
 
       date_ext[0] = '_';
-      strftime(date_ext + 1, sizeof(date_ext), strchr(str, '%'), tms);
+      strftime(date_ext + 1, sizeof(date_ext) - 1, name.c_str() + pos, tms);
    } else {
       date_ext[0] = 0;
    }
 
-   if (strchr(str, DIR_SEPARATOR) == NULL) {
-      status = db_find_key(hDB, 0, "/Logger/Data dir", &hKey);
+   pos = name.rfind(DIR_SEPARATOR);
+   if (pos == std::string::npos) {
+      status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &dir, FALSE);
       if (status == DB_SUCCESS) {
-         size = sizeof(dir);
-         memset(dir, 0, size);
-         status = db_get_value(hDB, 0, "/Logger/Data dir", dir, &size, TID_STRING, TRUE);
-         if (status != DB_SUCCESS)
-            return -1;
-         if (dir[0] != 0) {
-            if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-               strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
-         } else {
-            cm_get_path(dir, sizeof(dir));
-            if (dir[0] == 0) {
-               const char *s = getcwd(dir, sizeof(dir));
-               // per "man getcwd" we must check the return value and if it is NULL, contents of "dir" may be undefined and we must fix it.
-               if (s == NULL)
-                  dir[0] = 0;
-            }
-            if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-               strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
-         }
       } else {
-         cm_get_path(dir, sizeof(dir));
-         if (dir[0] != 0)
-            if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
-               strlcat(dir, DIR_SEPARATOR_STR, sizeof(dir));
+         dir = cm_get_path();
       }
    } else {
-      strlcpy(dir, str, sizeof(dir));
-      *(strrchr(dir, DIR_SEPARATOR) + 1) = 0;
+      dir = name.substr(0, pos);
+   }
+
+   if (dir.empty()) {
+      dir = cm_get_path();
+      if (dir.empty()) {
+         char *s = getcwd(NULL, 0);
+         if (s) {
+            dir = s;
+            free(s);
+         }
+      }
+   }
+
+   if (!dir.empty()) {
+      if (dir.back() != DIR_SEPARATOR)
+         dir += DIR_SEPARATOR_STR;
    }
 
    if (filename) {
