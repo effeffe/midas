@@ -1667,8 +1667,9 @@ void show_help_page(Return* r, const char* dec_path)
       if (list.size() == 1) {
          r->rsprintf("        <tr>\n");
          r->rsprintf("          <td style=\"text-align:right;\">System logfile:</td>\n");
-         cm_msg_get_logfile("midas", 0, str, sizeof(str), NULL, 0);
-         r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
+         std::string s;
+         cm_msg_get_logfile("midas", 0, &s, NULL);
+         r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", s.c_str());
          r->rsprintf("        </tr>\n");
       } else {
          r->rsprintf("        <tr>\n");
@@ -1677,8 +1678,9 @@ void show_help_page(Return* r, const char* dec_path)
          for (unsigned i=0 ; i<list.size() ; i++) {
             if (i>0)
                r->rsputs("<br />\n");
-            cm_msg_get_logfile(list[i].c_str(), 0, str, sizeof(str), NULL, 0);
-            r->rsputs(str);
+            std::string s;
+            cm_msg_get_logfile(list[i].c_str(), 0, &s, NULL);
+            r->rsputs(s.c_str());
          }
          r->rsprintf("\n          </td>\n");
          r->rsprintf("        </tr>\n");
