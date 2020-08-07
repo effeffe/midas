@@ -17874,6 +17874,7 @@ struct MongooseWorkObject
 {
    uint32_t seqno = 0;
    void* nc = NULL;
+   int socket = -1;
    bool http_get  = false;
    bool http_post = false;
    bool mjsonrpc  = false;
@@ -17968,6 +17969,7 @@ static void mongoose_send(void* nc, MongooseWorkObject* w, const char* p1, size_
 static int queue_decode_get(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
 {
    MongooseWorkObject* w = new MongooseWorkObject();
+   w->socket = nc->sock;
    w->seqno = s_mwo_seqno++;
    w->http_get = true;
    decode_cookies(&w->cookies, msg);
@@ -17983,6 +17985,7 @@ static int queue_decode_get(struct mg_connection *nc, const http_message* msg, c
 static int queue_decode_post(struct mg_connection *nc, const http_message* msg, const char* boundary, const char* uri, const char* query_string, RequestTrace* t)
 {
    MongooseWorkObject* w = new MongooseWorkObject();
+   w->socket = nc->sock;
    w->seqno = s_mwo_seqno++;
    w->http_post = true;
    decode_cookies(&w->cookies, msg);
@@ -18000,6 +18003,7 @@ static int queue_decode_post(struct mg_connection *nc, const http_message* msg, 
 static int queue_mjsonrpc(struct mg_connection *nc, const std::string& origin, const std::string& post_body, RequestTrace* t)
 {
    MongooseWorkObject* w = new MongooseWorkObject();
+   w->socket = nc->sock;
    w->seqno = s_mwo_seqno++;
    w->mjsonrpc = true;
    w->origin = origin;
@@ -18795,6 +18799,16 @@ static void on_work_complete(struct mg_connection *nc, int ev, void *ev_data)
       return;
 
    //printf("nc: %p: w: %d, on_work_complete: seqno: %d, send_501: %d, s1 %d, s2: %d, close_flag: %d\n", res->nc, res->w->seqno, res->seqno, res->send_501, (int)res->s1, (int)res->s2, res->close_flag);
+
+   if (!res->w) {
+      cm_msg(MERROR, "on_work_complete", "no work object!");
+   } else {
+      if (res->w->socket != nc->sock) {
+         cm_msg(MERROR, "on_work_complete", "Should not send response to request from socket %d to socket %d, abort!", res->w->socket, nc->sock);
+         cm_msg_flush_buffer();
+         abort();
+      }
+   }
 
    if (res->send_501) {
       std::string response = "501 Not Implemented";
