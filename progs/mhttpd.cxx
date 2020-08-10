@@ -1986,6 +1986,11 @@ void init_mhttpd_odb()
    check_obsolete_odb(hDB, "/Experiment/http redirect to https");
    check_obsolete_odb(hDB, "/Experiment/Security/mhttpd hosts");
 #endif
+
+   status = db_find_key(hDB, 0, "/Logger/Message file", &hKey);
+   if (status == DB_SUCCESS) {
+      cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Logger/Message file\" is obsolete, please delete it and use \"/Logger/Message dir\" and \"/Logger/message file date format\" instead.");
+   }
 }
 
 /*------------------------------------------------------------------*/
