@@ -1558,9 +1558,9 @@ MhistoryGraph.prototype.findMinMax = function () {
       let i2 = binarySearch(this.data[index].time, this.tMax);
       while (minValue === undefined) {
          let v = this.data[index].value[i1];
-         if (!Number.isNaN(v)) {
-            minValue = this.data[index].value[i1];
-            maxValue = this.data[index].value[i1];
+         if (!Number.isNaN(v) && v !== undefined) {
+            minValue = v;
+            maxValue = v;
          } else
             i1++;
       }
