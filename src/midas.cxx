@@ -539,12 +539,12 @@ int cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::st
 
    std::string facility;
    if (fac && fac[0])
-      facility = std::string(fac);
+      facility = fac;
    else
       facility = "midas";
 
    std::string message_format;
-   db_get_value_string(hDB, 0, "/Logger/Message file date format", 0, &message_format, FALSE);
+   db_get_value_string(hDB, 0, "/Logger/Message file date format", 0, &message_format, TRUE);
    if (message_format.find('%') != std::string::npos) {
       /* replace stings such as %y%m%d with current date */
       struct tm *tms;
@@ -562,21 +562,25 @@ int cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::st
    }
 
    std::string message_dir;
-   db_get_value_string(hDB, 0, "/Logger/Message dir", 0, &message_dir);
+   db_get_value_string(hDB, 0, "/Logger/Message dir", 0, &message_dir, TRUE);
    if (message_dir.empty()) {
-      db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &message_dir, FALSE);
+      db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &message_dir, TRUE);
       if (message_dir.empty()) {
-         char str[256];
-         cm_get_path(str, sizeof(str));
-         if (str[0] == 0) {
-            const char *s = getcwd(str, sizeof(str));
-            // per "man getcwd" we must check the return value and if it is NULL,
-            // contents of "dir" may be undefined and we must fix it.
-            if (s == NULL)
-               str[0] = 0;
+         message_dir = cm_get_path();
+         if (message_dir.empty()) {
+            char *s = getcwd(NULL, 0);
+            if (s) {
+               message_dir = s;
+               free(s);
+            }
          }
       }
    }
+
+   // prepend experiment directory
+   if (message_dir[0] != DIR_SEPARATOR)
+      message_dir = cm_get_path() + message_dir;
+
    if (message_dir.back() != DIR_SEPARATOR)
       message_dir.push_back(DIR_SEPARATOR);
 
