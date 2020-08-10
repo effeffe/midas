@@ -881,81 +881,74 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
       let t0 = array[i];
 
       if (this.data[index].time.length === 0) {
-         // initial data
 
+         // initial data
          let formula = this.odb["Formula"];
 
          let x = undefined;
          let v = undefined;
          if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
-            for (let j = 0; j < nData[index]; j++) {
+            let f = formula[index];
+            let n = nData[index];
+            for (let j = 0; j < n; j++) {
                this.data[index].time.push(array[i++]);
                x = array[i++];
-               v = eval(formula[index]);
+               v = eval(f);
                this.data[index].value.push(v);
             }
          } else {
-            for (let j = 0; j < nData[index]; j++) {
+            let n = nData[index];
+            for (let j = 0; j < n; j++) {
                let t = array[i++];
                v = array[i++];
                this.data[index].time.push(t);
                this.data[index].value.push(v);
             }
          }
-      } else if (t0 < this.data[index].time[0]) {
-         // add data to the left
-         //profile();
 
+      } else if (t0 < this.data[index].time[0]) {
+
+         // add data to the left
          let formula = this.odb["Formula"];
 
-         // if (this.t1 === undefined) {
-         //    this.t1 = [];
-         //    this.v1 = [];
-         // }
-         // this.t1.length = 0;
-         // this.v1.length = 0;
          let t1 = [];
          let v1 = [];
-
          let x = undefined;
          if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
-            for (let j = 0; j < nData[index]; j++) {
+            let f = formula[index];
+            let n = nData[index];
+            for (let j = 0; j < n; j++) {
                let t = array[i++];
                x = array[i++];
-               let v = eval(formula[index]);
+               let v = eval(f);
                if (t < this.data[index].time[0]) {
-                  // this.t1.push(t);
-                  // this.v1.push(v);
                   t1.push(t);
                   v1.push(v);
                }
             }
          } else {
-            for (let j = 0; j < nData[index]; j++) {
+            let n = nData[index];
+            for (let j = 0; j < n; j++) {
                let t = array[i++];
                let v = array[i++];
                if (t < this.data[index].time[0]) {
-                  // this.t1.push(t);
-                  // this.v1.push(v);
                   t1.push(t);
                   v1.push(v);
                }
             }
          }
-         // this.data[index].time = this.t1.concat(this.data[index].time);
-         // this.data[index].value = this.v1.concat(this.data[index].value);
          this.data[index].time = t1.concat(this.data[index].time);
          this.data[index].value = v1.concat(this.data[index].value);
 
-         //profile("concat");
       } else {
-         // add data to the right
 
+         // add data to the right
          let formula = this.odb["Formula"];
 
          let x = undefined;
          if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
-            for (let j = 0; j < nData[index]; j++) {
+            let n = nData[index];
+            for (let j = 0; j < n; j++) {
                let t = array[i++];
                x = array[i++];
                let v = eval(formula[index]);
@@ -970,7 +963,8 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
                }
             }
          } else {
-            for (let j = 0; j < nData[index]; j++) {
+            let n = nData[index];
+            for (let j = 0; j < n; j++) {
                let t = array[i++];
                let v = array[i++];
 
