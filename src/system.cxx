@@ -6209,6 +6209,38 @@ int ss_file_exist(const char *path)
    return 1;
 }
 
+int ss_file_link_exist(const char *path)
+/********************************************************************\
+
+ Routine: ss_file_link_exist
+
+ Purpose: Check if a symbolic link file exists
+
+ Input:
+ char  *path             Name of a file in file to check
+
+ Output:
+
+ Function value:
+ int                     1: file exists
+                         0: file does not exist
+
+ \********************************************************************/
+{
+#ifdef OS_UNIX
+   struct stat buf;
+
+   int retval = lstat(path, &buf);
+   if (retval < 0)
+      return 0;
+   if (S_ISLNK(buf.st_mode))
+      return 1;
+   return 0;
+#endif
+
+   return 0;
+}
+
 int ss_dir_exist(const char *path)
 /********************************************************************\
  
@@ -6240,6 +6272,78 @@ int ss_dir_exist(const char *path)
 #warning ss_dir_exist() is not implemented!
 #endif
    return 1;
+}
+
+int ss_file_copy(const char *src, const char *dst, bool append)
+/********************************************************************\
+
+ Routine: ss_file_copy
+
+ Purpose: Copy file "src" to file "dst"
+
+ Input:
+     const char  *src        Source file name
+     const char  *dst        Destination file name
+
+ Output:
+
+ Function value:
+     int                     function error 0= ok, -1 check errno
+
+ \********************************************************************/
+{
+   int fd_to, fd_from;
+   char buf[4096];
+   ssize_t nread;
+   int saved_errno;
+
+   fd_from = open(src, O_RDONLY);
+   if (fd_from < 0)
+      return -1;
+
+   if (append)
+      fd_to = open(dst, O_WRONLY | O_CREAT | O_EXCL | O_APPEND, 0666);
+   else
+      fd_to = open(dst, O_WRONLY | O_CREAT | O_EXCL, 0666);
+   if (fd_to < 0)
+      goto out_error;
+
+   while (nread = read(fd_from, buf, sizeof(buf)), nread > 0) {
+      char *out_ptr = buf;
+      ssize_t nwritten;
+
+      do {
+         nwritten = write(fd_to, out_ptr, nread);
+
+         if (nwritten >= 0) {
+            nread -= nwritten;
+            out_ptr += nwritten;
+         } else if (errno != EINTR) {
+            goto out_error;
+         }
+      } while (nread > 0);
+   }
+
+   if (nread == 0) {
+      if (close(fd_to) < 0) {
+         fd_to = -1;
+         goto out_error;
+      }
+      close(fd_from);
+
+      /* Success! */
+      return 0;
+   }
+
+   out_error:
+   saved_errno = errno;
+
+   close(fd_from);
+   if (fd_to >= 0)
+      close(fd_to);
+
+   errno = saved_errno;
+   return -1;
 }
 
 /*------------------------------------------------------------------*/

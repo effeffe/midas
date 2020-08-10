@@ -2012,14 +2012,16 @@ Data conversion flags */
    double EXPRT ss_file_size(const char *path);
    INT EXPRT ss_dir_exist(const char *path);
    INT EXPRT ss_file_exist(const char *path);
+   INT EXPRT ss_file_link_exist(const char *path);
    INT EXPRT ss_file_remove(const char *path);
    INT EXPRT ss_file_find(const char *path, const char *pattern, char **plist);
    INT EXPRT ss_dir_find(const char *path, const char *pattern, char **plist);
    INT EXPRT ss_file_find(const char *path, const char *pattern, STRING_LIST*);
    INT EXPRT ss_dir_find(const char *path, const char *pattern, STRING_LIST*);
    double EXPRT ss_disk_size(const char *path);
+   int EXPRT ss_file_copy(const char *src, const char *dst, bool append = false);
 
-   /** @} */
+/** @} */
 
    /*---- ELog functions ----*/
    INT EXPRT el_retrieve(char *tag, char *date, int *run, char *author,

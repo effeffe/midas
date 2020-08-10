@@ -792,6 +792,9 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
 MhistoryGraph.prototype.loadOldData = function () {
 
+   if (this.pendingUpdates > 0)
+      return;
+
    let dt = Math.floor(this.tMax - this.tMin);
 
    if (this.tMin - dt / 2 < this.tMinRequested) {
@@ -1549,13 +1552,15 @@ MhistoryGraph.prototype.findMinMax = function () {
    for (let index = 0; index < this.data.length; index++) {
       if (this.events[index] === "Run transitions")
          continue;
+      if (this.data[index].time.length === 0)
+         continue;
       let i1 = binarySearch(this.data[index].time, this.tMin);
       let i2 = binarySearch(this.data[index].time, this.tMax);
-      while (minValue === undefined) {
+      while (minValue === undefined && i1 < i2) {
          let v = this.data[index].value[i1];
-         if (!Number.isNaN(v)) {
-            minValue = this.data[index].value[i1];
-            maxValue = this.data[index].value[i1];
+         if (!Number.isNaN(v) && v !== undefined) {
+            minValue = v;
+            maxValue = v;
          } else
             i1++;
       }

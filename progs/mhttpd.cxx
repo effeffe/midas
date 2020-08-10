@@ -1004,8 +1004,8 @@ std::vector<std::string> get_resource_paths()
 
    paths.push_back(".");
    paths.push_back("resources");
-   paths.push_back("$MIDAS_DIR");
-   paths.push_back("$MIDAS_DIR/resources");
+   paths.push_back(cm_get_path());
+   paths.push_back(cm_get_path() + "resources");
    paths.push_back("$MIDASSYS/resources");
 
    return paths;
