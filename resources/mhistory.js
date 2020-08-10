@@ -792,6 +792,9 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
 MhistoryGraph.prototype.loadOldData = function () {
 
+   if (this.pendingUpdates > 0)
+      return;
+
    let dt = Math.floor(this.tMax - this.tMin);
 
    if (this.tMin - dt / 2 < this.tMinRequested) {
