@@ -7281,7 +7281,6 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout) {
 #ifdef LOCAL_ROUTINES
    {
       INT i, j;
-      char str[256];
       DWORD interval;
       DWORD now = ss_millitime();
 
@@ -7312,12 +7311,12 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout) {
 
                      bm_lock_buffer(pbuf);
 
-                     str[0] = 0;
+                     std::string msg;
 
                      /* now make again the check with the buffer locked */
                      if (interval > 0
                          && now > pbclient->last_activity && now - pbclient->last_activity > interval) {
-                        sprintf(str,
+                        msg = msprintf(
                                 "Client \'%s\' on \'%s\' removed by cm_cleanup (idle %1.1lfs, timeout %1.0lfs)",
                                 pbclient->name, pheader->name,
                                 (ss_millitime() - pbclient->last_activity) / 1000.0,
@@ -7329,8 +7328,8 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout) {
                      bm_unlock_buffer(pbuf);
 
                      /* display info message after unlocking buffer */
-                     if (str[0])
-                        cm_msg(MINFO, "cm_cleanup", "%s", str);
+                     if (!msg.empty())
+                        cm_msg(MINFO, "cm_cleanup", "%s", msg.c_str());
 
                      /* go again through whole list */
                      j = 0;
