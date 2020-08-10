@@ -338,14 +338,6 @@ void dbg_free(void *adr, char *file, int line) {
    fclose(f);
 }
 
-static void xwrite(const char *filename, int fd, const void *data, int size) {
-   int wr = write(fd, data, size);
-   if (wr != size) {
-      printf("xwrite: cannot write to \'%s\', write(%d) returned %d, errno %d (%s)\n", filename, size, wr, errno,
-             strerror(errno));
-   }
-}
-
 static std::vector<std::string> split(const char* sep, const std::string& s)
 {
    unsigned sep_len = strlen(sep);
@@ -732,29 +724,28 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
                  "cm_msg_log: Message \"%s\" not written to midas.log because open(%s) failed with errno %d (%s)\n",
                  message, filename.c_str(), errno, strerror(errno));
       } else {
-         int semaphore;
-         char str[256];
+         //int semaphore;
 
-         cm_get_experiment_semaphore(NULL, NULL, NULL, &semaphore);
+         //cm_get_experiment_semaphore(NULL, NULL, NULL, &semaphore);
 
-         if (semaphore == -1) {
-            fprintf(stderr,
-                    "cm_msg_log: Message \"%s\" not written to midas.log (%s) because the message semaphore is not initialized yet.\n",
-                    message, filename.c_str());
-            return CM_SUCCESS;
-         }
+         //if (semaphore == -1) {
+         //   fprintf(stderr,
+         //           "cm_msg_log: Message \"%s\" not written to midas.log (%s) because the message semaphore is not initialized yet.\n",
+         //           message, filename.c_str());
+         //   return CM_SUCCESS;
+         //}
 
-         status = ss_semaphore_wait_for(semaphore, 5 * 1000);
-         if (status != SS_SUCCESS) {
-            fprintf(stderr,
-                    "cm_msg_log: Something is wrong with our semaphore, ss_semaphore_wait_for() returned %d, aborting.\n",
-                    status);
-            //abort(); // DOES NOT RETURN
-            // NOT REACHED
-            fprintf(stderr,
-                    "cm_msg_log: Cannot abort - this will lock you out of odb. From this point, MIDAS will not work correctly. Please read the discussion at https://midas.triumf.ca/elog/Midas/945\n");
-            return status;
-         }
+         //status = ss_semaphore_wait_for(semaphore, 5 * 1000);
+         //if (status != SS_SUCCESS) {
+         //   fprintf(stderr,
+         //           "cm_msg_log: Something is wrong with our semaphore, ss_semaphore_wait_for() returned %d, aborting.\n",
+         //           status);
+         //   //abort(); // DOES NOT RETURN
+         //   // NOT REACHED
+         //   fprintf(stderr,
+         //           "cm_msg_log: Cannot abort - this will lock you out of odb. From this point, MIDAS will not work correctly. Please read the discussion at https://midas.triumf.ca/elog/Midas/945\n");
+         //   return status;
+         //}
 
          struct timeval tv;
          struct tm *tms;
@@ -763,17 +754,34 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
          gettimeofday(&tv, NULL);
          tms = localtime(&tv.tv_sec);
 
+         char str[256];
          strftime(str, sizeof(str), "%H:%M:%S", tms);
          sprintf(str + strlen(str), ".%03d ", (int) (tv.tv_usec / 1000));
          strftime(str + strlen(str), sizeof(str), "%G/%m/%d", tms);
 
-         xwrite(filename.c_str(), fh, str, strlen(str));
-         xwrite(filename.c_str(), fh, " ", 1);
-         xwrite(filename.c_str(), fh, message, strlen(message));
-         xwrite(filename.c_str(), fh, "\n", 1);
+         std::string msg;
+         msg += str;
+         msg += " ";
+         msg += message;
+         msg += "\n";
+
+         /* avoid c++ complaint about comparison between
+            unsigned size_t returned by msg.length() and
+            signed ssize_t returned by write() */
+         ssize_t len = msg.length();
+
+         /* atomic write, no need to take a semaphore */
+         ssize_t wr = write(fh, msg.c_str(), len);
+
+         if (wr < 0) {
+            fprintf(stderr, "cm_msg_log: Message \"%s\" not written to \"%s\", write() error, errno %d (%s)\n", message, filename.c_str(), errno, strerror(errno));
+         } else if (wr != len) {
+            fprintf(stderr, "cm_msg_log: Message \"%s\" not written to \"%s\", short write() wrote %d instead of %d bytes\n", message, filename.c_str(), (int)wr, (int)len);
+         }
+
          close(fh);
 
-         status = ss_semaphore_release(semaphore);
+         //status = ss_semaphore_release(semaphore);
       }
    }
 
