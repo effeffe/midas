@@ -544,7 +544,7 @@ int cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::st
       facility = "midas";
 
    std::string message_format;
-   db_get_value_string(hDB, 0, "/Logger/Message format", 0, &message_format, FALSE);
+   db_get_value_string(hDB, 0, "/Logger/Message file date format", 0, &message_format, FALSE);
    if (message_format.find('%') != std::string::npos) {
       /* replace stings such as %y%m%d with current date */
       struct tm *tms;
@@ -705,6 +705,23 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
          return CM_SUCCESS;
       }
 
+#ifdef OS_LINUX
+      if (!linkname.empty()) {
+         // If filename does not exist, user just switched from non-date format to date format.
+         // In that case we must copy linkname to filename, otherwise messages might get lost.
+         if (ss_file_exist(linkname.c_str()) && !ss_file_link_exist(linkname.c_str()))
+            ss_file_copy(linkname.c_str(), filename.c_str(), true);
+
+         unlink(linkname.c_str());
+         status = symlink(filename.c_str(), linkname.c_str());
+         if (status != 0) {
+            fprintf(stderr,
+                    "cm_msg_log: Error: Cannot symlink message log file \'%s' to \'%s\', symlink() errno: %d (%s)\n",
+                    filename.c_str(), linkname.c_str(), errno, strerror(errno));
+         }
+      }
+#endif
+
       int fh = open(filename.c_str(), O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
       if (fh < 0) {
          fprintf(stderr,
@@ -751,18 +768,6 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
          xwrite(filename.c_str(), fh, message, strlen(message));
          xwrite(filename.c_str(), fh, "\n", 1);
          close(fh);
-
-#ifdef OS_LINUX
-         if (!linkname.empty()) {
-            unlink(linkname.c_str());
-            status = symlink(filename.c_str(), linkname.c_str());
-            if (status != 0) {
-               fprintf(stderr,
-                       "cm_msg_log: Error: Cannot symlink message log file \'%s' to \'%s\', symlink() errno: %d (%s)\n",
-                       filename.c_str(), linkname.c_str(), errno, strerror(errno));
-            }
-         }
-#endif
 
          status = ss_semaphore_release(semaphore);
       }

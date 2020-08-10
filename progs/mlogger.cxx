@@ -1575,7 +1575,7 @@ void logger_init()
 
    strcpy(str, "");
    size = sizeof(str);
-   db_get_value(hDB, 0, "/Logger/Message format", str, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Message file date format", str, &size, TID_STRING, TRUE);
 
    size = sizeof(BOOL);
    flag = TRUE;
