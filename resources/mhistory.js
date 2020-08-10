@@ -1552,6 +1552,8 @@ MhistoryGraph.prototype.findMinMax = function () {
    for (let index = 0; index < this.data.length; index++) {
       if (this.events[index] === "Run transitions")
          continue;
+      if (this.data[index].time.length === 0)
+         continue;
       let i1 = binarySearch(this.data[index].time, this.tMin);
       let i2 = binarySearch(this.data[index].time, this.tMax);
       while (minValue === undefined) {
