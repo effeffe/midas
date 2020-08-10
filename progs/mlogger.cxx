@@ -1569,9 +1569,13 @@ void logger_init()
    size = sizeof(str);
    db_get_value(hDB, 0, "/Logger/Data dir", str, &size, TID_STRING, TRUE);
 
-   strcpy(str, "midas.log");
+   strcpy(str, "");
    size = sizeof(str);
-   db_get_value(hDB, 0, "/Logger/Message file", str, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Message dir", str, &size, TID_STRING, TRUE);
+
+   strcpy(str, "");
+   size = sizeof(str);
+   db_get_value(hDB, 0, "/Logger/Message format", str, &size, TID_STRING, TRUE);
 
    size = sizeof(BOOL);
    flag = TRUE;
@@ -6092,7 +6096,6 @@ int main(int argc, char *argv[])
    DWORD last_time_kb = 0;
    DWORD last_time_stat = 0;
    DWORD duration;
-   HNDLE hktemp;
 
 #ifdef HAVE_ROOT
    char **rargv;
@@ -6226,14 +6229,25 @@ int main(int argc, char *argv[])
    db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &data_dir, TRUE);
    if (data_dir.length() <= 0)
       data_dir = cm_get_path();
-   printf("Data    directory is \"%s\" unless specified in /Logger/channels/\n", data_dir.c_str());
+   printf("Data    directory is \"%s\" unless specified under /Logger/channels/\n", data_dir.c_str());
+
+   /* Alternate message path */
+   std::string message_dir;
+   db_get_value_string(hDB, 0, "/Logger/Message dir", 0, &message_dir, TRUE);
+   if (message_dir.empty()) {
+      message_dir = data_dir;
+      printf("Message directory is \"%s\" unless specified in /Logger/Message dir\n", message_dir.c_str());
+   } else
+      printf("Message directory is \"%s\"\n", message_dir.c_str());
 
    /* Alternate History and Elog path */
    std::string history_dir;
    db_get_value_string(hDB, 0, "/Logger/History dir", 0, &history_dir, TRUE);
-   if (history_dir.length() <= 0)
+   if (history_dir.empty()) {
       history_dir = data_dir;
-   printf("History directory is \"%s\" unless specified in /Logger/history/\n", history_dir.c_str());
+      printf("History directory is \"%s\" unless specified under /Logger/history/\n", history_dir.c_str());
+   } else
+      printf("History directory is \"%s\"\n", history_dir.c_str());
 
 #ifdef HAVE_MYSQL
    {
@@ -6241,6 +6255,7 @@ int main(int argc, char *argv[])
       std::string sql_db;
       std::string sql_table;
 
+      HNDLE hktemp;
       status = db_find_key(hDB, 0, "/Logger/Runlog/SQL/Hostname", &hktemp);
       if (status == DB_SUCCESS) {
          db_get_value_string(hDB, 0, "/Logger/Runlog/SQL/Hostname", 0, &sql_host, FALSE);

@@ -524,45 +524,28 @@ INT EXPRT cm_msg_facilities(STRING_LIST *list) {
 
 /********************************************************************/
 
-int
-cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::string* linkname) {
+int cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::string* linkname) {
    HNDLE hDB;
-   std::string dir;
-   char date_ext[256];
-   std::string facility;
-   int status;
+   int status, flag = 0;
 
    status = cm_get_experiment_database(&hDB, NULL);
-
    if (status != CM_SUCCESS)
       return -1;
 
    if (filename)
       *filename = "";
-
    if (linkname)
       *linkname = "";
 
-   int flag = 0;
-
+   std::string facility;
    if (fac && fac[0])
-      facility = fac;
+      facility = std::string(fac);
    else
       facility = "midas";
 
-   std::string name = "midas.log";
-   status = db_get_value_string(hDB, 0, "/Logger/Message file", 0, &name, TRUE);
-
-   if (status != DB_SUCCESS)
-      return -1;
-
-   /* extension must be .log and will be added later */
-   size_t pos = name.rfind('.');
-   if (pos != std::string::npos)
-      name.resize(pos);
-
-   pos = name.find('%');
-   if (pos != std::string::npos) {
+   std::string message_format;
+   db_get_value_string(hDB, 0, "/Logger/Message format", 0, &message_format, FALSE);
+   if (message_format.find('%') != std::string::npos) {
       /* replace stings such as %y%m%d with current date */
       struct tm *tms;
 
@@ -572,59 +555,40 @@ cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::string
          time(&t);
       tms = localtime(&t);
 
-      date_ext[0] = '_';
-      strftime(date_ext + 1, sizeof(date_ext) - 1, name.c_str() + pos, tms);
-   } else {
-      date_ext[0] = 0;
+      char de[256];
+      de[0] = '_';
+      strftime(de + 1, sizeof(de)-1, strchr(message_format.c_str(), '%'), tms);
+      message_format = de;
    }
 
-   pos = name.rfind(DIR_SEPARATOR);
-   if (pos == std::string::npos) {
-      status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &dir, FALSE);
-      if (status == DB_SUCCESS) {
-      } else {
-         dir = cm_get_path();
-      }
-   } else {
-      dir = name.substr(0, pos);
-   }
-
-   if (dir.empty()) {
-      dir = cm_get_path();
-      if (dir.empty()) {
-         char *s = getcwd(NULL, 0);
-         if (s) {
-            dir = s;
-            free(s);
+   std::string message_dir;
+   db_get_value_string(hDB, 0, "/Logger/Message dir", 0, &message_dir);
+   if (message_dir.empty()) {
+      db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &message_dir, FALSE);
+      if (message_dir.empty()) {
+         char str[256];
+         cm_get_path(str, sizeof(str));
+         if (str[0] == 0) {
+            const char *s = getcwd(str, sizeof(str));
+            // per "man getcwd" we must check the return value and if it is NULL,
+            // contents of "dir" may be undefined and we must fix it.
+            if (s == NULL)
+               str[0] = 0;
          }
       }
    }
+   if (message_dir.back() != DIR_SEPARATOR)
+      message_dir.push_back(DIR_SEPARATOR);
 
-   if (!dir.empty()) {
-      if (dir.back() != DIR_SEPARATOR)
-         dir += DIR_SEPARATOR_STR;
-   }
-
-   if (filename) {
-      *filename = "";
-      *filename += dir;
-      *filename += facility;
-      *filename += date_ext;
-      *filename += ".log";
-   }
-   
-   if (date_ext[0] && linkname) {
-      *linkname = "";
-      *linkname += dir;
-      *linkname += facility;
-      *linkname += ".log";
-   }
+   if (filename)
+      *filename = message_dir + facility + message_format + ".log";
+   if (linkname && !message_format.empty())
+      *linkname = message_dir + facility  + ".log";
 
    return flag;
 }
 
-int
-cm_msg_get_logfile1(const char *fac, time_t t, std::string* filename, std::string* linkname) {
+int cm_msg_get_logfile1(const char *fac, time_t t, std::string* filename, std::string* linkname) {
    static int first_time = 1;
    static int prev_flag = 0;
    static std::string prev_filename;
