@@ -2450,8 +2450,8 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
    cm_msg_early_init();
 
-   cm_msg(MERROR, "cm_connect_experiment", "test cm_msg before connecting to experiment");
-   cm_msg_flush_buffer();
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg before connecting to experiment");
+   //cm_msg_flush_buffer();
 
    rpc_set_name(client_name);
 
@@ -2533,8 +2533,8 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 #endif
    }
 
-   cm_msg(MERROR, "cm_connect_experiment", "test cm_msg before open ODB");
-   cm_msg_flush_buffer();
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg before open ODB");
+   //cm_msg_flush_buffer();
 
    /* open ODB */
    if (odb_size == 0)
@@ -2546,8 +2546,8 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       return status;
    }
 
-   cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after open ODB");
-   cm_msg_flush_buffer();
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after open ODB");
+   //cm_msg_flush_buffer();
 
    int odb_timeout = db_set_lock_timeout(hDB, 0);
    size = sizeof(odb_timeout);
@@ -2635,15 +2635,15 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       }
    }
 
-   cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after set client info");
-   cm_msg_flush_buffer();
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after set client info");
+   //cm_msg_flush_buffer();
 
    /* tell the rest of MIDAS that ODB is open for business */
 
    cm_set_experiment_database(hDB, hKeyClient);
 
-   cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after set experiment database");
-   cm_msg_flush_buffer();
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after set experiment database");
+   //cm_msg_flush_buffer();
 
    /* cm_msg_open_buffer() calls bm_open_buffer() calls ODB function
     * to get event buffer size, etc */
@@ -2654,8 +2654,8 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       return status;
    }
 
-   cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after message system is ready");
-   cm_msg_flush_buffer();
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after message system is ready");
+   //cm_msg_flush_buffer();
 
    /* set experiment name in ODB */
    db_set_value_string(hDB, 0, "/Experiment/Name", &exp_name1);
@@ -2703,8 +2703,8 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    /* register ctrl-c handler */
    ss_ctrlc_handler(cm_ctrlc_handler);
 
-   cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after connect to experiment is complete");
-   cm_msg_flush_buffer();
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after connect to experiment is complete");
+   //cm_msg_flush_buffer();
 
    return CM_SUCCESS;
 }
@@ -3028,8 +3028,8 @@ INT cm_disconnect_experiment(void) {
    HNDLE hDB, hKey;
    char local_host_name[HOST_NAME_LENGTH];
 
-   cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before disconnect from experiment");
-   cm_msg_flush_buffer();
+   //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before disconnect from experiment");
+   //cm_msg_flush_buffer();
 
    /* wait on any transition thread */
    if (_trp.transition && !_trp.finished) {
@@ -3076,8 +3076,8 @@ INT cm_disconnect_experiment(void) {
       if (hDB)
          cm_delete_client_info(hDB, 0);
 
-      cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before close all buffers, close all databases");
-      cm_msg_flush_buffer();
+      //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before close all buffers, close all databases");
+      //cm_msg_flush_buffer();
 
       cm_msg_close_buffer();
       bm_close_all_buffers();
@@ -3085,8 +3085,8 @@ INT cm_disconnect_experiment(void) {
 
       cm_set_experiment_database(0, 0);
 
-      cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after close all buffers, close all databases");
-      cm_msg_flush_buffer();
+      //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after close all buffers, close all databases");
+      //cm_msg_flush_buffer();
    }
 
    if (!rpc_is_mserver())
@@ -3095,8 +3095,8 @@ INT cm_disconnect_experiment(void) {
    /* free RPC list */
    rpc_deregister_functions();
 
-   cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before deleting the message ring buffer");
-   cm_msg_flush_buffer();
+   //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before deleting the message ring buffer");
+   //cm_msg_flush_buffer();
 
    /* last flush before we delete the message ring buffer */
    cm_msg_flush_buffer();
@@ -3111,8 +3111,8 @@ INT cm_disconnect_experiment(void) {
    _msg_rb = 0;
 #endif
 
-   cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after deleting message ring buffer");
-   cm_msg_flush_buffer();
+   //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after deleting message ring buffer");
+   //cm_msg_flush_buffer();
 
    /* free memory buffers */
    if (_event_buffer_size > 0) {
@@ -3126,8 +3126,8 @@ INT cm_disconnect_experiment(void) {
       _tcp_buffer = NULL;
    }
 
-   cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after disconnect is completed");
-   cm_msg_flush_buffer();
+   //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after disconnect is completed");
+   //cm_msg_flush_buffer();
 
    return CM_SUCCESS;
 }
