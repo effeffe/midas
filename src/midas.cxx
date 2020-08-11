@@ -516,13 +516,29 @@ INT EXPRT cm_msg_facilities(STRING_LIST *list) {
 
 /********************************************************************/
 
+//
+// cm_msg_get_logfile() return values:
+//
+// -1 - experiment not yet initialized
+//  0 - ok
+//  1 - filename uses "message file data format" and is not same as linkname
+//
+
 int cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::string* linkname) {
    HNDLE hDB;
    int status, flag = 0;
 
    status = cm_get_experiment_database(&hDB, NULL);
-   if (status != CM_SUCCESS)
+
+   // check for call to cm_msg() before MIDAS is fully initialized
+   // or after MIDAS is partially shutdown.
+   if (status != CM_SUCCESS) {
+      if (filename)
+         *filename = std::string(fac) + ".log";
+      if (linkname)
+         *linkname = std::string(fac) + ".log";
       return -1;
+   }
 
    if (filename)
       *filename = "";
@@ -582,50 +598,6 @@ int cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::st
       *linkname = message_dir + facility  + ".log";
 
    return flag;
-}
-
-int cm_msg_get_logfile1(const char *fac, time_t t, std::string* filename, std::string* linkname) {
-   static int first_time = 1;
-   static int prev_flag = 0;
-   static std::string prev_filename;
-   static std::string prev_linkname;
-
-   // NB: this code is not thread-safe wrt updating static std::string objects!
-
-   if (first_time) {
-      first_time = 0;
-      if (fac && fac[0]) {
-         prev_filename = fac;
-      } else {
-         prev_filename = "midas";
-      }
-      prev_filename += ".log";
-      prev_linkname = "";
-   }
-
-   if (filename)
-      *filename = "";
-   if (linkname)
-      *linkname = "";
-
-   int flag = cm_msg_get_logfile(fac, t, filename, linkname);
-
-   //printf("cm_msg_get_logfile1: flag %d prev %d, filename [%s] prev [%s], linkname [%s] prev [%s]\n", flag, prev_flag, filename, prev_filename, linkname, prev_linkname);
-
-   if (flag >= 0) {
-      prev_flag = flag;
-      if (filename)
-         prev_filename = *filename;
-      if (linkname)
-         prev_linkname = *linkname;
-      return flag;
-   }
-
-   if (filename)
-      *filename = prev_filename;
-   if (linkname)
-      *linkname = prev_linkname;
-   return prev_flag;
 }
 
 /********************************************************************/
@@ -692,21 +664,15 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
    if (message_type != MT_DEBUG) {
       std::string filename, linkname;
 
-      int flag = cm_msg_get_logfile1(facility, 0, &filename, &linkname);
-
-      if (flag < 0) {
-         fprintf(stderr,
-                 "cm_msg_log: Message \"%s\" not written to midas.log because cm_msg_get_logfile1() failed with flag %d\n",
-                 message, flag);
-         return CM_SUCCESS;
-      }
+      int flag = cm_msg_get_logfile(facility, 0, &filename, &linkname);
 
 #ifdef OS_LINUX
-      if (!linkname.empty()) {
+      if (flag && filename != linkname) {
          // If filename does not exist, user just switched from non-date format to date format.
          // In that case we must copy linkname to filename, otherwise messages might get lost.
-         if (ss_file_exist(linkname.c_str()) && !ss_file_link_exist(linkname.c_str()))
+         if (ss_file_exist(linkname.c_str()) && !ss_file_link_exist(linkname.c_str())) {
             ss_file_copy(linkname.c_str(), filename.c_str(), true);
+         }
 
          unlink(linkname.c_str());
          status = symlink(filename.c_str(), linkname.c_str());
@@ -2480,8 +2446,8 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
    cm_msg_early_init();
 
-   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg before connecting to experiment");
-   //cm_msg_flush_buffer();
+   cm_msg(MERROR, "cm_connect_experiment", "test cm_msg before connecting to experiment");
+   cm_msg_flush_buffer();
 
    rpc_set_name(client_name);
 
@@ -2563,8 +2529,8 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 #endif
    }
 
-   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg before open ODB");
-   //cm_msg_flush_buffer();
+   cm_msg(MERROR, "cm_connect_experiment", "test cm_msg before open ODB");
+   cm_msg_flush_buffer();
 
    /* open ODB */
    if (odb_size == 0)
@@ -2575,6 +2541,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       cm_msg(MERROR, "cm_connect_experiment1", "cannot open database, db_open_database() status %d", status);
       return status;
    }
+
+   cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after open ODB");
+   cm_msg_flush_buffer();
 
    int odb_timeout = db_set_lock_timeout(hDB, 0);
    size = sizeof(odb_timeout);
@@ -2662,21 +2631,15 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       }
    }
 
-   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after open ODB");
-   //cm_msg_flush_buffer();
+   cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after set client info");
+   cm_msg_flush_buffer();
 
    /* tell the rest of MIDAS that ODB is open for business */
 
    cm_set_experiment_database(hDB, hKeyClient);
 
-   /* save the filename of midas.log */
-   {
-      const char *facility = "midas";
-      std::string filename;
-      std::string linkname;
-      cm_msg_get_logfile1(facility, 0, &filename, &linkname);
-   }
-
+   cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after set experiment database");
+   cm_msg_flush_buffer();
 
    /* cm_msg_open_buffer() calls bm_open_buffer() calls ODB function
     * to get event buffer size, etc */
@@ -2687,8 +2650,8 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       return status;
    }
 
-   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after message system is ready");
-   //cm_msg_flush_buffer();
+   cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after message system is ready");
+   cm_msg_flush_buffer();
 
    /* set experiment name in ODB */
    db_set_value_string(hDB, 0, "/Experiment/Name", &exp_name1);
@@ -2738,8 +2701,8 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    /* register ctrl-c handler */
    ss_ctrlc_handler(cm_ctrlc_handler);
 
-   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after connect to experiment is complete");
-   //cm_msg_flush_buffer();
+   cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after connect to experiment is complete");
+   cm_msg_flush_buffer();
 
    return CM_SUCCESS;
 }
@@ -3063,8 +3026,8 @@ INT cm_disconnect_experiment(void) {
    HNDLE hDB, hKey;
    char local_host_name[HOST_NAME_LENGTH];
 
-   //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before disconnect from experiment");
-   //cm_msg_flush_buffer();
+   cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before disconnect from experiment");
+   cm_msg_flush_buffer();
 
    /* wait on any transition thread */
    if (_trp.transition && !_trp.finished) {
@@ -3114,14 +3077,17 @@ INT cm_disconnect_experiment(void) {
       if (hDB)
          cm_delete_client_info(hDB, 0);
 
-      //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before close all buffers, close all databases");
-      //cm_msg_flush_buffer();
+      cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before close all buffers, close all databases");
+      cm_msg_flush_buffer();
 
       cm_msg_close_buffer();
       bm_close_all_buffers();
       db_close_all_databases();
 
       cm_set_experiment_database(0, 0);
+
+      cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after close all buffers, close all databases");
+      cm_msg_flush_buffer();
    }
 
    if (!rpc_is_mserver())
@@ -3130,8 +3096,8 @@ INT cm_disconnect_experiment(void) {
    /* free RPC list */
    rpc_deregister_functions();
 
-   //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before deleting the message ring buffer");
-   //cm_msg_flush_buffer();
+   cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before deleting the message ring buffer");
+   cm_msg_flush_buffer();
 
    /* last flush before we delete the message ring buffer */
    cm_msg_flush_buffer();
@@ -3146,8 +3112,8 @@ INT cm_disconnect_experiment(void) {
    _msg_rb = 0;
 #endif
 
-   //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after deleting message ring buffer");
-   //cm_msg_flush_buffer();
+   cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after deleting message ring buffer");
+   cm_msg_flush_buffer();
 
    /* free memory buffers */
    if (_event_buffer_size > 0) {
@@ -3161,8 +3127,8 @@ INT cm_disconnect_experiment(void) {
       _tcp_buffer = NULL;
    }
 
-   //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after disconnect is completed");
-   //cm_msg_flush_buffer();
+   cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after disconnect is completed");
+   cm_msg_flush_buffer();
 
    return CM_SUCCESS;
 }
@@ -3248,18 +3214,35 @@ HNDLE hDB, hkeyclient;
 */
 INT cm_get_experiment_database(HNDLE *hDB, HNDLE *hKeyClient) {
    if (_hDB) {
+      printf("cm_get_experiment_database %d %d\n", _hDB, _hKeyClient);
       if (hDB != NULL)
          *hDB = _hDB;
       if (hKeyClient != NULL)
          *hKeyClient = _hKeyClient;
-   } else {
+      return CM_SUCCESS;
+   } else if (rpc_is_mserver()) {
+      if (rpc_get_server_option(RPC_ODB_HANDLE) == 0) {
+         printf("cm_get_experiment_database mserver no init\n");
+         if (hDB != NULL)
+            *hDB = 0;
+         if (hKeyClient != NULL)
+            *hKeyClient = 0;
+         return CM_DB_ERROR;
+      }
+      printf("cm_get_experiment_database mserver %d %d\n", rpc_get_server_option(RPC_ODB_HANDLE), rpc_get_server_option(RPC_CLIENT_HANDLE));
       if (hDB != NULL)
          *hDB = rpc_get_server_option(RPC_ODB_HANDLE);
       if (hKeyClient != NULL)
          *hKeyClient = rpc_get_server_option(RPC_CLIENT_HANDLE);
+      return CM_SUCCESS;
+   } else {
+      printf("cm_get_experiment_database no init\n");
+      if (hDB != NULL)
+         *hDB = 0;
+      if (hKeyClient != NULL)
+         *hKeyClient = 0;
+      return CM_DB_ERROR;
    }
-
-   return CM_SUCCESS;
 }
 
 /**dox***************************************************************/
