@@ -484,7 +484,7 @@ int cm_msg_close_buffer(void) {
 INT EXPRT cm_msg_facilities(STRING_LIST *list) {
    std::string path;
 
-   cm_msg_get_logfile("midas", 0, &path, NULL);
+   cm_msg_get_logfile("midas", 0, &path, NULL, NULL);
 
    /* extract directory name from full path name of midas.log */
    size_t pos = path.rfind(DIR_SEPARATOR);
@@ -516,17 +516,9 @@ INT EXPRT cm_msg_facilities(STRING_LIST *list) {
 
 /********************************************************************/
 
-//
-// cm_msg_get_logfile() return values:
-//
-// -1 - experiment not yet initialized
-//  0 - ok
-//  1 - filename uses "message file data format" and is not same as linkname
-//
-
-int cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::string* linkname) {
+void cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::string* linkname, std::string* linktarget) {
    HNDLE hDB;
-   int status, flag = 0;
+   int status;
 
    status = cm_get_experiment_database(&hDB, NULL);
 
@@ -536,14 +528,18 @@ int cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::st
       if (filename)
          *filename = std::string(fac) + ".log";
       if (linkname)
-         *linkname = std::string(fac) + ".log";
-      return -1;
+         *linkname = "";
+      if (linktarget)
+         *linktarget = "";
+      return;
    }
 
    if (filename)
       *filename = "";
    if (linkname)
       *linkname = "";
+   if (linktarget)
+      *linktarget = "";
 
    std::string facility;
    if (fac && fac[0])
@@ -557,7 +553,6 @@ int cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::st
       /* replace stings such as %y%m%d with current date */
       struct tm *tms;
 
-      flag = 1;
       tzset();
       if (t == 0)
          time(&t);
@@ -594,10 +589,12 @@ int cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::st
 
    if (filename)
       *filename = message_dir + facility + message_format + ".log";
-   if (linkname && !message_format.empty())
-      *linkname = message_dir + facility  + ".log";
-
-   return flag;
+   if (!message_format.empty()) {
+      if (linkname)
+         *linkname = message_dir + facility  + ".log";
+      if (linktarget)
+         *linktarget = facility  + message_format + ".log";
+   }
 }
 
 /********************************************************************/
@@ -662,12 +659,13 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
    }
 
    if (message_type != MT_DEBUG) {
-      std::string filename, linkname;
+      std::string filename, linkname, linktarget;
 
-      int flag = cm_msg_get_logfile(facility, 0, &filename, &linkname);
+      cm_msg_get_logfile(facility, 0, &filename, &linkname, &linktarget);
 
 #ifdef OS_LINUX
-      if (flag && filename != linkname) {
+      if (!linkname.empty()) {
+         printf("cm_msg_log: filename [%s] linkname [%s] linktarget [%s]\n", filename.c_str(), linkname.c_str(), linktarget.c_str());
          // If filename does not exist, user just switched from non-date format to date format.
          // In that case we must copy linkname to filename, otherwise messages might get lost.
          if (ss_file_exist(linkname.c_str()) && !ss_file_link_exist(linkname.c_str())) {
@@ -675,11 +673,11 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
          }
 
          unlink(linkname.c_str());
-         status = symlink(filename.c_str(), linkname.c_str());
+         status = symlink(linktarget.c_str(), linkname.c_str());
          if (status != 0) {
             fprintf(stderr,
                     "cm_msg_log: Error: Cannot symlink message log file \'%s' to \'%s\', symlink() errno: %d (%s)\n",
-                    filename.c_str(), linkname.c_str(), errno, strerror(errno));
+                    linktarget.c_str(), linkname.c_str(), errno, strerror(errno));
          }
       }
 #endif
@@ -1394,18 +1392,13 @@ Retrieve old messages from log file
 */
 INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char **messages, int *num_messages) {
    std::string filename, linkname;
-   INT n, i, flag;
+   INT n, i;
    time_t filedate;
    int length = 0;
    int allocated = 0;
 
    time(&filedate);
-   flag = cm_msg_get_logfile(facility, filedate, &filename, &linkname);
-
-   if (flag < 0) {
-      *num_messages = 0;
-      return CM_SUCCESS;
-   }
+   cm_msg_get_logfile(facility, filedate, &filename, &linkname, NULL);
 
    //printf("facility %s, filename \"%s\" \"%s\"\n", facility, filename, linkname);
 
@@ -1420,13 +1413,22 @@ INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char **messa
    else
       n = 0;
 
+   /* if there is no symlink, then there is no additional log files to read */
+   if (linkname.empty()) {
+      return CM_SUCCESS;
+   }
+
+   //printf("read more messages %d %d!\n", n, n_message);
+
    int missing = 0;
-   while (n < n_message && flag) {
+   while (n < n_message) {
       filedate -= 3600 * 24;         // go one day back
 
-      int xflag = cm_msg_get_logfile(facility, filedate, &filename, NULL);
+      cm_msg_get_logfile(facility, filedate, &filename, NULL, NULL);
 
-      if ((xflag >= 0) && ss_file_exist(filename.c_str())) {
+      //printf("read [%s] for time %d!\n", filename.c_str(), filedate);
+
+      if (ss_file_exist(filename.c_str())) {
          cm_msg_retrieve1(filename.c_str(), t, n_message - n, messages, &length, &allocated, &i);
          n += i;
          missing = 0;

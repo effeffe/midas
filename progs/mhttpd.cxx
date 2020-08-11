@@ -1668,7 +1668,7 @@ void show_help_page(Return* r, const char* dec_path)
          r->rsprintf("        <tr>\n");
          r->rsprintf("          <td style=\"text-align:right;\">System logfile:</td>\n");
          std::string s;
-         cm_msg_get_logfile("midas", 0, &s, NULL);
+         cm_msg_get_logfile("midas", 0, &s, NULL, NULL);
          r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", s.c_str());
          r->rsprintf("        </tr>\n");
       } else {
@@ -1679,7 +1679,7 @@ void show_help_page(Return* r, const char* dec_path)
             if (i>0)
                r->rsputs("<br />\n");
             std::string s;
-            cm_msg_get_logfile(list[i].c_str(), 0, &s, NULL);
+            cm_msg_get_logfile(list[i].c_str(), 0, &s, NULL, NULL);
             r->rsputs(s.c_str());
          }
          r->rsprintf("\n          </td>\n");
