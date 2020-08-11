@@ -90,8 +90,9 @@ void image_thread(std::string name) {
          std::string path = history_dir();
          path += name;
 
-         char *flist;
+         char *flist = NULL;
          int n = ss_file_find(path.c_str(), "??????_??????.*", &flist);
+
          for (int i=0 ; i<n ; i++) {
             char filename[MAX_STRING_LENGTH];
             strncpy(filename, flist+i*MAX_STRING_LENGTH, MAX_STRING_LENGTH);
@@ -126,7 +127,7 @@ void image_thread(std::string name) {
          std::string dotname = filename;
          int status = mkpath(filename, 0755);
          if (status)
-            cm_msg(MERROR, "image_thread", "Cannot create directory \"%s\": %s", filename.c_str(), strerror(errno));
+            cm_msg(MERROR, "image_thread", "Cannot create directory \"%s\": mkpath() errno %d (%s)", filename.c_str(), errno, strerror(errno));
 
          time_t now = time(nullptr);
          tm *ltm = localtime(&now);
