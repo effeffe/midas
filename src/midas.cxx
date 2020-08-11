@@ -2812,7 +2812,7 @@ INT cm_list_experiments_remote(const char *host_name, STRING_LIST *exp_names) {
 #endif
 
    if (status != 0) {
-      cm_msg(MERROR, "Cannot connect to \"%s\" port %d, errno %d (%s)", hname, port, errno, strerror(errno));
+      cm_msg(MERROR, "cm_list_experiments_remote", "Cannot connect to \"%s\" port %d, errno %d (%s)", hname, port, errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
