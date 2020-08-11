@@ -792,7 +792,7 @@ static std::string cm_msg_format(INT message_type, const char *filename, INT lin
 
    /* preceed error messages with file and line info */
    if (message_type == MT_ERROR) {
-      message = msprintf("[%s:%d:%s,%s] ", pc, line, routine, type_str.c_str());
+      message += msprintf("[%s:%d:%s,%s] ", pc, line, routine, type_str.c_str());
    } else if (message_type == MT_USER) {
       message = msprintf("[%s,%s] ", routine, type_str.c_str());
    }
