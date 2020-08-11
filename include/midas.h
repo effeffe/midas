@@ -364,8 +364,8 @@ RPC options */
 //#define RPC_OSERVER_TYPE   5
 //#define RPC_OSERVER_NAME   6
 #define RPC_CONVERT_FLAGS  7
-#define RPC_ODB_HANDLE     8
-#define RPC_CLIENT_HANDLE  9
+//#define RPC_ODB_HANDLE     8
+//#define RPC_CLIENT_HANDLE  9
 #define RPC_SEND_SOCK      10
 #define RPC_WATCHDOG_TIMEOUT 11
 #define RPC_NODELAY        12

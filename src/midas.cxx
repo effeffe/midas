@@ -2163,8 +2163,7 @@ INT cm_set_client_info(HNDLE hDB, HNDLE *hKeyClient, const char *host_name,
       db_create_record(hDB, 0, str, strcomb(program_info_str));
 
       /* save handle for ODB and client */
-      rpc_set_server_option(RPC_ODB_HANDLE, hDB);
-      rpc_set_server_option(RPC_CLIENT_HANDLE, hKey);
+      cm_set_experiment_database(hDB, hKey);
 
       /* save watchdog timeout */
       cm_get_watchdog_params(&call_watchdog, NULL);
@@ -3146,9 +3145,9 @@ INT cm_set_experiment_database(HNDLE hDB, HNDLE hKeyClient) {
    _hDB = hDB;
    _hKeyClient = hKeyClient;
 
-   if (hDB == 0) {
-      rpc_set_server_option(RPC_ODB_HANDLE, 0);
-   }
+   //if (hDB == 0) {
+   //   rpc_set_server_option(RPC_ODB_HANDLE, 0);
+   //}
 
    return CM_SUCCESS;
 }
@@ -3214,29 +3213,14 @@ HNDLE hDB, hkeyclient;
 */
 INT cm_get_experiment_database(HNDLE *hDB, HNDLE *hKeyClient) {
    if (_hDB) {
-      printf("cm_get_experiment_database %d %d\n", _hDB, _hKeyClient);
+      //printf("cm_get_experiment_database %d %d\n", _hDB, _hKeyClient);
       if (hDB != NULL)
          *hDB = _hDB;
       if (hKeyClient != NULL)
          *hKeyClient = _hKeyClient;
       return CM_SUCCESS;
-   } else if (rpc_is_mserver()) {
-      if (rpc_get_server_option(RPC_ODB_HANDLE) == 0) {
-         printf("cm_get_experiment_database mserver no init\n");
-         if (hDB != NULL)
-            *hDB = 0;
-         if (hKeyClient != NULL)
-            *hKeyClient = 0;
-         return CM_DB_ERROR;
-      }
-      printf("cm_get_experiment_database mserver %d %d\n", rpc_get_server_option(RPC_ODB_HANDLE), rpc_get_server_option(RPC_CLIENT_HANDLE));
-      if (hDB != NULL)
-         *hDB = rpc_get_server_option(RPC_ODB_HANDLE);
-      if (hKeyClient != NULL)
-         *hKeyClient = rpc_get_server_option(RPC_CLIENT_HANDLE);
-      return CM_SUCCESS;
    } else {
-      printf("cm_get_experiment_database no init\n");
+      //printf("cm_get_experiment_database no init\n");
       if (hDB != NULL)
          *hDB = 0;
       if (hKeyClient != NULL)
@@ -11724,10 +11708,6 @@ INT rpc_get_server_option(INT item)
    switch (item) {
       case RPC_CONVERT_FLAGS:
          return _server_acception[i].convert_flags;
-      case RPC_ODB_HANDLE:
-         return _server_acception[i].odb_handle;
-      case RPC_CLIENT_HANDLE:
-         return _server_acception[i].client_handle;
       case RPC_SEND_SOCK:
          return _server_acception[i].send_sock;
       case RPC_WATCHDOG_TIMEOUT:
@@ -11763,12 +11743,6 @@ INT rpc_set_server_option(INT item, INT value)
    switch (item) {
       case RPC_CONVERT_FLAGS:
          _server_acception[i].convert_flags = value;
-         break;
-      case RPC_ODB_HANDLE:
-         _server_acception[i].odb_handle = value;
-         break;
-      case RPC_CLIENT_HANDLE:
-         _server_acception[i].client_handle = value;
          break;
       case RPC_WATCHDOG_TIMEOUT:
          _server_acception[i].watchdog_timeout = value;
