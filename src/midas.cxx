@@ -567,7 +567,7 @@ void cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::s
    std::string message_dir;
    db_get_value_string(hDB, 0, "/Logger/Message dir", 0, &message_dir, TRUE);
    if (message_dir.empty()) {
-      db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &message_dir, TRUE);
+      db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &message_dir, FALSE);
       if (message_dir.empty()) {
          message_dir = cm_get_path();
          if (message_dir.empty()) {
@@ -2663,9 +2663,8 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    if (!rpc_is_remote()) {
       /* experiment path is only set for local connections */
       /* set data dir in ODB */
-      cm_get_path(str, sizeof(str));
-      size = sizeof(str);
-      db_get_value(hDB, 0, "/Logger/Data dir", str, &size, TID_STRING, TRUE);
+      std::string path = cm_get_path();
+      db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &path, TRUE);
    }
 
    /* register server to be able to be called by other clients */
@@ -5819,7 +5818,7 @@ std::string cm_get_history_path(const char* history_channel)
       return path;
    }
 
-   status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &path, TRUE);
+   status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &path, FALSE);
    if (status == DB_SUCCESS && path.length() > 0) {
       // if not absolute path, prepend with experiment directory
       if (path[0] != DIR_SEPARATOR)
