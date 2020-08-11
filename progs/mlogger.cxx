@@ -5407,7 +5407,7 @@ int log_generate_file_name(LOG_CHN *log_chn)
 #endif
 #if !defined(HAVE_MYSQL) && !defined(OS_WINNT)  /* errno not working with mySQL lib */
       if (status == -1 && errno != EEXIST)
-         cm_msg(MERROR, "log_generate_file_name", "Cannot create subdirectory %s", str);
+         cm_msg(MERROR, "log_generate_file_name", "Cannot create subdirectory \"%s\", mkdir() errno %d (%s)", str, errno, strerror(errno));
 #endif
 
       strcat(str, filename);
