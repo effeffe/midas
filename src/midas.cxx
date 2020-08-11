@@ -1062,8 +1062,11 @@ INT cm_msg(INT message_type, const char *filename, INT line, const char *routine
    in_routine = TRUE;
 
    /* call user function if set via cm_set_msg_print */
-   if (_message_print != NULL && (message_type & _message_mask_user) != 0)
-      _message_print(message.c_str());
+   if (_message_print != NULL && (message_type & _message_mask_user) != 0) {
+      if (message_type != MT_LOG) { // do not print MLOG messages
+         _message_print(message.c_str());
+      }
+   }
 
    /* return if system mask is not set */
    if ((message_type & _message_mask_system) == 0) {
@@ -2689,9 +2692,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    std::string xclient_name = rpc_get_name();
 
    /* startup message is not displayed */
-   _message_print = NULL;
-
-   cm_msg(MINFO, "cm_connect_experiment", "Program %s on host %s started", xclient_name.c_str(), local_host_name);
+   cm_msg(MLOG, "cm_connect_experiment", "Program %s on host %s started", xclient_name.c_str(), local_host_name);
 
    /* enable system and user messages to stdout as default */
    cm_set_msg_print(MT_ALL, MT_ALL, puts);
@@ -3053,10 +3054,7 @@ INT cm_disconnect_experiment(void) {
    }
 
    /* disconnect message not displayed */
-   _message_print = NULL;
-
-   cm_msg(MINFO, "cm_disconnect_experiment", "Program %s on host %s stopped", client_name.c_str(), local_host_name);
-
+   cm_msg(MLOG, "cm_disconnect_experiment", "Program %s on host %s stopped", client_name.c_str(), local_host_name);
    cm_msg_flush_buffer();
 
    if (rpc_is_remote()) {
