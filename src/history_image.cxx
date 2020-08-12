@@ -109,7 +109,7 @@ void image_thread(std::string name) {
             double age = (ss_time() - ft)/3600.0;
             //printf("index %d, file [%s] age %f vs %f\n", i, flist[i].c_str(), age, (double)o["Storage hours"]);
             if (age >= o["Storage hours"]) {
-               cm_msg(MINFO, "image_thread", "Delete file \"%s\" which is %f hours old", flist[i].c_str(), age);
+               //cm_msg(MINFO, "image_thread", "Delete file \"%s\" which is %f hours old", flist[i].c_str(), age);
                std::string pathname = (path+"/"+filename);
                int error = remove(pathname.c_str());
                if (error)
