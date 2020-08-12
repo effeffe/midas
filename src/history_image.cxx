@@ -85,7 +85,10 @@ void image_thread(std::string name) {
    midas::odb o("/History/Images/"+name);
 
    do {
-      std::this_thread::sleep_for(std::chrono::seconds(1));
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+      if (stop_all_threads)
+         break;
 
       // check for old files
       if (ss_time() > last_check_delete + 60 && o["Storage hours"] > 0) {
