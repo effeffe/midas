@@ -1002,14 +1002,20 @@ std::vector<std::string> get_resource_paths()
    // add  "/Logger/History/IMAGE/History dir"
    paths.push_back(cm_get_history_path("IMAGE"));
 
-   char str[256];
-   getcwd(str, sizeof(str));
-   paths.push_back(std::string(str) + "/");
-   paths.push_back(std::string(str) + "/resources/");
+   char* s = getcwd(NULL, 0);
+   assert(s);
+   std::string cwd = s;
+   free(s);
+   if (!cwd.empty()) {
+      paths.push_back(cwd + "/");
+      paths.push_back(cwd + "/resources/");
+   }
    paths.push_back(cm_get_path());
    paths.push_back(cm_get_path() + "resources/");
    char *m = getenv("MIDASSYS");
-   paths.push_back(std::string(m) + "/resources/");
+   if (m) {
+      paths.push_back(std::string(m) + "/resources/");
+   }
 
    return paths;
 }
