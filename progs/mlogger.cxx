@@ -6369,7 +6369,11 @@ int main(int argc, char *argv[])
    close_history();
 
    /* stop image history threads */
+   /* stop image history threads */
+   printf("Stopping image history threads...");
+   fflush(stdout);
    stop_image_history();
+   printf("ok\n");
 
    cm_disconnect_experiment();
 
