@@ -1994,6 +1994,8 @@ void init_mhttpd_odb()
    if (status == DB_SUCCESS) {
       cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Logger/Message file\" is obsolete, please delete it and use \"/Logger/Message dir\" and \"/Logger/message file date format\" instead.");
    }
+
+   check_obsolete_odb(hDB, "/Logger/Watchdog timeout");
 }
 
 /*------------------------------------------------------------------*/

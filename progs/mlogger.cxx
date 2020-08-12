@@ -272,8 +272,6 @@ LOG_CHN* new_LOG_CHN(const char* name)
 
 /*---- globals -----------------------------------------------------*/
 
-#define LOGGER_DEFAULT_TIMEOUT 60000
-
 #define DISK_CHECK_INTERVAL 10000
 
 INT  local_state;
@@ -6209,15 +6207,6 @@ int main(int argc, char *argv[])
    /* turn off watchdog if in debug mode */
    if (debug)
       cm_set_watchdog_params(TRUE, 0);
-   else {
-      DWORD timeout = LOGGER_DEFAULT_TIMEOUT;
-      int size = sizeof(timeout);
-      status = db_get_value(hDB, 0, "/Logger/Watchdog timeout", &timeout, &size, TID_UINT32, TRUE);
-      assert(status == DB_SUCCESS);
-
-      /* set default watchdog timeout */
-      cm_set_watchdog_params(TRUE, timeout);
-   }
 
    /* turn on save mode */
    if (save_mode) {
