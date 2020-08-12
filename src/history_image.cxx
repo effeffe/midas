@@ -233,7 +233,8 @@ void start_image_history() {
       c.connect(ic.get_odb().get_full_path());
 
       std::string name = ic.get_odb().get_name();
-      _image_threads.push_back(std::thread(image_thread, name));
+      if (name != "Demo" || c["Enabled"] == true)
+         _image_threads.push_back(std::thread(image_thread, name));
    }
 }
 
