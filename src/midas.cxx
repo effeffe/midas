@@ -665,7 +665,7 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
 
 #ifdef OS_LINUX
       if (!linkname.empty()) {
-         printf("cm_msg_log: filename [%s] linkname [%s] linktarget [%s]\n", filename.c_str(), linkname.c_str(), linktarget.c_str());
+         //printf("cm_msg_log: filename [%s] linkname [%s] linktarget [%s]\n", filename.c_str(), linkname.c_str(), linktarget.c_str());
          // If filename does not exist, user just switched from non-date format to date format.
          // In that case we must copy linkname to filename, otherwise messages might get lost.
          if (ss_file_exist(linkname.c_str()) && !ss_file_link_exist(linkname.c_str())) {
