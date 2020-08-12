@@ -225,7 +225,7 @@ void start_image_history() {
               {"Extension",          ".jpg"},
               {"Period",             60},
               {"Last fetch",         0},
-              {"Storage hours",      72},
+              {"Storage hours",      0},
               {"Error interval (s)", 60},
               {"Last error",         0},
               {"Timescale",          "8h"}
