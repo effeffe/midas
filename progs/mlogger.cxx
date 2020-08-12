@@ -1897,9 +1897,8 @@ int mysql_query_debug(MYSQL * db, char *query)
 int sql_get_columns(HNDLE hKeyRoot, SQL_LIST ** sql_list)
 {
    HNDLE hKey;
-   int n, i, size, status;
+   int n, i, status;
    KEY key;
-   char str[256], data[256];
 
    for (i = 0;; i++) {
       status = db_enum_key(hDB, hKeyRoot, i, &hKey);
@@ -1926,9 +1925,15 @@ int sql_get_columns(HNDLE hKeyRoot, SQL_LIST ** sql_list)
       db_get_key(hDB, hKey, &key);
 
       /* get key data */
-      size = sizeof(data);
+      int size = key.total_size;
+      char* data = (char*)malloc(size);
+      assert(data);
       db_get_data(hDB, hKey, data, &size, key.type);
-      db_sprintf(str, data, size, 0, key.type);
+      char str[1000];
+      db_sprintf(str, data, size, 0, key.type); // FIXME: overflow of str
+      //printf("AAA key %s size %d %d [%s]\n", key.name, key.total_size, (int)strlen(str), str);
+      assert(strlen(str) < sizeof(str));
+      free(data);
       if (key.type == TID_BOOL)
          strcpy((*sql_list)[i].data, str[0] == 'y' || str[0] == 'Y' ? "1" : "0");
       else
@@ -2560,11 +2565,16 @@ void write_runlog_ascii(BOOL bor)
       if (status == DB_NO_MORE_SUBKEYS)
          break;
       KEY key;
-      char data[1000], str[1000];
-      int size = sizeof(data);
       db_get_key(hDB, hKey, &key);
+      int size = key.total_size;
+      char* data = (char*)malloc(size);
+      assert(data);
       db_get_data(hDB, hKey, data, &size, key.type);
-      db_sprintf(str, data, key.total_size, 0, key.type);
+      char str[1000];
+      db_sprintf(str, data, size, 0, key.type); // FIXME: overrun of str!
+      assert(strlen(str) < sizeof(str));
+      //printf("BBB key %s size %d %d [%s]\n", key.name, size, (int)strlen(str), str);
+      free(data);
       fprintf(f, "%s\t", str);
    }
    if (!bor)
