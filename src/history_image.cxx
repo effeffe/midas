@@ -247,6 +247,7 @@ void start_image_history() {
 // no history image logging wihtout CURL library
 void start_image_history() {}
 void stop_image_history() {}
+int get_number_image_history_threads() { return 0; }
 
 #endif
 
