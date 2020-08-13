@@ -272,8 +272,6 @@ LOG_CHN* new_LOG_CHN(const char* name)
 
 /*---- globals -----------------------------------------------------*/
 
-#define LOGGER_DEFAULT_TIMEOUT 60000
-
 #define DISK_CHECK_INTERVAL 10000
 
 INT  local_state;
@@ -324,6 +322,7 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info);
 int log_generate_file_name(LOG_CHN *log_chn);
 extern void start_image_history();
 extern void stop_image_history();
+extern int get_number_image_history_threads();
 
 /*== common code FAL/MLOGGER start =================================*/
 
@@ -1897,9 +1896,8 @@ int mysql_query_debug(MYSQL * db, char *query)
 int sql_get_columns(HNDLE hKeyRoot, SQL_LIST ** sql_list)
 {
    HNDLE hKey;
-   int n, i, size, status;
+   int n, i, status;
    KEY key;
-   char str[256], data[256];
 
    for (i = 0;; i++) {
       status = db_enum_key(hDB, hKeyRoot, i, &hKey);
@@ -1926,9 +1924,15 @@ int sql_get_columns(HNDLE hKeyRoot, SQL_LIST ** sql_list)
       db_get_key(hDB, hKey, &key);
 
       /* get key data */
-      size = sizeof(data);
+      int size = key.total_size;
+      char* data = (char*)malloc(size);
+      assert(data);
       db_get_data(hDB, hKey, data, &size, key.type);
-      db_sprintf(str, data, size, 0, key.type);
+      char str[1000];
+      db_sprintf(str, data, size, 0, key.type); // FIXME: overflow of str
+      //printf("AAA key %s size %d %d [%s]\n", key.name, key.total_size, (int)strlen(str), str);
+      assert(strlen(str) < sizeof(str));
+      free(data);
       if (key.type == TID_BOOL)
          strcpy((*sql_list)[i].data, str[0] == 'y' || str[0] == 'Y' ? "1" : "0");
       else
@@ -2560,11 +2564,16 @@ void write_runlog_ascii(BOOL bor)
       if (status == DB_NO_MORE_SUBKEYS)
          break;
       KEY key;
-      char data[1000], str[1000];
-      int size = sizeof(data);
       db_get_key(hDB, hKey, &key);
+      int size = key.total_size;
+      char* data = (char*)malloc(size);
+      assert(data);
       db_get_data(hDB, hKey, data, &size, key.type);
-      db_sprintf(str, data, key.total_size, 0, key.type);
+      char str[1000];
+      db_sprintf(str, data, size, 0, key.type); // FIXME: overrun of str!
+      assert(strlen(str) < sizeof(str));
+      //printf("BBB key %s size %d %d [%s]\n", key.name, size, (int)strlen(str), str);
+      free(data);
       fprintf(f, "%s\t", str);
    }
    if (!bor)
@@ -5345,8 +5354,9 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
 
 int log_generate_file_name(LOG_CHN *log_chn)
 {
-   INT size, status, run_number;
-   char str[256], path[256], dir[256], data_dir[256];
+   INT size, status, run_number = 0;
+   std::string path;
+   std::string data_dir;
    CHN_SETTINGS *chn_settings;
    time_t now;
    struct tm *tms;
@@ -5356,37 +5366,53 @@ int log_generate_file_name(LOG_CHN *log_chn)
    status = db_get_value(hDB, 0, "Runinfo/Run number", &run_number, &size, TID_INT32, TRUE);
    assert(status == SUCCESS);
 
-   data_dir[0] = 0;
-
-   const char* filename = chn_settings->filename;
+   std::string filename = chn_settings->filename;
    /* Check if data stream are throw pipe command */
    log_chn->pipe_command = "";
    bool ispipe = false;
    if (log_chn->type == LOG_TYPE_DISK) {
       char* p = strchr(chn_settings->filename, '>');
       if (chn_settings->filename[0] == '|' && p) {
-         filename = p+1;
-         if (filename[0] == '>') 
-            filename++;
+         /* skip second arrow in ">>" */
+         while (*p == '>')
+            p++;
+         /* skip spaces after '>' */
+         while (*p == ' ')
+            p++;
+         filename = p;
          ispipe = true;
          // pipe_command is contents of chn_settings->filename without the leading "|" and trailing ">"
-         size_t sizecommand = filename-chn_settings->filename-1;
-         char x_pipe_command[256]; // FIXME: this will truncate the pipe command. K.O.
-         strncpy(x_pipe_command, chn_settings->filename+1, sizecommand);
-         x_pipe_command[sizecommand] = 0;
-         log_chn->pipe_command = x_pipe_command;
+         log_chn->pipe_command = "";
+         const char*s = chn_settings->filename;
+         /* skip leading pipe */
+         if (*s == '|')
+            s++;
+         /* skip spaces */
+         while (*s == ' ')
+            s++;
+         /* copy up to ">" */
+         while (*s != '>') {
+            log_chn->pipe_command += *s++;
+         }
+         /* copy as many ">" as they put there */
+         while (*s == '>') {
+            log_chn->pipe_command += *s++;
+         }
       }
    }
 
+   std::string str;
+
    /* if disk, precede filename with directory if not already there */
    if (log_chn->type == LOG_TYPE_DISK && filename[0] != DIR_SEPARATOR) {
-      size = sizeof(data_dir);
-      dir[0] = 0;
-      db_get_value(hDB, 0, "/Logger/Data Dir", data_dir, &size, TID_STRING, TRUE);
-      if (data_dir[0] != 0)
-         if (data_dir[strlen(data_dir) - 1] != DIR_SEPARATOR)
-            strcat(data_dir, DIR_SEPARATOR_STR);
-      strcpy(str, data_dir);
+      db_get_value_string(hDB, 0, "/Logger/Data Dir", 0, &data_dir, TRUE);
+      if (data_dir.empty()) {
+         data_dir = cm_get_path();
+      } else {
+         if (data_dir.back() != DIR_SEPARATOR)
+            data_dir += DIR_SEPARATOR_STR;
+      }
+      str = data_dir;
 
       /* append subdirectory if requested */
       if (chn_settings->subdir_format[0]) {
@@ -5394,73 +5420,76 @@ int log_generate_file_name(LOG_CHN *log_chn)
          time(&now);
          tms = localtime(&now);
 
+         char dir[256];
          strftime(dir, sizeof(dir), chn_settings->subdir_format, tms);
-         strcat(str, dir);
-         strcat(str, DIR_SEPARATOR_STR);
+         str += dir;
+         str += DIR_SEPARATOR_STR;
       }
 
       /* create directory if needed */
 #ifdef OS_WINNT
-      status = mkdir(str);
+      status = mkdir(str.c_str());
 #else
-      status = mkdir(str, 0755);
+      status = mkdir(str.c_str(), 0755);
 #endif
-#if !defined(HAVE_MYSQL) && !defined(OS_WINNT)  /* errno not working with mySQL lib */
+#if defined(EEXIST)
       if (status == -1 && errno != EEXIST)
-         cm_msg(MERROR, "log_generate_file_name", "Cannot create subdirectory %s", str);
+         cm_msg(MERROR, "log_generate_file_name", "Cannot create subdirectory \"%s\", mkdir() errno %d (%s)", str.c_str(), errno, strerror(errno));
 #endif
 
-      strcat(str, filename);
-   } else
-      strcpy(str, filename);
+      str += filename;
+   } else {
+      str = filename;
+   }
 
    /* check if two "%" are present in filename */
-   if (strchr(str, '%')) {
-      if (strchr(strchr(str, '%')+1, '%')) {
+   if (strchr(str.c_str(), '%')) {
+      if (strchr(strchr(str.c_str(), '%')+1, '%')) {
          /* substitude first "%d" by current run number, second "%d" by subrun number */
-         sprintf(path, str, run_number, log_chn->subrun_number);
+         path = msprintf(str.c_str(), run_number, log_chn->subrun_number);
       } else {
          /* substitue "%d" by current run number */
-         sprintf(path, str, run_number);
+         path = msprintf(str.c_str(), run_number);
       }
-   } else
-      strcpy(path, str);
+   } else {
+      path = str;
+   }
 
    /* add required file extension */
    if (log_chn->writer) {
-      std::string file_ext = log_chn->writer->wr_get_file_ext();
-      strlcat(path, file_ext.c_str(), sizeof(path));
+      path += log_chn->writer->wr_get_file_ext();
    }
 
    log_chn->path = path;
 
    /* write back current file name to ODB */
-   if (strncmp(path, data_dir, strlen(data_dir)) == 0)
-      strcpy(str, path + strlen(data_dir));
+   std::string tmpstr;
+   if (strncmp(path.c_str(), data_dir.c_str(), data_dir.length()) == 0)
+      tmpstr = path.c_str() + data_dir.length();
    else
-      strcpy(str, path);
-   db_set_value(hDB, log_chn->settings_hkey, "Current filename", str, 256, 1, TID_STRING);
+      tmpstr = path;
+   db_set_value_string(hDB, log_chn->settings_hkey, "Current filename", &tmpstr);
 
    /* construct full pipe command */
    if (ispipe) {
       /* check if %d must be substitude by current run number in pipe command options */
       if (strchr(log_chn->pipe_command.c_str(), '%')) {
-         char str[256]; // FIXME: this will truncate the pipe command. K.O.
-         strlcpy(str, log_chn->pipe_command.c_str(), sizeof(str));
-         if (strchr(strchr(str, '%')+1, '%')) {
+         std::string str = log_chn->pipe_command;
+         if (strchr(strchr(str.c_str(), '%')+1, '%')) {
             /* substitude first "%d" by current run number, second "%d" by subrun number */
-            char cmd[256]; // FIXME: this will truncate the pipe command. K.O.
-            sprintf(cmd, str, run_number, log_chn->subrun_number); // FIXME: string array overrun. K.O.
-            log_chn->pipe_command = cmd;
+            log_chn->pipe_command = msprintf(str.c_str(), run_number, log_chn->subrun_number);
          } else {
             /* substitue "%d" by current run number */
-            char cmd[256]; // FIXME: this will truncate the pipe command. K.O.
-            sprintf(cmd, str, run_number); // FIXME: string array overrun. K.O.
-            log_chn->pipe_command = cmd;
+            log_chn->pipe_command = msprintf(str.c_str(), run_number);
          }
+      } else {
       }
+      /* add a space */
+      if (log_chn->pipe_command.back() != ' ')
+         log_chn->pipe_command += " ";
       /* add generated filename to pipe command */      
       log_chn->pipe_command += path;
+      //printf("pipe command [%s]\n", log_chn->pipe_command.c_str());
    }
    
    return CM_SUCCESS;
@@ -6179,15 +6208,6 @@ int main(int argc, char *argv[])
    /* turn off watchdog if in debug mode */
    if (debug)
       cm_set_watchdog_params(TRUE, 0);
-   else {
-      DWORD timeout = LOGGER_DEFAULT_TIMEOUT;
-      int size = sizeof(timeout);
-      status = db_get_value(hDB, 0, "/Logger/Watchdog timeout", &timeout, &size, TID_UINT32, TRUE);
-      assert(status == DB_SUCCESS);
-
-      /* set default watchdog timeout */
-      cm_set_watchdog_params(TRUE, timeout);
-   }
 
    /* turn on save mode */
    if (save_mode) {
@@ -6275,7 +6295,7 @@ int main(int argc, char *argv[])
    start_image_history();
 
    do {
-      msg = cm_yield(1000);
+      msg = cm_yield(100);
 
       /* maybe update channel disk levels */
       maybe_check_disk_level();
@@ -6315,8 +6335,8 @@ int main(int argc, char *argv[])
          status = stop_the_run(1);
       }
 
-      /* check keyboard once every second */
-      if (ss_millitime() - last_time_kb > 1000) {
+      /* check keyboard once every 100 ms */
+      if (ss_millitime() - last_time_kb > 100) {
          last_time_kb = ss_millitime();
 
          ch = 0;
@@ -6339,7 +6359,12 @@ int main(int argc, char *argv[])
    close_history();
 
    /* stop image history threads */
-   stop_image_history();
+   if (get_number_image_history_threads() > 0) {
+      printf("Stopping image history threads...");
+      fflush(stdout);
+      stop_image_history();
+      printf("ok\n");
+   }
 
    cm_disconnect_experiment();
 

@@ -1,0 +1,7 @@
+COMMENT "sleep test"
+
+RUNDESCRIPTION "sleep test"
+
+LOOP 2
+  WAIT seconds, 3
+ENDLOOP

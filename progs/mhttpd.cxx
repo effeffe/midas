@@ -1002,11 +1002,20 @@ std::vector<std::string> get_resource_paths()
    // add  "/Logger/History/IMAGE/History dir"
    paths.push_back(cm_get_history_path("IMAGE"));
 
-   paths.push_back(".");
-   paths.push_back("resources");
+   char* s = getcwd(NULL, 0);
+   assert(s);
+   std::string cwd = s;
+   free(s);
+   if (!cwd.empty()) {
+      paths.push_back(cwd + "/");
+      paths.push_back(cwd + "/resources/");
+   }
    paths.push_back(cm_get_path());
-   paths.push_back(cm_get_path() + "resources");
-   paths.push_back("$MIDASSYS/resources");
+   paths.push_back(cm_get_path() + "resources/");
+   char *m = getenv("MIDASSYS");
+   if (m) {
+      paths.push_back(std::string(m) + "/resources/");
+   }
 
    return paths;
 }
@@ -1668,7 +1677,7 @@ void show_help_page(Return* r, const char* dec_path)
          r->rsprintf("        <tr>\n");
          r->rsprintf("          <td style=\"text-align:right;\">System logfile:</td>\n");
          std::string s;
-         cm_msg_get_logfile("midas", 0, &s, NULL);
+         cm_msg_get_logfile("midas", 0, &s, NULL, NULL);
          r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", s.c_str());
          r->rsprintf("        </tr>\n");
       } else {
@@ -1679,7 +1688,7 @@ void show_help_page(Return* r, const char* dec_path)
             if (i>0)
                r->rsputs("<br />\n");
             std::string s;
-            cm_msg_get_logfile(list[i].c_str(), 0, &s, NULL);
+            cm_msg_get_logfile(list[i].c_str(), 0, &s, NULL, NULL);
             r->rsputs(s.c_str());
          }
          r->rsprintf("\n          </td>\n");
@@ -1986,6 +1995,13 @@ void init_mhttpd_odb()
    check_obsolete_odb(hDB, "/Experiment/http redirect to https");
    check_obsolete_odb(hDB, "/Experiment/Security/mhttpd hosts");
 #endif
+
+   status = db_find_key(hDB, 0, "/Logger/Message file", &hKey);
+   if (status == DB_SUCCESS) {
+      cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Logger/Message file\" is obsolete, please delete it and use \"/Logger/Message dir\" and \"/Logger/message file date format\" instead.");
+   }
+
+   check_obsolete_odb(hDB, "/Logger/Watchdog timeout");
 }
 
 /*------------------------------------------------------------------*/

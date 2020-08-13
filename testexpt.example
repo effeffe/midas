@@ -104,18 +104,15 @@ Event 0, "Run transitions", size 80, 2 tags.
 Event 2, "Periodic", size 40, 1 tags.
   Tag 0: "PRDC"[16], type "FLOAT" (9), type size 4, offset 0+64
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh \"sample frontend\""
-
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh logger"
-
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh mhttpd"
-
 cut -b25- < testexpt/midas.log | sed 's/checksum: 0x.*, .* bytes/checksum: (omitted)/'
 [system.cxx:1003:ss_shm_delete,ERROR] shm_unlink(/testexpt_ODB_SHM) errno 2 (No such file or directory)
-[ODBInit,INFO] Program ODBInit on host localhost started
-[mhttpd,INFO] Program mhttpd on host localhost started
+[ODBInit,LOG] Program ODBInit on host localhost started
+[mhttpd,LOG] Program mhttpd on host localhost started
 [mhttpd,INFO] ODB subtree /Runinfo corrected successfully
-[Sample Frontend,INFO] Program Sample Frontend on host localhost started
-[Logger,INFO] Program Logger on host localhost started
+[Sample Frontend,LOG] Program Sample Frontend on host localhost started
+[Logger,LOG] Program Logger on host localhost started
 [Logger,INFO] Equipment "Periodic" history is enabled, but there are no Variables in ODB
 [Logger,INFO] Equipment "Periodic" history is enabled, but there are no Variables in ODB
 [mtransition,INFO] Run #1 started

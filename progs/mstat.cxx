@@ -299,7 +299,7 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       size = sizeof(datadir);
       db_get_value(hDB, 0, "/logger/data dir", datadir, &size, TID_STRING, TRUE);
       std::string mesfile;
-      cm_msg_get_logfile(NULL, 0, &mesfile, NULL);
+      cm_msg_get_logfile(NULL, 0, &mesfile, NULL, NULL);
       size = sizeof(wd);
       db_get_value(hDB, 0, "/logger/write data", &wd, &size, TID_BOOL, TRUE);
       sprintf(&ststr[j][0], "Logger Data dir: %s", datadir);

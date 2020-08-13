@@ -41,6 +41,9 @@ std::string history_dir() {
             dir = l["Data dir"];
       }
 
+      if (dir.empty())
+         dir = cm_get_path();
+
       if (dir.back() != '/')
          dir += "/";
    }
@@ -82,7 +85,10 @@ void image_thread(std::string name) {
    midas::odb o("/History/Images/"+name);
 
    do {
-      std::this_thread::sleep_for(std::chrono::seconds(1));
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+      if (stop_all_threads)
+         break;
 
       // check for old files
       if (ss_time() > last_check_delete + 60 && o["Storage hours"] > 0) {
@@ -90,28 +96,30 @@ void image_thread(std::string name) {
          std::string path = history_dir();
          path += name;
 
-         char *flist;
-         int n = ss_file_find(path.c_str(), "??????_??????.*", &flist);
-         for (int i=0 ; i<n ; i++) {
-            char filename[MAX_STRING_LENGTH];
-            strncpy(filename, flist+i*MAX_STRING_LENGTH, MAX_STRING_LENGTH);
+         STRING_LIST flist;
+         //printf("scan [%s]\n", path.c_str());
+         ss_file_find(path.c_str(), "??????_??????.*", &flist);
+
+         for (unsigned i=0 ; i<flist.size() ; i++) {
+            std::string filename = flist[i];
             struct tm ti{};
-            sscanf(filename, "%2d%2d%2d_%2d%2d%2d", &ti.tm_year, &ti.tm_mon,
+            sscanf(filename.c_str(), "%2d%2d%2d_%2d%2d%2d", &ti.tm_year, &ti.tm_mon,
                    &ti.tm_mday, &ti.tm_hour, &ti.tm_min, &ti.tm_sec);
             ti.tm_year += 100;
             ti.tm_mon -= 1;
             ti.tm_isdst = -1;
             time_t ft = mktime(&ti);
-            if ((ss_time() - ft)/3600.0 >= o["Storage hours"]) {
-               std::cout << "Delete file " << flist+i*MAX_STRING_LENGTH << " which is is " <<
-                  (ss_time()-ft)/3600.0 << " hours old." << std::endl;
-               int status = remove((path+"/"+filename).c_str());
-               if (status)
-                  cm_msg(MERROR, "image_thread", "Cannot remove file %s, status = %d", flist+i*MAX_STRING_LENGTH, status);
+            double age = (ss_time() - ft)/3600.0;
+            //printf("index %d, file [%s] age %f vs %f\n", i, flist[i].c_str(), age, (double)o["Storage hours"]);
+            if (age >= o["Storage hours"]) {
+               //cm_msg(MINFO, "image_thread", "Delete file \"%s\" which is %f hours old", flist[i].c_str(), age);
+               std::string pathname = (path+"/"+filename);
+               int error = remove(pathname.c_str());
+               if (error)
+                  cm_msg(MERROR, "image_thread", "Cannot remove file \"%s\", remove() errno %d (%s)", pathname.c_str(), errno, strerror(errno));
             }
 
          }
-         free(flist);
 
          last_check_delete = ss_time();
       }
@@ -126,7 +134,7 @@ void image_thread(std::string name) {
          std::string dotname = filename;
          int status = mkpath(filename, 0755);
          if (status)
-            cm_msg(MERROR, "image_thread", "Cannot create directory \"%s\": %s", filename.c_str(), strerror(errno));
+            cm_msg(MERROR, "image_thread", "Cannot create directory \"%s\": mkpath() errno %d (%s)", filename.c_str(), errno, strerror(errno));
 
          time_t now = time(nullptr);
          tm *ltm = localtime(&now);
@@ -196,6 +204,10 @@ void stop_image_history() {
    curl_global_cleanup();
 }
 
+int get_number_image_history_threads() {
+   return _image_threads.size();
+}
+
 void start_image_history() {
    curl_global_init(CURL_GLOBAL_DEFAULT);
 
@@ -217,7 +229,7 @@ void start_image_history() {
               {"Extension",          ".jpg"},
               {"Period",             60},
               {"Last fetch",         0},
-              {"Storage hours",      72},
+              {"Storage hours",      0},
               {"Error interval (s)", 60},
               {"Last error",         0},
               {"Timescale",          "8h"}
@@ -225,7 +237,8 @@ void start_image_history() {
       c.connect(ic.get_odb().get_full_path());
 
       std::string name = ic.get_odb().get_name();
-      _image_threads.push_back(std::thread(image_thread, name));
+      if (name != "Demo" || c["Enabled"] == true)
+         _image_threads.push_back(std::thread(image_thread, name));
    }
 }
 
@@ -234,6 +247,7 @@ void start_image_history() {
 // no history image logging wihtout CURL library
 void start_image_history() {}
 void stop_image_history() {}
+int get_number_image_history_threads() { return 0; }
 
 #endif
 
@@ -253,9 +267,6 @@ int hs_image_retrieve(std::string image_name, time_t start_time, time_t stop_tim
 {
    // auto start = usStart();
    std::string path = history_dir() + image_name;
-
-   char *flist;
-   std::vector<std::string> vfn;
 
    std::string mask;
    if (start_time == stop_time) {
@@ -302,23 +313,20 @@ int hs_image_retrieve(std::string image_name, time_t start_time, time_t stop_tim
       }
    }
 
-   int n = ss_file_find(path.c_str(), mask.c_str(), &flist);
+   STRING_LIST vfn;
 
-   if (n == 0)
-      n = ss_file_find(path.c_str(), "??????_??????.*", &flist);
+   ss_file_find(path.c_str(), mask.c_str(), &vfn);
 
-   for (int i=0 ; i<n ; i++) {
-      char filename[MAX_STRING_LENGTH];
-      strncpy(filename, flist + i * MAX_STRING_LENGTH, MAX_STRING_LENGTH);
-      vfn.push_back(filename);
-   }
+   if (vfn.size() == 0)
+      ss_file_find(path.c_str(), "??????_??????.*", &vfn);
+
    std::sort(vfn.begin(), vfn.end());
 
    time_t minDiff = 1E7;
    time_t minTime{};
    int minIndex{};
 
-   for (int i=0 ; i<n ; i++) {
+   for (unsigned i=0 ; i<vfn.size() ; i++) {
       struct tm ti{};
       sscanf(vfn[i].c_str(), "%2d%2d%2d_%2d%2d%2d", &ti.tm_year, &ti.tm_mon,
              &ti.tm_mday, &ti.tm_hour, &ti.tm_min, &ti.tm_sec);
@@ -342,12 +350,10 @@ int hs_image_retrieve(std::string image_name, time_t start_time, time_t stop_tim
    }
 
    // start == stop means return single image closest to them
-   if (start_time == stop_time && n > 0) {
+   if (start_time == stop_time && vfn.size() > 0) {
       vtime.push_back(minTime);
       vfilename.push_back(vfn[minIndex]);
    }
-
-   free(flist);
 
    //std::cout << "mask = " << mask << ", n = " << n << ", t = " << usSince(start)/1000.0 << " ms" << std::endl;
 

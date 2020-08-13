@@ -30,7 +30,19 @@
       <button class="mbutton" id='seq_resume' onclick='seq_resume()'>Resume</button>
     </td>
   </tr>
-  <tr>
+  <tr id="msg_noscriptloaded">
+    <td>
+      <table class="mtable" width="100%">
+       <tr>
+         <th class="mtableheader">No script loaded</th>
+       </tr>
+       <tr>
+         <td align="center"><button class="mbutton" onclick='new_script()'>New Script</button></td>
+       </tr>
+      </table>
+    </td>
+  </tr>
+  <tr id="msg_progress">
     <td>
       <table class="mtable" width="100%">
        <tr>
@@ -135,7 +147,7 @@
     </td>
   </tr>
 
-  <tr>
+  <tr id="msg_sequence">
     <td>
       <table class="mtable" width="100%">
         <tr>
@@ -329,6 +341,14 @@ function edit_script()
    // DOES NOT RETURN
 }
 
+function new_script()
+{
+   //window.location.href='?cmd=Edit+Script';
+   //window.location.pathname = "edit_script.html";
+   mhttpd_goto_page("edit_script");
+   // DOES NOT RETURN
+}
+
 var slast_line = 0;
 
 function seq_refresh(seq)
@@ -358,8 +378,23 @@ function seq_refresh(seq)
 
    set_if_changed("msg_filename", seq.filename);
 
-   if (seq.running) {
-      //mhttpd_unhide("msg_progress");
+   if (seq.filename.length < 1) {
+      mhttpd_unhide("msg_noscriptloaded");
+      mhttpd_hide("msg_progress");
+      mhttpd_hide("msg_sequence");
+      mhttpd_hide("msg_messages");
+      mhttpd_unhide("seq_load_script");
+      mhttpd_hide("seq_edit_script");
+      mhttpd_hide("seq_start_script");
+      mhttpd_hide("seq_pause");
+      mhttpd_hide("seq_resume");
+      mhttpd_hide("seq_stop_immediately");
+      mhttpd_hide("seq_stop_after_current_run");
+      mhttpd_hide("seq_cancel_stop_after_current_run");
+   } else if (seq.running) {
+      mhttpd_hide("msg_noscriptloaded");
+      mhttpd_unhide("msg_progress");
+      mhttpd_unhide("msg_sequence");
       mhttpd_unhide("msg_messages");
       mhttpd_hide("seq_load_script");
       mhttpd_hide("seq_edit_script");
@@ -370,7 +405,9 @@ function seq_refresh(seq)
       mhttpd_unhide("seq_stop_after_current_run");
       mhttpd_unhide("seq_cancel_stop_after_current_run");
    } else {
-      //mhttpd_hide("msg_progress");
+      mhttpd_hide("msg_noscriptloaded");
+      mhttpd_hide("msg_progress");
+      mhttpd_unhide("msg_sequence");
       mhttpd_hide("msg_messages");
       mhttpd_unhide("seq_load_script");
       mhttpd_unhide("seq_edit_script");
@@ -609,9 +646,25 @@ function show_messages(messages)
 
 <script>
    var update_timer_id;
+   var update_stop = false;
 
    function callback(rpc) {
       //document.getElementById('updateStatus').innerHTML = "RWP_";
+
+      if (rpc[0].result.status[0] != 1) {
+         //console.log("ODB read /Sequencer status " + rpc[0].result.status[0] + ", already here: " + update_stop);
+         if (update_stop) {
+            // already here!
+            return;
+         }
+         update_stop = true;
+         dlgMessage("Message", "Please start the sequencer", false, false, function() {
+            //console.log("message dismiss, call update_periodic!");
+            update_stop = false;
+            update_periodic();
+         });
+         return;
+      }
 
       var seq_state = rpc[0].result.data[0];
       var seq_script = rpc[0].result.data[1];
@@ -648,6 +701,7 @@ function show_messages(messages)
 
    function update() {
       //document.getElementById('updateStatus').innerHTML = "R___";
+      //console.log("update!");
       var paths = ["/Sequencer/State", "/Sequencer/Script"];
       var req = [
          mjsonrpc_make_request("db_get_values", {"paths":paths}),
@@ -664,10 +718,17 @@ function show_messages(messages)
    }
 
    function update_periodic() {
-      clearTimeout(update_timer_id);
+      //console.log("update periodic!");
+      if (update_timer_id) {
+         clearTimeout(update_timer_id);
+         update_timer_id = undefined;
+      }
       var update_period = 1000;
       update();
-      update_timer_id = setTimeout('update_periodic()', update_period);
+      if (!update_stop) {
+         //console.log("timer update periodic!");
+         update_timer_id = setTimeout('update_periodic()', update_period);
+      }
    }
 
    update_periodic();
