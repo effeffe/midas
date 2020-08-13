@@ -984,8 +984,6 @@ static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
 
 static void seq_watch_command(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
 {
-   printf("seq_watch_command!\n");
-
    bool start_script = false;
    bool stop_immediately = false;
    bool load_new_file = false;
@@ -997,7 +995,6 @@ static void seq_watch_command(HNDLE hDB, HNDLE hKeyChanged, int index, void* inf
    if (load_new_file) {
       std::string filename;
       gOdb->RS("Sequencer/Command/Load filename", &filename);
-      printf("Command: load new file: \"%s\"\n", filename.c_str());
       gOdb->WB("Sequencer/Command/Load new file", false);
 
       if (filename.find("..") != std::string::npos) {
@@ -1026,8 +1023,6 @@ static void seq_watch_command(HNDLE hDB, HNDLE hKeyChanged, int index, void* inf
    }
 
    if (start_script) {
-      printf("Command: start script!\n");
-
       gOdb->WB("Sequencer/Command/Start script", false);
 
       bool seq_running = false;
@@ -1041,8 +1036,6 @@ static void seq_watch_command(HNDLE hDB, HNDLE hKeyChanged, int index, void* inf
    }
 
    if (stop_immediately) {
-      printf("Command: stop immediately!\n");
-
       gOdb->WB("Sequencer/Command/Stop immediately", false);
 
       seq_stop();

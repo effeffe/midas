@@ -268,8 +268,9 @@ function cancel() {
                add_table_entry(table, k, v, c, true, t, s, false, "/Experiment/edit on sequence");
             }
          }
+      }
          
-         if (param_values) {
+      if (param_values) {
             for (var k in param_values) {
                //console.log("param_values: " + k);
                if (k.indexOf("/") > 0)
@@ -306,7 +307,6 @@ function cancel() {
                
                add_param_entry(table, k, v, c, type_bool, o, "/Sequencer/Variables");
             }
-         }
       }
 
       mhttpd_enable_button(document.getElementById('start_button'));

@@ -364,8 +364,8 @@ RPC options */
 //#define RPC_OSERVER_TYPE   5
 //#define RPC_OSERVER_NAME   6
 #define RPC_CONVERT_FLAGS  7
-#define RPC_ODB_HANDLE     8
-#define RPC_CLIENT_HANDLE  9
+//#define RPC_ODB_HANDLE     8
+//#define RPC_CLIENT_HANDLE  9
 #define RPC_SEND_SOCK      10
 #define RPC_WATCHDOG_TIMEOUT 11
 #define RPC_NODELAY        12
@@ -1740,7 +1740,7 @@ Data conversion flags */
    INT EXPRT cm_msg_retrieve(INT n_message, char *message, INT buf_size);
    INT EXPRT cm_msg_retrieve2(const char *facility, time_t t, int min_messages, char** messages, int* num_messages);
    INT EXPRT cm_msg_facilities(STRING_LIST *list);
-   INT EXPRT cm_msg_get_logfile(const char *facility, time_t t, std::string* filename, std::string* linkname);
+   void EXPRT cm_msg_get_logfile(const char *facility, time_t t, std::string* filename, std::string* linkname, std::string* linktarget);
    INT EXPRT cm_msg_open_buffer(void);
    INT EXPRT cm_msg_close_buffer(void);
    INT EXPRT cm_msg_early_init(void);
@@ -2012,14 +2012,16 @@ Data conversion flags */
    double EXPRT ss_file_size(const char *path);
    INT EXPRT ss_dir_exist(const char *path);
    INT EXPRT ss_file_exist(const char *path);
+   INT EXPRT ss_file_link_exist(const char *path);
    INT EXPRT ss_file_remove(const char *path);
    INT EXPRT ss_file_find(const char *path, const char *pattern, char **plist);
    INT EXPRT ss_dir_find(const char *path, const char *pattern, char **plist);
    INT EXPRT ss_file_find(const char *path, const char *pattern, STRING_LIST*);
    INT EXPRT ss_dir_find(const char *path, const char *pattern, STRING_LIST*);
    double EXPRT ss_disk_size(const char *path);
+   int EXPRT ss_file_copy(const char *src, const char *dst, bool append = false);
 
-   /** @} */
+/** @} */
 
    /*---- ELog functions ----*/
    INT EXPRT el_retrieve(char *tag, char *date, int *run, char *author,

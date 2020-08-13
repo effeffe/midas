@@ -287,7 +287,6 @@ void compose_status(HNDLE hDB, HNDLE hKey)
    if ((cm_exist("logger", FALSE) == CM_SUCCESS)
        || (cm_exist("fal", FALSE) == CM_SUCCESS)) {
       char datadir[256];
-      char mesfil[256];
       BOOL wd, lactive;
       char lpath[256];
       char ltype[64];
@@ -299,12 +298,12 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       ststr[j++][0] = '\0';
       size = sizeof(datadir);
       db_get_value(hDB, 0, "/logger/data dir", datadir, &size, TID_STRING, TRUE);
-      size = sizeof(mesfil);
-      db_get_value(hDB, 0, "/logger/message file", mesfil, &size, TID_STRING, TRUE);
+      std::string mesfile;
+      cm_msg_get_logfile(NULL, 0, &mesfile, NULL, NULL);
       size = sizeof(wd);
       db_get_value(hDB, 0, "/logger/write data", &wd, &size, TID_BOOL, TRUE);
       sprintf(&ststr[j][0], "Logger Data dir: %s", datadir);
-      sprintf(&ststr[j++][45], "Message File: %s", mesfil);
+      sprintf(&ststr[j++][45], "Message File: %s", mesfile.c_str());
 
       /* check if dir exists */
       if (db_find_key(hDB, 0, "/logger/channels", &hKey) == DB_SUCCESS) {

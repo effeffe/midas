@@ -1,0 +1,23 @@
+COMMENT "23 lines test"
+
+RUNDESCRIPTION "23 lines test"
+
+LOOP 5
+  TRANSITION start
+  WAIT seconds, 3
+  WAIT seconds, 3
+  WAIT seconds, 3
+  WAIT seconds, 3
+  WAIT seconds, 3
+  WAIT seconds, 3
+  WAIT seconds, 3
+  WAIT seconds, 3
+  WAIT seconds, 3
+  WAIT seconds, 3
+  WAIT seconds, 3
+  WAIT seconds, 3
+  WAIT seconds, 3
+  WAIT seconds, 3
+  WAIT seconds, 3
+  TRANSITION stop
+ENDLOOP

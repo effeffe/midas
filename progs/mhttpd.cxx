@@ -1002,11 +1002,20 @@ std::vector<std::string> get_resource_paths()
    // add  "/Logger/History/IMAGE/History dir"
    paths.push_back(cm_get_history_path("IMAGE"));
 
-   paths.push_back(".");
-   paths.push_back("resources");
-   paths.push_back("$MIDAS_DIR");
-   paths.push_back("$MIDAS_DIR/resources");
-   paths.push_back("$MIDASSYS/resources");
+   char* s = getcwd(NULL, 0);
+   assert(s);
+   std::string cwd = s;
+   free(s);
+   if (!cwd.empty()) {
+      paths.push_back(cwd + "/");
+      paths.push_back(cwd + "/resources/");
+   }
+   paths.push_back(cm_get_path());
+   paths.push_back(cm_get_path() + "resources/");
+   char *m = getenv("MIDASSYS");
+   if (m) {
+      paths.push_back(std::string(m) + "/resources/");
+   }
 
    return paths;
 }
@@ -1668,7 +1677,7 @@ void show_help_page(Return* r, const char* dec_path)
          r->rsprintf("        <tr>\n");
          r->rsprintf("          <td style=\"text-align:right;\">System logfile:</td>\n");
          std::string s;
-         cm_msg_get_logfile("midas", 0, &s, NULL);
+         cm_msg_get_logfile("midas", 0, &s, NULL, NULL);
          r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", s.c_str());
          r->rsprintf("        </tr>\n");
       } else {
@@ -1679,7 +1688,7 @@ void show_help_page(Return* r, const char* dec_path)
             if (i>0)
                r->rsputs("<br />\n");
             std::string s;
-            cm_msg_get_logfile(list[i].c_str(), 0, &s, NULL);
+            cm_msg_get_logfile(list[i].c_str(), 0, &s, NULL, NULL);
             r->rsputs(s.c_str());
          }
          r->rsprintf("\n          </td>\n");
@@ -1986,6 +1995,13 @@ void init_mhttpd_odb()
    check_obsolete_odb(hDB, "/Experiment/http redirect to https");
    check_obsolete_odb(hDB, "/Experiment/Security/mhttpd hosts");
 #endif
+
+   status = db_find_key(hDB, 0, "/Logger/Message file", &hKey);
+   if (status == DB_SUCCESS) {
+      cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Logger/Message file\" is obsolete, please delete it and use \"/Logger/Message dir\" and \"/Logger/message file date format\" instead.");
+   }
+
+   check_obsolete_odb(hDB, "/Logger/Watchdog timeout");
 }
 
 /*------------------------------------------------------------------*/
@@ -17874,6 +17890,7 @@ struct MongooseWorkObject
 {
    uint32_t seqno = 0;
    void* nc = NULL;
+   int socket = -1;
    bool http_get  = false;
    bool http_post = false;
    bool mjsonrpc  = false;
@@ -17968,6 +17985,7 @@ static void mongoose_send(void* nc, MongooseWorkObject* w, const char* p1, size_
 static int queue_decode_get(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
 {
    MongooseWorkObject* w = new MongooseWorkObject();
+   w->socket = nc->sock;
    w->seqno = s_mwo_seqno++;
    w->http_get = true;
    decode_cookies(&w->cookies, msg);
@@ -17983,6 +18001,7 @@ static int queue_decode_get(struct mg_connection *nc, const http_message* msg, c
 static int queue_decode_post(struct mg_connection *nc, const http_message* msg, const char* boundary, const char* uri, const char* query_string, RequestTrace* t)
 {
    MongooseWorkObject* w = new MongooseWorkObject();
+   w->socket = nc->sock;
    w->seqno = s_mwo_seqno++;
    w->http_post = true;
    decode_cookies(&w->cookies, msg);
@@ -18000,6 +18019,7 @@ static int queue_decode_post(struct mg_connection *nc, const http_message* msg, 
 static int queue_mjsonrpc(struct mg_connection *nc, const std::string& origin, const std::string& post_body, RequestTrace* t)
 {
    MongooseWorkObject* w = new MongooseWorkObject();
+   w->socket = nc->sock;
    w->seqno = s_mwo_seqno++;
    w->mjsonrpc = true;
    w->origin = origin;
@@ -18795,6 +18815,16 @@ static void on_work_complete(struct mg_connection *nc, int ev, void *ev_data)
       return;
 
    //printf("nc: %p: w: %d, on_work_complete: seqno: %d, send_501: %d, s1 %d, s2: %d, close_flag: %d\n", res->nc, res->w->seqno, res->seqno, res->send_501, (int)res->s1, (int)res->s2, res->close_flag);
+
+   if (!res->w) {
+      cm_msg(MERROR, "on_work_complete", "no work object!");
+   } else {
+      if (res->w->socket != nc->sock) {
+         cm_msg(MERROR, "on_work_complete", "Should not send response to request from socket %d to socket %d, abort!", res->w->socket, nc->sock);
+         cm_msg_flush_buffer();
+         abort();
+      }
+   }
 
    if (res->send_501) {
       std::string response = "501 Not Implemented";

@@ -338,14 +338,6 @@ void dbg_free(void *adr, char *file, int line) {
    fclose(f);
 }
 
-static void xwrite(const char *filename, int fd, const void *data, int size) {
-   int wr = write(fd, data, size);
-   if (wr != size) {
-      printf("xwrite: cannot write to \'%s\', write(%d) returned %d, errno %d (%s)\n", filename, size, wr, errno,
-             strerror(errno));
-   }
-}
-
 static std::vector<std::string> split(const char* sep, const std::string& s)
 {
    unsigned sep_len = strlen(sep);
@@ -492,7 +484,7 @@ int cm_msg_close_buffer(void) {
 INT EXPRT cm_msg_facilities(STRING_LIST *list) {
    std::string path;
 
-   cm_msg_get_logfile("midas", 0, &path, NULL);
+   cm_msg_get_logfile("midas", 0, &path, NULL, NULL);
 
    /* extract directory name from full path name of midas.log */
    size_t pos = path.rfind(DIR_SEPARATOR);
@@ -524,148 +516,85 @@ INT EXPRT cm_msg_facilities(STRING_LIST *list) {
 
 /********************************************************************/
 
-int
-cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::string* linkname) {
+void cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::string* linkname, std::string* linktarget) {
    HNDLE hDB;
-   std::string dir;
-   char date_ext[256];
-   std::string facility;
    int status;
 
    status = cm_get_experiment_database(&hDB, NULL);
 
-   if (status != CM_SUCCESS)
-      return -1;
+   // check for call to cm_msg() before MIDAS is fully initialized
+   // or after MIDAS is partially shutdown.
+   if (status != CM_SUCCESS) {
+      if (filename)
+         *filename = std::string(fac) + ".log";
+      if (linkname)
+         *linkname = "";
+      if (linktarget)
+         *linktarget = "";
+      return;
+   }
 
    if (filename)
       *filename = "";
-
    if (linkname)
       *linkname = "";
+   if (linktarget)
+      *linktarget = "";
 
-   int flag = 0;
-
+   std::string facility;
    if (fac && fac[0])
       facility = fac;
    else
       facility = "midas";
 
-   std::string name = "midas.log";
-   status = db_get_value_string(hDB, 0, "/Logger/Message file", 0, &name, TRUE);
-
-   if (status != DB_SUCCESS)
-      return -1;
-
-   /* extension must be .log and will be added later */
-   size_t pos = name.rfind('.');
-   if (pos != std::string::npos)
-      name.resize(pos);
-
-   pos = name.find('%');
-   if (pos != std::string::npos) {
+   std::string message_format;
+   db_get_value_string(hDB, 0, "/Logger/Message file date format", 0, &message_format, TRUE);
+   if (message_format.find('%') != std::string::npos) {
       /* replace stings such as %y%m%d with current date */
       struct tm *tms;
 
-      flag = 1;
       tzset();
       if (t == 0)
          time(&t);
       tms = localtime(&t);
 
-      date_ext[0] = '_';
-      strftime(date_ext + 1, sizeof(date_ext) - 1, name.c_str() + pos, tms);
-   } else {
-      date_ext[0] = 0;
+      char de[256];
+      de[0] = '_';
+      strftime(de + 1, sizeof(de)-1, strchr(message_format.c_str(), '%'), tms);
+      message_format = de;
    }
 
-   pos = name.rfind(DIR_SEPARATOR);
-   if (pos == std::string::npos) {
-      status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &dir, FALSE);
-      if (status == DB_SUCCESS) {
-      } else {
-         dir = cm_get_path();
-      }
-   } else {
-      dir = name.substr(0, pos);
-   }
-
-   if (dir.empty()) {
-      dir = cm_get_path();
-      if (dir.empty()) {
-         char *s = getcwd(NULL, 0);
-         if (s) {
-            dir = s;
-            free(s);
+   std::string message_dir;
+   db_get_value_string(hDB, 0, "/Logger/Message dir", 0, &message_dir, TRUE);
+   if (message_dir.empty()) {
+      db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &message_dir, FALSE);
+      if (message_dir.empty()) {
+         message_dir = cm_get_path();
+         if (message_dir.empty()) {
+            char *s = getcwd(NULL, 0);
+            if (s) {
+               message_dir = s;
+               free(s);
+            }
          }
       }
    }
 
-   if (!dir.empty()) {
-      if (dir.back() != DIR_SEPARATOR)
-         dir += DIR_SEPARATOR_STR;
-   }
+   // prepend experiment directory
+   if (message_dir[0] != DIR_SEPARATOR)
+      message_dir = cm_get_path() + message_dir;
 
-   if (filename) {
-      *filename = "";
-      *filename += dir;
-      *filename += facility;
-      *filename += date_ext;
-      *filename += ".log";
-   }
-   
-   if (date_ext[0] && linkname) {
-      *linkname = "";
-      *linkname += dir;
-      *linkname += facility;
-      *linkname += ".log";
-   }
-
-   return flag;
-}
-
-int
-cm_msg_get_logfile1(const char *fac, time_t t, std::string* filename, std::string* linkname) {
-   static int first_time = 1;
-   static int prev_flag = 0;
-   static std::string prev_filename;
-   static std::string prev_linkname;
-
-   // NB: this code is not thread-safe wrt updating static std::string objects!
-
-   if (first_time) {
-      first_time = 0;
-      if (fac && fac[0]) {
-         prev_filename = fac;
-      } else {
-         prev_filename = "midas";
-      }
-      prev_filename += ".log";
-      prev_linkname = "";
-   }
+   if (message_dir.back() != DIR_SEPARATOR)
+      message_dir.push_back(DIR_SEPARATOR);
 
    if (filename)
-      *filename = "";
-   if (linkname)
-      *linkname = "";
-
-   int flag = cm_msg_get_logfile(fac, t, filename, linkname);
-
-   //printf("cm_msg_get_logfile1: flag %d prev %d, filename [%s] prev [%s], linkname [%s] prev [%s]\n", flag, prev_flag, filename, prev_filename, linkname, prev_linkname);
-
-   if (flag >= 0) {
-      prev_flag = flag;
-      if (filename)
-         prev_filename = *filename;
+      *filename = message_dir + facility + message_format + ".log";
+   if (!message_format.empty()) {
       if (linkname)
-         prev_linkname = *linkname;
-      return flag;
+         *linkname = message_dir + facility  + ".log";
+      if (linktarget)
+         *linktarget = facility  + message_format + ".log";
    }
-
-   if (filename)
-      *filename = prev_filename;
-   if (linkname)
-      *linkname = prev_linkname;
-   return prev_flag;
 }
 
 /********************************************************************/
@@ -730,16 +659,28 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
    }
 
    if (message_type != MT_DEBUG) {
-      std::string filename, linkname;
+      std::string filename, linkname, linktarget;
 
-      int flag = cm_msg_get_logfile1(facility, 0, &filename, &linkname);
+      cm_msg_get_logfile(facility, 0, &filename, &linkname, &linktarget);
 
-      if (flag < 0) {
-         fprintf(stderr,
-                 "cm_msg_log: Message \"%s\" not written to midas.log because cm_msg_get_logfile1() failed with flag %d\n",
-                 message, flag);
-         return CM_SUCCESS;
+#ifdef OS_LINUX
+      if (!linkname.empty()) {
+         //printf("cm_msg_log: filename [%s] linkname [%s] linktarget [%s]\n", filename.c_str(), linkname.c_str(), linktarget.c_str());
+         // If filename does not exist, user just switched from non-date format to date format.
+         // In that case we must copy linkname to filename, otherwise messages might get lost.
+         if (ss_file_exist(linkname.c_str()) && !ss_file_link_exist(linkname.c_str())) {
+            ss_file_copy(linkname.c_str(), filename.c_str(), true);
+         }
+
+         unlink(linkname.c_str());
+         status = symlink(linktarget.c_str(), linkname.c_str());
+         if (status != 0) {
+            fprintf(stderr,
+                    "cm_msg_log: Error: Cannot symlink message log file \'%s' to \'%s\', symlink() errno: %d (%s)\n",
+                    linktarget.c_str(), linkname.c_str(), errno, strerror(errno));
+         }
       }
+#endif
 
       int fh = open(filename.c_str(), O_WRONLY | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
       if (fh < 0) {
@@ -747,29 +688,28 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
                  "cm_msg_log: Message \"%s\" not written to midas.log because open(%s) failed with errno %d (%s)\n",
                  message, filename.c_str(), errno, strerror(errno));
       } else {
-         int semaphore;
-         char str[256];
+         //int semaphore;
 
-         cm_get_experiment_semaphore(NULL, NULL, NULL, &semaphore);
+         //cm_get_experiment_semaphore(NULL, NULL, NULL, &semaphore);
 
-         if (semaphore == -1) {
-            fprintf(stderr,
-                    "cm_msg_log: Message \"%s\" not written to midas.log (%s) because the message semaphore is not initialized yet.\n",
-                    message, filename.c_str());
-            return CM_SUCCESS;
-         }
+         //if (semaphore == -1) {
+         //   fprintf(stderr,
+         //           "cm_msg_log: Message \"%s\" not written to midas.log (%s) because the message semaphore is not initialized yet.\n",
+         //           message, filename.c_str());
+         //   return CM_SUCCESS;
+         //}
 
-         status = ss_semaphore_wait_for(semaphore, 5 * 1000);
-         if (status != SS_SUCCESS) {
-            fprintf(stderr,
-                    "cm_msg_log: Something is wrong with our semaphore, ss_semaphore_wait_for() returned %d, aborting.\n",
-                    status);
-            //abort(); // DOES NOT RETURN
-            // NOT REACHED
-            fprintf(stderr,
-                    "cm_msg_log: Cannot abort - this will lock you out of odb. From this point, MIDAS will not work correctly. Please read the discussion at https://midas.triumf.ca/elog/Midas/945\n");
-            return status;
-         }
+         //status = ss_semaphore_wait_for(semaphore, 5 * 1000);
+         //if (status != SS_SUCCESS) {
+         //   fprintf(stderr,
+         //           "cm_msg_log: Something is wrong with our semaphore, ss_semaphore_wait_for() returned %d, aborting.\n",
+         //           status);
+         //   //abort(); // DOES NOT RETURN
+         //   // NOT REACHED
+         //   fprintf(stderr,
+         //           "cm_msg_log: Cannot abort - this will lock you out of odb. From this point, MIDAS will not work correctly. Please read the discussion at https://midas.triumf.ca/elog/Midas/945\n");
+         //   return status;
+         //}
 
          struct timeval tv;
          struct tm *tms;
@@ -778,29 +718,34 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
          gettimeofday(&tv, NULL);
          tms = localtime(&tv.tv_sec);
 
+         char str[256];
          strftime(str, sizeof(str), "%H:%M:%S", tms);
          sprintf(str + strlen(str), ".%03d ", (int) (tv.tv_usec / 1000));
          strftime(str + strlen(str), sizeof(str), "%G/%m/%d", tms);
 
-         xwrite(filename.c_str(), fh, str, strlen(str));
-         xwrite(filename.c_str(), fh, " ", 1);
-         xwrite(filename.c_str(), fh, message, strlen(message));
-         xwrite(filename.c_str(), fh, "\n", 1);
+         std::string msg;
+         msg += str;
+         msg += " ";
+         msg += message;
+         msg += "\n";
+
+         /* avoid c++ complaint about comparison between
+            unsigned size_t returned by msg.length() and
+            signed ssize_t returned by write() */
+         ssize_t len = msg.length();
+
+         /* atomic write, no need to take a semaphore */
+         ssize_t wr = write(fh, msg.c_str(), len);
+
+         if (wr < 0) {
+            fprintf(stderr, "cm_msg_log: Message \"%s\" not written to \"%s\", write() error, errno %d (%s)\n", message, filename.c_str(), errno, strerror(errno));
+         } else if (wr != len) {
+            fprintf(stderr, "cm_msg_log: Message \"%s\" not written to \"%s\", short write() wrote %d instead of %d bytes\n", message, filename.c_str(), (int)wr, (int)len);
+         }
+
          close(fh);
 
-#ifdef OS_LINUX
-         if (!linkname.empty()) {
-            unlink(linkname.c_str());
-            status = symlink(filename.c_str(), linkname.c_str());
-            if (status != 0) {
-               fprintf(stderr,
-                       "cm_msg_log: Error: Cannot symlink message log file \'%s' to \'%s\', symlink() errno: %d (%s)\n",
-                       filename.c_str(), linkname.c_str(), errno, strerror(errno));
-            }
-         }
-#endif
-
-         status = ss_semaphore_release(semaphore);
+         //status = ss_semaphore_release(semaphore);
       }
    }
 
@@ -847,7 +792,7 @@ static std::string cm_msg_format(INT message_type, const char *filename, INT lin
 
    /* preceed error messages with file and line info */
    if (message_type == MT_ERROR) {
-      message = msprintf("[%s:%d:%s,%s] ", pc, line, routine, type_str.c_str());
+      message += msprintf("[%s:%d:%s,%s] ", pc, line, routine, type_str.c_str());
    } else if (message_type == MT_USER) {
       message = msprintf("[%s,%s] ", routine, type_str.c_str());
    }
@@ -1117,8 +1062,11 @@ INT cm_msg(INT message_type, const char *filename, INT line, const char *routine
    in_routine = TRUE;
 
    /* call user function if set via cm_set_msg_print */
-   if (_message_print != NULL && (message_type & _message_mask_user) != 0)
-      _message_print(message.c_str());
+   if (_message_print != NULL && (message_type & _message_mask_user) != 0) {
+      if (message_type != MT_LOG) { // do not print MLOG messages
+         _message_print(message.c_str());
+      }
+   }
 
    /* return if system mask is not set */
    if ((message_type & _message_mask_system) == 0) {
@@ -1447,18 +1395,13 @@ Retrieve old messages from log file
 */
 INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char **messages, int *num_messages) {
    std::string filename, linkname;
-   INT n, i, flag;
+   INT n, i;
    time_t filedate;
    int length = 0;
    int allocated = 0;
 
    time(&filedate);
-   flag = cm_msg_get_logfile(facility, filedate, &filename, &linkname);
-
-   if (flag < 0) {
-      *num_messages = 0;
-      return CM_SUCCESS;
-   }
+   cm_msg_get_logfile(facility, filedate, &filename, &linkname, NULL);
 
    //printf("facility %s, filename \"%s\" \"%s\"\n", facility, filename, linkname);
 
@@ -1473,13 +1416,22 @@ INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char **messa
    else
       n = 0;
 
+   /* if there is no symlink, then there is no additional log files to read */
+   if (linkname.empty()) {
+      return CM_SUCCESS;
+   }
+
+   //printf("read more messages %d %d!\n", n, n_message);
+
    int missing = 0;
-   while (n < n_message && flag) {
+   while (n < n_message) {
       filedate -= 3600 * 24;         // go one day back
 
-      int xflag = cm_msg_get_logfile(facility, filedate, &filename, NULL);
+      cm_msg_get_logfile(facility, filedate, &filename, NULL, NULL);
 
-      if ((xflag >= 0) && ss_file_exist(filename.c_str())) {
+      //printf("read [%s] for time %d!\n", filename.c_str(), filedate);
+
+      if (ss_file_exist(filename.c_str())) {
          cm_msg_retrieve1(filename.c_str(), t, n_message - n, messages, &length, &allocated, &i);
          n += i;
          missing = 0;
@@ -2216,8 +2168,7 @@ INT cm_set_client_info(HNDLE hDB, HNDLE *hKeyClient, const char *host_name,
       db_create_record(hDB, 0, str, strcomb(program_info_str));
 
       /* save handle for ODB and client */
-      rpc_set_server_option(RPC_ODB_HANDLE, hDB);
-      rpc_set_server_option(RPC_CLIENT_HANDLE, hKey);
+      cm_set_experiment_database(hDB, hKey);
 
       /* save watchdog timeout */
       cm_get_watchdog_params(&call_watchdog, NULL);
@@ -2595,6 +2546,9 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       return status;
    }
 
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after open ODB");
+   //cm_msg_flush_buffer();
+
    int odb_timeout = db_set_lock_timeout(hDB, 0);
    size = sizeof(odb_timeout);
    status = db_get_value(hDB, 0, "/Experiment/ODB timeout", &odb_timeout, &size, TID_INT32, TRUE);
@@ -2681,21 +2635,15 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
       }
    }
 
-   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after open ODB");
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after set client info");
    //cm_msg_flush_buffer();
 
    /* tell the rest of MIDAS that ODB is open for business */
 
    cm_set_experiment_database(hDB, hKeyClient);
 
-   /* save the filename of midas.log */
-   {
-      const char *facility = "midas";
-      std::string filename;
-      std::string linkname;
-      cm_msg_get_logfile1(facility, 0, &filename, &linkname);
-   }
-
+   //cm_msg(MERROR, "cm_connect_experiment", "test cm_msg after set experiment database");
+   //cm_msg_flush_buffer();
 
    /* cm_msg_open_buffer() calls bm_open_buffer() calls ODB function
     * to get event buffer size, etc */
@@ -2715,9 +2663,8 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    if (!rpc_is_remote()) {
       /* experiment path is only set for local connections */
       /* set data dir in ODB */
-      cm_get_path(str, sizeof(str));
-      size = sizeof(str);
-      db_get_value(hDB, 0, "/Logger/Data dir", str, &size, TID_STRING, TRUE);
+      std::string path = cm_get_path();
+      db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &path, TRUE);
    }
 
    /* register server to be able to be called by other clients */
@@ -2744,9 +2691,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    std::string xclient_name = rpc_get_name();
 
    /* startup message is not displayed */
-   _message_print = NULL;
-
-   cm_msg(MINFO, "cm_connect_experiment", "Program %s on host %s started", xclient_name.c_str(), local_host_name);
+   cm_msg(MLOG, "cm_connect_experiment", "Program %s on host %s started", xclient_name.c_str(), local_host_name);
 
    /* enable system and user messages to stdout as default */
    cm_set_msg_print(MT_ALL, MT_ALL, puts);
@@ -2869,7 +2814,7 @@ INT cm_list_experiments_remote(const char *host_name, STRING_LIST *exp_names) {
 #endif
 
    if (status != 0) {
-      cm_msg(MERROR, "Cannot connect to \"%s\" port %d, errno %d (%s)", hname, port, errno, strerror(errno));
+      cm_msg(MERROR, "cm_list_experiments_remote", "Cannot connect to \"%s\" port %d, errno %d (%s)", hname, port, errno, strerror(errno));
       return RPC_NET_ERROR;
    }
 
@@ -3108,10 +3053,7 @@ INT cm_disconnect_experiment(void) {
    }
 
    /* disconnect message not displayed */
-   _message_print = NULL;
-
-   cm_msg(MINFO, "cm_disconnect_experiment", "Program %s on host %s stopped", client_name.c_str(), local_host_name);
-
+   cm_msg(MLOG, "cm_disconnect_experiment", "Program %s on host %s stopped", client_name.c_str(), local_host_name);
    cm_msg_flush_buffer();
 
    if (rpc_is_remote()) {
@@ -3141,6 +3083,9 @@ INT cm_disconnect_experiment(void) {
       db_close_all_databases();
 
       cm_set_experiment_database(0, 0);
+
+      //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after close all buffers, close all databases");
+      //cm_msg_flush_buffer();
    }
 
    if (!rpc_is_mserver())
@@ -3199,9 +3144,9 @@ INT cm_set_experiment_database(HNDLE hDB, HNDLE hKeyClient) {
    _hDB = hDB;
    _hKeyClient = hKeyClient;
 
-   if (hDB == 0) {
-      rpc_set_server_option(RPC_ODB_HANDLE, 0);
-   }
+   //if (hDB == 0) {
+   //   rpc_set_server_option(RPC_ODB_HANDLE, 0);
+   //}
 
    return CM_SUCCESS;
 }
@@ -3267,18 +3212,20 @@ HNDLE hDB, hkeyclient;
 */
 INT cm_get_experiment_database(HNDLE *hDB, HNDLE *hKeyClient) {
    if (_hDB) {
+      //printf("cm_get_experiment_database %d %d\n", _hDB, _hKeyClient);
       if (hDB != NULL)
          *hDB = _hDB;
       if (hKeyClient != NULL)
          *hKeyClient = _hKeyClient;
+      return CM_SUCCESS;
    } else {
+      //printf("cm_get_experiment_database no init\n");
       if (hDB != NULL)
-         *hDB = rpc_get_server_option(RPC_ODB_HANDLE);
+         *hDB = 0;
       if (hKeyClient != NULL)
-         *hKeyClient = rpc_get_server_option(RPC_CLIENT_HANDLE);
+         *hKeyClient = 0;
+      return CM_DB_ERROR;
    }
-
-   return CM_SUCCESS;
 }
 
 /**dox***************************************************************/
@@ -5871,7 +5818,7 @@ std::string cm_get_history_path(const char* history_channel)
       return path;
    }
 
-   status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &path, TRUE);
+   status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &path, FALSE);
    if (status == DB_SUCCESS && path.length() > 0) {
       // if not absolute path, prepend with experiment directory
       if (path[0] != DIR_SEPARATOR)
@@ -7308,7 +7255,6 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout) {
 #ifdef LOCAL_ROUTINES
    {
       INT i, j;
-      char str[256];
       DWORD interval;
       DWORD now = ss_millitime();
 
@@ -7339,12 +7285,12 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout) {
 
                      bm_lock_buffer(pbuf);
 
-                     str[0] = 0;
+                     std::string msg;
 
                      /* now make again the check with the buffer locked */
                      if (interval > 0
                          && now > pbclient->last_activity && now - pbclient->last_activity > interval) {
-                        sprintf(str,
+                        msg = msprintf(
                                 "Client \'%s\' on \'%s\' removed by cm_cleanup (idle %1.1lfs, timeout %1.0lfs)",
                                 pbclient->name, pheader->name,
                                 (ss_millitime() - pbclient->last_activity) / 1000.0,
@@ -7356,8 +7302,8 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout) {
                      bm_unlock_buffer(pbuf);
 
                      /* display info message after unlocking buffer */
-                     if (str[0])
-                        cm_msg(MINFO, "cm_cleanup", "%s", str);
+                     if (!msg.empty())
+                        cm_msg(MINFO, "cm_cleanup", "%s", msg.c_str());
 
                      /* go again through whole list */
                      j = 0;
@@ -11761,10 +11707,6 @@ INT rpc_get_server_option(INT item)
    switch (item) {
       case RPC_CONVERT_FLAGS:
          return _server_acception[i].convert_flags;
-      case RPC_ODB_HANDLE:
-         return _server_acception[i].odb_handle;
-      case RPC_CLIENT_HANDLE:
-         return _server_acception[i].client_handle;
       case RPC_SEND_SOCK:
          return _server_acception[i].send_sock;
       case RPC_WATCHDOG_TIMEOUT:
@@ -11800,12 +11742,6 @@ INT rpc_set_server_option(INT item, INT value)
    switch (item) {
       case RPC_CONVERT_FLAGS:
          _server_acception[i].convert_flags = value;
-         break;
-      case RPC_ODB_HANDLE:
-         _server_acception[i].odb_handle = value;
-         break;
-      case RPC_CLIENT_HANDLE:
-         _server_acception[i].client_handle = value;
          break;
       case RPC_WATCHDOG_TIMEOUT:
          _server_acception[i].watchdog_timeout = value;
