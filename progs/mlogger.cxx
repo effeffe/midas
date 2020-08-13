@@ -6295,7 +6295,7 @@ int main(int argc, char *argv[])
    start_image_history();
 
    do {
-      msg = cm_yield(1000);
+      msg = cm_yield(100);
 
       /* maybe update channel disk levels */
       maybe_check_disk_level();
@@ -6335,8 +6335,8 @@ int main(int argc, char *argv[])
          status = stop_the_run(1);
       }
 
-      /* check keyboard once every second */
-      if (ss_millitime() - last_time_kb > 1000) {
+      /* check keyboard once every 100 ms */
+      if (ss_millitime() - last_time_kb > 100) {
          last_time_kb = ss_millitime();
 
          ch = 0;
