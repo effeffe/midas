@@ -153,12 +153,24 @@ function callback(rpc) {
    
    if (filename) {
       set_if_changed("msg_filename", filename);
-      var e = document.getElementById("msg_filename");
-      e.cols = filename.length + 5;
+   } else {
+      set_if_changed("msg_filename", "new.msl");
    }
 
    if (lines) {
       var text = lines.join("\n");
+      set_if_changed("edit_area", text);
+   } else {
+      var text = `COMMENT "new sequence"
+
+RUNDESCRIPTION "new sequence"
+
+LOOP 2
+  TRANSITION start
+  WAIT seconds, 3
+  TRANSITION stop
+ENDLOOP
+`;
       set_if_changed("edit_area", text);
    }
 }
