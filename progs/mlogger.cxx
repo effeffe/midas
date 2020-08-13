@@ -322,6 +322,7 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info);
 int log_generate_file_name(LOG_CHN *log_chn);
 extern void start_image_history();
 extern void stop_image_history();
+extern int get_number_image_history_threads();
 
 /*== common code FAL/MLOGGER start =================================*/
 
@@ -6358,11 +6359,12 @@ int main(int argc, char *argv[])
    close_history();
 
    /* stop image history threads */
-   /* stop image history threads */
-   printf("Stopping image history threads...");
-   fflush(stdout);
-   stop_image_history();
-   printf("ok\n");
+   if (get_number_image_history_threads() > 0) {
+      printf("Stopping image history threads...");
+      fflush(stdout);
+      stop_image_history();
+      printf("ok\n");
+   }
 
    cm_disconnect_experiment();
 

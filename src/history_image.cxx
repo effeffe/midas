@@ -204,6 +204,10 @@ void stop_image_history() {
    curl_global_cleanup();
 }
 
+int get_number_image_history_threads() {
+   return _image_threads.size();
+}
+
 void start_image_history() {
    curl_global_init(CURL_GLOBAL_DEFAULT);
 
