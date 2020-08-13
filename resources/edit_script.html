@@ -25,6 +25,7 @@
       <tr align="center">
         <td align="center">
           <button class="mbutton" onclick='save_script()' id="save_button">Save script</button>
+          <button class="mbutton" onclick='save_script_as()' id="save_as_button">Save script as ...</button>
           <button class="mbutton" onclick='cancel()'>Cancel</button>
           <a target="_blank" href="https://midas.triumf.ca/MidasWiki/index.php/Sequencer">Syntax Help</a>
         </td>
@@ -33,7 +34,7 @@
         <td>Directory: <span id="msg_directory">msg_directory</span></td>
       </tr>
       <tr>
-        <td>Filename: <textarea rows="1" id="msg_filename" style="font-family:monospace;font-size:medium;">msg_filename</textarea></td>
+        <td>Filename: <span id="msg_filename">msg_filename</span></td>
       </tr>
       <tr>
         <td>
@@ -65,16 +66,8 @@ function set_if_changed(id, value)
    }
 }
 
-function save_script() {
-   var t = document.getElementById("edit_area");
-   var script = t.value;
-
-   //console.log("script: " + script);
-
-   var f = document.getElementById("msg_filename");
-   var filename = f.value;
-
-   //console.log("filename: " + filename);
+function save(filename, script) {
+   //console.log("save: filename: " + filename + ", script: " + script);
 
    var paths = [];
    var values = [];
@@ -85,27 +78,64 @@ function save_script() {
 
    var req = [
       mjsonrpc_make_request("seq_save_script", {"filename":filename,"script":script}),
-      mjsonrpc_make_request("db_paste", {"paths": paths, "values": values}),
    ];
    mjsonrpc_send_request(req).then(function (rpc) {
       //mjsonrpc_debug_alert(rpc);
       if (rpc[0].result.status != 1) {
          throw new Error("Cannot save sequencer file, error: " + rpc[0].result.error);
       }
-      for (var i = 0; i < rpc[1].result.status.length; i++) {
-         if (rpc[1].result.status[i] != 1) {
-            throw new Error("Cannot write ODB \'" + paths[i] + "\', status " + rpc.result.status[i] + ", see MIDAS messages");
+      var req = [
+         mjsonrpc_make_request("db_paste", {"paths": paths, "values": values}),
+      ];
+      mjsonrpc_send_request(req).then(function (rpc) {
+      //mjsonrpc_debug_alert(rpc);
+         for (var i = 0; i < rpc[0].result.status.length; i++) {
+            if (rpc[0].result.status[i] != 1) {
+               throw new Error("Cannot write ODB \'" + paths[i] + "\', status " + rpc[0].result.status[i] + ", see MIDAS messages");
+            }
          }
-      }
-      //location.search = "cmd=Sequencer";
-      //location.pathname = "sequencer.html";
-      mhttpd_goto_page("seq");
-      // DOES NOT RETURN
+         //location.search = "cmd=Sequencer";
+         //location.pathname = "sequencer.html";
+         mhttpd_goto_page("seq");
+         // DOES NOT RETURN
+      }).catch(function (error) {
+         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+         dlgShow('dlgError');
+         //mjsonrpc_error_alert(error);
+      });
    }).catch(function (error) {
       document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
       dlgShow('dlgError');
       //mjsonrpc_error_alert(error);
    });
+}
+
+function save_script() {
+   var t = document.getElementById("edit_area");
+   var script = t.value;
+
+   //console.log("script: " + script);
+
+   var f = document.getElementById("msg_filename");
+   var filename = f.innerHTML;
+
+   //console.log("filename: " + filename);
+
+   save(filename, script);
+}
+
+function save_script_as() {
+   var t = document.getElementById("edit_area");
+   var script = t.value;
+
+   //console.log("script: " + script);
+
+   var f = document.getElementById("msg_filename");
+   var filename = window.prompt("Please enter the new file name:", f.innerHTML);
+
+   //console.log("filename: " + filename);
+
+   save(filename, script);
 }
 
 function cancel() {
