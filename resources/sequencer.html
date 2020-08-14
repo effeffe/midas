@@ -30,6 +30,9 @@
       <button class="mbutton" id='seq_resume' onclick='seq_resume()'>Resume</button>
     </td>
   </tr>
+  <tr id="msg_seq_not_running">
+    <td align="center" class="redLight" style="font-size:200%">The Sequencer program is not running, please start it</td>
+  </tr>
   <tr id="msg_noscriptloaded">
     <td>
       <table class="mtable" width="100%">
@@ -37,7 +40,7 @@
          <th class="mtableheader">No script loaded</th>
        </tr>
        <tr>
-         <td align="center"><button class="mbutton" onclick='new_script()'>New Script</button></td>
+         <td align="center"><button class="mbutton" onclick='new_script()' id='seq_new_script'>New Script</button></td>
        </tr>
       </table>
     </td>
@@ -59,9 +62,6 @@
        </tr>
        <tr id="msg_error_tr">
          <td align="center" class="redLight">Error: <b><span id="msg_error">seq.error</span></b></td>
-       </tr>
-       <tr id="msg_seq_not_running">
-         <td align="left" class="redLight">Error: The Sequencer program is not running</td>
        </tr>
        <tr id="loop0">
          <td>
@@ -727,6 +727,10 @@ function show_messages(messages)
             mhttpd_hide("msg_seq_not_running");
          } else {
             mhttpd_unhide("msg_seq_not_running");
+            mhttpd_hide("seq_load_script");
+            mhttpd_hide("seq_new_script");
+            mhttpd_hide("seq_start_script");
+            mhttpd_hide("seq_edit_script");
          }
       }
 
