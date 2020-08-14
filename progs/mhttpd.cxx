@@ -14575,7 +14575,7 @@ static void seq_watch(HNDLE hDB, HNDLE hKeyChanged, int index, void* info)
    }
 }
 
-void init_sequencer()
+void init_sequencer(MVOdb* odb)
 {
    int status;
    HNDLE hDB;
@@ -14591,6 +14591,15 @@ void init_sequencer()
       cm_msg(MERROR, "init_sequencer", "Sequencer error: mismatching /Sequencer/State structure, db_check_record() status %d", status);
       return;
    }
+
+   bool b = false;
+   odb->RB("Sequencer/Command/Start script", &b, true);
+   b = false;
+   odb->RB("Sequencer/Command/Stop immediately", &b, true);
+   b = false;
+   odb->RB("Sequencer/Command/Load new file", &b, true);
+   std::string s;
+   odb->RS("Sequencer/Command/Load filename", &s, true);
 
    status = db_find_key(hDB, 0, "/Sequencer/State", &hKey);
    if (status != DB_SUCCESS) {
@@ -16947,7 +16956,7 @@ void decode_post(Return* rr, const char *header, const char *string, const char 
 
 /*------------------------------------------------------------------*/
 
-INT check_odb_records(void)
+INT check_odb_records(MVOdb* odb)
 {
    HNDLE hDB, hKeyEq, hKey;
    RUNINFO_STR(runinfo_str);
@@ -19769,7 +19778,7 @@ int main(int argc, const char *argv[])
    MVOdb *odb = MakeMidasOdb(hDB);
 
    /* do ODB record checking */
-   if (!check_odb_records()) {
+   if (!check_odb_records(odb)) {
       // check_odb_records() fails with nothing printed to the terminal
       // because mhttpd does not print cm_msg(MERROR, ...) messages to the terminal.
       // At least print something!
@@ -19810,7 +19819,7 @@ int main(int argc, const char *argv[])
    init_menu_buttons();
 
    /* initialize sequencer */
-   init_sequencer();
+   init_sequencer(odb);
 
    /* initialize elog odb entries */
    init_elog_odb();
