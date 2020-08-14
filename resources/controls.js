@@ -45,7 +45,24 @@
     and 'Ok' button. The callback is called with the first parameter either
     true (if Ok has been clicked) or false (if Cancel has been clicked) and
     the second parameter a copy of 'param' passed to dlgConfirm().
- 
+
+ dlgQuery(message, callback, param)
+    Replacement of prompt() dialog. Shows a dialog box ith a 'Cancel', 'Ok'
+    button and a field to enter a value. 'message' is shown before the
+    input filed and can contain a string like 'Please enter value:'. If
+    'cancel' is pressed, the 'callback' function is called with the first
+    parameter equal 'false'. If 'Ok' is pressed, 'callback' is called with
+    the first parameter being the value of the input field. 'param' is just
+    passed to the callback function as an optional second parameter. So a
+    typical callback function can look like
+
+    function cb(value, param) {
+       if (value !== false)
+          alert('Value is '+value+', param is '+param);
+    }
+
+    where 'param' can also be ommitted.
+    
  dlgMessage(title, message, modal, error, callback, param)
     Similar to dlgAlert, but with the option to set a custom title which
     gets a red background if error is true. After the 'Ok' button is pressed,
