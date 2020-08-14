@@ -123,19 +123,24 @@ class MidasFile:
     * next_event_offset (int) - Position in file where the next event starts
     * this_event_payload_offset (int) - Sometimes we just read the event header,
         not the full data. This member is where the data of the current event starts.
+    * use_numpy (bool) - Whether to use numpy when extracting bank contents (so bank
+        data is a numpy array rather than a standard python tuple)
     """
-    def __init__(self, path):
+    def __init__(self, path, use_numpy=False):
         """
         Open a midas file.
         
         Args:
             
         * path (str) - Path to the file
+        * use_numpy (bool) - Whether to use numpy when extracting bank contents (so bank
+            data is a numpy array rather than a standard python tuple)
         """
         self.file = None
         self.event = None
         self.next_event_offset = 0
         self.this_event_payload_offset = 0
+        self.use_numpy = use_numpy
         self.reset_event()
         self.open(path)
         
@@ -299,7 +304,7 @@ class MidasFile:
         """
         self.file.seek(self.this_event_payload_offset, 0)
         body_data = self.file.read(self.event.header.event_data_size_bytes)
-        self.event.unpack_body(body_data, 0)
+        self.event.unpack_body(body_data, 0, self.use_numpy)
         return self.event
 
     def get_event_count(self, include_midas_special_events=False):

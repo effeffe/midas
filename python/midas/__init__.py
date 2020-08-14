@@ -10,6 +10,12 @@ import midas.structs
 import collections
 import logging
 
+try:
+    import numpy as np
+    have_numpy = True
+except ImportError:
+    have_numpy = False
+
 # Setup a logger that does nothing. Users (or the frontend class)
 # can add their own handlers if desired.
 logger = logging.getLogger('midas')
@@ -249,7 +255,7 @@ tid_sizes = {  TID_BYTE: 1,
 # How to unpack each midas data type with python's struct module
 tid_unpack_formats = {  TID_BYTE: 'B', # C char / python int
                         TID_SBYTE: 'b', # C signed char / python int
-                        TID_CHAR: 'B', # C char / we'll make a python string 
+                        TID_CHAR: 'B', # C char / python int 
                         TID_WORD: 'H', # C unsigned short / python int
                         TID_SHORT: 'h', # C signed short / python int
                         TID_DWORD: 'I', # C unsigned int / python int
@@ -258,6 +264,25 @@ tid_unpack_formats = {  TID_BYTE: 'B', # C char / python int
                         TID_FLOAT: 'f', # C float / python float
                         TID_DOUBLE: 'd', # C double / python double
                         TID_BITFIELD: 'I', # C unsigned int / python int 
+                        TID_STRING: None, # We just give raw bytes
+                        TID_ARRAY: None, # We just give raw bytes
+                        TID_STRUCT: None, # We just give raw bytes
+                        TID_KEY: None, # We just give raw bytes
+                        TID_LINK: None # We just give raw bytes
+                    }
+
+if have_numpy:
+    tid_np_formats = {  TID_BYTE: np.uint8,
+                        TID_SBYTE: np.int8,
+                        TID_CHAR: np.uint8,
+                        TID_WORD: np.uint16,
+                        TID_SHORT: np.int16,
+                        TID_DWORD: np.uint32,
+                        TID_INT: np.int32,
+                        TID_BOOL: np.uint32, # We'll convert to np.bool_ later
+                        TID_FLOAT: np.float32,
+                        TID_DOUBLE: np.float64,
+                        TID_BITFIELD: np.uint32,
                         TID_STRING: None, # We just give raw bytes
                         TID_ARRAY: None, # We just give raw bytes
                         TID_STRUCT: None, # We just give raw bytes

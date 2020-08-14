@@ -8,6 +8,12 @@ import midas
 import ctypes
 import time
 
+try:
+    import numpy as np
+    have_numpy = True
+except ImportError:
+    have_numpy = False
+    
 event_header_size = 16
 all_bank_header_size = 8
 
@@ -162,7 +168,7 @@ class Bank:
     * name (str) - 4 characters
     * type (int) - See `TID_xxx` members in `midas` module
     * size_bytes (int)
-    * data (tuple of int/float/byte etc)
+    * data (tuple of int/float/byte etc, or a numpy array if use_numpy is specified when unpacking)
     """
     def __init__(self):
         self.name = None
@@ -292,28 +298,47 @@ class Bank:
         if self.type not in midas.tid_sizes:
             raise ValueError("Unexpected bank type %d for name '%s'" % (self.type, self.name))
         
-    def convert_and_store_data(self, raw_data):
+    def convert_and_store_data(self, raw_data, use_numpy=False):
         """
         Fill self.data, converting the raw bytes to a list of appropriate 
         python data types.
         
         Args:
             * raw_data (byte array)
+            * use_numpy (bool) - Whether to use numpy for extraction
         """
-        if midas.tid_sizes[self.type] == 0 or midas.tid_unpack_formats[self.type] is None:
+        if midas.tid_sizes[self.type] == 0:
             # No special handling - just return raw bytes.
             self.data = raw_data
         else:
-            num_vals = self.size_bytes / midas.tid_sizes[self.type]
-            fmt = "%s%i%s" % (midas.endian_format_flag, num_vals, midas.tid_unpack_formats[self.type])
-            unpacked_data = struct.unpack(fmt, raw_data)
-                
-            if self.type == midas.TID_BOOL:
-                # Convert from 0/1 to False/True
-                self.data = tuple(u != 0 for u in unpacked_data)
+            num_vals = int(self.size_bytes / midas.tid_sizes[self.type])
+            
+            if use_numpy:
+                # Use numpy
+                if midas.tid_np_formats[self.type] is None:
+                    # No special handling - just return raw bytes.
+                    self.data = raw_data
+                else:
+                    dt = np.dtype(midas.tid_np_formats[self.type])
+                    dt.newbyteorder(midas.endian_format_flag)
+                    
+                    self.data = np.frombuffer(raw_data, dt, num_vals)
+                        
+                    if self.type == midas.TID_BOOL:
+                        # Convert from 0/1 to False/True
+                        self.data = self.data.astype(np.bool_)
             else:
-                # Regular tuple
-                self.data = unpacked_data
+                # Use tuples
+                if midas.tid_unpack_formats[self.type] is None:
+                    # No special handling - just return raw bytes.
+                    self.data = raw_data
+                else:
+                    fmt = "%s%i%s" % (midas.endian_format_flag, num_vals, midas.tid_unpack_formats[self.type])
+                    self.data = struct.unpack(fmt, raw_data)
+                        
+                    if self.type == midas.TID_BOOL:
+                        # Convert from 0/1 to False/True
+                        self.data = tuple(u != 0 for u in self.data)
 
 class Event:
     """
@@ -403,14 +428,18 @@ class Event:
         if data_type not in midas.tid_sizes:
             raise ValueError("Unknown bank type")
         
+        allowed_types = [list, tuple]
+        
+        if have_numpy:
+            allowed_types.append(np.ndarray)
         
         if data_type in [midas.TID_BYTE, midas.TID_CHAR]:
             if not isinstance(data, (bytes, bytearray)):
                 raise TypeError("Data must be a bytes() or bytearray() for TID_BYTE/TID_CHAR")
         elif midas.tid_sizes[data_type] is None:
             raise ValueError("Unsupported bank type")
-        elif not isinstance(data, (list, tuple)):
-            raise TypeError("Data must be a list or tuple for this data type")
+        elif not isinstance(data, tuple(allowed_types)):
+            raise TypeError("Data must be a list/tuple/numpy array for this data type")
         
         bank = Bank()
         bank.name = bank_name
@@ -550,26 +579,39 @@ class Event:
             buf_offset += self.get_bank_header_size()
             
             fmt = "%s%i%s" % (midas.endian_format_flag, len(bank.data), midas.tid_unpack_formats[bank.type])
-            struct.pack_into(fmt, buf, buf_offset, *(bank.data))
+            
+            packed = False
+            
+            if have_numpy:
+                if isinstance(bank.data, np.ndarray) and bank.data.dtype == np.bool_:
+                    # Avoid a deprecation warning issued when accessing a numpy
+                    # array of np.bool_ like *(bank.data).
+                    struct.pack_into(fmt, buf, buf_offset, *(bool(x) for x in bank.data))
+                    packed = True
+                    
+            if not packed:
+                struct.pack_into(fmt, buf, buf_offset, *(bank.data))
+            
             buf_offset += bank.size_bytes + bank.get_expected_padding()
             
         return buf
         
-    def unpack(self, buf, buf_offset=0):
+    def unpack(self, buf, buf_offset=0, use_numpy=False):
         """
         Unpack a buffer of bytes into this `Event` object.
         
         Args:
             * buf - The buffer to read from.
             * buf_offset - Location in the buffer where this event starts.
+            * use_numpy (bool) - Whether to use numpy arrays or regular python tuples for bank data.
         
         Returns:
             None (but we've populated self.header and self.banks)
         """
         self.header.fill_from_bytes(buf[buf_offset:buf_offset+event_header_size])
-        self.unpack_body(buf, buf_offset + event_header_size)
+        self.unpack_body(buf, buf_offset + event_header_size, use_numpy)
         
-    def unpack_body(self, buf, buf_offset=0):
+    def unpack_body(self, buf, buf_offset=0, use_numpy=False):
         """
         Unpack a buffer of bytes into this `Event` object. You must already have unpacked
         the event header into self.header.
@@ -577,6 +619,7 @@ class Event:
         Args:
             * buf - The buffer to read from.
             * buf_offset - Location in the buffer where the overall bank header data starts.
+            * use_numpy (bool) - Whether to use numpy arrays or regular python tuples for bank data.
         
         Returns:
             None (but we've populated self.banks)
@@ -602,7 +645,7 @@ class Event:
                     
                 raw_data = buf[buf_offset:buf_offset+bank.size_bytes]
                 buf_offset += bank.size_bytes
-                bank.convert_and_store_data(raw_data)
+                bank.convert_and_store_data(raw_data, use_numpy)
                 
                 self.add_bank(bank)
 

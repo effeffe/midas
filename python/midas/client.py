@@ -737,7 +737,7 @@ class MidasClient:
         
         return request_id.value
     
-    def receive_event(self, buffer_handle, async_flag=True):
+    def receive_event(self, buffer_handle, async_flag=True, use_numpy=False):
         """
         Receive an event from a buffer. You must previously have called
         `open_event_buffer()` to open the buffer and `register_event_request()`
@@ -751,6 +751,8 @@ class MidasClient:
             * async_flag (bool) - If True, we'll return None if there is not
                 currently an event in the buffer. If False, we'll wait until
                 an event is ready and then return.
+            * use_numpy (bool) - Whether to use numpy arrays or regular python 
+                tuples for bank data in the received `Event`.
             
         Returns:
             `midas.event.Event`
@@ -771,7 +773,7 @@ class MidasClient:
             
         # buf now contains the event contents
         event = midas.event.Event()
-        event.unpack(buf)
+        event.unpack(buf, use_numpy=use_numpy)
         
         return event
     
