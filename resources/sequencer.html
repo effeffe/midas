@@ -156,17 +156,23 @@
         <tr>
           <td align="center">Filename: <span id="msg_filename">seq.filename</span></td>
         </tr>
-       <tr>
-         <td><a onClick="sshow_lines();return false;" href="#" id="supperarrow">&#x25B2;</a></td>
+       <tr id="supperarrow1">
+         <td><a onClick="show_upper_lines(true);return false;" href="#">&#x25B2;</a></td>
+       </tr>
+       <tr id="supperarrow2">
+         <td><a onClick="show_upper_lines(false);return false;" href="#">&#x25BC;</a></td>
        </tr>
        <tr>
          <td>
-           <div id="lines" style="background-color:#FFFFFF; font-family:monospace; text-align:left;">
+           <div id="msg_lines" style="background-color:#FFFFFF; font-family:monospace; text-align:left;">
            </div>
          </td>
        </tr>
-       <tr>
-         <td><a onClick="sshow_lines();return false;" href="#" id="slowerarrow">&#x25BC;</a></td>
+       <tr id="slowerarrow1">
+         <td><a onClick="show_lower_lines(true);return false;" href="#">&#x25BC;</a></td>
+       </tr>
+       <tr id="slowerarrow2">
+         <td><a onClick="show_lower_lines(false);return false;" href="#">&#x25B2;</a></td>
        </tr>
        </table>
     </td>
@@ -208,7 +214,8 @@
 </div>
 
 <script>
-var sshow_all_lines = false;
+var sshow_upper_lines = false;
+var sshow_lower_lines = false;
 var last_msg = "";
 
 function set_if_changed(id, value)
@@ -443,6 +450,11 @@ function seq_refresh(seq)
       mhttpd_hide("msg_seq_finished");
    }
 
+   let show_lines = 15; // number of lines to show
+
+   let show_upper_arrow = false;
+   let show_lower_arrow = false;
+
    for (var sl=1 ; ; sl++) {
       sline = document.getElementById('sline'+sl);
       if (sline == null) {
@@ -450,20 +462,30 @@ function seq_refresh(seq)
          break;
       }
 
-      if (seq.running && Math.abs(sl - scurrent_line) > 10 && !sshow_all_lines)
-         sline.style.display = 'none';
-      else
-         sline.style.display = 'inline';
-      
-      if (scurrent_line > 10) {
-         document.getElementById('supperarrow').style.display = 'inline';
-         if (sshow_all_lines)
-            document.getElementById('supperarrow').style.display = '&#x25BC';
-         else
-            document.getElementById('supperarrow').style.display = '&#x25B2';
+      if (seq.running) {
+         if (sl < scurrent_line - show_lines/2) {
+            if (sshow_upper_lines) {
+               sline.style.display = '';
+            } else {
+               sline.style.display = 'none';
+            }
+            show_upper_arrow = true;
+         } else if (sl > scurrent_line + show_lines/2) {
+            if (sshow_lower_lines) {
+               sline.style.display = '';
+            } else {
+               sline.style.display = 'none';
+            }
+            show_lower_arrow = true;
+         } else {
+            sline.style.display = '';
+         }
       } else {
-         document.getElementById('supperarrow').style.display = 'none';
+         sline.style.display = '';
+         sshow_upper_lines = false;
+         sshow_lower_lines = false;
       }
+      
       if (sl == serror_line)
          sline.style.backgroundColor = '#FF0000';
       else if (sl == scurrent_line)
@@ -488,17 +510,32 @@ function seq_refresh(seq)
          sline.style.backgroundColor = '#FFFFFF';
    }
    
-   if (document.getElementById('slowerarrow')) {
-      if (scurrent_line < slast_line-10) {
-         document.getElementById('slowerarrow').style.display = 'inline';
-         if (sshow_all_lines)
-            document.getElementById('slowerarrow').innerHTML = '&#x25B2';
-         else
-            document.getElementById('slowerarrow').innerHTML = '&#x25BC';
-      } else
-      document.getElementById('slowerarrow').style.display = 'none';
+   if (show_upper_arrow) {
+      if (sshow_upper_lines) {
+         document.getElementById('supperarrow1').style.display = 'none';
+         document.getElementById('supperarrow2').style.display = '';
+      } else {
+         document.getElementById('supperarrow1').style.display = '';
+         document.getElementById('supperarrow2').style.display = 'none';
+      }
+   } else {
+      document.getElementById('supperarrow1').style.display = 'none';
+      document.getElementById('supperarrow2').style.display = 'none';
    }
-   
+
+   if (show_lower_arrow) {
+      if (sshow_lower_lines) {
+         document.getElementById('slowerarrow1').style.display = 'none';
+         document.getElementById('slowerarrow2').style.display = '';
+      } else {
+         document.getElementById('slowerarrow1').style.display = '';
+         document.getElementById('slowerarrow2').style.display = 'none';
+      }
+   } else {
+      document.getElementById('slowerarrow1').style.display = 'none';
+      document.getElementById('slowerarrow2').style.display = 'none';
+   }
+
    var wl = document.getElementById('wait_label');
    if (wl != null) {
       if (wait_type == 'Seconds')
@@ -587,7 +624,7 @@ function seq_show_script(lines)
 {
    var len = lines.length;
    //console.log("seq_show_script: " + len + ", slast_line: " + slast_line);
-   var e = document.getElementById("lines");
+   var e = document.getElementById("msg_lines");
    if (len != slast_line)
       e.innerHTML = "";
    //console.log("e="+e);
@@ -601,13 +638,15 @@ function seq_show_script(lines)
    }
 }
 
-function sshow_lines()
+function show_upper_lines(flag)
 {
-   sshow_all_lines = !sshow_all_lines;
-   if (sshow_all_lines)
-      document.getElementById('supperarrow').innerHTML = '&#x25BC';
-   else
-      document.getElementById('supperarrow').innerHTML = '&#x25B2';
+   sshow_upper_lines = flag;
+   update();
+}
+
+function show_lower_lines(flag)
+{
+   sshow_lower_lines = flag;
    update();
 }
 
@@ -675,7 +714,7 @@ function show_messages(messages)
       if (seq_script && seq_script.lines) {
          seq_show_script(seq_script.lines);
       } else {
-         var e = document.getElementById("lines");
+         var e = document.getElementById("msg_lines");
          e.innerHTML = "";
       }
 
