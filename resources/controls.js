@@ -738,3 +738,26 @@ function dlgConfirm(string, confirmCallback, param) {
    dlgShow(d, true);
    return d;
 }
+
+function dlgQuery(string, queryCallback, param) {
+   let d = document.createElement("div");
+   d.className = "dlgFrame";
+   d.style.zIndex = "21";
+   d.callback = queryCallback;
+   d.callbackParam = param;
+
+   d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Please confirm</div>" +
+      "<div class=\"dlgPanel\" style=\"padding: 20px;\">" +
+      "<div id=\"dlgMessageString\">" + string + "&nbsp;&nbsp;<input type='text' size='30' id='dlgQueryInput'></input></div>" +
+      "<br /><br />" +
+      "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
+      " onClick=\"let d=this.parentElement.parentElement;d.callback(document.getElementById('dlgQueryInput').value,d.callbackParam);dlgMessageDestroy(this);\">OK</button>" +
+      "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
+      " onClick=\"let d=this.parentElement.parentElement;d.callback(false,d.callbackParam);dlgMessageDestroy(this);\">Cancel</button>" +
+      "</div>";
+
+   document.body.appendChild(d);
+
+   dlgShow(d, true);
+   return d;
+}
