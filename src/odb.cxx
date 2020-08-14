@@ -3462,7 +3462,7 @@ int db_create_key_wlocked(DATABASE_HEADER* pheader, KEY* parentKey, const char *
                db_msg(msg, MERROR, "db_create_key", "object of type %d already exists at \"%s\" while creating \'%s\' of type %d in \'%s\'", pitem->type, db_get_path_locked(pheader, pitem).c_str(), key_name, type, db_get_path_locked(pheader, parentKey).c_str());
                return DB_TYPE_MISMATCH;
             }
-            db_print_pkey(pheader, pitem);
+            //db_print_pkey(pheader, pitem);
 
             if (pnewkey)
                *pnewkey = (KEY*)pitem;
