@@ -1935,9 +1935,16 @@ void init_sequencer()
       return;
    }
    
-   if (seq.path[0] == 0)
-      if (!getcwd(seq.path, sizeof(seq.path)))
-         seq.path[0] = 0;
+   if (seq.path[0] == 0) {
+      // NOTE: this code must match identical code in mhttpd!
+      const char* s = getenv("MIDASSYS");
+      if (s) {
+         strlcpy(seq.path, s, sizeof(seq.path));
+         strlcat(seq.path, "/examples/sequencer/", sizeof(seq.path));
+      } else {
+         strlcpy(seq.path, cm_get_path().c_str(), sizeof(seq.path));
+      }
+   }
    
    if (strlen(seq.path)>0 && seq.path[strlen(seq.path)-1] != DIR_SEPARATOR) {
       strlcat(seq.path, DIR_SEPARATOR_STR, sizeof(seq.path));
