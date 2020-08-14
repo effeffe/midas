@@ -21,7 +21,6 @@
 #include "midas.h"
 #include "msystem.h"
 #include "mxml.h"
-#include "sequencer.h"
 #ifndef HAVE_STRLCPY
 #include "strlcpy.h"
 #endif
@@ -31,6 +30,12 @@
 
 #ifdef HAVE_MSCB
 #include "mscb.h"
+#endif
+
+#define OLD_SEQUENCER 1
+
+#ifdef OLD_SEQUENCER
+#include "sequencer.h"
 #endif
 
 #include "mjsonrpc.h"
@@ -1939,7 +1944,9 @@ void init_menu_buttons()
    db_get_value(hDB, 0, "/Experiment/Menu/OldHistory", &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/MSCB",       &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Sequencer",  &true_value,  &size, TID_BOOL, TRUE);
+#ifndef OLD_SEQUENCER
    db_get_value(hDB, 0, "/Experiment/Menu/NewSequencer", &true_value,  &size, TID_BOOL, TRUE);
+#endif
    db_get_value(hDB, 0, "/Experiment/Menu/Config",     &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Example",    &false_value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Help",       &true_value,  &size, TID_BOOL, TRUE);
@@ -1952,6 +1959,9 @@ void init_menu_buttons()
 
    check_obsolete_odb(hDB, "/Experiment/Menu buttons");
    check_obsolete_odb(hDB, "/Experiment/Menu/OldSequencer");
+#ifndef OLD_SEQUENCER
+   check_obsolete_odb(hDB, "/Experiment/Menu/NewSequencer");
+#endif
 }
 
 /*------------------------------------------------------------------*/
@@ -14549,6 +14559,8 @@ void seq_start_page(Param* p, Return* r)
 
 /*------------------------------------------------------------------*/
 
+#ifdef OLD_SEQUENCER
+
 static const char* const bar_col[] = {"#B0B0FF", "#C0C0FF", "#D0D0FF", "#E0E0FF"};
 static const char* const call_col[] = {"#B0FFB0", "#C0FFC0", "#D0FFD0", "#E0FFE0"};
 
@@ -15700,6 +15712,8 @@ void show_seq_page(Param* p, Return* r)
    r->rsprintf("</body></html>\r\n");
 }
 
+#endif // OLD_SEQUENCER
+
 /*------------------------------------------------------------------*/
 
 struct Cookies
@@ -16394,10 +16408,17 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
 
    /*---- sequencer page --------------------------------------------*/
 
+#ifdef OLD_SEQUENCER
    if (equal_ustring(command, "NewSequencer")) {
       send_resource(r, "sequencer.html");
       return;
    }
+#else
+   if (equal_ustring(command, "Sequencer")) {
+      send_resource(r, "sequencer.html");
+      return;
+   }
+#endif
 
    if (equal_ustring(command, "seq")) {
       send_resource(r, "sequencer.html");
@@ -16419,6 +16440,7 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       return;
    }
 
+#ifdef OLD_SEQUENCER
    if (equal_ustring(command, "Sequencer")) {
       Lock(t);
       show_seq_page(p, r);
@@ -16502,6 +16524,7 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       Unlock(t);
       return;
    }
+#endif
 
 #ifdef OBSOLETE
    if (strncmp(dec_path, "SEQ/", 4) == 0) {
@@ -19818,8 +19841,10 @@ int main(int argc, const char *argv[])
    /* initialize menu buttons */
    init_menu_buttons();
 
+#ifdef OLD_SEQUENCER
    /* initialize sequencer */
    init_sequencer(odb);
+#endif
 
    /* initialize elog odb entries */
    init_elog_odb();
