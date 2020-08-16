@@ -46,7 +46,7 @@
     true (if Ok has been clicked) or false (if Cancel has been clicked) and
     the second parameter a copy of 'param' passed to dlgConfirm().
 
- dlgQuery(message, callback, param)
+ dlgQuery(message, value, callback, param)
     Replacement of prompt() dialog. Shows a dialog box ith a 'Cancel', 'Ok'
     button and a field to enter a value. 'message' is shown before the
     input filed and can contain a string like 'Please enter value:'. If
@@ -756,7 +756,7 @@ function dlgConfirm(string, confirmCallback, param) {
    return d;
 }
 
-function dlgQuery(string, queryCallback, param) {
+function dlgQuery(string, value, queryCallback, param) {
    let d = document.createElement("div");
    d.className = "dlgFrame";
    d.style.zIndex = "21";
@@ -765,7 +765,7 @@ function dlgQuery(string, queryCallback, param) {
 
    d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Please confirm</div>" +
       "<div class=\"dlgPanel\" style=\"padding: 20px;\">" +
-      "<div id=\"dlgMessageString\">" + string + "&nbsp;&nbsp;<input type='text' size='30' id='dlgQueryInput'></input></div>" +
+      "<div id=\"dlgMessageString\">" + string + "&nbsp;&nbsp;<input type='text' size='30' id='dlgQueryInput' value='" + value + "'></input></div>" +
       "<br /><br />" +
       "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
       " onClick=\"let d=this.parentElement.parentElement;d.callback(document.getElementById('dlgQueryInput').value,d.callbackParam);dlgMessageDestroy(this);\">OK</button>" +
