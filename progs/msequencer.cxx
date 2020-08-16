@@ -509,6 +509,7 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
 
       odb->WSA("Sequencer/Script/Lines", slines, 0);
       odb->Delete("Sequencer/Param");
+      odb->Delete("Sequencer/Variables");
 
       for (line=0 ; line<n_lines ; line++) {
          n = strbreak(lines[line], list, 100, ", ", FALSE);
@@ -670,22 +671,27 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
                xml += "<Param l=" + qtoString(line+1) + " name=" + q(list[1]) + " />\n";
                std::string v;
                odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+               odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
             } else if (!list[3][0] && equal_ustring(list[2], "bool")) {
                fprintf(fout, "<Param l=\"%d\" name=\"%s\" type=\"bool\" />\n", line+1, list[1]);
                xml += "<Param l=" + qtoString(line+1) + " name=" + q(list[1]) + " type=\"bool\" />\n";
                bool v = false;
                odb->RB((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+               std::string s;
+               odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &s, true);
             } else if (!list[3][0]) {
                fprintf(fout, "<Param l=\"%d\" name=\"%s\" comment=\"%s\" />\n", line+1, list[1], list[2]);
                xml += "<Param l=" + qtoString(line+1) + " name=" + q(list[1]) + " comment=" + q(list[2]) + " />\n";
                std::string v;
                odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+               odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
                odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
             } else {
                fprintf(fout, "<Param l=\"%d\" name=\"%s\" comment=\"%s\" options=\"", line+1, list[1], list[2]);
                xml += "<Param l=" + qtoString(line+1) + " name=" + q(list[1]) + " comment=" + q(list[2]) + " options=\"";
                std::string v;
                odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+               odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
                odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
                std::vector<std::string> options;
                for (i=3 ; i < 100 && list[i][0] ; i++) {
