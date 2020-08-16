@@ -131,11 +131,18 @@ function save_script_as() {
    //console.log("script: " + script);
 
    var f = document.getElementById("msg_filename");
-   var filename = window.prompt("Please enter the new file name:", f.innerHTML);
+   var filename = f.innerHTML;
+   //var filename = window.prompt("Please enter the new file name:", f.innerHTML);
 
-   //console.log("filename: " + filename);
+   dlgQuery("Save script as...", filename, function(value, param) {
+      //console.log("value [" + value + "] param [" + param + "]");
 
-   save(filename, script);
+      if (value === false) { // cancel
+          return;
+      }
+
+      save(value, param);
+   }, script);
 }
 
 function cancel() {
