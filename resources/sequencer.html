@@ -154,7 +154,7 @@
           <th class="mtableheader">Sequencer File</th>
         </tr>
         <tr>
-          <td align="center">Filename: <span id="msg_filename">seq.filename</span> Comment: <span id="msg_comment">seq.comment</span></td>
+          <td align="center">Filename: <b><span id="msg_filename">seq.filename</span></b> Comment: <b><span id="msg_comment">seq.comment</span></b></td>
         </tr>
        <tr id="supperarrow1">
          <td><a onClick="show_upper_lines(true);return false;" href="#">&#x25B2;</a></td>
@@ -638,7 +638,12 @@ function seq_show_script(lines)
       seq_add_line(e, i, s);
       let ind = lines[i].toLowerCase().indexOf("comment");
       if (ind == 0) {
-         set_if_changed("msg_comment", lines[i].substr(ind+7));
+         let comment = lines[i].substr(ind+7);
+         while (comment[0] === "\"" || comment[0] === " ")
+            comment = comment.substr(1);
+         while (comment[comment.length - 1] === "\"" || comment[comment.length - 1] === " ")
+            comment = comment.substr(0, comment.length-1);
+         set_if_changed("msg_comment", comment);
       }
    }
 }
