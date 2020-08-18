@@ -11159,8 +11159,13 @@ INT db_get_record_size(HNDLE hDB, HNDLE hKey, INT align, INT * buf_size)
       *buf_size = max_align = 0;
       db_recurse_record_tree_locked(hDB, hKey, NULL, buf_size, align, &max_align, 0, 0, &msg);
 
+      //int tmp = *buf_size;
       /* correct for byte padding */
       *buf_size = VALIGN(*buf_size, max_align);
+
+      //if (tmp != *buf_size) {
+      //   cm_msg(MERROR, "db_get_record_size", "ODB record \"%s\" has unexpected padding from %d to %d bytes", db_get_path(hDB, hKey).c_str(), tmp, *buf_size);
+      //}
 
       db_unlock_database(hDB);
       if (msg)
@@ -11228,7 +11233,6 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
       INT convert_flags, status;
       INT total_size;
       void *pdata;
-      char str[256];
 
       convert_flags = 0;
 
@@ -11249,8 +11253,7 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
       if (key.type != TID_KEY) {
          /* copy single key */
          if (key.item_size * key.num_values != *buf_size) {
-            db_get_path(hDB, hKey, str, sizeof(str));
-            cm_msg(MERROR, "db_get_record", "struct size mismatch for \"%s\" (expected size: %d, size in ODB: %d)", str, *buf_size, key.item_size * key.num_values);
+            cm_msg(MERROR, "db_get_record", "struct size mismatch for \"%s\" (expected size: %d, size in ODB: %d)", db_get_path(hDB, hKey).c_str(), *buf_size, key.item_size * key.num_values);
             return DB_STRUCT_SIZE_MISMATCH;
          }
 
@@ -11269,8 +11272,7 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
       /* check record size */
       db_get_record_size(hDB, hKey, align, &total_size);
       if (total_size != *buf_size) {
-         db_get_path(hDB, hKey, str, sizeof(str));
-         cm_msg(MERROR, "db_get_record", "struct size mismatch for \"%s\" (expected size: %d, size in ODB: %d)", str, *buf_size, total_size);
+         cm_msg(MERROR, "db_get_record", "struct size mismatch for \"%s\" (expected size: %d, size in ODB: %d)", db_get_path(hDB, hKey).c_str(), *buf_size, total_size);
          return DB_STRUCT_SIZE_MISMATCH;
       }
 
@@ -11284,6 +11286,11 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
       db_unlock_database(hDB);
       if (msg)
          db_flush_msg(&msg);
+
+      //if (total_size != *buf_size) {
+      //   cm_msg(MERROR, "db_get_record", "struct size mismatch for \"%s\", expected size: %d, read from ODB: %d bytes", db_get_path(hDB, hKey).c_str(), *buf_size, total_size);
+      //   //return DB_STRUCT_SIZE_MISMATCH;
+      //}
    }
 #endif                          /* LOCAL_ROUTINES */
 
