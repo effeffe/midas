@@ -5319,6 +5319,8 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
       total_size += size;
    }
 
+   //printf("keys %d, total size %d\n", i, total_size);
+
    if (i != hist_log[index].n_var) {
       close_history();
       status = open_history();
@@ -5336,7 +5338,7 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
       printf("write history event: \'%s\', timestamp %d, buffer %p, size %d\n", hist_log[index].event_name, hist_log[index].last_log, hist_log[index].buffer, hist_log[index].buffer_size);
 
    for (unsigned h=0; h<mh.size(); h++)
-      mh[h]->hs_write_event(hist_log[index].event_name, hist_log[index].last_log, hist_log[index].buffer_size, hist_log[index].buffer);
+      mh[h]->hs_write_event(hist_log[index].event_name, hist_log[index].last_log, total_size, hist_log[index].buffer);
 
    /* simulate odb key update for hot links connected to system history */
    if (!rpc_is_remote()) {
@@ -6240,9 +6242,6 @@ int main(int argc, char *argv[])
       cm_disconnect_experiment();
       return 1;
    }
-
-   /* turn off message display, turn on message logging */
-   cm_set_msg_print(MT_ALL, 0, NULL);
 
    /* print startup message */
    std::string data_dir;
