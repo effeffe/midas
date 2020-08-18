@@ -8736,7 +8736,6 @@ BOOL check_web_password(Return* r, HNDLE hDB, const char* dec_path, const char *
 void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char *dec_path, int write_access)
 {
    int keyPresent, size, status, line, link_index;
-   char hex_str[256];
    char keyname[32];
    char link_name[256];
    char full_path[256];
@@ -9017,6 +9016,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                      db_sprintf(data_str, data, key.item_size, link_index, key.type);
                   else
                      db_sprintf(data_str, data, key.item_size, 0, key.type);
+                  assert(strlen(data_str) < sizeof(data_str));
 
                   if (key.type == TID_STRING) {
                      if (strlen(data_str) >= MAX_STRING_LENGTH-1) {
@@ -9024,13 +9024,17 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                      }
                   }
 
+                  char hex_str[256];
+
                   if (key.type != TID_STRING) {
                      if (link_index != -1)
                         db_sprintfh(hex_str, data, key.item_size, link_index, key.type);
                      else
                         db_sprintfh(hex_str, data, key.item_size, 0, key.type);
-                  } else
+                     assert(strlen(hex_str) < sizeof(hex_str));
+                  } else {
                      hex_str[0] = 0;
+                  }
 
                   if (data_str[0] == 0 || equal_ustring(data_str, "<NULL>")) {
                      strcpy(data_str, "(empty)");
@@ -9157,6 +9161,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                      for (int j = 0; j < key.num_values; j++) {
                         char data[TEXT_SIZE];
                         char data_str[TEXT_SIZE];
+                        char hex_str[256];
 
                         if (line % 2 == 0)
                            strlcpy(style, "ODBtableEven", sizeof(style));
@@ -9166,10 +9171,16 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                         size = sizeof(data);
                         db_get_data_index(hDB, hkey, data, &size, j, key.type);
                         db_sprintf(data_str, data, key.item_size, 0, key.type);
-                        db_sprintfh(hex_str, data, key.item_size, 0, key.type);
+                        assert(strlen(data_str) < sizeof(data_str));
+
+                        if (key.type == TID_STRING || key.type == TID_LINK) {
+                           hex_str[0] = 0;
+                        } else {
+                           db_sprintfh(hex_str, data, key.item_size, 0, key.type);
+                           assert(strlen(hex_str) < sizeof(hex_str));
+                        }
 
                         if (key.type == TID_STRING) {
-                           hex_str[0] = 0;
                            if (strlen(data_str) >= MAX_STRING_LENGTH-1) {
                               strlcat(data_str, "...(truncated)", sizeof(data_str));
                            }
