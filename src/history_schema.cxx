@@ -2686,8 +2686,9 @@ int SchemaHistoryBase::hs_write_event(const char* event_name, time_t timestamp, 
 
    if (s->n_bytes == 0) { // compute expected data size
       // NB: history data does not have any padding!
-      for (unsigned i=0; i<s->variables.size(); i++)
+      for (unsigned i=0; i<s->variables.size(); i++) {
          s->n_bytes += s->variables[i].n_bytes;
+      }
    }
 
    int status;
