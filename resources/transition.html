@@ -294,9 +294,16 @@
    }
 
    function do_return() {
-      var ret = mhttpd_getParameterByName("Return");
+      let ret = mhttpd_getParameterByName("Return");
       if (ret) {
-         mhttpd_goto_page(ret);
+         if (ret.toLowerCase() === "custom") {
+             let page = mhttpd_getParameterByName("page");
+	     if (page) {
+                mhttpd_goto_page(ret, "&page=" + page);
+	     }
+	 } else {
+            mhttpd_goto_page(ret);
+	 }
       }
    }
 

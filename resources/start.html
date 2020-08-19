@@ -88,9 +88,13 @@
          if (rpc.result.status != 1) {
             throw new Error("Cannot start run, cm_transition() status " + rpc.result.status + ", see MIDAS messages");
          }
-         var ret = mhttpd_getParameterByName("Return");
+         let ret = mhttpd_getParameterByName("Return");
          if (ret) {
             ret = "&Return=" + ret;
+            let page = mhttpd_getParameterByName("page");
+            if (page) {
+               ret += "&page=" + page;
+	    }
 	 }
          mhttpd_goto_page("Transition", ret);
          // not reached: reloads the page
