@@ -186,20 +186,22 @@
                   "    </tr>\n";
             });
 
-            h +=
-               "    <tr>\n" +
-               "      <td class=\"titleCell\"><a href=\"" + baseURL + "&group=" + "Images" + "&panel=All\">" +
-               "Images" + "</a></td>\n" +
-               "      <td>\n";
+            if (historyImages !== null) {
+               h +=
+                  "    <tr>\n" +
+                  "      <td class=\"titleCell\"><a href=\"" + baseURL + "&group=" + "Images" + "&panel=All\">" +
+                  "Images" + "</a></td>\n" +
+                  "      <td>\n";
 
-            Object.keys(historyImages).forEach(panel => {
-               h += "         <a href=\"" + baseURL + "&group=" + "Images" + "&panel=" + panel + "\">" +
-                  historyImages[panel].Name + "</a>&nbsp;\n";
-            });
+               Object.keys(historyImages).forEach(panel => {
+                  h += "         <a href=\"" + baseURL + "&group=" + "Images" + "&panel=" + panel + "\">" +
+                     historyImages[panel].Name + "</a>&nbsp;\n";
+               });
 
-            h +=
-               "      </td>\n" +
-               "    </tr>\n";
+               h +=
+                  "      </td>\n" +
+                  "    </tr>\n";
+            }
 
             h +=
                "</table>\n";
