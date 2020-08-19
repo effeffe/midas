@@ -293,6 +293,13 @@
       }
    }
 
+   function do_return() {
+      var ret = mhttpd_getParameterByName("Return");
+      if (ret) {
+         mhttpd_goto_page(ret);
+      }
+   }
+
    function callback(rpc_batch) {
       //console.log(JSON.stringify(rpc.result));
 
@@ -364,6 +371,7 @@
          // transition is completed
          document.getElementById("cancelButton").disabled = true;
          set_text("tr_status", "");
+         setTimeout('do_return()', 2000);
       } else {
          // transition still in progress
          document.getElementById("cancelButton").disabled = false;

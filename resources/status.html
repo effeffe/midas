@@ -33,10 +33,10 @@
                      <br><span id="runNumber">runNumber</span>
                      <br><span id="runState">runState</span>
                      <br>
-                     <input class="mbutton" id="startButton" type=button value=Start onClick="mhttpd_start_run();">
-                     <input class="mbutton" id="stopButton" type=button value=Stop onClick="mhttpd_stop_run();">
-                     <input class="mbutton" id="pauseButton" type=button value=Pause onClick="mhttpd_pause_run();">
-                     <input class="mbutton" id="resumeButton" type=button value=Resume onClick="mhttpd_resume_run();">
+                     <input class="mbutton" id="startButton" type=button value=Start onClick="mhttpd_start_run('&Return=Status');">
+                     <input class="mbutton" id="stopButton" type=button value=Stop onClick="mhttpd_stop_run('&Return=Status');">
+                     <input class="mbutton" id="pauseButton" type=button value=Pause onClick="mhttpd_pause_run('&Return=Status');">
+                     <input class="mbutton" id="resumeButton" type=button value=Resume onClick="mhttpd_resume_run('&Return=Status');">
                      <input class="mbutton" id="cancelButton" type=button value="Cancel Transition" onClick="mhttpd_cancel_transition();">
                   </td>
                   <td id="runStatusStartTime" colspan="2"> runStatusStartTime</td>
@@ -204,7 +204,6 @@
 
                   if (document.getElementById(element + "Alarm") != null) {
                      document.getElementById(element + "Alarm").outerHTML = "";
-                     devare(document.getElementById(element + "Alarm"));
                   }
                }
             }
