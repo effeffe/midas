@@ -211,7 +211,7 @@ int get_number_image_history_threads() {
 void start_image_history() {
    curl_global_init(CURL_GLOBAL_DEFAULT);
 
-   // create defautl "Demo" image if ODB treee does not exist
+   // create default "Demo" image if ODB tree does not exist
    if (!midas::odb::exists("/History/Images"))
       midas::odb::create("/History/Images/Demo", TID_KEY);
 
