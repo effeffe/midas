@@ -11234,6 +11234,10 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
       INT total_size;
       void *pdata;
 
+      if (data && buf_size) {
+         memset(data, 0x00, *buf_size);
+      }
+
       convert_flags = 0;
 
       if (!align)
