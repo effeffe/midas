@@ -84,6 +84,8 @@ namespace midas {
       int status = -1;
       if (is_connected_odb())
          status = db_create_key(m_hDB, 0, name, type);
+      if (status != DB_SUCCESS && status != DB_KEY_EXIST)
+         mthrow("Cannot create key " + std::string(name) + ", db_create_key() status = " + std::to_string(status));
       return status;
    }
 
