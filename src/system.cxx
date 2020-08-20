@@ -729,7 +729,7 @@ INT ss_shm_open(const char *name, INT size, void **adr, size_t *shm_size, HNDLE 
          }
       }
 
-      int mode = 0777; // 0777: full access for everybody (minus umask!), 003: current user: read+write, others: no permission
+      int mode = 0600; // 0777: full access for everybody (minus umask!), 0600: current user: read+write, others: no permission
 
       //strlcat(shm_name, "_0123456789", sizeof(shm_name));
 
@@ -746,6 +746,12 @@ INT ss_shm_open(const char *name, INT size, void **adr, size_t *shm_size, HNDLE 
 #ifdef ENAMETOOLONG
             if (errno == ENAMETOOLONG) {
                fprintf(stderr, "ss_shm_open: Cannot create shared memory for \"%s\": shared memory object name \"%s\" is too long for shm_open(), please try to use shorter experiment name or shorter event buffer name or a shared memory type that uses shorter names, in this order: POSIXv3_SHM, POSIXv2_SHM or POSIX_SHM (as specified in config file .SHM_TYPE.TXT). Sorry, bye!\n", name, shm_name);
+               exit(1);
+            }
+#endif
+#ifdef EACCES
+            if (errno == EACCES) {
+               fprintf(stderr, "ss_shm_open: Cannot create shared memory for \"%s\" with shared memory object name \"%s\", shm_open() errno %d (%s), please inspect file permissions in \"ls -l /dev/shm\", and if this is a conflict with a different user using the same experiment name, please change shared memory type to the POSIXv4_SHM or POSIXv3_SHM (on MacOS) (as specified in config file .SHM_TYPE.TXT). Sorry, bye!\n", name, shm_name, errno, strerror(errno));
                exit(1);
             }
 #endif
