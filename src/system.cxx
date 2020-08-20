@@ -156,7 +156,7 @@ static void check_shm_type(const char* shm_type)
    if (s)
       *s = 0;
 
-   //printf("shm_type [%s]\n", buf);
+   //printf("check_shm_type: preferred %s got %s\n", shm_type, buf);
 
    if (strcmp(buf, "SYSV_SHM") == 0) {
       use_sysv_shm = 1;
@@ -268,8 +268,10 @@ static int ss_shm_name(const char* name, char* mem_name, int mem_name_size, char
    char path[256];
 
    check_shm_host();
-#ifdef OS_UNIX
-   check_shm_type("POSIXv2_SHM"); // find type of shared memory in use
+#if defined(OS_DARWIN)
+   check_shm_type("POSIXv3_SHM"); // uid + expt name + shm name
+#elif defined(OS_UNIX)
+   check_shm_type("POSIXv4_SHM"); // uid + expt name + shm name + expt directory
 #endif
 
    if (mem_name) {
@@ -350,7 +352,7 @@ static int ss_shm_name(const char* name, char* mem_name, int mem_name_size, char
          if (*s == '/')
             *s = '_';
 
-      //printf("shm_name [%s]\n", shm_name);
+      //printf("ss_shm_name: [%s] generated [%s]\n", name, shm_name);
 #endif
    }
 
@@ -727,14 +729,26 @@ INT ss_shm_open(const char *name, INT size, void **adr, size_t *shm_size, HNDLE 
          }
       }
 
-      sh = shm_open(shm_name, O_RDWR, 0777);
+      int mode = 0777; // 0777: full access for everybody (minus umask!), 003: current user: read+write, others: no permission
+
+      //strlcat(shm_name, "_0123456789", sizeof(shm_name));
+
+      sh = shm_open(shm_name, O_RDWR, mode);
 
       if (sh < 0) {
          // cannot open, try to create new one
 
-         sh = shm_open(shm_name, O_RDWR | O_CREAT, 0777);
+         sh = shm_open(shm_name, O_RDWR | O_CREAT, mode);
+
+         //printf("ss_shm_open: name [%s], return %d, errno %d (%s)\n", shm_name, sh, errno, strerror(errno));
 
          if (sh < 0) {
+#ifdef ENAMETOOLONG
+            if (errno == ENAMETOOLONG) {
+               fprintf(stderr, "ss_shm_open: Cannot create shared memory for \"%s\": shared memory object name \"%s\" is too long for shm_open(), please try to use shorter experiment name or shorter event buffer name or a shared memory type that uses shorter names, in this order: POSIXv3_SHM, POSIXv2_SHM or POSIX_SHM (as specified in config file .SHM_TYPE.TXT). Sorry, bye!\n", name, shm_name);
+               exit(1);
+            }
+#endif
             cm_msg(MERROR, "ss_shm_open", "Cannot create shared memory segment \'%s\', shm_open() errno %d (%s)", shm_name, errno, strerror(errno));
             if (fh >= 0)
                close(fh);
