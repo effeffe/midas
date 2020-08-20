@@ -101,6 +101,8 @@ static int use_mmap_shm = 0;
 static int use_posix_shm = 0;
 static int use_posix1_shm = 0;
 static int use_posix2_shm = 0;
+static int use_posix3_shm = 0;
+static int use_posix4_shm = 0;
 
 #endif
 
@@ -112,7 +114,6 @@ static void check_shm_type(const char* shm_type)
    char path[256];
    char buf[256];
    char* s;
-   FILE *fp;
 
    cm_get_path(path, sizeof(path));
    if (path[0] == 0) {
@@ -126,19 +127,23 @@ static void check_shm_type(const char* shm_type)
    strlcat(file_name, "SHM_TYPE", file_name_size);
    strlcat(file_name, ".TXT", file_name_size);
 
-   fp = fopen(file_name, "r");
+   FILE* fp = fopen(file_name, "r");
    if (!fp) {
       fp = fopen(file_name, "w");
-      if (!fp)
-         cm_msg(MERROR, "ss_shm_open", "Cannot write to \'%s\', errno %d (%s)", file_name, errno, strerror(errno));
-      assert(fp != NULL);
+      if (!fp) {
+         fprintf(stderr, "ss_shm_open: Cannot write to config file \'%s\', errno %d (%s)", file_name, errno, strerror(errno));
+         exit(1);
+         // DOES NOT RETURN
+      }
+
       fprintf(fp, "%s\n", shm_type);
       fclose(fp);
 
       fp = fopen(file_name, "r");
       if (!fp) {
-         cm_msg(MERROR, "ss_shm_open", "Cannot open \'%s\', errno %d (%s)", file_name, errno, strerror(errno));
-         return;
+         fprintf(stderr, "ss_shm_open: Cannot open config file \'%s\', errno %d (%s)", file_name, errno, strerror(errno));
+         exit(1);
+         // DOES NOT RETURN
       }
    }
 
@@ -175,12 +180,19 @@ static void check_shm_type(const char* shm_type)
       return;
    }
 
-#if 0
-   if (strcmp(buf, shm_type) == 0)
-      return; // success!
-#endif
+   if (strcmp(buf, "POSIXv3_SHM") == 0) {
+      use_posix3_shm = 1;
+      use_posix_shm = 1;
+      return;
+   }
 
-   cm_msg(MERROR, "ss_shm_open", "Error: This MIDAS is built for %s while this experiment uses %s (see \'%s\')", shm_type, buf, file_name);
+   if (strcmp(buf, "POSIXv4_SHM") == 0) {
+      use_posix4_shm = 1;
+      use_posix_shm = 1;
+      return;
+   }
+
+   fprintf(stderr, "ss_shm_open: Config file \"%s\" specifies unknown or unsupported shared memory type \"%s\", supported types are: SYSV_SHM, MMAP_SHM, POSIX_SHM, POSIXv2_SHM, POSIXv3_SHM, POSIXv4_SHM, default/preferred type is \"%s\"\n", file_name, buf, shm_type);
    exit(1);
 #endif
 }
@@ -301,13 +313,36 @@ static int ss_shm_name(const char* name, char* mem_name, int mem_name_size, char
 
 #if defined(OS_UNIX)
       strlcpy(shm_name, "/", shm_name_size);
-      if (use_posix1_shm)
+      if (use_posix1_shm) {
          strlcat(shm_name, file_name, shm_name_size);
-      else {
+      } else if (use_posix2_shm) {
          strlcat(shm_name, exptname, shm_name_size);
          strlcat(shm_name, "_", shm_name_size);
          strlcat(shm_name, name, shm_name_size);
          strlcat(shm_name, "_SHM", shm_name_size);
+      } else if (use_posix3_shm) {
+         uid_t uid = getuid();
+         char buf[16];
+         sprintf(buf, "%d", uid);
+         strlcat(shm_name, buf, shm_name_size);
+         strlcat(shm_name, "_", shm_name_size);
+         strlcat(shm_name, exptname, shm_name_size);
+         strlcat(shm_name, "_", shm_name_size);
+         strlcat(shm_name, name, shm_name_size);
+      } else if (use_posix4_shm) {
+         uid_t uid = getuid();
+         char buf[16];
+         sprintf(buf, "%d", uid);
+         strlcat(shm_name, buf, shm_name_size);
+         strlcat(shm_name, "_", shm_name_size);
+         strlcat(shm_name, exptname, shm_name_size);
+         strlcat(shm_name, "_", shm_name_size);
+         strlcat(shm_name, name, shm_name_size);
+         strlcat(shm_name, "_", shm_name_size);
+         strlcat(shm_name, cm_get_path().c_str(), shm_name_size);
+      } else {
+         fprintf(stderr, "ss_shm_name: unsupported shared memory type, bye!\n");
+         abort();
       }
 
       char* s;
@@ -315,13 +350,7 @@ static int ss_shm_name(const char* name, char* mem_name, int mem_name_size, char
          if (*s == '/')
             *s = '_';
 
-#ifdef PSHMNAMLEN
-      if (strlen(shm_name) >= PSHMNAMLEN)
-         strlcpy(shm_name, name, shm_name_size);
-#endif
-
       //printf("shm_name [%s]\n", shm_name);
-
 #endif
    }
 
