@@ -5,7 +5,7 @@
 <head>
    <meta charset="UTF-8">
    <link rel="stylesheet" href="midas.css" type="text/css">
-   <link id="favicon" rel="shortcut icon" type="image/png" href="favicon.png" />
+   <link id="favicon" rel="shortcut icon" type="image/png" href="favicon.png"/>
    <script src="midas.js"></script>
    <script src="mhttpd.js"></script>
    <script src="controls.js"></script>
@@ -33,11 +33,16 @@
                      <br><span id="runNumber">runNumber</span>
                      <br><span id="runState">runState</span>
                      <br>
-                     <input class="mbutton" id="startButton" type=button value=Start onClick="mhttpd_start_run('&Return=Status');">
-                     <input class="mbutton" id="stopButton" type=button value=Stop onClick="mhttpd_stop_run('&Return=Status');">
-                     <input class="mbutton" id="pauseButton" type=button value=Pause onClick="mhttpd_pause_run('&Return=Status');">
-                     <input class="mbutton" id="resumeButton" type=button value=Resume onClick="mhttpd_resume_run('&Return=Status');">
-                     <input class="mbutton" id="cancelButton" type=button value="Cancel Transition" onClick="mhttpd_cancel_transition();">
+                     <input class="mbutton" id="startButton" type=button value=Start
+                            onClick="mhttpd_start_run('&Return=Status');">
+                     <input class="mbutton" id="stopButton" type=button value=Stop
+                            onClick="mhttpd_stop_run('&Return=Status');">
+                     <input class="mbutton" id="pauseButton" type=button value=Pause
+                            onClick="mhttpd_pause_run('&Return=Status');">
+                     <input class="mbutton" id="resumeButton" type=button value=Resume
+                            onClick="mhttpd_resume_run('&Return=Status');">
+                     <input class="mbutton" id="cancelButton" type=button value="Cancel Transition"
+                            onClick="mhttpd_cancel_transition();">
                   </td>
                   <td id="runStatusStartTime" colspan="2"> runStatusStartTime</td>
                   <td id="runStatusStopTime" colspan="2"> runStatusStopTime</td>
@@ -103,13 +108,13 @@
       </tr>
 
       <tr>
-        <td>
-          <table class="mtable clientsTable" id="clientsTable" width="100%">
-            <tr>
-              <th class="mtableheader">Clients</th>
-            </tr>
-          </table>
-        </td>
+         <td>
+            <table class="mtable clientsTable" id="clientsTable" width="100%">
+               <tr>
+                  <th class="mtableheader">Clients</th>
+               </tr>
+            </table>
+         </td>
       </tr>
 
    </table>
@@ -131,8 +136,7 @@
    const secondLogChannelHtml = "<tr id=\"logChannelSecondPart\" class=\"mtabvaritle\"><th colspan=\"2\">Lazy Label</th><th>Progress</th><th>File Name</th><th># Files</th><th>Total</th></tr>";
    const clientTableHtml = "<tr><th colspan=6 class=\"mtableheader\">Clients</th></tr>";
 
-   function set_if_changed(id, text)
-   {
+   function set_if_changed(id, text) {
       var e = document.getElementById(id);
       if (e) {
          if (e.innerHTML != text) {
@@ -141,8 +145,7 @@
       }
    }
 
-   function set_class_if_changed(id, cname)
-   {
+   function set_class_if_changed(id, cname) {
       var e = document.getElementById(id);
       if (e) {
          if (e.className != cname) {
@@ -179,26 +182,26 @@
                      document.getElementById("statusTable").insertBefore(newAlarm, document.getElementById("statusTable").firstChild);
 
                      newAlarm.outerHTML = "<tr id=\"" +
-                             element +
-                             "Alarm" +
-                             "\" class=\"alarmRow\">\n<td colspan=6 style=\"background-color:" + bgcol +
-                             ";border-radius:12px;\" align=center>" +
-                             "<table width=\"100%%\"><tr" + " style=\"background-color:"+ allAlarms[element]["bgcolor"] +  "\">\n" +
-                             "<td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"" +
-                             allAlarms[element]["fgcolor"] +
-                             "\" size=+3>" +
-                             allAlarms[element]["class"] +
-                             ":" +
-                             allAlarms[element]["show_to_user"] +
-                             "</font></td>\n" +
-                             "<td width=\"1%%\" style=\"border:0px;\">\n" +
-                             "<button class=\"mbutton\" type=\"button\" onclick=\"mhttpd_reset_alarm(\'" +
-                             element +
-                             "\');update_periodic();\">Reset</button>\n" +
-                             "</td>\n" +
-                             "</tr></table>\n" +
-                             "</td>\n" +
-                             "</tr>\n";
+                        element +
+                        "Alarm" +
+                        "\" class=\"alarmRow\">\n<td colspan=6 style=\"background-color:" + bgcol +
+                        ";border-radius:12px;\" align=center>" +
+                        "<table width=\"100%%\"><tr" + " style=\"background-color:" + allAlarms[element]["bgcolor"] + "\">\n" +
+                        "<td align=center width=\"99%%\" style=\"border:0px;\"><font color=\"" +
+                        allAlarms[element]["fgcolor"] +
+                        "\" size=+3>" +
+                        allAlarms[element]["class"] +
+                        ":" +
+                        allAlarms[element]["show_to_user"] +
+                        "</font></td>\n" +
+                        "<td width=\"1%%\" style=\"border:0px;\">\n" +
+                        "<button class=\"mbutton\" type=\"button\" onclick=\"mhttpd_reset_alarm(\'" +
+                        element +
+                        "\');update_periodic();\">Reset</button>\n" +
+                        "</td>\n" +
+                        "</tr></table>\n" +
+                        "</td>\n" +
+                        "</tr>\n";
                   }
                } else {
 
@@ -215,8 +218,8 @@
          if (runinfoJson) {
             if (runinfoJson.hasOwnProperty("transition in progress") && runinfoJson.hasOwnProperty("state")) {
                var state = runinfoJson["state"];
-               var tip   = runinfoJson["transition in progress"];
-               
+               var tip = runinfoJson["transition in progress"];
+
                if (tip) {
                   if (tip === TR_STOP)
                      set_if_changed("runState", "Stopping run");
@@ -263,9 +266,9 @@
                         var m = Math.floor(difftime % 3600 / 60);
                         var s = Math.floor(difftime % 60);
                         set_if_changed("runStatusStopTime", "Running time: " +
-                                                          + h + "h"
-                                                          + ((m<10)?"0"+m:m) + "m"
-                                                          + ((s<10)?"0"+s:s) + "s");
+                           +h + "h"
+                           + ((m < 10) ? "0" + m : m) + "m"
+                           + ((s < 10) ? "0" + s : s) + "s");
                      }
                      break;
                   case STATE_RUNNING:
@@ -284,9 +287,9 @@
                         var m = Math.floor(difftime % 3600 / 60);
                         var s = Math.floor(difftime % 60);
                         set_if_changed("runStatusStopTime", "Running time: " +
-                                                          + h + "h"
-                                                          + ((m<10)?"0"+m:m) + "m"
-                                                          + ((s<10)?"0"+s:s) + "s");
+                           +h + "h"
+                           + ((m < 10) ? "0" + m : m) + "m"
+                           + ((s < 10) ? "0" + s : s) + "s");
                      }
                      break;
                }
@@ -310,21 +313,20 @@
                      var experimentItem = document.createElement("tr");
                      experimentItem.id = experimentItemList[i + 2] + "ExperimentItem";
                      experimentItem.innerHTML =
-                             "<tr><td style=\"text-align:left;\" width=\"30%\" class=\"mtitleCell\">" +
-                             experimentItemsJson[experimentItemList[i]] +
-                             ":</td>" +
-                             "<td id=\"experimentLazyBool\"; style=\"text-align:left;\">" +
-                             experimentItemsJson[experimentItemList[i + 2]] +
-                             "</td>" +
-                             "</tr>";
+                        "<tr><td style=\"text-align:left;\" width=\"30%\" class=\"mtitleCell\">" +
+                        experimentItemsJson[experimentItemList[i]] +
+                        ":</td>" +
+                        "<td id=\"experimentLazyBool\"; style=\"text-align:left;\">" +
+                        experimentItemsJson[experimentItemList[i + 2]] +
+                        "</td>" +
+                        "</tr>";
                      experimentItem.className = "";
 
                      if (document.getElementById(experimentItemList[i + 2] + "ExperimentItem") != null) {
                         if (document.getElementById(experimentItemList[i + 2] + "ExperimentItem").innerHTML != experimentItem.innerHTML) {
                            document.getElementById(experimentItemList[i + 2] + "ExperimentItem").innerHTML = experimentItem.innerHTML;
                         }
-                     }
-                     else {
+                     } else {
                         document.getElementById("runStatusExperimentItems").appendChild(experimentItem);
                      }
 
@@ -395,7 +397,7 @@
       function generateEquipmentTable(clients) {
 
          // If equipmentNames is not valid, create empty table and return.
-         if (equipmentNames == null){
+         if (equipmentNames == null) {
             document.getElementById("equipmentList").innerHTML = equipmentTableHtml;
             return;
          }
@@ -414,7 +416,7 @@
                if (equipmentCommonData[i]["enabled"]) {
 
                   if (equipmentCommonData[i]["frontend name"].length > 0 &&
-                      !clientExists(clients, equipmentCommonData[i]["frontend name"])) {
+                     !clientExists(clients, equipmentCommonData[i]["frontend name"])) {
                      mhttpd_set_innerHTML(statusItem, "Frontend stopped");
                      mhttpd_set_className(statusItem, "redLight");
                   } else {
@@ -471,7 +473,7 @@
                   "<td align=\"center\">" +
                   mb.toFixed(3) +
                   "</td>";
-               
+
                var e = document.getElementById(equipmentNames[i] + "equipment");
                if (!e) {
                   var equipmentRow = document.createElement("tr");
@@ -485,9 +487,9 @@
                   mhttpd_set_style_display(e, style_display);
                   mhttpd_set_className(e, className);
                }
-            } catch(err) {
+            } catch (err) {
                // invalid ODB equipment entry: just skip equipment
-               console.log("Error: Equipment \""+equipmentNames[i]+"\" has invalid ODB structure");
+               console.log("Error: Equipment \"" + equipmentNames[i] + "\" has invalid ODB structure");
             }
          }
       }
@@ -544,7 +546,7 @@
                innerDiv.style.display = "inline-block";
                innerDiv.style.backgroundColor = diskLevelColor;
                innerDiv.style.borderRight = "1px solid black";
-               innerDiv.style.width = (100*level).toFixed(0) + "%";
+               innerDiv.style.width = (100 * level).toFixed(0) + "%";
                innerDiv.style.height = "100%";
                innerDiv.style.position = "relative";
                innerDiv.style.paddingTop = "2px";
@@ -554,32 +556,32 @@
 
                var cl = "myellow mbox";
                if (loggerJson["write data"] == true &&
-                   currentChannel["settings"]["active"] == true)
+                  currentChannel["settings"]["active"] == true)
                   cl = "mgreen mbox";
 
-               var html = "<td colspan=\"2\" class=\""+cl+"\">" +
-                       "<a href=\"?cmd=odb&amp;odb_path=Logger/Channels/" + element + "/Settings\">" +
-                       "#" + element + ": " + "</a>" +
-                       currentChannel["settings"]["current filename"] +
-                       "</td>" +
+               var html = "<td colspan=\"2\" class=\"" + cl + "\">" +
+                  "<a href=\"?cmd=odb&amp;odb_path=Logger/Channels/" + element + "/Settings\">" +
+                  "#" + element + ": " + "</a>" +
+                  currentChannel["settings"]["current filename"] +
+                  "</td>" +
 
-                          //Events
-                       "<td align=\"center\">" +
-                       currentChannel["statistics"]["events written"] +
-                       "</td>" +
+                  //Events
+                  "<td align=\"center\">" +
+                  currentChannel["statistics"]["events written"] +
+                  "</td>" +
 
-                          //Mega Bytes (=1000*1000 Bytes) Written
-                       "<td align=\"center\">" +
-                       (currentChannel["statistics"]["bytes written"] / 1000 / 1000).toFixed(3) +
-                       "</td>" +
+                  //Mega Bytes (=1000*1000 Bytes) Written
+                  "<td align=\"center\">" +
+                  (currentChannel["statistics"]["bytes written"] / 1000 / 1000).toFixed(3) +
+                  "</td>" +
 
-                          //Compr.
-                       "<td align=\"center\">" +
-                       compressionRatio.toFixed(1) + "%" +
-                       "</td>" +
+                  //Compr.
+                  "<td align=\"center\">" +
+                  compressionRatio.toFixed(1) + "%" +
+                  "</td>" +
 
-                          //Disk Level
-                       diskLevelHtml.outerHTML;
+                  //Disk Level
+                  diskLevelHtml.outerHTML;
 
 
                if (!document.getElementById(element + "channel")) {
@@ -603,21 +605,21 @@
                var currentLazy = LazyJson[element];
 
                var html = "<td colspan=\"2\">" +
-                       "<a href=\"?cmd=odb&amp;odb_path=Lazy/" + element + "/Settings\">" +
-                       element + "</a>" +
-                       "</td>" +
-                       "<td align=\"center\">" +
-                       currentLazy["statistics"]["copy progress (%)"] + "%" +
-                       "</td>" +
-                       "<td align=\"center\">" +
-                       currentLazy["statistics"]["backup file"] +
-                       "</td>" +
-                       "<td align=\"center\">" +
-                       currentLazy["statistics"]["number of files"] +
-                       "</td>" +
-                       "<td align=\"center\">" +
-                       currentLazy["statistics"]["backup status (%)"].toFixed(1) + "%" +
-                       "</td>";
+                  "<a href=\"?cmd=odb&amp;odb_path=Lazy/" + element + "/Settings\">" +
+                  element + "</a>" +
+                  "</td>" +
+                  "<td align=\"center\">" +
+                  currentLazy["statistics"]["copy progress (%)"] + "%" +
+                  "</td>" +
+                  "<td align=\"center\">" +
+                  currentLazy["statistics"]["backup file"] +
+                  "</td>" +
+                  "<td align=\"center\">" +
+                  currentLazy["statistics"]["number of files"] +
+                  "</td>" +
+                  "<td align=\"center\">" +
+                  currentLazy["statistics"]["backup status (%)"].toFixed(1) + "%" +
+                  "</td>";
 
                if (!document.getElementById(element + "channelLazy")) {
                   var logChannelLazy = document.createElement("tr");
@@ -670,9 +672,9 @@
             for (var j = 0; j < 3; j++) {
                if (currentClient < clientNames.length) {
                   oneClientRow.innerHTML += "<td colspan=\"2\" align=\"center\">" +
-                          clientNames[currentClient]["name"] +
-                          " [" + clientNames[currentClient]["host"] + "]" +
-                          "</td>";
+                     clientNames[currentClient]["name"] +
+                     " [" + clientNames[currentClient]["host"] + "]" +
+                     "</td>";
                }
                currentClient++;
             }
@@ -732,24 +734,24 @@
 
    // Global variables for caching the current list of MIDAS equipments
    var statusGlobalSpace = {
-      cachedEquipmentList:null
+      cachedEquipmentList: null
    }
 
    // perform the main XHR and cache the list of MIDAS equipment for next XHR
-   function updateXHR(){
+   function updateXHR() {
 
       var paths = ["/Experiment/Status items", "/Logger/Channels", "/System/Clients", "/Runinfo", "Sequencer/State", "/Logger", "/Lazy", "/Experiment/Name"];
 
       //push all equipment names into an Array of Promises
-      if(statusGlobalSpace.cachedEquipmentList != null){
+      if (statusGlobalSpace.cachedEquipmentList != null) {
          var equipmentStatList = statusGlobalSpace.cachedEquipmentList.map(function (element) {
             return "/Equipment/" + element + "/statistics";
          });
-         
+
          var equipmentCommonList = statusGlobalSpace.cachedEquipmentList.map(function (element) {
             return "/Equipment/" + element + "/common";
          });
-      }else{
+      } else {
          var equipmentStatList = [];
          var equipmentCommonList = [];
       }
@@ -766,13 +768,13 @@
       ]).then(function (rpc) {
 
          // update the webpage
-         callback(rpc[0]["result"], rpc[1]["result"], rpc[2]["result"], rpc[3]["result"], statusGlobalSpace.cachedEquipmentList, 
-                  rpc[4]["result"]["data"], rpc[5]["result"]["data"]);
+         callback(rpc[0]["result"], rpc[1]["result"], rpc[2]["result"], rpc[3]["result"], statusGlobalSpace.cachedEquipmentList,
+            rpc[4]["result"]["data"], rpc[5]["result"]["data"]);
 
          // cache the results of the "db_ls /Equipment" RPC for the next RPC
-         if(rpc[6]["result"]["data"][0] != null){
+         if (rpc[6]["result"]["data"][0] != null) {
             statusGlobalSpace.cachedEquipmentList = Object.keys(rpc[6]["result"]["data"][0]);
-         }else{
+         } else {
             statusGlobalSpace.cachedEquipmentList = null;
          }
 
@@ -791,22 +793,22 @@
    function update(firstTimeCalled) {
 
       // For first call we chain JSON-RPC requests; first get equipment list: then do main JSON-RPC for rest of information.
-      if(firstTimeCalled == true){
-         
+      if (firstTimeCalled == true) {
+
          mjsonrpc_db_ls(["Equipment"]).then(function (equipmentListData) {
             if (equipmentListData.result.data[0] != null) {
                statusGlobalSpace.cachedEquipmentList = Object.keys(equipmentListData.result.data[0]);
             } else {
                statusGlobalSpace.cachedEquipmentList = null;
             }
-            
+
             updateXHR();
-            
+
          }).catch(function (error) {
             document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
             document.getElementById('updateStatus').style.display = "block";
          });
-      }else{ // subsequent requests we just use the cached equipment list from last time to make main request
+      } else { // subsequent requests we just use the cached equipment list from last time to make main request
 
          updateXHR();
 
