@@ -251,8 +251,8 @@ void syslog(int priority,const char* format,...) {
 
 int SnmpInit(int channels) {//added number of channel to init MF
    init_snmp("CrateTest");									  // I never saw this name used !?!
-   init_mib();													  // init MIB processing
-   if(!read_module("WIENER-CRATE-MIB")) {		        // read specific mibs
+   netsnmp_init_mib();													  // init MIB processing
+   if(!netsnmp_read_module("WIENER-CRATE-MIB")) {		        // read specific mibs
       syslog(LOG_ERR,"Unable to load SNMP MIB file \"%s\"","WIENER-CRATE-MIB");
       return -1;
    }
