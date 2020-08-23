@@ -649,7 +649,7 @@ testmhttpd:
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhttpd
 
 test:
-	$(MAKE) --no-print-directory runtest 2>&1 | grep -v "on host localhost stopped" | sed "sZ$(PWD)ZPWDZg" | tee testexpt.log
+	$(MAKE) --no-print-directory runtest 2>&1 | grep -v "on host localhost stopped" | sed "sZ$(PWD)ZPWDZg" | sed "sZshm_unlink(.*)Zshm_unlink(SHM)Zg" | tee testexpt.log
 	@echo
 	@echo compare output of "make test" with testexpt.example
 	@echo
