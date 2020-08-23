@@ -2373,6 +2373,7 @@ void write_runlog_sql(BOOL bor)
    /* use experiment name as default database name */
    size = sizeof(database);
    db_get_value(hDB, 0, "/Experiment/Name", database, &size, TID_STRING, TRUE);
+   size = sizeof(database);
    db_get_value(hDB, 0, "/Logger/Runlog/SQL/Database", database, &size, TID_STRING, TRUE);
 
    size = sizeof(table);
