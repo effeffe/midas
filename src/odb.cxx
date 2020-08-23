@@ -6996,9 +6996,9 @@ static INT db_check_set_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, c
    if (type == TID_STRING || type == TID_LINK) {
       if (num_values > 1) {
          int item_size = pkey->item_size;
-         if (!item_size)
+         if (data_size > 0 && num_values > 0)
             item_size = data_size/num_values;
-         //printf("db_check_set_data for %s: utf8 check for odb \"%s\" string array size %d\n", caller, db_get_path_locked(pheader, pkey).c_str(), num_values);
+         //printf("db_check_set_data for %s: utf8 check for odb \"%s\" string array size %d, item size %d\n", caller, db_get_path_locked(pheader, pkey).c_str(), num_values, item_size);
          for (int i=0; i<num_values; i++) {
             const char* value = ((const char*)data) + i * item_size;
             //printf("db_check_set_data for %s: utf8 check for odb \"%s\" string array size %d item_size %d, index %d, value \"%s\"\n", caller, db_get_path_locked(pheader, pkey).c_str(), num_values, item_size, i, value);
@@ -7010,7 +7010,7 @@ static INT db_check_set_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, c
          }
       } else {
          const char* value = (const char*)data;
-         //printf("db_check_set_data for %s: utf8 check for odb \"%s\" value \"%s\"\n", caller, db_get_path_locked(pheader, pkey).c_str(), value);
+         //printf("db_check_set_data for %s: utf8 check for odb \"%s\" value \"%s\" size %d\n", caller, db_get_path_locked(pheader, pkey).c_str(), value, data_size);
          if (!is_utf8(value)) {
             db_msg(msg, MERROR, caller, "\"%s\" set to invalid UTF-8 Unicode string value \"%s\"", db_get_path_locked(pheader, pkey).c_str(), value);
             // just a warning for now. K.O.
@@ -13556,15 +13556,17 @@ INT EXPRT db_resize_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int 
       old_num_values = key.num_values;
       old_item_size = key.item_size;
       old_size = old_num_values * old_item_size;
-      old_data = (char*)malloc(old_size);
-      assert(old_data != NULL);
-      int size = old_size;
-      status = db_get_data(hdb, hkey, old_data, &size, TID_STRING);
-      if (status != DB_SUCCESS) {
-         free(old_data);
-         return status;
+      if (old_size > 0) {
+         old_data = (char*)malloc(old_size);
+         assert(old_data != NULL);
+         int size = old_size;
+         status = db_get_data(hdb, hkey, old_data, &size, TID_STRING);
+         if (status != DB_SUCCESS) {
+            free(old_data);
+            return status;
+         }
+         assert(size == old_size);
       }
-      assert(size == old_size);
    } else {
       status = db_create_key(hdb, hKeyRoot, key_name, TID_STRING);
       if (status != DB_SUCCESS)
@@ -13588,18 +13590,20 @@ INT EXPRT db_resize_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int 
    char* new_data = (char*)malloc(new_size);
    assert(new_data);
 
-   int num = old_num_values;
-   if (num > num_values)
-      num = num_values;
-
-   //printf("new num_values %d, item_size %d, new_size %d, to copy %d values\n", num_values, item_size, new_size, num);
-
    memset(new_data, 0, new_size);
 
-   for (int i=0; i<num; i++) {
-      const char* old_ptr = old_data + i*old_item_size;
-      char* new_ptr = new_data + i*item_size;
-      strlcpy(new_ptr, old_ptr, item_size);
+   if (old_data) {
+      int num = old_num_values;
+      if (num > num_values)
+         num = num_values;
+
+      //printf("new num_values %d, item_size %d, new_size %d, old_size %d, to copy %d values\n", num_values, item_size, new_size, old_size, num);
+
+      for (int i=0; i<num; i++) {
+         const char* old_ptr = old_data + i*old_item_size;
+         char* new_ptr = new_data + i*item_size;
+         strlcpy(new_ptr, old_ptr, item_size);
+      }
    }
 
    status = db_set_data(hdb, hkey, new_data, new_size, num_values, TID_STRING);
