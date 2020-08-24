@@ -2066,10 +2066,7 @@ function mhttpd_refresh_history() {
 function mhttpd_reconnect() {
    mjsonrpc_db_ls(["/"]).then(function (rpc) {
       // on successful connection remove error and schedule refresh
-      if (document.getElementById("mheader_error")) {
-         document.getElementById("mheader_error").innerHTML = "";
-         document.getElementById("mheader_error").style.zIndex = 0; // below header
-      }
+      mhttpd_error_clear();
       if (mhttpd_refresh_id !== undefined)
          window.clearTimeout(mhttpd_refresh_id);
       if (mhttpd_refresh_history_id !== undefined)
@@ -2284,6 +2281,13 @@ function mhttpd_error(error) {
          " onclick=\"document.getElementById(&quot;mheader_error&quot;).style.zIndex = 0;\">&#9587;</div>";
       d.innerHTML = error;
       d.style.zIndex = 3; // above header
+   }
+}
+
+function mhttpd_error_clear() {
+   if (document.getElementById("mheader_error")) {
+      document.getElementById("mheader_error").innerHTML = "";
+      document.getElementById("mheader_error").style.zIndex = 0; // below header
    }
 }
 
