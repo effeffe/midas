@@ -44,6 +44,10 @@ function mie_to_string(tid, jvalue, format) {
    if (tid == TID_FLOAT || tid == TID_DOUBLE) {
       if (jvalue === "NaN")
          return jvalue;
+      if (format && format.indexOf("e") != -1) {
+         var p = parseInt(format.substr(format.indexOf("e") + 1));
+         return jvalue.toExponential(p);
+      }
       if (format && format.indexOf("p") != -1) {
          var p = parseInt(format.substr(format.indexOf("p") + 1));
          return jvalue.toPrecision(p);
