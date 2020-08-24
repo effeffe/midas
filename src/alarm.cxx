@@ -381,14 +381,14 @@ INT al_trigger_class(const char *alarm_class, const char *alarm_message, BOOL fi
    sprintf(str, "/Alarms/Classes/%s", alarm_class);
    db_find_key(hDB, 0, str, &hkeyclass);
    if (!hkeyclass) {
-      cm_msg(MERROR, "al_trigger_class", "Alarm class %s not found in ODB", alarm_class);
+      cm_msg(MERROR, "al_trigger_class", "Alarm class \"%s\" for alarm \"%s\" not found in ODB", alarm_class, alarm_message);
       return AL_INVALID_NAME;
    }
 
    size = sizeof(ac);
    status = db_get_record1(hDB, hkeyclass, &ac, &size, 0, strcomb(alarm_class_str));
    if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "al_trigger_class", "Cannot get alarm class record");
+      cm_msg(MERROR, "al_trigger_class", "Cannot get alarm class record \"%s\", db_get_record1() status %d", str, status);
       return AL_ERROR_ODB;
    }
 
