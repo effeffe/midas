@@ -480,6 +480,8 @@ static INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DW
       INT n, status, semaphore;
       struct tm *tmb;
 
+      //printf("hs_define_event: event_id %d, name [%s]\n", event_id, name);
+
       /* request semaphore */
       cm_get_experiment_semaphore(NULL, NULL, &semaphore, NULL);
       status = ss_semaphore_wait_for(semaphore, 5 * 1000);
@@ -2410,7 +2412,7 @@ public:
             assert(status == DB_SUCCESS);
          
             //printf("key \'%s\'\n", key.name);
-         
+
             int evid = (WORD) strtol(key.name, NULL, 0);
             if (evid == 0)
                continue;
@@ -2449,22 +2451,25 @@ public:
       }
 
       if (1) {
-         char tmp[256+100];
-         WORD evid;
-         int size;
+         std::string tmp = msprintf("/Equipment/%s/Common/Event ID", name);
 
-         sprintf(tmp,"/Equipment/%s/Common/Event ID", name);
-         assert(strlen(tmp) < sizeof(tmp));
-
-         size = sizeof(evid);
-         status = db_get_value(fDB, 0, tmp, &evid, &size, TID_WORD, FALSE);
+         WORD evid = 0;
+         int size = sizeof(evid);
+         status = db_get_value(fDB, 0, tmp.c_str(), &evid, &size, TID_WORD, FALSE);
          if (status == DB_SUCCESS) {
 
-            sprintf(tmp,"/History/Events/%d", evid);
-            assert(strlen(tmp) < sizeof(tmp));
+            std::string he = msprintf("/History/Events/%d", evid);
 
-            status = db_set_value(fDB, 0, tmp, name, strlen(name)+1, 1, TID_STRING);
+            std::string xname;
+            status = db_get_value_string(fDB, 0, he.c_str(), 0, &xname);
+            if (status == DB_SUCCESS && xname != event_name) {
+               cm_msg(MERROR, "add_event", "History events \"%s\" and \"%s\" use the same history event id %d. If both equipments write to the history, their data will be mixed up. To fix this, enable per-variable history, turn off the \"MIDAS\" history (use \"FILE\" history) or change event IDs or set \"common/log history\" to zero", event_name, xname.c_str(), evid);
+            }
+
+            status = db_set_value(fDB, 0, he.c_str(), name, strlen(name)+1, 1, TID_STRING);
             assert(status == DB_SUCCESS);
+
+            //printf("AllocateEventId: event [%s] allocated common/event id %d\n", event_name, evid);
 
             return evid;
          }
@@ -2481,7 +2486,9 @@ public:
 
             status = db_set_value(fDB, 0, tmp, name, strlen(name)+1, 1, TID_STRING);
             assert(status == DB_SUCCESS);
-            
+
+            //printf("AllocateEventId: event [%s] allocated next sequential id %d\n", event_name, evid);
+
             return evid;
          }
       }
