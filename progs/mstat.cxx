@@ -47,7 +47,7 @@ INT open_log_midstat(INT file_mode, INT runn, char *svpath)
    if (file_mode == 1) {        /* append run number */
       strcat(svpath, ".");
       sprintf(srun, "Run%4.4i", runn);
-      strncat(svpath, srun, strlen(srun));
+      strncat(svpath, srun, 256);
       printf("output with run file:%s-\n", svpath);
    }
    /* open device */
@@ -240,7 +240,7 @@ void compose_status(HNDLE hDB, HNDLE hKey)
                   sprintf(strtmp, "/equipment/%s/common/Frontend host", key.name);
                   db_get_value(hDB, 0, strtmp, equnode, &size, TID_STRING, TRUE);
                   {
-                     char *pp, sdummy[64];
+                     char *pp, sdummy[257];
                      memset(sdummy, 0, 64);
                      sprintf(&(ststr[j][0]), "%s ", key.name);
                      pp = strchr(equnode, '.');
@@ -249,7 +249,7 @@ void compose_status(HNDLE hDB, HNDLE hKey)
                                 strncpy(sdummy, equnode, pp - equnode));
                      else
                         sprintf(&(ststr[j][12]), "%s",
-                                strncpy(sdummy, equnode, strlen(equnode)));
+                                strncpy(sdummy, equnode, sizeof(sdummy)-1));
 
                      if (equevtsend > 1E9)
                         sprintf(&(ststr[j][30]), "%1.3lfG", equevtsend / 1E9);

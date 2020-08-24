@@ -3036,7 +3036,7 @@ public:
    {
       int event_id = -1;
 
-      if (fDebug)
+      if (fDebug && event_name != NULL && tag_name != NULL)
          printf("xhs_event_id for event [%s], tag [%s]\n", event_name, tag_name);
 
       *pevid = 0;

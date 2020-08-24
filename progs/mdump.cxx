@@ -413,7 +413,7 @@ int main(int argc, char **argv)
 	  if (strncmp(str, "y", 1) == 0)
 	    data_fmt = FORMAT_YBOS;
 	} else if (strncmp(argv[i], "-b", 2) == 0)
-	  strncpy(sbank_name, argv[++i], 4);
+	  memcpy(sbank_name, argv[++i], 4);
 	else if (strncmp(argv[i], "-i", 2) == 0)
 	  event_id = atoi(argv[++i]);
 	else if (strncmp(argv[i], "-k", 2) == 0)
@@ -501,7 +501,7 @@ int main(int argc, char **argv)
 	else if (strncmp(argv[i], "-x", 2) == 0)
 	  strncpy(rep_file, argv[++i], 4);
 	else if (strncmp(argv[i], "-b", 2) == 0)
-	  strncpy(sbank_name, argv[++i], 4);
+	  memcpy(sbank_name, argv[++i], 4);
 	else if (strncmp(argv[i], "-l", 2) == 0)
 	  save_dsp = evt_display = atoi(argv[++i]);
 	else if (strncmp(argv[i], "-w", 2) == 0)

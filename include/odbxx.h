@@ -569,7 +569,7 @@ namespace midas {
       odb(const std::array<T, SIZE> &arr) : odb() {
          m_num_values = SIZE;
          m_data = new u_odb[m_num_values]{};
-         for (int i = 0; i < SIZE; i++) {
+         for (int i = 0; i < (int)SIZE; i++) {
             u_odb u(arr[i]);
             m_data[i].set_tid(u.get_tid());
             m_data[i].set_parent(this);
@@ -583,7 +583,7 @@ namespace midas {
       odb(const std::array<std::string, SIZE> &arr) : odb() {
          m_num_values = SIZE;
          m_data = new u_odb[m_num_values]{};
-         for (int i = 0; i < SIZE; i++) {
+         for (int i = 0; i < (int)SIZE; i++) {
             std::string * mystring = new std::string(arr[i]);
             u_odb u(mystring);
             m_data[i].set_tid(u.get_tid());
@@ -671,7 +671,7 @@ namespace midas {
          } else {
 
             // resize internal array if different
-            if (v.size() != m_num_values) {
+            if ((int)v.size() != m_num_values) {
                resize_mdata(v.size());
             }
          }
