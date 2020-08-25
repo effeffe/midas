@@ -1,4 +1,3 @@
-// -*- mode: js; js-indent-level: 3; -*-
 /********************************************************************\
 
  Name:         mhistory.js
@@ -8,7 +7,7 @@
 
  Note: please load midas.js and mhttpd.js before mhistory.js
 
- \********************************************************************/
+\********************************************************************/
 
 LN10 = 2.302585094;
 LOG2 = 0.301029996;
@@ -86,7 +85,7 @@ function MhistoryGraph(divElement) { // Constructor
    this.color = {
       background: "#FFFFFF",
       axis: "#808080",
-      grid: "#F0F0F0",
+      grid: "#D0D0D0",
       label: "#404040",
       data: [
          "#00AAFF", "#FF9000", "#FF00A0", "#00C030",
