@@ -154,9 +154,8 @@
       }
    }
 
-   function callback(rpc, alarm, loggerBool, lastMessage, equipmentNames, equipmentStatData, equipmentCommonData) {
-
-
+   function callback(rpc, alarm, loggerBool, lastMessage, equipmentNames, equipmentStatData, equipmentCommonData
+   ) {
       // define all json data here
       var experimentItemsJson = rpc.data[0];
       var logChannelJson = rpc.data[1];
@@ -387,8 +386,7 @@
       function clientExists(clients, name) {
          for (var key in clients) {
             if (clients[key].hasOwnProperty("name")) {
-               if (clients[key].name === name)
-                  return true;
+               if (clients[key].name === name) return true;
             }
          }
          return false;
@@ -494,6 +492,14 @@
          }
       }
 
+      function isClientPresent(client_name) {
+         for (var key in clientsJson) {
+            if (clientsJson[key].hasOwnProperty("name")) {
+               if (clientsJson[key].name.indexOf(client_name) > -1) return true;
+            }
+         }
+         return false;
+      }
 
       function generateLogChannel() {
 
@@ -502,7 +508,6 @@
                document.getElementById("logChannel").innerHTML = logChannelTableHtml;
             }
          }
-
 
          if (document.getElementById("logChannelFirstPart") === null) {
             document.getElementById("logChannel").innerHTML += firstLogChannelHtml;
@@ -558,8 +563,9 @@
                if (loggerJson["write data"] == true &&
                   currentChannel["settings"]["active"] == true)
                   cl = "mgreen mbox";
-
-               var html = "<td colspan=\"2\" class=\"" + cl + "\">" +
+               var ccl = "mgreen mbox";
+               if (loggerBool["status"] != 1) ccl = "mred mbox";
+               var html = "<td colspan=\"2\" class=\"" + ccl + "\">" +
                   "<a href=\"?cmd=odb&amp;odb_path=Logger/Channels/" + element + "/Settings\">" +
                   "#" + element + ": " + "</a>" +
                   currentChannel["settings"]["current filename"] +
@@ -603,13 +609,14 @@
          for (var element in LazyJson) {
             if (LazyJson[element].settings && LazyJson[element].statistics) {
                var currentLazy = LazyJson[element];
-
-               var html = "<td colspan=\"2\">" +
+               var cl = "mred mbox";
+               if (isClientPresent("Lazy_")) cl = "mgreen mbox";
+               var html = "<td colspan=\"2\" class=\"" + cl + "\">" +
                   "<a href=\"?cmd=odb&amp;odb_path=Lazy/" + element + "/Settings\">" +
                   element + "</a>" +
                   "</td>" +
                   "<td align=\"center\">" +
-                  currentLazy["statistics"]["copy progress (%)"] + "%" +
+                  currentLazy["statistics"]["copy progress (%)"].toFixed(1) + "%" +
                   "</td>" +
                   "<td align=\"center\">" +
                   currentLazy["statistics"]["backup file"] +

@@ -518,6 +518,7 @@ typedef struct {
 #define LOG_TYPE_DISK 1
 #define LOG_TYPE_TAPE 2
 #define LOG_TYPE_FTP  3
+#define LOG_TYPE_SFTP 4
 
 /** @} */
 
