@@ -1466,7 +1466,12 @@ static long int get_remote_file_size(const char *remote_file) {
    result = curl_easy_perform(curlhandle);
    if (result == CURLE_OK) {
       // get the file size from the header info
+
+#if LIBCURL_VERSION_NUM < 0x073700
+      result = curl_easy_getinfo(curlhandle, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &remote_file_size_byte);
+#else
       result = curl_easy_getinfo(curlhandle, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &remote_file_size_byte);
+#endif
       if (result) {
          return -1;
       }
