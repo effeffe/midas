@@ -1266,8 +1266,12 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
          // check if cursor close to graph point
          if (this.data !== undefined && this.x.length && this.y.length) {
+
             let minDist = 10000;
             for (let di = 0; di < this.data.length; di++) {
+
+               if (this.solo.active && di != this.solo.index)
+                  continue;
 
                let i1 = binarySearch(this.x[di], e.offsetX - 10);
                let i2 = binarySearch(this.x[di], e.offsetX + 10);
@@ -1284,9 +1288,20 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             }
 
             // exclude zoom buttons if visible
+            let exclude = false;
             if (this.showZoomButtons &&
                e.offsetX > this.width - 30 - 48 && this.offsetX < this.width - 30 &&
                e.offsetY > this.y1 - 24 && e.offsetY < this.y1) {
+               exclude = true;
+            }
+            // exclude label area
+            if (this.showLabels &&
+               e.offsetX > this.x1 && e.offsetX < this.x1 + 25 + this.variablesWidth + 7 &&
+               e.offsetY > this.y2 && e.offsetY < this.y2 + this.variablesHeight + 2) {
+               exclude = true;
+            }
+
+            if (exclude) {
                this.marker.active = false;
             } else {
                this.marker.active = Math.sqrt(minDist) < 10 && e.offsetX > this.x1 && e.offsetX < this.x2;
@@ -1309,6 +1324,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
                this.redraw(true);
          }
       }
+
    } else if (e.type === "dblclick") {
 
       // check if inside zoom buttons
@@ -1320,38 +1336,39 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
 
          // measure distance to graphs
          if (this.data !== undefined && this.x.length && this.y.length) {
-            let minDist = 100;
-            for (let di = 0; di < this.data.length; di++) {
-               for (let i = 0; i < this.x[di].length; i++) {
-                  if (this.x[di][i] > this.x1 && this.x[di][i] < this.x2) {
-                     let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
-                        Math.pow(e.offsetY - this.y[di][i], 2));
-                     if (d < minDist) {
-                        minDist = d;
-                        this.solo.index = di;
-                     }
+
+            // check if inside label area
+            let flag = false;
+            if (this.showLabels) {
+               if (e.offsetX > this.x1 && e.offsetX < this.x1 + 25 + this.variablesWidth + 7) {
+                  let i = Math.floor((e.offsetY - 30) / 17);
+                  if (i < this.data.length) {
+                     this.solo.active = true;
+                     this.solo.index = i;
+                     flag = true;
                   }
                }
             }
-            // check if close to graph point
-            if (minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2) {
-               this.solo.active = !this.solo.active;
-            } else {
-               // check if inside label area
-               if (this.showLabels) {
-                  if (e.offsetX > this.x1 && e.offsetX < this.x1 + 25 + this.variablesWidth + 7) {
-                     let i = Math.floor((e.offsetY - 30) / 17);
-                     if (i < this.data.length) {
-                        if (this.solo.active && this.solo.index === i) {
-                           this.solo.active = false;
-                        } else {
-                           this.solo.active = true;
-                           this.solo.index = i;
+
+            if (!flag) {
+               let minDist = 100;
+               for (let di = 0; di < this.data.length; di++) {
+                  for (let i = 0; i < this.x[di].length; i++) {
+                     if (this.x[di][i] > this.x1 && this.x[di][i] < this.x2) {
+                        let d = Math.sqrt(Math.pow(e.offsetX - this.x[di][i], 2) +
+                           Math.pow(e.offsetY - this.y[di][i], 2));
+                        if (d < minDist) {
+                           minDist = d;
+                           this.solo.index = di;
                         }
                      }
                   }
                }
+               // check if close to graph point
+               if (minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2)
+                  this.solo.active = !this.solo.active;
             }
+
             this.redraw(true);
          }
       }
@@ -2101,9 +2118,13 @@ MhistoryGraph.prototype.draw = function () {
 
    // labels with variable names and values
    if (this.showLabels) {
-      this.variablesHeight = this.odb["Variables"].length * 17 + 7;
+      if (this.solo.active)
+         this.variablesHeight = 17 + 7;
+      else
+         this.variablesHeight = this.odb["Variables"].length * 17 + 7;
       this.variablesWidth = 0;
 
+      // determine width of widest label
       this.odb["Variables"].forEach((v, i) => {
          let width;
          if (this.odb.Label[i] !== "")
@@ -2147,18 +2168,26 @@ MhistoryGraph.prototype.draw = function () {
       ctx.globalAlpha = 1;
 
       this.odb["Variables"].forEach((v, i) => {
+
+         if (this.solo.active && i != this.solo.index)
+            return;
+
+         let yLabel = 0;
+         if (!this.solo.active)
+            yLabel = i * 17;
+
          ctx.lineWidth = 4;
          ctx.strokeStyle = this.odb["Colour"][i];
-         ctx.drawLine(this.x1 + 5, 40 + i * 17, this.x1 + 20, 40 + i * 17);
+         ctx.drawLine(this.x1 + 5, 40 + yLabel, this.x1 + 20, 40 + yLabel);
          ctx.lineWidth = 1;
 
          ctx.textAlign = "left";
          ctx.textBaseline = "middle";
          ctx.fillStyle = "#404040";
          if (this.odb.Label[i] !== "")
-            ctx.fillText(this.odb.Label[i], this.x1 + 25, 40 + i * 17);
+            ctx.fillText(this.odb.Label[i], this.x1 + 25, 40 + yLabel);
          else
-            ctx.fillText(v.substr(v.indexOf(':') + 1), this.x1 + 25, 40 + i * 17);
+            ctx.fillText(v.substr(v.indexOf(':') + 1), this.x1 + 25, 40 + yLabel);
 
          ctx.textAlign = "right";
          if (this.v[i].length > 0) {
@@ -2173,7 +2202,7 @@ MhistoryGraph.prototype.draw = function () {
                // convert value to string with 6 digits
                let value = this.v[i][index];
                let str = value.toPrecision(this.yPrecision).stripZeros();
-               ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + i * 17);
+               ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + yLabel);
             }
          } else {
             if (this.lastWritten.length > 0) {
@@ -2182,7 +2211,7 @@ MhistoryGraph.prototype.draw = function () {
                   update_last_written = true;
                }
                ctx.fillText(convertLastWritten(this.lastWritten[i]),
-                  this.x1 + 25 + this.variablesWidth, 40 + i * 17);
+                  this.x1 + 25 + this.variablesWidth, 40 + yLabel);
             } else {
                //console.log("last_written was not loaded yet");
                update_last_written = true;
