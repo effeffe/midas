@@ -2217,7 +2217,8 @@ function mhttpd_message(msg, chat) {
          if (mType === "USER" && mhttpdConfig().displayChat  ||
              mType === "TALK" && mhttpdConfig().displayTalk  ||
              mType === "ERROR" && mhttpdConfig().displayError ||
-             mType === "INFO" && mhttpdConfig().displayInfo) {
+             mType === "INFO" && mhttpdConfig().displayInfo ||
+             mType === "LOG" && mhttpdConfig().displayLog) {
 
             var first = (d.currentMessage === undefined);
             d.currentMessage = m; // store full message in user-defined attribute
@@ -2260,6 +2261,8 @@ function mhttpd_message(msg, chat) {
             } else if (mType === "ERROR" && mhttpdConfig().speakError) {
                mhttpd_speak(talkTime, mTalk);
             } else if (mType === "INFO" && mhttpdConfig().speakInfo) {
+               mhttpd_speak(talkTime, mTalk);
+            } else if (mType === "LOG" && mhttpdConfig().speakLog) {
                mhttpd_speak(talkTime, mTalk);
             }
          }
@@ -2769,15 +2772,23 @@ function msg_extend() {
 var mhttpd_config_defaults = {
    'chatName': "",
 
+   'pageTalk': true,
+   'pageError': true,
+   'pageInfo': true,
+   'pageLog': false,
+
    'displayChat': true,
    'displayTalk': true,
    'displayError': true,
    'displayInfo': false,
+   'displayLog': false,
 
    'speakChat': true,
    'speakTalk': true,
    'speakError': false,
    'speakInfo': false,
+   'speakLog': false,
+
    'speakVoice': 'Alex',
    'speakVolume': 1,
 

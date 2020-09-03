@@ -155,12 +155,39 @@
       window.onresize = resize_message_box;
    }
 
+   function msg_filter(msg) {
+      let c = mhttpdConfig();
+      for (let i = 0; i < msg.length; i++) {
+
+         let skip = false;
+         if (!c.pageTalk && msg[i].search(",TALK]") > 0)
+            skip = true;
+         if (!c.pageError && msg[i].search(",ERROR]") > 0)
+            skip = true;
+         if (!c.pageInfo && msg[i].search(",INFO]") > 0)
+            skip = true;
+         if (!c.pageLog && msg[i].search(",LOG]") > 0)
+            skip = true;
+
+         if (skip) {
+            let t = parseInt(msg[i]);
+            if (t > first_tstamp)
+               first_tstamp = t;
+
+            msg.splice(i, 1);
+            i--;
+         }
+      }
+   }
+
    function msg_prepend(msg) {
       var mf = document.getElementById('messageFrame');
       if (mf.childNodes.length < 2) {
          msg_append(msg);
          return;
       }
+
+      msg_filter(msg);
 
       for (var i = 0; i < msg.length; i++) {
          var line = msg[i];
@@ -175,7 +202,8 @@
          if (e.innerHTML == mf.childNodes[1 + i].innerHTML)
             break;
          mf.insertBefore(e, mf.childNodes[1 + i]);
-         first_tstamp = t;
+         if (t > first_tstamp)
+            first_tstamp = t;
          n_messages++;
 
          if (line.search("ERROR]") > 0) {
@@ -191,6 +219,9 @@
    }
 
    function msg_append(msg) {
+
+      msg_filter(msg);
+
       if (msg[0] == "")
          end_of_messages = true;
       if (end_of_messages)
