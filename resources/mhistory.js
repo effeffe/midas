@@ -258,6 +258,14 @@ function MhistoryGraph(divElement) { // Constructor
          click: function () {
             dlgShow("dlgHelp", false);
          }
+      },
+      {
+         src: "return.svg",
+         title: "Return to all variables",
+         click: function (t) {
+            t.solo.active = false;
+            t.redraw();
+         }
       }
    ];
 
@@ -606,6 +614,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
                      mhg.scroll = false;
                      mhg.marker.active = false;
                      mhg.loadOldData();
+                     mhg.findMinMax();
                      mhg.redraw(true);
 
                      if (mhg.callbacks.timeZoom !== undefined)
@@ -653,6 +662,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
                      mhg.scroll = false;
                      mhg.marker.active = false;
                      mhg.loadOldData();
+                     mhg.findMinMax();
                      mhg.redraw(true);
 
                      if (mhg.callbacks.timeZoom !== undefined)
@@ -2155,16 +2165,20 @@ MhistoryGraph.prototype.draw = function () {
          this.variablesWidth = Math.max(this.variablesWidth, width);
       });
 
+      let xLabel = this.x1;
+      if (this.solo.active)
+         xLabel = this.x1 + 28;
+
       ctx.save();
       ctx.beginPath();
-      ctx.rect(this.x1, this.y2, 25 + this.variablesWidth + 7, this.variablesHeight + 2);
+      ctx.rect(xLabel, this.y2, 25 + this.variablesWidth + 7, this.variablesHeight + 2);
       ctx.clip();
 
       ctx.strokeStyle = this.color.axis;
       ctx.fillStyle = "#F0F0F0";
       ctx.globalAlpha = 0.5;
-      ctx.strokeRect(this.x1, this.y2, 25 + this.variablesWidth + 5, this.variablesHeight);
-      ctx.fillRect(this.x1, this.y2, 25 + this.variablesWidth + 5, this.variablesHeight);
+      ctx.strokeRect(xLabel, this.y2, 25 + this.variablesWidth + 5, this.variablesHeight);
+      ctx.fillRect(xLabel, this.y2, 25 + this.variablesWidth + 5, this.variablesHeight);
       ctx.globalAlpha = 1;
 
       this.odb["Variables"].forEach((v, i) => {
@@ -2178,16 +2192,16 @@ MhistoryGraph.prototype.draw = function () {
 
          ctx.lineWidth = 4;
          ctx.strokeStyle = this.odb["Colour"][i];
-         ctx.drawLine(this.x1 + 5, 40 + yLabel, this.x1 + 20, 40 + yLabel);
+         ctx.drawLine(xLabel + 5, 40 + yLabel, xLabel + 20, 40 + yLabel);
          ctx.lineWidth = 1;
 
          ctx.textAlign = "left";
          ctx.textBaseline = "middle";
          ctx.fillStyle = "#404040";
          if (this.odb.Label[i] !== "")
-            ctx.fillText(this.odb.Label[i], this.x1 + 25, 40 + yLabel);
+            ctx.fillText(this.odb.Label[i], xLabel + 25, 40 + yLabel);
          else
-            ctx.fillText(v.substr(v.indexOf(':') + 1), this.x1 + 25, 40 + yLabel);
+            ctx.fillText(v.substr(v.indexOf(':') + 1), xLabel + 25, 40 + yLabel);
 
          ctx.textAlign = "right";
          if (this.v[i].length > 0) {
@@ -2202,7 +2216,7 @@ MhistoryGraph.prototype.draw = function () {
                // convert value to string with 6 digits
                let value = this.v[i][index];
                let str = value.toPrecision(this.yPrecision).stripZeros();
-               ctx.fillText(str, this.x1 + 25 + this.variablesWidth, 40 + yLabel);
+               ctx.fillText(str, xLabel + 25 + this.variablesWidth, 40 + yLabel);
             }
          } else {
             if (this.lastWritten.length > 0) {
@@ -2211,7 +2225,7 @@ MhistoryGraph.prototype.draw = function () {
                   update_last_written = true;
                }
                ctx.fillText(convertLastWritten(this.lastWritten[i]),
-                  this.x1 + 25 + this.variablesWidth, 40 + yLabel);
+                  xLabel + 25 + this.variablesWidth, 40 + yLabel);
             } else {
                //console.log("last_written was not loaded yet");
                update_last_written = true;
@@ -2276,6 +2290,17 @@ MhistoryGraph.prototype.draw = function () {
          if (s.indexOf("&A") > -1)
             s = s.substr(0, s.indexOf("&A"));
          if (s === encodeURI(this.baseURL + "&group=" + this.group + "&panel=" + this.panel)) {
+            b.enabled = false;
+            return;
+         }
+      }
+
+      if (b.src === "return.svg") {
+         b.x1 = this.x1;
+         b.y1 = this.y2;
+         if (this.solo.active)
+            b.enabled = true;
+         else {
             b.enabled = false;
             return;
          }
