@@ -1781,6 +1781,8 @@ MhistoryGraph.prototype.draw = function () {
    let t = Math.floor(new Date() / 1000);
    if (this.tMax > t) {
       let x = this.timeToX(t);
+      if (x < this.x1)
+         x = this.x1;
       ctx.fillStyle = ctx.createPattern(createPinstripeCanvas(), 'repeat');
       ctx.fillRect(x, 26, this.x2 - x, this.y1 - this.y2);
 
