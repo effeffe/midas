@@ -2092,7 +2092,7 @@ MhistoryGraph.prototype.draw = function () {
                   ctx.lineTo(p.x, p.min);
                   ctx.lineTo(p.x, p.last);
                }
-               old = p.x;
+               xold = p.x;
             }
             ctx.stroke();
          } else {
