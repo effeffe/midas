@@ -1580,7 +1580,7 @@ MhistoryGraph.prototype.findMinMax = function () {
          continue;
       if (this.solo.active && this.solo.index !== index)
          continue;
-      let i1 = binarySearch(this.data[index].time, this.tMin);
+      let i1 = binarySearch(this.data[index].time, this.tMin) + 1;
       let i2 = binarySearch(this.data[index].time, this.tMax);
       while (minValue === undefined && i1 < i2) {
          let v = this.data[index].value[i1];
@@ -1859,7 +1859,7 @@ MhistoryGraph.prototype.draw = function () {
          let last = undefined;
          let n = 0;
 
-         let i1 = binarySearch(this.data[di].time, this.tMin);
+         let i1 = binarySearch(this.data[di].time, this.tMin) + 1;
          let i2 = this.data[di].time.length;
          for (let i = i1; i < i2 ; i++) {
             let t = this.data[di].time[i];
