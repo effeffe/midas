@@ -264,6 +264,7 @@ function MhistoryGraph(divElement) { // Constructor
          title: "Return to all variables",
          click: function (t) {
             t.solo.active = false;
+            t.findMinMax();
             t.redraw();
          }
       }
@@ -352,6 +353,7 @@ MhistoryGraph.prototype.keyDown = function (e) {
    }
    if (e.key === "Escape") {
       this.solo.active = false;
+      this.findMinMax();
       this.redraw(true);
       e.preventDefault();
    }
@@ -1355,6 +1357,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
                   if (i < this.data.length) {
                      this.solo.active = true;
                      this.solo.index = i;
+                     this.findMinMax();
                      flag = true;
                   }
                }
@@ -1377,6 +1380,7 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
                // check if close to graph point
                if (minDist < 10 && e.offsetX > this.x1 && e.offsetX < this.x2)
                   this.solo.active = !this.solo.active;
+               this.findMinMax();
             }
 
             this.redraw(true);
@@ -1573,6 +1577,8 @@ MhistoryGraph.prototype.findMinMax = function () {
       if (this.events[index] === "Run transitions")
          continue;
       if (this.data[index].time.length === 0)
+         continue;
+      if (this.solo.active && this.solo.index !== index)
          continue;
       let i1 = binarySearch(this.data[index].time, this.tMin);
       let i2 = binarySearch(this.data[index].time, this.tMax);
