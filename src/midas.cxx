@@ -11961,11 +11961,8 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
 \********************************************************************/
 {
    va_list ap, aptmp;
-   char arg[8], arg_tmp[8];
    INT i, status;
-   INT param_size, arg_size, send_size;
    char *param_ptr;
-   BOOL bpointer, bbig;
    DWORD rpc_status = 0;
 
    int idx = hConn - 1;
@@ -12026,13 +12023,13 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
    va_start(ap, routine_id);
 
    /* find out if we are on a big endian system */
-   bbig = ((rpc_get_option(0, RPC_OHW_TYPE) & DRI_BIG_ENDIAN) > 0);
+   bool bbig = ((rpc_get_option(0, RPC_OHW_TYPE) & DRI_BIG_ENDIAN) > 0);
 
    for (i = 0, param_ptr = nc->param; rpc_list[rpc_index].param[i].tid != 0; i++) {
       int tid = rpc_list[rpc_index].param[i].tid;
       int flags = rpc_list[rpc_index].param[i].flags;
 
-      bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
+      bool bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
                  (flags & RPC_FIXARRAY) || (flags & RPC_VARARRAY) ||
                  tid == TID_STRING || tid == TID_ARRAY || tid == TID_STRUCT || tid == TID_LINK;
 
@@ -12048,6 +12045,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
          arg_type = TID_DOUBLE;
 
       /* get pointer to argument */
+      char arg[8];
       rpc_va_arg(&ap, arg_type, arg);
 
       /* shift 1- and 2-byte parameters to the LSB on big endian systems */
@@ -12062,6 +12060,8 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
       }
 
       if (flags & RPC_IN) {
+         int arg_size = 0;
+         
          if (bpointer)
             arg_size = tid_size[tid];
          else
@@ -12075,6 +12075,8 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
             the next parameter on the stack */
          if (flags & RPC_VARARRAY) {
             memcpy(&aptmp, &ap, sizeof(ap));
+
+            char arg_tmp[8];
             rpc_va_arg(&aptmp, TID_ARRAY, arg_tmp);
 
             if (flags & RPC_OUT)
@@ -12090,7 +12092,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
             arg_size = rpc_list[rpc_index].param[i].n;
 
          /* always align parameter size */
-         param_size = ALIGN8(arg_size);
+         int param_size = ALIGN8(arg_size);
 
          {
             size_t param_offset = (char *) param_ptr - (char *) nc;
@@ -12129,7 +12131,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
 
    nc->header.param_size = (POINTER_T) param_ptr - (POINTER_T) nc->param;
 
-   send_size = nc->header.param_size + sizeof(NET_COMMAND_HEADER);
+   int send_size = nc->header.param_size + sizeof(NET_COMMAND_HEADER);
 
    /* in FAST TCP mode, only send call and return immediately */
    if (rpc_no_reply) {
@@ -12202,7 +12204,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
       int tid = rpc_list[rpc_index].param[i].tid;
       int flags = rpc_list[rpc_index].param[i].flags;
 
-      bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
+      bool bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
                  (flags & RPC_FIXARRAY) || (flags & RPC_VARARRAY) ||
                  tid == TID_STRING || tid == TID_ARRAY || tid == TID_STRUCT || tid == TID_LINK;
 
@@ -12216,6 +12218,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
       if (tid == TID_FLOAT && !bpointer)
          arg_type = TID_DOUBLE;
 
+      char arg[8];
       rpc_va_arg(&ap, arg_type, arg);
 
       if (rpc_list[rpc_index].param[i].flags & RPC_OUT) {
@@ -12231,7 +12234,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
          tid = rpc_list[rpc_index].param[i].tid;
          flags = rpc_list[rpc_index].param[i].flags;
 
-         arg_size = tid_size[tid];
+         int arg_size = tid_size[tid];
 
          if (tid == TID_STRING || tid == TID_LINK)
             arg_size = strlen((char *) (param_ptr)) + 1;
@@ -12249,7 +12252,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
             memcpy((void *) *((char **) arg), param_ptr, arg_size);
 
          /* parameter size is always aligned */
-         param_size = ALIGN8(arg_size);
+         int param_size = ALIGN8(arg_size);
 
          param_ptr += param_size;
       }
@@ -12292,15 +12295,8 @@ INT rpc_call(DWORD routine_id, ...)
 \********************************************************************/
 {
    va_list ap, aptmp;
-   char arg[8], arg_tmp[8];
-   INT arg_type, rpc_timeout;
    INT i, idx, status;
-   INT param_size, arg_size, send_size;
-   INT tid, flags;
    char *param_ptr;
-   BOOL bpointer, bbig;
-   NET_COMMAND *nc;
-   int send_sock;
    char *buf = NULL;
    DWORD buf_size = 0;
    DWORD rpc_status = 0;
@@ -12312,8 +12308,8 @@ INT rpc_call(DWORD routine_id, ...)
    //if (rpc_no_reply)
    //   printf("rpc_call: routine_id %d, RPC_NO_REPLY\n", routine_id);
 
-   send_sock = _server_connection.send_sock;
-   rpc_timeout = _server_connection.rpc_timeout;
+   int send_sock = _server_connection.send_sock;
+   int rpc_timeout = _server_connection.rpc_timeout;
 
    if (!send_sock) {
       fprintf(stderr, "rpc_call(routine_id=%d) failed, no connection to mserver.\n", routine_id);
@@ -12362,7 +12358,7 @@ INT rpc_call(DWORD routine_id, ...)
       return RPC_NO_MEMORY;
    }
 
-   nc = (NET_COMMAND *) buf;
+   NET_COMMAND* nc = (NET_COMMAND *) buf;
    nc->header.routine_id = routine_id;
 
    if (rpc_no_reply)
@@ -12372,13 +12368,14 @@ INT rpc_call(DWORD routine_id, ...)
    va_start(ap, routine_id);
 
    /* find out if we are on a big endian system */
-   bbig = ((rpc_get_option(0, RPC_OHW_TYPE) & DRI_BIG_ENDIAN) > 0);
+   bool bbig = ((rpc_get_option(0, RPC_OHW_TYPE) & DRI_BIG_ENDIAN) > 0);
 
    for (i = 0, param_ptr = nc->param; rpc_list[idx].param[i].tid != 0; i++) {
-      tid = rpc_list[idx].param[i].tid;
-      flags = rpc_list[idx].param[i].flags;
+      int tid = rpc_list[idx].param[i].tid;
+      int flags = rpc_list[idx].param[i].flags;
+      int arg_type = 0;
 
-      bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
+      bool bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
                  (flags & RPC_FIXARRAY) || (flags & RPC_VARARRAY) ||
                  tid == TID_STRING || tid == TID_ARRAY || tid == TID_STRUCT || tid == TID_LINK;
 
@@ -12392,6 +12389,7 @@ INT rpc_call(DWORD routine_id, ...)
          arg_type = TID_DOUBLE;
 
       /* get pointer to argument */
+      char arg[8];
       rpc_va_arg(&ap, arg_type, arg);
 
       /* shift 1- and 2-byte parameters to the LSB on big endian systems */
@@ -12406,6 +12404,8 @@ INT rpc_call(DWORD routine_id, ...)
       }
 
       if (flags & RPC_IN) {
+         int arg_size = 0;
+         
          if (bpointer)
             arg_size = tid_size[tid];
          else
@@ -12419,6 +12419,8 @@ INT rpc_call(DWORD routine_id, ...)
             the next parameter on the stack */
          if (flags & RPC_VARARRAY) {
             memcpy(&aptmp, &ap, sizeof(ap));
+
+            char arg_tmp[8];
             rpc_va_arg(&aptmp, TID_ARRAY, arg_tmp);
 
             if (flags & RPC_OUT)
@@ -12434,7 +12436,7 @@ INT rpc_call(DWORD routine_id, ...)
             arg_size = rpc_list[idx].param[i].n;
 
          /* always align parameter size */
-         param_size = ALIGN8(arg_size);
+         int param_size = ALIGN8(arg_size);
 
          {
             size_t param_offset = (char *) param_ptr - (char *) nc;
@@ -12474,7 +12476,7 @@ INT rpc_call(DWORD routine_id, ...)
 
    nc->header.param_size = (POINTER_T) param_ptr - (POINTER_T) nc->param;
 
-   send_size = nc->header.param_size + sizeof(NET_COMMAND_HEADER);
+   int send_size = nc->header.param_size + sizeof(NET_COMMAND_HEADER);
 
    /* do not wait for reply if requested RPC_NO_REPLY */
    if (rpc_no_reply) {
@@ -12559,10 +12561,11 @@ INT rpc_call(DWORD routine_id, ...)
    va_start(ap, routine_id);
 
    for (i = 0, param_ptr = buf; rpc_list[idx].param[i].tid != 0; i++) {
-      tid = rpc_list[idx].param[i].tid;
-      flags = rpc_list[idx].param[i].flags;
+      int tid = rpc_list[idx].param[i].tid;
+      int flags = rpc_list[idx].param[i].flags;
+      int arg_type = 0;
 
-      bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
+      bool bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
                  (flags & RPC_FIXARRAY) || (flags & RPC_VARARRAY) ||
                  tid == TID_STRING || tid == TID_ARRAY || tid == TID_STRUCT || tid == TID_LINK;
 
@@ -12574,6 +12577,7 @@ INT rpc_call(DWORD routine_id, ...)
       if (tid == TID_FLOAT && !bpointer)
          arg_type = TID_DOUBLE;
 
+      char arg[8];
       rpc_va_arg(&ap, arg_type, arg);
 
       if (rpc_list[idx].param[i].flags & RPC_OUT) {
@@ -12587,7 +12591,7 @@ INT rpc_call(DWORD routine_id, ...)
          }
 
          tid = rpc_list[idx].param[i].tid;
-         arg_size = tid_size[tid];
+         int arg_size = tid_size[tid];
 
          if (tid == TID_STRING || tid == TID_LINK)
             arg_size = strlen((char *) (param_ptr)) + 1;
@@ -12605,7 +12609,7 @@ INT rpc_call(DWORD routine_id, ...)
             memcpy((void *) *((char **) arg), param_ptr, arg_size);
 
          /* parameter size is always aligned */
-         param_size = ALIGN8(arg_size);
+         int param_size = ALIGN8(arg_size);
 
          param_ptr += param_size;
       }
