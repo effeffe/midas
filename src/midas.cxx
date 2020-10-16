@@ -11934,6 +11934,68 @@ void rpc_va_arg(va_list *arg_ptr, INT arg_type, void *arg) {
 }
 
 /********************************************************************/
+static int rpc_call_decode(va_list& ap, int idx, const char* buf)
+{
+   /* extract result variables and place it to argument list */
+
+   const char* param_ptr = buf;
+
+   for (int i = 0; rpc_list[idx].param[i].tid != 0; i++) {
+      int tid = rpc_list[idx].param[i].tid;
+      int flags = rpc_list[idx].param[i].flags;
+      int arg_type = 0;
+
+      bool bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
+                 (flags & RPC_FIXARRAY) || (flags & RPC_VARARRAY) ||
+                 tid == TID_STRING || tid == TID_ARRAY || tid == TID_STRUCT || tid == TID_LINK;
+
+      if (bpointer)
+         arg_type = TID_ARRAY;
+      else
+         arg_type = rpc_list[idx].param[i].tid;
+
+      if (tid == TID_FLOAT && !bpointer)
+         arg_type = TID_DOUBLE;
+
+      char arg[8];
+      rpc_va_arg(&ap, arg_type, arg);
+
+      if (rpc_list[idx].param[i].flags & RPC_OUT) {
+
+         if (param_ptr == NULL) {
+            cm_msg(MERROR, "rpc_call_decode", "routine \"%s\": no data in RPC reply, needed to decode an RPC_OUT parameter. param_ptr is NULL", rpc_list[idx].name);
+            return RPC_NET_ERROR;
+         }
+
+         tid = rpc_list[idx].param[i].tid;
+         int arg_size = tid_size[tid];
+
+         if (tid == TID_STRING || tid == TID_LINK)
+            arg_size = strlen((char *) (param_ptr)) + 1;
+
+         if (flags & RPC_VARARRAY) {
+            arg_size = *((INT *) param_ptr);
+            param_ptr += ALIGN8(sizeof(INT));
+         }
+
+         if (tid == TID_STRUCT || (flags & RPC_FIXARRAY))
+            arg_size = rpc_list[idx].param[i].n;
+
+         /* return parameters are always pointers */
+         if (*((char **) arg))
+            memcpy((void *) *((char **) arg), param_ptr, arg_size);
+
+         /* parameter size is always aligned */
+         int param_size = ALIGN8(arg_size);
+
+         param_ptr += param_size;
+      }
+   }
+
+   return RPC_SUCCESS;
+}
+
+/********************************************************************/
 INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
 /********************************************************************\
 
@@ -12200,62 +12262,10 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
 
    va_start(ap, routine_id);
 
-   for (i = 0, param_ptr = buf; rpc_list[rpc_index].param[i].tid != 0; i++) {
-      int tid = rpc_list[rpc_index].param[i].tid;
-      int flags = rpc_list[rpc_index].param[i].flags;
+   status = rpc_call_decode(ap, rpc_index, buf);
 
-      bool bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
-                 (flags & RPC_FIXARRAY) || (flags & RPC_VARARRAY) ||
-                 tid == TID_STRING || tid == TID_ARRAY || tid == TID_STRUCT || tid == TID_LINK;
-
-      int arg_type;
-
-      if (bpointer)
-         arg_type = TID_ARRAY;
-      else
-         arg_type = rpc_list[rpc_index].param[i].tid;
-
-      if (tid == TID_FLOAT && !bpointer)
-         arg_type = TID_DOUBLE;
-
-      char arg[8];
-      rpc_va_arg(&ap, arg_type, arg);
-
-      if (rpc_list[rpc_index].param[i].flags & RPC_OUT) {
-
-         if (param_ptr == NULL) {
-            cm_msg(MERROR, "rpc_client_call",
-                   "call to \"%s\" on \"%s\" RPC \"%s\": no data in RPC reply, needed to decode an RPC_OUT parameter. param_ptr is NULL",
-                   client_name, host_name, rpc_name);
-            rpc_status = RPC_NET_ERROR;
-            break;
-         }
-
-         tid = rpc_list[rpc_index].param[i].tid;
-         flags = rpc_list[rpc_index].param[i].flags;
-
-         int arg_size = tid_size[tid];
-
-         if (tid == TID_STRING || tid == TID_LINK)
-            arg_size = strlen((char *) (param_ptr)) + 1;
-
-         if (flags & RPC_VARARRAY) {
-            arg_size = *((INT *) param_ptr);
-            param_ptr += ALIGN8(sizeof(INT));
-         }
-
-         if (tid == TID_STRUCT || (flags & RPC_FIXARRAY))
-            arg_size = rpc_list[rpc_index].param[i].n;
-
-         /* return parameters are always pointers */
-         if (*((char **) arg))
-            memcpy((void *) *((char **) arg), param_ptr, arg_size);
-
-         /* parameter size is always aligned */
-         int param_size = ALIGN8(arg_size);
-
-         param_ptr += param_size;
-      }
+   if (status != RPC_SUCCESS) {
+      rpc_status = status;
    }
 
    va_end(ap);
@@ -12560,59 +12570,10 @@ INT rpc_call(DWORD routine_id, ...)
 
    va_start(ap, routine_id);
 
-   for (i = 0, param_ptr = buf; rpc_list[idx].param[i].tid != 0; i++) {
-      int tid = rpc_list[idx].param[i].tid;
-      int flags = rpc_list[idx].param[i].flags;
-      int arg_type = 0;
+   status = rpc_call_decode(ap, idx, buf);
 
-      bool bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
-                 (flags & RPC_FIXARRAY) || (flags & RPC_VARARRAY) ||
-                 tid == TID_STRING || tid == TID_ARRAY || tid == TID_STRUCT || tid == TID_LINK;
-
-      if (bpointer)
-         arg_type = TID_ARRAY;
-      else
-         arg_type = rpc_list[idx].param[i].tid;
-
-      if (tid == TID_FLOAT && !bpointer)
-         arg_type = TID_DOUBLE;
-
-      char arg[8];
-      rpc_va_arg(&ap, arg_type, arg);
-
-      if (rpc_list[idx].param[i].flags & RPC_OUT) {
-
-         if (param_ptr == NULL) {
-            cm_msg(MERROR, "rpc_call",
-                   "routine \"%s\": no data in RPC reply, needed to decode an RPC_OUT parameter. param_ptr is NULL",
-                   rpc_list[idx].name);
-            rpc_status = RPC_NET_ERROR;
-            break;
-         }
-
-         tid = rpc_list[idx].param[i].tid;
-         int arg_size = tid_size[tid];
-
-         if (tid == TID_STRING || tid == TID_LINK)
-            arg_size = strlen((char *) (param_ptr)) + 1;
-
-         if (flags & RPC_VARARRAY) {
-            arg_size = *((INT *) param_ptr);
-            param_ptr += ALIGN8(sizeof(INT));
-         }
-
-         if (tid == TID_STRUCT || (flags & RPC_FIXARRAY))
-            arg_size = rpc_list[idx].param[i].n;
-
-         /* return parameters are always pointers */
-         if (*((char **) arg))
-            memcpy((void *) *((char **) arg), param_ptr, arg_size);
-
-         /* parameter size is always aligned */
-         int param_size = ALIGN8(arg_size);
-
-         param_ptr += param_size;
-      }
+   if (status != RPC_SUCCESS) {
+      rpc_status = status;
    }
 
    va_end(ap);
