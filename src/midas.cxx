@@ -11934,8 +11934,13 @@ void rpc_va_arg(va_list *arg_ptr, INT arg_type, void *arg) {
 }
 
 /********************************************************************/
-static void rpc_call_encode(va_list& ap, int idx, NET_COMMAND** nc)
+static void rpc_call_encode(va_list& ap, int idx, const char* rpc_name, NET_COMMAND** nc)
 {
+   bool debug = false;
+
+   if (debug)
+      printf("encode rpc %d \"%s\"\n", idx, rpc_name);
+
    size_t buf_size = sizeof(NET_COMMAND) + 4 * 1024;
    char* buf = (char *)malloc(buf_size);
    assert(buf);
@@ -12031,13 +12036,15 @@ static void rpc_call_encode(va_list& ap, int idx, NET_COMMAND** nc)
          }
 
          if (bpointer) {
+            printf("encode param %d, flags 0x%x, tid %d, arg_type %d, arg_size %d, param_size %d, memcpy pointer %d\n", i, flags, tid, arg_type, arg_size, param_size, arg_size);
             memcpy(param_ptr, (void *) *((void **) arg), arg_size);
-         } else {
+         } else if (tid == TID_FLOAT) {
+            printf("encode param %d, flags 0x%x, tid %d, arg_type %d, arg_size %d, param_size %d, double->float\n", i, flags, tid, arg_type, arg_size, param_size);
             /* floats are passed as doubles on most systems */
-            if (tid != TID_FLOAT)
-               memcpy(param_ptr, arg, arg_size);
-            else
-               *((float *) param_ptr) = (float) *((double *) arg);
+            *((float *) param_ptr) = (float) *((double *) arg);
+         } else {
+            printf("encode param %d, flags 0x%x, tid %d, arg_type %d, arg_size %d, param_size %d, memcpy %d\n", i, flags, tid, arg_type, arg_size, param_size, arg_size);
+            memcpy(param_ptr, arg, arg_size);
          }
 
          param_ptr += param_size;
@@ -12045,11 +12052,19 @@ static void rpc_call_encode(va_list& ap, int idx, NET_COMMAND** nc)
    }
 
    (*nc)->header.param_size = (POINTER_T) param_ptr - (POINTER_T) (*nc)->param;
+
+   if (debug)
+      printf("encode rpc %d \"%s\" buf_size %d, param_size %d\n", idx, rpc_name, (int)buf_size, (*nc)->header.param_size);
 }
 
 /********************************************************************/
-static int rpc_call_decode(va_list& ap, int idx, const char* buf, size_t buf_size)
+static int rpc_call_decode(va_list& ap, int idx, const char* rpc_name, const char* buf, size_t buf_size)
 {
+   bool debug = false;
+
+   if (debug)
+      printf("decode reply to rpc %d \"%s\" has %d bytes\n", idx, rpc_name, (int)buf_size);
+
    /* extract result variables and place it to argument list */
 
    const char* param_ptr = buf;
@@ -12095,12 +12110,15 @@ static int rpc_call_decode(va_list& ap, int idx, const char* buf, size_t buf_siz
          if (tid == TID_STRUCT || (flags & RPC_FIXARRAY))
             arg_size = rpc_list[idx].param[i].n;
 
-         /* return parameters are always pointers */
-         if (*((char **) arg))
-            memcpy((void *) *((char **) arg), param_ptr, arg_size);
-
          /* parameter size is always aligned */
          int param_size = ALIGN8(arg_size);
+
+         /* return parameters are always pointers */
+         if (*((char **) arg)) {
+            if (debug)
+               printf("decode param %d, flags 0x%x, tid %d, arg_type %d, arg_size %d, param_size %d, memcpy %d\n", i, flags, tid, arg_type, arg_size, param_size, arg_size);
+            memcpy((void *) *((char **) arg), param_ptr, arg_size);
+         }
 
          param_ptr += param_size;
       }
@@ -12181,7 +12199,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
    /* examine variable argument list and convert it to parameter array */
    va_start(ap, routine_id);
 
-   rpc_call_encode(ap, idx, &nc);
+   rpc_call_encode(ap, idx, rpc_name, &nc);
 
    va_end(ap);
 
@@ -12260,7 +12278,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
 
    va_start(ap, routine_id);
 
-   status = rpc_call_decode(ap, rpc_index, buf, buf_size);
+   status = rpc_call_decode(ap, rpc_index, rpc_name, buf, buf_size);
 
    if (status != RPC_SUCCESS) {
       rpc_status = status;
@@ -12358,7 +12376,7 @@ INT rpc_call(DWORD routine_id, ...)
    /* examine variable argument list and convert it to parameter array */
    va_start(ap, routine_id);
 
-   rpc_call_encode(ap, idx, &nc);
+   rpc_call_encode(ap, idx, rpc_name, &nc);
 
    va_end(ap);
 
@@ -12452,7 +12470,7 @@ INT rpc_call(DWORD routine_id, ...)
 
    va_start(ap, routine_id);
 
-   status = rpc_call_decode(ap, idx, buf, buf_size);
+   status = rpc_call_decode(ap, idx, rpc_name, buf, buf_size);
 
    if (status != RPC_SUCCESS) {
       rpc_status = status;
