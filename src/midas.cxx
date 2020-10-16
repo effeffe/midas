@@ -11934,7 +11934,121 @@ void rpc_va_arg(va_list *arg_ptr, INT arg_type, void *arg) {
 }
 
 /********************************************************************/
-static int rpc_call_decode(va_list& ap, int idx, const char* buf)
+static void rpc_call_encode(va_list& ap, int idx, NET_COMMAND** nc)
+{
+   size_t buf_size = sizeof(NET_COMMAND) + 4 * 1024;
+   char* buf = (char *)malloc(buf_size);
+   assert(buf);
+
+   (*nc) = (NET_COMMAND*) buf;
+
+   /* find out if we are on a big endian system */
+   bool bbig = ((rpc_get_option(0, RPC_OHW_TYPE) & DRI_BIG_ENDIAN) > 0);
+
+   char* param_ptr = (*nc)->param;
+
+   for (int i=0; rpc_list[idx].param[i].tid != 0; i++) {
+      int tid = rpc_list[idx].param[i].tid;
+      int flags = rpc_list[idx].param[i].flags;
+      int arg_type = 0;
+
+      bool bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
+                 (flags & RPC_FIXARRAY) || (flags & RPC_VARARRAY) ||
+                 tid == TID_STRING || tid == TID_ARRAY || tid == TID_STRUCT || tid == TID_LINK;
+
+      if (bpointer)
+         arg_type = TID_ARRAY;
+      else
+         arg_type = tid;
+
+      /* floats are passed as doubles, at least under NT */
+      if (tid == TID_FLOAT && !bpointer)
+         arg_type = TID_DOUBLE;
+
+      /* get pointer to argument */
+      char arg[8];
+      rpc_va_arg(&ap, arg_type, arg);
+
+      /* shift 1- and 2-byte parameters to the LSB on big endian systems */
+      if (bbig) {
+         if (tid == TID_UINT8 || tid == TID_CHAR || tid == TID_INT8) {
+            arg[0] = arg[3];
+         }
+         if (tid == TID_UINT16 || tid == TID_INT16) {
+            arg[0] = arg[2];
+            arg[1] = arg[3];
+         }
+      }
+
+      if (flags & RPC_IN) {
+         int arg_size = 0;
+
+         if (bpointer)
+            arg_size = tid_size[tid];
+         else
+            arg_size = tid_size[arg_type];
+
+         /* for strings, the argument size depends on the string length */
+         if (tid == TID_STRING || tid == TID_LINK)
+            arg_size = 1 + strlen((char *) *((char **) arg));
+
+         /* for varibale length arrays, the size is given by
+            the next parameter on the stack */
+         if (flags & RPC_VARARRAY) {
+            va_list aptmp;
+            memcpy(&aptmp, &ap, sizeof(ap));
+
+            char arg_tmp[8];
+            rpc_va_arg(&aptmp, TID_ARRAY, arg_tmp);
+
+            /* for (RPC_IN+RPC_OUT) parameters, size argument is a pointer */
+            if (flags & RPC_OUT)
+               arg_size = *((INT *) *((void **) arg_tmp));
+            else
+               arg_size = *((INT *) arg_tmp);
+
+            *((INT *) param_ptr) = ALIGN8(arg_size);
+            param_ptr += ALIGN8(sizeof(INT));
+         }
+
+         if (tid == TID_STRUCT || (flags & RPC_FIXARRAY))
+            arg_size = rpc_list[idx].param[i].n;
+
+         /* always align parameter size */
+         int param_size = ALIGN8(arg_size);
+
+         {
+            size_t param_offset = (char *) param_ptr - (char *)(*nc);
+
+            if (param_offset + param_size + 16 > buf_size) {
+               size_t new_size = param_offset + param_size + 1024;
+               buf = (char *) realloc(buf, new_size);
+               assert(buf);
+               buf_size = new_size;
+               (*nc) = (NET_COMMAND*) buf;
+               param_ptr = buf + param_offset;
+            }
+         }
+
+         if (bpointer) {
+            memcpy(param_ptr, (void *) *((void **) arg), arg_size);
+         } else {
+            /* floats are passed as doubles on most systems */
+            if (tid != TID_FLOAT)
+               memcpy(param_ptr, arg, arg_size);
+            else
+               *((float *) param_ptr) = (float) *((double *) arg);
+         }
+
+         param_ptr += param_size;
+      }
+   }
+
+   (*nc)->header.param_size = (POINTER_T) param_ptr - (POINTER_T) (*nc)->param;
+}
+
+/********************************************************************/
+static int rpc_call_decode(va_list& ap, int idx, const char* buf, size_t buf_size)
 {
    /* extract result variables and place it to argument list */
 
@@ -12022,10 +12136,8 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
 
 \********************************************************************/
 {
-   va_list ap, aptmp;
+   va_list ap;
    INT i, status;
-   char *param_ptr;
-   DWORD rpc_status = 0;
 
    int idx = hConn - 1;
 
@@ -12064,134 +12176,19 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
 
    const char *rpc_name = rpc_list[rpc_index].name;
 
-   /* prepare output buffer */
-
-   DWORD buf_size = sizeof(NET_COMMAND) + 1024;
-   char *buf = (char *) malloc(buf_size);
-   if (buf == NULL) {
-      cm_msg(MERROR, "rpc_client_call",
-             "call to \"%s\" on \"%s\" RPC \"%s\" cannot allocate %d bytes for transmit buffer", client_name, host_name,
-             rpc_name, (int) buf_size);
-      return RPC_NO_MEMORY;
-   }
-
-   NET_COMMAND *nc = (NET_COMMAND *) buf;
-   nc->header.routine_id = routine_id;
-
-   if (rpc_no_reply)
-      nc->header.routine_id |= RPC_NO_REPLY;
+   NET_COMMAND *nc = NULL;
 
    /* examine variable argument list and convert it to parameter array */
    va_start(ap, routine_id);
 
-   /* find out if we are on a big endian system */
-   bool bbig = ((rpc_get_option(0, RPC_OHW_TYPE) & DRI_BIG_ENDIAN) > 0);
-
-   for (i = 0, param_ptr = nc->param; rpc_list[rpc_index].param[i].tid != 0; i++) {
-      int tid = rpc_list[rpc_index].param[i].tid;
-      int flags = rpc_list[rpc_index].param[i].flags;
-
-      bool bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
-                 (flags & RPC_FIXARRAY) || (flags & RPC_VARARRAY) ||
-                 tid == TID_STRING || tid == TID_ARRAY || tid == TID_STRUCT || tid == TID_LINK;
-
-      int arg_type;
-
-      if (bpointer)
-         arg_type = TID_ARRAY;
-      else
-         arg_type = tid;
-
-      /* floats are passed as doubles, at least under NT */
-      if (tid == TID_FLOAT && !bpointer)
-         arg_type = TID_DOUBLE;
-
-      /* get pointer to argument */
-      char arg[8];
-      rpc_va_arg(&ap, arg_type, arg);
-
-      /* shift 1- and 2-byte parameters to the LSB on big endian systems */
-      if (bbig) {
-         if (tid == TID_UINT8 || tid == TID_CHAR || tid == TID_INT8) {
-            arg[0] = arg[3];
-         }
-         if (tid == TID_UINT16 || tid == TID_INT16) {
-            arg[0] = arg[2];
-            arg[1] = arg[3];
-         }
-      }
-
-      if (flags & RPC_IN) {
-         int arg_size = 0;
-         
-         if (bpointer)
-            arg_size = tid_size[tid];
-         else
-            arg_size = tid_size[arg_type];
-
-         /* for strings, the argument size depends on the string length */
-         if (tid == TID_STRING || tid == TID_LINK)
-            arg_size = 1 + strlen((char *) *((char **) arg));
-
-         /* for varibale length arrays, the size is given by
-            the next parameter on the stack */
-         if (flags & RPC_VARARRAY) {
-            memcpy(&aptmp, &ap, sizeof(ap));
-
-            char arg_tmp[8];
-            rpc_va_arg(&aptmp, TID_ARRAY, arg_tmp);
-
-            if (flags & RPC_OUT)
-               arg_size = *((INT *) *((void **) arg_tmp));
-            else
-               arg_size = *((INT *) arg_tmp);
-
-            *((INT *) param_ptr) = ALIGN8(arg_size);
-            param_ptr += ALIGN8(sizeof(INT));
-         }
-
-         if (tid == TID_STRUCT || (flags & RPC_FIXARRAY))
-            arg_size = rpc_list[rpc_index].param[i].n;
-
-         /* always align parameter size */
-         int param_size = ALIGN8(arg_size);
-
-         {
-            size_t param_offset = (char *) param_ptr - (char *) nc;
-
-            if (param_offset + param_size + 16 > buf_size) {
-               size_t new_size = param_offset + param_size + 1024;
-               buf = (char *) realloc(buf, new_size);
-               if (buf == NULL) {
-                  cm_msg(MERROR, "rpc_client_call",
-                         "call to \"%s\" on \"%s\" RPC \"%s\" cannot resize the data buffer from %d bytes to %d bytes",
-                         client_name, host_name, rpc_name, (int) buf_size, (int) new_size);
-                  free(nc); // "nc" still points to the old value of "buf"
-                  return RPC_NO_MEMORY;
-               }
-               buf_size = new_size;
-               nc = (NET_COMMAND *) buf;
-               param_ptr = buf + param_offset;
-            }
-         }
-
-         if (bpointer)
-            memcpy(param_ptr, (void *) *((void **) arg), arg_size);
-         else {
-            /* floats are passed as doubles on most systems */
-            if (tid != TID_FLOAT)
-               memcpy(param_ptr, arg, arg_size);
-            else
-               *((float *) param_ptr) = (float) *((double *) arg);
-         }
-
-         param_ptr += param_size;
-      }
-   }
+   rpc_call_encode(ap, idx, &nc);
 
    va_end(ap);
 
-   nc->header.param_size = (POINTER_T) param_ptr - (POINTER_T) nc->param;
+   nc->header.routine_id = routine_id;
+
+   if (rpc_no_reply)
+      nc->header.routine_id |= RPC_NO_REPLY;
 
    int send_size = nc->header.param_size + sizeof(NET_COMMAND_HEADER);
 
@@ -12202,25 +12199,22 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
       if (i != send_size) {
          cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": send_tcp() failed", client_name,
                 host_name, rpc_name);
-         free(buf);
+         free(nc);
          return RPC_NET_ERROR;
       }
 
-      free(buf);
+      free(nc);
       return RPC_SUCCESS;
    }
 
    /* in TCP mode, send and wait for reply on send socket */
    i = send_tcp(send_sock, (char *) nc, send_size, 0);
    if (i != send_size) {
-      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": send_tcp() failed", client_name,
-             host_name, rpc_name);
+      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": send_tcp() failed", client_name, host_name, rpc_name);
       return RPC_NET_ERROR;
    }
 
-   free(buf);
-   buf = NULL;
-   buf_size = 0;
+   free(nc);
    nc = NULL;
 
    bool restore_watchdog_timeout = false;
@@ -12234,6 +12228,10 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
       restore_watchdog_timeout = true;
       cm_set_watchdog_params(watchdog_call, rpc_timeout + 1000);
    }
+
+   DWORD rpc_status = 0;
+   DWORD buf_size = 0;
+   char* buf = NULL;
 
    /* receive result on send socket */
    status = ss_recv_net_command(send_sock, &rpc_status, &buf_size, &buf, rpc_timeout);
@@ -12262,7 +12260,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
 
    va_start(ap, routine_id);
 
-   status = rpc_call_decode(ap, rpc_index, buf);
+   status = rpc_call_decode(ap, rpc_index, buf, buf_size);
 
    if (status != RPC_SUCCESS) {
       rpc_status = status;
@@ -12304,13 +12302,8 @@ INT rpc_call(DWORD routine_id, ...)
 
 \********************************************************************/
 {
-   va_list ap, aptmp;
+   va_list ap;
    INT i, idx, status;
-   char *param_ptr;
-   char *buf = NULL;
-   DWORD buf_size = 0;
-   DWORD rpc_status = 0;
-   const char *rpc_name = NULL;
 
    BOOL rpc_no_reply = routine_id & RPC_NO_REPLY;
    routine_id &= ~RPC_NO_REPLY;
@@ -12356,135 +12349,23 @@ INT rpc_call(DWORD routine_id, ...)
       return RPC_INVALID_ID;
    }
 
-   rpc_name = rpc_list[idx].name;
+   const char* rpc_name = rpc_list[idx].name;
 
    /* prepare output buffer */
 
-   buf_size = sizeof(NET_COMMAND) + 4 * 1024;
-   buf = (char *) malloc(buf_size);
-   if (buf == NULL) {
-      ss_mutex_release(_mutex_rpc);
-      cm_msg(MERROR, "rpc_call", "rpc \"%s\" cannot allocate %d bytes for transmit buffer", rpc_name, (int) buf_size);
-      return RPC_NO_MEMORY;
-   }
-
-   NET_COMMAND* nc = (NET_COMMAND *) buf;
-   nc->header.routine_id = routine_id;
-
-   if (rpc_no_reply)
-      nc->header.routine_id |= RPC_NO_REPLY;
+   NET_COMMAND* nc = NULL;
 
    /* examine variable argument list and convert it to parameter array */
    va_start(ap, routine_id);
 
-   /* find out if we are on a big endian system */
-   bool bbig = ((rpc_get_option(0, RPC_OHW_TYPE) & DRI_BIG_ENDIAN) > 0);
-
-   for (i = 0, param_ptr = nc->param; rpc_list[idx].param[i].tid != 0; i++) {
-      int tid = rpc_list[idx].param[i].tid;
-      int flags = rpc_list[idx].param[i].flags;
-      int arg_type = 0;
-
-      bool bpointer = (flags & RPC_POINTER) || (flags & RPC_OUT) ||
-                 (flags & RPC_FIXARRAY) || (flags & RPC_VARARRAY) ||
-                 tid == TID_STRING || tid == TID_ARRAY || tid == TID_STRUCT || tid == TID_LINK;
-
-      if (bpointer)
-         arg_type = TID_ARRAY;
-      else
-         arg_type = tid;
-
-      /* floats are passed as doubles, at least under NT */
-      if (tid == TID_FLOAT && !bpointer)
-         arg_type = TID_DOUBLE;
-
-      /* get pointer to argument */
-      char arg[8];
-      rpc_va_arg(&ap, arg_type, arg);
-
-      /* shift 1- and 2-byte parameters to the LSB on big endian systems */
-      if (bbig) {
-         if (tid == TID_UINT8 || tid == TID_CHAR || tid == TID_INT8) {
-            arg[0] = arg[3];
-         }
-         if (tid == TID_UINT16 || tid == TID_INT16) {
-            arg[0] = arg[2];
-            arg[1] = arg[3];
-         }
-      }
-
-      if (flags & RPC_IN) {
-         int arg_size = 0;
-         
-         if (bpointer)
-            arg_size = tid_size[tid];
-         else
-            arg_size = tid_size[arg_type];
-
-         /* for strings, the argument size depends on the string length */
-         if (tid == TID_STRING || tid == TID_LINK)
-            arg_size = 1 + strlen((char *) *((char **) arg));
-
-         /* for varibale length arrays, the size is given by
-            the next parameter on the stack */
-         if (flags & RPC_VARARRAY) {
-            memcpy(&aptmp, &ap, sizeof(ap));
-
-            char arg_tmp[8];
-            rpc_va_arg(&aptmp, TID_ARRAY, arg_tmp);
-
-            if (flags & RPC_OUT)
-               arg_size = *((INT *) *((void **) arg_tmp));
-            else
-               arg_size = *((INT *) arg_tmp);
-
-            *((INT *) param_ptr) = ALIGN8(arg_size);
-            param_ptr += ALIGN8(sizeof(INT));
-         }
-
-         if (tid == TID_STRUCT || (flags & RPC_FIXARRAY))
-            arg_size = rpc_list[idx].param[i].n;
-
-         /* always align parameter size */
-         int param_size = ALIGN8(arg_size);
-
-         {
-            size_t param_offset = (char *) param_ptr - (char *) nc;
-
-            if (param_offset + param_size + 16 > buf_size) {
-               size_t new_size = param_offset + param_size + 1024;
-               buf = (char *) realloc(buf, new_size);
-               if (buf == NULL) {
-                  ss_mutex_release(_mutex_rpc);
-                  cm_msg(MERROR, "rpc_call", "rpc \"%s\" cannot resize the data buffer from %d bytes to %d bytes",
-                         rpc_name, (int) buf_size, (int) new_size);
-                  free(nc); // "nc" still points to the old value of "buf"
-                  return RPC_NO_MEMORY;
-               }
-               buf_size = new_size;
-               nc = (NET_COMMAND *) buf;
-               param_ptr = buf + param_offset;
-            }
-         }
-
-         if (bpointer)
-            memcpy(param_ptr, (void *) *((void **) arg), arg_size);
-         else {
-            /* floats are passed as doubles on most systems */
-            if (tid != TID_FLOAT)
-               memcpy(param_ptr, arg, arg_size);
-            else
-               *((float *) param_ptr) = (float) *((double *) arg);
-         }
-
-         param_ptr += param_size;
-
-      }
-   }
+   rpc_call_encode(ap, idx, &nc);
 
    va_end(ap);
 
-   nc->header.param_size = (POINTER_T) param_ptr - (POINTER_T) nc->param;
+   nc->header.routine_id = routine_id;
+
+   if (rpc_no_reply)
+      nc->header.routine_id |= RPC_NO_REPLY;
 
    int send_size = nc->header.param_size + sizeof(NET_COMMAND_HEADER);
 
@@ -12495,12 +12376,12 @@ INT rpc_call(DWORD routine_id, ...)
       if (i != send_size) {
          ss_mutex_release(_mutex_rpc);
          cm_msg(MERROR, "rpc_call", "rpc \"%s\" error: send_tcp() failed", rpc_name);
-         free(buf);
+         free(nc);
          return RPC_NET_ERROR;
       }
 
       ss_mutex_release(_mutex_rpc);
-      free(buf);
+      free(nc);
       return RPC_SUCCESS;
    }
 
@@ -12509,14 +12390,11 @@ INT rpc_call(DWORD routine_id, ...)
    if (i != send_size) {
       ss_mutex_release(_mutex_rpc);
       cm_msg(MERROR, "rpc_call", "rpc \"%s\" error: send_tcp() failed", rpc_name);
-      free(buf);
+      free(nc);
       return RPC_NET_ERROR;
    }
 
-   free(buf);
-   buf = NULL;
-   buf_size = 0;
-   rpc_status = 0;
+   free(nc);
    nc = NULL;
 
    bool restore_watchdog_timeout = false;
@@ -12536,6 +12414,10 @@ INT rpc_call(DWORD routine_id, ...)
          cm_set_watchdog_params_local(watchdog_call, rpc_timeout + 1000);
       }
    }
+
+   DWORD rpc_status = 0;
+   DWORD buf_size = 0;
+   char* buf = NULL;
 
    status = ss_recv_net_command(send_sock, &rpc_status, &buf_size, &buf, rpc_timeout);
 
@@ -12570,7 +12452,7 @@ INT rpc_call(DWORD routine_id, ...)
 
    va_start(ap, routine_id);
 
-   status = rpc_call_decode(ap, idx, buf);
+   status = rpc_call_decode(ap, idx, buf, buf_size);
 
    if (status != RPC_SUCCESS) {
       rpc_status = status;
