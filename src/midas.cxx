@@ -12199,7 +12199,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
    /* examine variable argument list and convert it to parameter array */
    va_start(ap, routine_id);
 
-   rpc_call_encode(ap, idx, rpc_name, &nc);
+   rpc_call_encode(ap, rpc_index, rpc_name, &nc);
 
    va_end(ap);
 
