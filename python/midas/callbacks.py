@@ -245,18 +245,20 @@ def make_rpc_callback(callback, client, return_success_even_on_failure=False):
         cmd = ctypes.cast(params[0], ctypes.c_char_p).value.decode("utf-8")
         args = ctypes.cast(params[1], ctypes.c_char_p).value.decode("utf-8")
         buf_p = ctypes.cast(params[2], ctypes.POINTER(ctypes.c_char))
-        max_len = ctypes.cast(params[3], ctypes.POINTER(ctypes.c_int)).contents.value
+        max_reply_len = ctypes.cast(params[3], ctypes.POINTER(ctypes.c_int)).contents.value
         
-        if max_len <= 0:
-            retval = (midas.status_codes["FE_ERR_DRIVER"], "max_len must be > 0")
+        if max_reply_len <= 0:
+            retval = midas.status_codes["FE_ERR_DRIVER"]
+            client.msg("max_reply_len must be > 0 when calling JRPC function", True)
         else:
             try:
-                retval = callback(client, cmd, args, max_len)
+                retval = callback(client, cmd, args, max_reply_len)
             except Exception as e:
                 traceback.print_exc()
                 retval = (midas.status_codes["FE_ERR_DRIVER"], exception_message(e))
 
         if isinstance(retval, int):
+            ret_int = retval
             ret_str = ""
         elif retval is None or len(retval) != 2:
             ret_int = midas.status_codes["FE_ERR_DRIVER"]
@@ -267,9 +269,9 @@ def make_rpc_callback(callback, client, return_success_even_on_failure=False):
         if return_success_even_on_failure:
             # Encode result, ensuring our JSON struct will be valid
             temp = {"code": ret_int, "msg": ""}
-            max_msg_len = max_len - 1 - len(json.dumps(temp))
+            max_msg_len = max_reply_len - 1 - len(json.dumps(temp))
             
-            if max_msg_len < 0:
+            if max_msg_len < 0 and max_reply_len > 0:
                 # Give up - buffer is way too small
                 ret_int = midas.status_codes["FE_ERR_DRIVER"]
                 ret_str = "Return buffer size too small for JSON-encoded result"
@@ -281,10 +283,12 @@ def make_rpc_callback(callback, client, return_success_even_on_failure=False):
         
         # Write return value to buffer midas created for us.
         addr = ctypes.addressof(buf_p.contents)
-        dest_chars = (ctypes.c_char * max_len).from_address(addr)
-        write_size = min(len(ret_str), max_len - 1)
-        dest_chars[:write_size] = bytes(ret_str[:write_size], 'utf-8')
-        dest_chars[write_size] = b'\0'
+        dest_chars = (ctypes.c_char * max_reply_len).from_address(addr)
+        write_size = min(len(ret_str), max_reply_len - 1)
+        
+        if write_size > 1:
+            dest_chars[:write_size] = bytes(ret_str, 'utf-8')[:write_size]
+            dest_chars[write_size] = b'\0'
         
         if ret_int != midas.status_codes["SUCCESS"] and len(ret_str):
             # mjsonrpc only returns the string to the user if status is
