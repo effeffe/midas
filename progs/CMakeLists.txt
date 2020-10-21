@@ -8,7 +8,6 @@ set(PROGS
    mhist
    mstat
    mdump
-   lazylogger
    mtransition
    mhdump
    odbhist
@@ -19,6 +18,10 @@ set(PROGS
    fetest_tmfe_thread
    crc32c_sum
 )
+
+if (HAVE_CURL)
+   set(PROGS ${PROGS} lazylogger)
+endif()
 
 if (NO_LOCAL_ROUTINES)
 else()
