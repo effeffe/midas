@@ -360,6 +360,10 @@ INT c_db_resize_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, int num_
    return db_resize_string(hDB, hKeyRoot, key_name, num_values, max_string_size);
 }
 
+INT c_db_set_link_data(HNDLE hdb, HNDLE key_handle, void *data, INT buf_size, int num_values, DWORD type) {
+   return db_set_link_data(hdb, key_handle, data, buf_size, num_values, type);
+}
+
 INT c_db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values) {
    return db_set_num_values(hDB, hKey, num_values);
 }

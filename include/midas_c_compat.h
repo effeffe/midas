@@ -68,6 +68,7 @@ extern "C" {
    INT c_db_rename_key(HNDLE hDB, HNDLE hKey, const char *name);
    INT c_db_reorder_key(HNDLE hDB, HNDLE hKey, INT index);
    INT c_db_resize_string(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, int num_values, int max_string_size);
+   INT c_db_set_link_data(HNDLE hdb, HNDLE key_handle, void *data, INT buf_size, int num_values, DWORD type);
    INT c_db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values);
    INT c_db_set_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, const void *data, INT size, INT num_values, DWORD type);
    INT c_db_set_value_index(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *data, INT data_size, INT index, DWORD type, BOOL truncate);

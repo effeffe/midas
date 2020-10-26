@@ -531,10 +531,31 @@ class MidasClient:
         Args:
             * link_path (str) - The ODB path for the link name
             * destination_path (str) - Where in the ODB the link points to
+            
+        Raises:
+            * ValueError if link_path already exists, but isn't already a link
         """
         c_link_path = ctypes.create_string_buffer(bytes(link_path, "utf-8"))
         c_dest_path = ctypes.create_string_buffer(bytes(destination_path, "utf-8"))
-        self.lib.c_db_create_link(self.hDB, 0, c_link_path, c_dest_path)
+        
+        current_handle = None
+        current_key = None
+        
+        try:
+            current_handle = self._odb_get_hkey(link_path, False)
+        except KeyError:
+            pass
+        
+        if current_handle:
+            current_key = self._odb_get_key_from_hkey(current_handle)
+            
+            if current_key.type != midas.TID_LINK:
+                raise ValueError("Path '%s' already exists, but isn't a link" % link_path)
+            
+            c_size = ctypes.c_int(ctypes.sizeof(c_dest_path))
+            self.lib.c_db_set_link_data(self.hDB, current_handle, c_dest_path, c_size, 1, midas.TID_LINK)
+        else:
+            self.lib.c_db_create_link(self.hDB, 0, c_link_path, c_dest_path)
         
     def odb_get_link_destination(self, link_path):
         """
@@ -1286,7 +1307,7 @@ class MidasClient:
         
         return hKey
         
-    def _odb_get_key(self, path):
+    def _odb_get_key(self, path, follow_link=True):
         """
         Get metadata about the ODB entry at the specified path.
         
@@ -1296,7 +1317,7 @@ class MidasClient:
         Returns:
             `midas.structs.Key`
         """
-        hKey = self._odb_get_hkey(path)
+        hKey = self._odb_get_hkey(path, follow_link)
         return self._odb_get_key_from_hkey(hKey)
     
     def _odb_get_key_from_hkey(self, hKey):
