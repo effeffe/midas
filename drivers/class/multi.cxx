@@ -393,7 +393,7 @@ INT multi_init(EQUIPMENT * pequipment)
       if (status != DB_SUCCESS)
          return FE_ERR_ODB;
 
-      if (pequipment->driver[i].enabled) {
+      if (pequipment->driver[i].enabled && pequipment->driver[i].channels > 0) {
          status = device_driver(&pequipment->driver[i], CMD_INIT, hKey);
          if (status != FE_SUCCESS) {
             free_mem(m_info);
