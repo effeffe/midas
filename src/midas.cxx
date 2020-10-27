@@ -12036,14 +12036,20 @@ static void rpc_call_encode(va_list& ap, int idx, const char* rpc_name, NET_COMM
          }
 
          if (bpointer) {
-            printf("encode param %d, flags 0x%x, tid %d, arg_type %d, arg_size %d, param_size %d, memcpy pointer %d\n", i, flags, tid, arg_type, arg_size, param_size, arg_size);
+            if (debug) {
+               printf("encode param %d, flags 0x%x, tid %d, arg_type %d, arg_size %d, param_size %d, memcpy pointer %d\n", i, flags, tid, arg_type, arg_size, param_size, arg_size);
+            }
             memcpy(param_ptr, (void *) *((void **) arg), arg_size);
          } else if (tid == TID_FLOAT) {
-            printf("encode param %d, flags 0x%x, tid %d, arg_type %d, arg_size %d, param_size %d, double->float\n", i, flags, tid, arg_type, arg_size, param_size);
+            if (debug) {
+               printf("encode param %d, flags 0x%x, tid %d, arg_type %d, arg_size %d, param_size %d, double->float\n", i, flags, tid, arg_type, arg_size, param_size);
+            }
             /* floats are passed as doubles on most systems */
             *((float *) param_ptr) = (float) *((double *) arg);
          } else {
-            printf("encode param %d, flags 0x%x, tid %d, arg_type %d, arg_size %d, param_size %d, memcpy %d\n", i, flags, tid, arg_type, arg_size, param_size, arg_size);
+            if (debug) {
+               printf("encode param %d, flags 0x%x, tid %d, arg_type %d, arg_size %d, param_size %d, memcpy %d\n", i, flags, tid, arg_type, arg_size, param_size, arg_size);
+            }
             memcpy(param_ptr, arg, arg_size);
          }
 
