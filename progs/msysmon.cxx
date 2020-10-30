@@ -60,7 +60,7 @@ const char *frontend_name = "msysmon";
 const char *frontend_file_name = __FILE__;
 
 /* frontend_loop is called periodically if this variable is TRUE    */
-BOOL frontend_call_loop = FALSE;
+BOOL frontend_call_loop = TRUE;
 
 /* a frontend status page is displayed with this frequency in ms */
 //INT display_period = 3000;
@@ -833,6 +833,7 @@ INT frontend_loop()
 {
    /* if frontend_call_loop is true, this routine gets called when
       the frontend is idle or once between every event */
+   ss_sleep(100); // don't eat all CPU
    return SUCCESS;
 }
 
