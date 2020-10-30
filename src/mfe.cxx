@@ -355,43 +355,32 @@ static INT register_equipment(void)
       }
 
       /* check for '${HOSTNAME}' in equipment name, replace with env var (needed for sysmon) */
-      char* namepos=strchr(equipment[idx].name, '$');
-      //If there is a $
-      if (namepos) {
-         //and its followed by {HOMENAME}
-         if (strncmp(namepos,"{HOSTNAME}",10) ) {
-            printf("Equipment name: %s ",equipment[idx].name);
-            //Get local_host_name (ODB entry not set yet)
-            char thishost[HOST_NAME_LENGTH];
-            ss_gethostname(thishost, sizeof(thishost));
-            //Cut the hostname string at the first '.'
-            char* cut=strchr(thishost, '.');
-            if (cut)
-               *cut='\0'; 
-            //Get start position of ${HOSTNAME} string
-            int start=namepos-equipment[idx].name;
-            //Copy everything before ${HOSTNAME}
-            char before[128];
-            snprintf(before,start+1,"%s",equipment[idx].name);
-            //Copy everything after ${HOSTNAME}
-            char after[128];
-            snprintf( after, start+sizeof("${HOSTNAME}"), "%s", namepos+ sizeof("${HOSTNAME}") -1);
-            //finish replacing ${HOSTNAME} with local_host_name. Force final name to fit within 32 chars
-            std::string name;
-            name += before;
-            name += thishost;
-            name += after;
-            if (name.length() >= 32) {
-               cm_msg(MERROR, "equipment name too long",
-                              "Equipment name %s%s%s too long, trimming down to %d characters",
-                              before,thishost,after,
-                              32);
-            }
-            strlcpy(equipment[idx].name, name.c_str(), 32);
-            printf("\t became:%s\n",equipment[idx].name);
+      std::string name=equipment[idx].name;
+      size_t namepos=name.find("${HOSTNAME}");
+      //If there is a ${HOSTNAME}
+      if (namepos!=std::string::npos) {
+         //Grab text before and after
+         std::string before=name.substr(0,namepos);
+         std::string after=name.substr(namepos+11); //11 = length of "${HOSTNAME}"
+         //Get local_host_name (ODB entry not set yet)
+         char thishost[HOST_NAME_LENGTH];
+         ss_gethostname(thishost, sizeof(thishost));
+         //Use NULL to cut the hostname string at the first '.'
+         char* cut=strchr(thishost, '.');
+         if (cut)
+            *cut='\0'; 
+         name = before;
+         name += thishost;
+         name += after;
+         if (name.length() >= 32) {
+            cm_msg(MERROR, "equipment name too long",
+                           "Equipment name %s%s%s too long, trimming down to %d characters",
+                           before.c_str(),thishost,after.c_str(),
+                           32);
          }
+         strlcpy(equipment[idx].name, name.c_str(), 32);
+         printf("\t became:%s\n",equipment[idx].name);
       }
-
 
       sprintf(str, "/Equipment/%s/Common", equipment[idx].name);
 
