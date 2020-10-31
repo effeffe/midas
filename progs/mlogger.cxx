@@ -5496,7 +5496,9 @@ int log_generate_file_name(LOG_CHN *log_chn)
       tmpstr = path.c_str() + data_dir.length();
    else
       tmpstr = path;
-   db_set_value_string(hDB, log_chn->settings_hkey, "Current filename", &tmpstr);
+   char cstr[256];
+   strlcpy(cstr, tmpstr.c_str(), sizeof(cstr));
+   db_set_value(hDB, log_chn->settings_hkey, "Current filename", cstr, 256, 1, TID_STRING);
 
    /* construct full pipe command */
    if (ispipe) {
