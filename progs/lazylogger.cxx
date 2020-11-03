@@ -361,9 +361,7 @@ INT lazy_log_update(INT action, INT run, const char *label, const char *file, DW
    else if (action == REMOVE_ENTRY)
       sprintf(str, "%s run#%i entry REMOVED", label, run);
 
-   cm_msg(MINFO, "Lazy", "%s", str);
-
-   /* Now add this info also to a special log file */
+   /* Now add this info to a special log file */
    cm_msg1(MINFO, "lazy", "lazy_log_update", "%s", str);
 
    return 0;
@@ -1260,8 +1258,7 @@ Function value:
       sprintf(str, "Starting lazy job on %s at block %d", lazyst.backfile, blockn);
       if (msg_flag)
          cm_msg(MTALK, "Lazy", "%s", str);
-      cm_msg(MINFO, "Lazy", "%s", str);
-      cm_msg1(MINFO, "lazy_log_update", "lazy", "%s", str);
+      cm_msg1(MINFO, "lazy_copy", "lazy", "%s", str);
    }
 
    /* infinite loop while copying */
@@ -1575,9 +1572,8 @@ int lazy_sftp_copy(const char *outfile, const char *infile) {
       sprintf(str, "Starting lazy_sftp_copy \'%s\' to \'%s\'", infile, outfile);
       if (msg_flag)
          cm_msg(MTALK, "Lazy", "%s", str);
-      cm_msg(MINFO, "lazy_sftp_copy", "%s", str);
       // wrtie to file
-      cm_msg1(MINFO, "lazy_log_update", "lazy", "%s", str);
+      cm_msg1(MINFO, "lazy_sftp_copy", "lazy", "%s", str);
    }
 
    double cpy_start_time = ss_millitime();
@@ -1691,8 +1687,7 @@ Function value:
       sprintf(str, "Starting lazy_disk_copy \'%s\' to \'%s\'", infile, outfile);
       if (msg_flag)
          cm_msg(MTALK, "Lazy", "%s", str);
-      cm_msg(MINFO, "lazy_disk_copy", "%s", str);
-      cm_msg1(MINFO, "lazy_log_update", "lazy", "%s", str);
+      cm_msg1(MINFO, "lazy_disk_copy", "lazy", "%s", str);
    }
 
    double cpy_start_time = ss_millitime();
@@ -1772,8 +1767,7 @@ Function value:
       sprintf(str, "Starting lazy job \'%s\'", cmd);
       if (msg_flag)
          cm_msg(MTALK, "Lazy", "%s", str);
-      cm_msg(MINFO, "lazy_script_copy", "%s", str);
-      cm_msg1(MINFO, "lazy_log_update", "lazy", "%s", str);
+      cm_msg1(MINFO, "lazy_script_copy", "lazy", "%s", str);
    }
 
    /* start the backup script */
