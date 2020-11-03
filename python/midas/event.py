@@ -215,6 +215,10 @@ class Bank:
                     s += "%15.5e    " % self.data[i]
                 elif self.type == midas.TID_FLOAT:
                     s += "%8.3e " % self.data[i]
+                elif self.type == midas.TID_QWORD:
+                    s += "0x%16.16x " % self.data[i]
+                elif self.type == midas.TID_INT64:
+                    s += "%16.1i " % self.data[i]
                 elif self.type == midas.TID_DWORD:
                     s += "0x%8.8x " % self.data[i]
                 elif self.type == midas.TID_INT:

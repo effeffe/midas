@@ -402,21 +402,9 @@ class Odb:
         root = ElementTree.fromstring(xml_string)
         self.handle_node(root, self.data)
         
-    def text_to_value(self, text, type_str):
-        """
-        Type-conversion of XML node content.
-        
-        Args:
-            
-        * text (str) - Content of the node ("1.23", "135", "some string" etc)
-        * type_str (str) - INT/WORD/FLOAT etc
-        
-        Returns:
-            int/float/string etc as appropriate
-        """
-        if type_str in ["INT"]:
+        if type_str in ["INT", "INT8", "INT16", "INT32", "INT64"]:
             return int(text)
-        elif type_str in ["WORD", "DWORD"]:
+        elif type_str in ["WORD", "DWORD", "UINT16", "UINT32", "QWORD", "UINT64"]:
             return "0x%x" % int(text)
         elif type_str == "BOOL":
             return text == "y"

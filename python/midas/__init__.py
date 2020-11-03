@@ -31,22 +31,33 @@ MT_ERROR = 1
 MT_INFO  = 2
 
 # Data types                                   min      max    
-TID_BYTE     =  1       # unsigned byte         0       255    
+TID_BYTE     =  1       # unsigned byte         0       255
+TID_UINT8    =  TID_BYTE    
 TID_SBYTE    =  2       # signed byte         -128      127    
+TID_INT8     =  TID_SBYTE    
 TID_CHAR     =  3       # single character      0       255    
 TID_WORD     =  4       # two bytes             0      65535   
+TID_UINT16   =  TID_WORD    
 TID_SHORT    =  5       # signed word        -32768    32767   
+TID_INT16    =  TID_SHORT
 TID_DWORD    =  6       # four bytes            0      2^32-1  
+TID_UINT32   =  TID_DWORD
 TID_INT      =  7       # signed dword        -2^31    2^31-1  
+TID_INT32    =  TID_INT
 TID_BOOL     =  8       # four bytes bool       0        1     
 TID_FLOAT    =  9       # 4 Byte float format                  
+TID_FLOAT32  = TID_FLOAT
 TID_DOUBLE   = 10       # 8 Byte float format                  
+TID_FLOAT64  = TID_DOUBLE
 TID_BITFIELD = 11       # 32 Bits Bitfield      0     111... (32) 
 TID_STRING   = 12       # null-terminated string               
 TID_ARRAY    = 13       # array with unknown contents          
 TID_STRUCT   = 14       # structure with fixed length          
 TID_KEY      = 15       # key in online database               
-TID_LINK     = 16       # link in online database              
+TID_LINK     = 16       # link in online database    
+TID_INT64    = 17       # 8 bytes int          -2^63   2^63-1  */
+TID_QWORD    = 18       # 8 bytes unsigned int  0      2^64-1  */
+TID_UINT64   = TID_QWORD
 
 # Alarm types
 AT_INTERNAL  = 1
@@ -233,6 +244,7 @@ status_codes = {
 # Reverse mapping of status_codes - from int to string
 status_codes_to_text = {v: k for k,v in status_codes.items()}
 
+
 # Number of bytes each midas data type requires
 tid_sizes = {  TID_BYTE: 1, 
                TID_SBYTE: 1,
@@ -249,13 +261,15 @@ tid_sizes = {  TID_BYTE: 1,
                TID_ARRAY: None,
                TID_STRUCT: None,
                TID_KEY: None,
-               TID_LINK: None
+               TID_LINK: None,
+               TID_INT64: 8,
+               TID_QWORD: 8
             }
 
 # How to unpack each midas data type with python's struct module
 tid_unpack_formats = {  TID_BYTE: 'B', # C char / python int
                         TID_SBYTE: 'b', # C signed char / python int
-                        TID_CHAR: 'B', # C char / python int 
+                        TID_CHAR: 'B', # C char / we'll make a python string 
                         TID_WORD: 'H', # C unsigned short / python int
                         TID_SHORT: 'h', # C signed short / python int
                         TID_DWORD: 'I', # C unsigned int / python int
@@ -268,7 +282,9 @@ tid_unpack_formats = {  TID_BYTE: 'B', # C char / python int
                         TID_ARRAY: None, # We just give raw bytes
                         TID_STRUCT: None, # We just give raw bytes
                         TID_KEY: None, # We just give raw bytes
-                        TID_LINK: None # We just give raw bytes
+                        TID_LINK: None, # We just give raw bytes
+                        TID_QWORD: 'Q', # C unsigned long long / python int
+                        TID_INT64: 'q', # C signed long long / python int
                     }
 
 if have_numpy:
@@ -287,7 +303,9 @@ if have_numpy:
                         TID_ARRAY: None, # We just give raw bytes
                         TID_STRUCT: None, # We just give raw bytes
                         TID_KEY: None, # We just give raw bytes
-                        TID_LINK: None # We just give raw bytes
+                        TID_LINK: None, # We just give raw bytes
+                        TID_QWORD: np.uint64,
+                        TID_INT64: np.int64
                     }
 
 # Friendly name of each midas data type
@@ -306,7 +324,9 @@ tid_texts = {  TID_BYTE: "Unsigned Byte",
                TID_ARRAY: "Array",
                TID_STRUCT: "Struct",
                TID_KEY: "Key",
-               TID_LINK: "Link"
+               TID_LINK: "Link",
+               TID_QWORD: "Unsigned 64-bit Integer",
+               TID_INT64: "Signed 64-bit Integer"
             }
 
 # Read in little-endian by default

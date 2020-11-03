@@ -1620,6 +1620,14 @@ class MidasClient:
         elif midas_type == midas.TID_INT:
             rettype = ctypes.c_int
             casttype = int
+        elif midas_type == midas.TID_QWORD:
+            #rettype = ctypes.c_uint64
+            #casttype = int
+            raise TypeError("ODB does not support 64-bit values")
+        elif midas_type == midas.TID_INT64:
+            #rettype = ctypes.c_int64
+            #casttype = int
+            raise TypeError("ODB does not support 64-bit values")
         elif midas_type == midas.TID_BOOL:
             rettype = ctypes.c_uint
             casttype = int
@@ -1721,6 +1729,10 @@ class MidasClient:
             return midas.TID_SHORT
         if isinstance(value, ctypes.c_uint):
             return midas.TID_DWORD
+        if isinstance(value, ctypes.c_int64):
+            return midas.TID_INT64
+        if isinstance(value, ctypes.c_uint64):
+            return midas.TID_QWORD
         if isinstance(value, dict):
             return midas.TID_KEY
     

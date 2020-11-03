@@ -102,6 +102,37 @@ class TestOdb(unittest.TestCase):
         self.set_and_readback_from_parent_dir("/pytest", "bool2", True, midas.TID_BOOL)
         self.set_and_readback_from_parent_dir("/pytest", "bool2", False, midas.TID_BOOL)
         
+    def testInt64(self):
+        # ODB doesn't support 64-bit values yet (only data banks support them)
+        def dummy_int64_set():
+            self.set_and_readback("/pytest/int64", ctypes.c_int64(135), midas.TID_INT64)
+        self.assertRaises(TypeError, dummy_int64_set)
+        
+        """
+        self.set_and_readback("/pytest/int64", [ctypes.c_int64(-23), ctypes.c_int64(147)], midas.TID_INT64)
+        self.set_and_readback("/pytest/int64", ctypes.c_int64(135), midas.TID_INT64)
+        self.set_and_readback("/pytest/int64", (ctypes.c_int64 * 4)(*[1,2,3,4]), midas.TID_INT64)
+        
+        self.set_and_readback_from_parent_dir("/pytest", "int64_2", [123, 4], midas.TID_INT64)
+        self.set_and_readback_from_parent_dir("/pytest", "int64_2", 37, midas.TID_INT64)
+        """
+        
+    def testQword(self):
+        # ODB doesn't support 64-bit values yet (only data banks support them)
+        def dummy_qword_set():
+            self.set_and_readback("/pytest/qword", [ctypes.c_uint64(789), ctypes.c_uint64(135)], midas.TID_QWORD)
+        self.assertRaises(TypeError, dummy_qword_set)
+        
+        """
+        self.set_and_readback("/pytest/qword", [ctypes.c_uint64(789), ctypes.c_uint64(135)], midas.TID_QWORD)
+        self.set_and_readback("/pytest/qword", ctypes.c_uint64(123), midas.TID_QWORD)
+        self.set_and_readback("/pytest/qword", ctypes.c_uint64(456), midas.TID_QWORD)
+        self.set_and_readback("/pytest/qword", (ctypes.c_uint64 * 5)(*[1,2,3,4,5]), midas.TID_QWORD)
+        
+        self.set_and_readback_from_parent_dir("/pytest", "uint64_2", [ctypes.c_uint64(789), ctypes.c_uint64(135)], midas.TID_QWORD)
+        self.set_and_readback_from_parent_dir("/pytest", "uint64_2", ctypes.c_uint64(456), midas.TID_QWORD)
+        """
+        
     def testInt(self):
         self.set_and_readback("/pytest/int", -1, midas.TID_INT)
         self.set_and_readback("/pytest/int", 1, midas.TID_INT)
