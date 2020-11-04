@@ -1655,7 +1655,10 @@ class MidasClient:
                 retval = rettype()
                 
                 if initial_value is not None:
-                    retval.value = casttype(initial_value)
+                    if isinstance(initial_value, str) and initial_value.startswith("0x"):
+                        retval.value = casttype(initial_value, 16)
+                    else:
+                        retval.value = casttype(initial_value)
         else:
             rettype_arr = rettype * array_len
             
@@ -1680,7 +1683,10 @@ class MidasClient:
                             raise TypeError("Expected a %s but you provided a %s" % (rettype, type(v)))
                 retval = rettype_arr(*initial_value)
             else:
-                castlist = [casttype(x) for x in initial_value]
+                if len(initial_value) and isinstance(initial_value[0], str) and initial_value[0].startswith("0x"):
+                    castlist = [casttype(x, 16) for x in initial_value]
+                else:
+                    castlist = [casttype(x) for x in initial_value]
                 retval = rettype_arr(*castlist)
             
         return retval
