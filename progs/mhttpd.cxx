@@ -12078,7 +12078,7 @@ struct hist_plot_t
 
          v.hist_formula = "";
 
-         char buf[NAME_LENGTH];
+         char buf[256];
          buf[0] = 0;
          sprintf(str, "/History/Display/%s/Formula", path);
          xdb_get_data_index(hDB, str, buf, sizeof(buf), index, TID_STRING);
