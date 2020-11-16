@@ -226,12 +226,13 @@ function ODBInlineEditKeydown(event, p, path, bracket) {
 //
 
 function mie_link_to_edit(p, odb_path, bracket, cur_val) {
-   var size = cur_val.length + 10;
    var index;
+   var string_val = String(cur_val)
 
    p.ODBsent = false;
 
-   var str = mhttpd_escape(cur_val);
+   var str = mhttpd_escape(string_val);
+   var size = str.length + 10;
    var width = p.offsetWidth - 10;
 
    if (odb_path.indexOf('[') > 0) {
