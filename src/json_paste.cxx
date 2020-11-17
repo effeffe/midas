@@ -277,6 +277,8 @@ static int GetDWORD(const MJsonNode* node, const char* path, DWORD* dw)
       errno = 0;
       if (s[0] == '0' && s[1] == 'x') { // hex encoded number
          *dw = strtoul(s.c_str(), NULL, 16);
+      } else if (s.back() == 'b') { // binary number
+         *dw = strtoul(s.c_str(), NULL, 2);
       } else if (isdigit(s[0]) || (s[0]=='-' && isdigit(s[1]))) { // probably a number
          *dw = strtoul(s.c_str(), NULL, 0);
       } else {

@@ -140,7 +140,7 @@ function mie_back_to_link(p, path, bracket) {
    mjsonrpc_db_get_values([path]).then(function (rpc) {
       var value = rpc.result.data[0];
       var tid = rpc.result.tid[0];
-      var mvalue = mie_to_string(tid, value);
+      var mvalue = mie_to_string(tid, value, p.dataset.format);
       if (mvalue === "")
          mvalue = "(empty)";
       link.innerHTML = mhttpd_escape(mvalue);
@@ -286,7 +286,16 @@ function ODBInlineEdit(p, odb_path, bracket) {
    mjsonrpc_db_get_values([odb_path]).then(function (rpc) {
       var value = rpc.result.data[0];
       var tid = rpc.result.tid[0];
-      var mvalue = mie_to_string(tid, value);
+      var format = p.dataset.format;
+      if(format){
+         if(format.length > 1){
+            if(format[0] == 'd' || format[0] == 'x' || format[0] == 'b'){
+               //when going to edit consider only the first format specifier for integers
+               format = String(format[0]);
+            }
+         }
+      }
+      var mvalue = mie_to_string(tid, value, format);
       mie_link_to_edit(p, odb_path, bracket, mvalue);
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
