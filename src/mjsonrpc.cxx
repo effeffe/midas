@@ -3052,6 +3052,9 @@ static MJsonNode* jrpc(const MJsonNode* params)
 
    status = rpc_client_call(hconn, RPC_JRPC, cmd.c_str(), args.c_str(), buf, buf_length);
 
+   // disconnect return status ignored on purpose.
+   cm_disconnect_client(hconn, FALSE);
+
    if (status != RPC_SUCCESS) {
       free(buf);
       return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
@@ -3059,9 +3062,6 @@ static MJsonNode* jrpc(const MJsonNode* params)
 
    MJsonNode* reply = MJsonNode::MakeString(buf);
    free(buf);
-
-   // return status ignored on purpose.
-   status = cm_disconnect_client(hconn, FALSE);
    
    return mjsonrpc_make_result("reply", reply, "status", MJsonNode::MakeInt(SUCCESS));
 }
