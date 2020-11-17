@@ -98,7 +98,7 @@
 
             <table class="mtable" id="logChannel" width="100%">
                <tr>
-                  <th class="mtableheader">Logging Channels</th>
+                  <th class="mtableheader" colspan="6">Logging Channels</th>
                </tr>
 
 
@@ -165,7 +165,8 @@
       var loggerJson = rpc.data[5];
       var LazyJson = rpc.data[6];
       var experimentName = rpc.data[7];
-
+      var showPauseResume = rpc.data[8] === null || rpc.data[8]; // Key missing from ODB => show buttons
+      
       var currentClientList = new Array();
 
       function triggerAlarms() {
@@ -255,7 +256,11 @@
                      mhttpd_hide("startButton");
                      mhttpd_unhide("stopButton");
                      mhttpd_hide("pauseButton");
-                     mhttpd_unhide("resumeButton");
+                     if (showPauseResume) {
+                        mhttpd_unhide("resumeButton");
+                     } else {
+                        mhttpd_hide("resumeButton");
+                     }
                      mhttpd_hide("cancelButton");
                      // show running time
                      if (runinfoJson.hasOwnProperty("start time binary/last_written")) {
@@ -275,7 +280,11 @@
                      set_if_changed("runState", "Running");
                      mhttpd_hide("startButton");
                      mhttpd_unhide("stopButton");
-                     mhttpd_unhide("pauseButton");
+                     if (showPauseResume) {
+                        mhttpd_unhide("pauseButton");
+                     } else {
+                        mhttpd_hide("pauseButton");
+                     }
                      mhttpd_hide("resumeButton");
                      mhttpd_hide("cancelButton");
                      // show running time
@@ -747,7 +756,7 @@
    // perform the main XHR and cache the list of MIDAS equipment for next XHR
    function updateXHR() {
 
-      var paths = ["/Experiment/Status items", "/Logger/Channels", "/System/Clients", "/Runinfo", "Sequencer/State", "/Logger", "/Lazy", "/Experiment/Name"];
+      var paths = ["/Experiment/Status items", "/Logger/Channels", "/System/Clients", "/Runinfo", "Sequencer/State", "/Logger", "/Lazy", "/Experiment/Name", "/Experiment/Pause-Resume Buttons"];
 
       //push all equipment names into an Array of Promises
       if (statusGlobalSpace.cachedEquipmentList != null) {

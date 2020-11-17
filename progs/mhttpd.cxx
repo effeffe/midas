@@ -1994,11 +1994,6 @@ void init_mhttpd_odb()
       cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/Start-Stop Buttons\" is obsolete, please delete it.");
    }
 
-   status = db_find_key(hDB, 0, "/Experiment/Pause-Resume Buttons", &hKey);
-   if (status == DB_SUCCESS) {
-      cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/Pause-Resume Buttons\" is obsolete, please delete it.");
-   }
-
 #ifdef HAVE_MONGOOSE616
    check_obsolete_odb(hDB, "/Experiment/midas http port");
    check_obsolete_odb(hDB, "/Experiment/midas https port");
