@@ -5215,17 +5215,16 @@ INT open_history()
 
 DWORD last_history_flush = 0;
 
-void maybe_flush_history(DWORD now)
-{
-   DWORD flush_period_sec = 10;
+void maybe_flush_history(DWORD now) {
+   DWORD flush_period_sec = 1;
 
-   if ((last_history_flush==0) || (now > last_history_flush + flush_period_sec)) {
+   if ((last_history_flush == 0) || (now > last_history_flush + flush_period_sec)) {
 
       if (verbose)
-	 printf("flush history buffers!\n");
+         printf("flush history buffers!\n");
 
-      for (unsigned h=0; h<mh.size(); h++)
-	 mh[h]->hs_flush_buffers();
+      for (unsigned h = 0; h < mh.size(); h++)
+         mh[h]->hs_flush_buffers();
 
       last_history_flush = now;
    }
@@ -5376,6 +5375,37 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
    actual_time = ss_millitime();
    if (actual_time - start_time > 3000)
       cm_msg(MINFO, "log_system_history", "History write operation took %d ms", actual_time - start_time);
+}
+
+/*---- log_history_periodic ----------------------------------------*/
+
+void log_history_periodic() {
+   static int last_log_slow = 0;
+   static int last_log_fast = 0;
+   INT i;
+   HNDLE hDB;
+
+   cm_get_experiment_database(&hDB, NULL);
+
+   // log at least once every minute for "slow" equipment
+   if (ss_time()/60 > last_log_slow/60) {
+      for (i = 0; i < hist_log_max; i++)
+          if (hist_log[i].hKeyVar > 0 && hist_log[i].period > 10) {
+             log_history(hDB, hist_log[i].hKeyVar, NULL);
+          }
+
+      last_log_slow = ss_time();
+   }
+
+   // log at least once every ten seconds for "fast" equipment
+   if (ss_time()/10 > last_log_fast/10) {
+      for (i = 0; i < hist_log_max; i++)
+         if (hist_log[i].hKeyVar > 0 && hist_log[i].period <= 10) {
+            log_history(hDB, hist_log[i].hKeyVar, NULL);
+         }
+
+      last_log_fast = ss_time();
+   }
 }
 
 /*------------------------------------------------------------------*/
@@ -6341,11 +6371,8 @@ int main(int argc, char *argv[])
          db_send_changed_records();
       }
 
-      /* maybe flush history buffers */
-      maybe_flush_history(ss_time());
-
-      /* maybe save image history */
-      //log_image_history();
+      /* write periodic history */
+      log_history_periodic();
 
       /* check for auto restart */
       if (auto_restart && ss_time() > auto_restart) {
