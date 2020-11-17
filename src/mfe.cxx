@@ -136,7 +136,7 @@ static INT tr_start(INT rn, char *error)
          ss_printf(14, 2, "Running ");
          ss_printf(36, 2, "%d", rn);
       } else
-         printf("Running %d\n", rn);
+         printf("Started run %d\n", rn);
 
       /* enable interrupts or readout thread */
       readout_enable(TRUE);
@@ -174,7 +174,7 @@ static INT tr_stop(INT rn, char *error)
       if (display_period && !mfe_debug)
          ss_printf(14, 2, "Stopped ");
       else
-         printf("Stopped\n");
+         printf("Run stopped\n");
    } else
       readout_enable(TRUE);
 
@@ -357,15 +357,16 @@ static INT register_equipment(void)
       /* check for '${HOSTNAME}' in equipment name, replace with env var (needed for sysmon) */
       std::string name=equipment[idx].name;
       size_t namepos=name.find("${HOSTNAME}");
-      //If there is a ${HOSTNAME}
+
+      /* if there is a ${HOSTNAME} ... */
       if (namepos!=std::string::npos) {
-         //Grab text before and after
+         // Grab text before and after
          std::string before=name.substr(0,namepos);
          std::string after=name.substr(namepos+11); //11 = length of "${HOSTNAME}"
-         //Get local_host_name (ODB entry not set yet)
+         // Get local_host_name (ODB entry not set yet)
          char thishost[HOST_NAME_LENGTH];
          ss_gethostname(thishost, sizeof(thishost));
-         //Use NULL to cut the hostname string at the first '.'
+         // Use NULL to cut the hostname string at the first '.'
          char* cut=strchr(thishost, '.');
          if (cut)
             *cut='\0'; 
@@ -383,14 +384,6 @@ static INT register_equipment(void)
       }
 
       sprintf(str, "/Equipment/%s/Common", equipment[idx].name);
-
-      /* get last event limit from ODB */
-      if (eq_info->eq_type != EQ_SLOW) {
-         db_find_key(hDB, 0, str, &hKey);
-         size = sizeof(double);
-         if (hKey)
-            db_get_value(hDB, hKey, "Event limit", &eq_info->event_limit, &size, TID_DOUBLE, TRUE);
-      }
 
       status = db_check_record(hDB, 0, str, EQUIPMENT_COMMON_STR, FALSE);
       if (status == DB_NO_KEY) {
@@ -431,18 +424,10 @@ static INT register_equipment(void)
          exit(0);
       }
 
-      /* set fixed parameters from user structure */
-      db_set_value(hDB, hKey, "Event ID", &eq_info->event_id, sizeof(WORD), 1, TID_WORD);
-      db_set_value(hDB, hKey, "Type", &eq_info->eq_type, sizeof(INT), 1, TID_INT);
-      db_set_value(hDB, hKey, "Source", &eq_info->source, sizeof(INT), 1, TID_INT);
-
-      /* read equipment Common from ODB */
-
-      size = sizeof(EQUIPMENT_INFO);
-      status = db_get_record1(hDB, hKey, eq_info, &size, 0, EQUIPMENT_COMMON_STR);
-
+      /* set equipment Common from equipment[] list */
+      status = db_set_record(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), 0);
       if (status != DB_SUCCESS) {
-         printf("ERROR:  Cannot read record \"%s\", db_get_record1() status %d", str, status);
+         printf("ERROR: Cannot set  record \"%s\", db_set_record() status %d", str, status);
          cm_disconnect_experiment();
          ss_sleep(3000);
          exit(0);
@@ -1962,7 +1947,7 @@ static INT scheduler()
                   goto net_error;
                }
 
-               /* re-enable the interrupt or readout thread after periodic */
+               /* re-enable the interrupt or readout thread after readout */
                if (old_flag)
                   readout_enable(TRUE);
             }
