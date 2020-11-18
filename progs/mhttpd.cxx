@@ -8476,6 +8476,17 @@ void show_mscb_page(Param* p, Return* r, int refresh)
    if (hKeyAddr) {
       db_get_key(hDB, hKeyAddr, &key);
       i = key.num_values;
+
+      if (hKeyComm == 0) {
+         db_create_key(hDB, hKeyCurSubm, "Node comment", TID_STRING);
+         db_find_key(hDB, hKeyCurSubm, "Node comment", &hKeyComm);
+      }
+      db_get_key(hDB, hKeyComm, &key);
+      if (key.num_values < i) {
+         char str[32] = "";
+         for (int j=key.num_values ; j<i ; j++)
+            db_set_data_index(hDB, hKeyComm, str, 32, j, TID_STRING);
+      }
    }
    if (i < 2)
       i = 2;
