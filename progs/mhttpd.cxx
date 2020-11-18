@@ -12275,7 +12275,7 @@ struct hist_plot_t
          db_set_data_index(hDB, hKey, str, 2 * NAME_LENGTH, index, TID_STRING);
 
          xdb_find_key(hDB, hDir, "Formula", &hKey, TID_STRING, NAME_LENGTH);
-         db_set_data_index(hDB, hKey, vars[index].hist_formula.c_str(), NAME_LENGTH, index, TID_STRING);
+         db_set_data_index(hDB, hKey, vars[index].hist_formula.c_str(), 256, index, TID_STRING);
 
          xdb_find_key(hDB, hDir, "Colour", &hKey, TID_STRING, NAME_LENGTH);
          db_set_data_index(hDB, hKey, vars[index].hist_col.c_str(), NAME_LENGTH, index, TID_STRING);
@@ -12786,7 +12786,7 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
                r->rsprintf("<option selected value=\"%s\">%s\n", plot.vars[index].tag_name.c_str(), plot.vars[index].tag_name.c_str());
 
          r->rsprintf("</select></td>\n");
-         r->rsprintf("<td><input type=text size=20 maxlength=32 name=\"form%d\" value=%s></td>\n", index, plot.vars[index].hist_formula.c_str());
+         r->rsprintf("<td><input type=text size=20 maxlength=256 name=\"form%d\" value=%s></td>\n", index, plot.vars[index].hist_formula.c_str());
          r->rsprintf("<td><input type=text size=10 maxlength=10 name=\"col%d\" value=%s></td>\n", index, plot.vars[index].hist_col.c_str());
          r->rsprintf("<td><input type=text size=10 maxlength=%d name=\"lab%d\" value=\"%s\"></td>\n", NAME_LENGTH, index, plot.vars[index].hist_label.c_str());
          //r->rsprintf("<td><input type=text size=5 maxlength=10 name=\"ord%d\" value=\"%d\"></td>\n", index, plot.vars[index].hist_order);
@@ -13037,11 +13037,8 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
    HNDLE hDB, hkey, hikeyp, hkeyp, hkeybutton;
    KEY key, ikey;
    int i, j, k, scale, index, width, size, status, labels;
-   //int fh, fsize;
-   float factor[2];
    char hgroup[256], hpanel[256], hcmd[256];
    const char def_button[][NAME_LENGTH] = { "10m", "1h", "3h", "12h", "24h", "3d", "7d" };
-   //struct tm *tms;
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -13553,18 +13550,16 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
          strcpy(str, "1h");
          db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Time Scale", str, NAME_LENGTH, 1, TID_STRING);
 
-         factor[0] = 1;
-         factor[1] = 1;
-         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Factor", factor, 2 * sizeof(float), 2, TID_FLOAT);
-         factor[0] = 0;
-         factor[1] = 0;
-         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Offset", factor, 2 * sizeof(float), 2, TID_FLOAT);
          strcpy(str, "1h");
          db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Timescale", str, NAME_LENGTH, 1, TID_STRING);
          i = 1;
          db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Zero ylow", &i, sizeof(BOOL), 1, TID_BOOL);
          i = 1;
          db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Show run markers", &i, sizeof(BOOL), 1, TID_BOOL);
+
+         strcpy(str, "");
+         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Formula", str, 256, 1, TID_STRING);
+         db_set_value_index(hDB, 0, "/History/Display/Default/Trigger rate/Formula", str, 256, 1, TID_STRING, FALSE);
       }
 
       db_find_key(hDB, 0, "/History/Display", &hkey);

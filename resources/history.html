@@ -87,7 +87,7 @@
    function init() {
       mjsonrpc_db_copy(["/History/Display", "/History/Images"]).then(function (rpc) {
          let historyDisplay = rpc.result.data[0];
-         var historyImages = rpc.result.data[1];
+         let historyImages = rpc.result.data[1];
 
          if (historyDisplay === null || Object.keys(historyDisplay).length === 0) {
 
@@ -100,6 +100,7 @@
                { "path": "/History/Display/Default/Trigger rate/Show run markers", "type" : TID_BOOL},
                { "path": "/History/Display/Default/Trigger rate/Label", "type" : TID_STRING, "string_length": 32},
                { "path": "/History/Display/Default/Trigger rate/Colour", "type" : TID_STRING, "string_length": 32},
+               { "path": "/History/Display/Default/Trigger rate/Formula", "type" : TID_STRING, "string_length": 256},
             ];
             mjsonrpc_db_create(keys).then(function(rpc) {
 
@@ -112,6 +113,7 @@
                   "/History/Display/Default/Trigger rate/Show run markers",
                   "/History/Display/Default/Trigger rate/Label",
                   "/History/Display/Default/Trigger rate/Colour",
+                  "/History/Display/Default/Trigger rate/Formula",
                ];
                let values = [
                   ["System:Trigger per sec.", "System:Trigger kB per sec."],
@@ -121,6 +123,7 @@
                   1,
                   ["", ""],
                   ["#00AAFF", "#FF9000"],
+                  ["", ""]
                ];
 
                mjsonrpc_db_paste(paths, values).then(function(rpc) {
@@ -268,7 +271,7 @@
             curPanel = curPanel = Object.keys(historyDisplay[curGroup])[0];
          let spanel = document.getElementById("spanel");
 
-         if (curGroup == "Images") {
+         if (curGroup === "Images") {
             Object.keys(historyImages).forEach(key => {
                let o = document.createElement("option");
                o.text = historyImages[key].Name;
