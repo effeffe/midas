@@ -1859,6 +1859,9 @@ MhistoryGraph.prototype.draw = function () {
          let last = undefined;
          let n = 0;
 
+         if (this.data[di].time.length === 0)
+            continue;
+
          let i1 = binarySearch(this.data[di].time, this.tMin) + 1;
          let i2 = this.data[di].time.length;
          for (let i = i1; i < i2 ; i++) {
@@ -1866,7 +1869,7 @@ MhistoryGraph.prototype.draw = function () {
             if (t >= this.tMin && t <= this.tMax) {
                let x = this.timeToX(t);
                let v = this.valueToY(this.data[di].value[i]);
-               if (!Number.isNaN(v) && x >= this.x1 && x <= this.x2) {
+               if (!Number.isNaN(v) && x >= this.x1-1 && x <= this.x2+1) {
                   this.x[di][n] = x;
                   this.y[di][n] = v;
                   this.t[di][n] = this.data[di].time[i];
@@ -1880,6 +1883,7 @@ MhistoryGraph.prototype.draw = function () {
             if (t > this.tMax)
                break;
          }
+
          // add one point beyond right limit
          if (last + 1 < this.data[di].time.length) {
             this.x[di][n] = this.timeToX(this.data[di].time[last + 1]);
@@ -1888,13 +1892,16 @@ MhistoryGraph.prototype.draw = function () {
             this.v[di][n] = this.data[di].value[last + 1];
             n++;
          }
+
          // add one point beyond left limit
          if (first > 0) {
             this.x[di].unshift(this.timeToX(this.data[di].time[first - 1]));
             this.y[di].unshift(this.valueToY(this.data[di].value[first - 1]));
             this.t[di].unshift(this.data[di].value[first - 1]);
             this.v[di].unshift(this.data[di].time[first - 1]);
+            n++;
          }
+
          this.x[di].length = n;
          this.y[di].length = n;
          this.t[di].length = n;
