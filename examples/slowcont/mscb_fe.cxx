@@ -64,10 +64,10 @@ EQUIPMENT equipment[] = {
      "MIDAS",                   /* format */
      TRUE,                      /* enabled */
      RO_ALWAYS,
-     60000,                     /* read every 60 sec */
-     10000,                     /* read one value every 10 sec */
+     60000,                     /* read full event every 60 sec */
+     100,                       /* read one value every 100 msec */
      0,                         /* number of sub events */
-     60,                        /* log history every 60 second */
+     1,                         /* log history every second */
      "", "", ""} ,
     cd_multi_read,              /* readout routine */
     cd_multi,                   /* class driver main routine */
