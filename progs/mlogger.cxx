@@ -5391,6 +5391,8 @@ void log_history_periodic() {
    if (ss_time()/60 > last_log_slow/60) {
       for (i = 0; i < hist_log_max; i++)
           if (hist_log[i].hKeyVar > 0 && hist_log[i].period > 10) {
+             if (verbose)
+                printf("log_history_periodic slow at %d\n", ss_time());
              log_history(hDB, hist_log[i].hKeyVar, NULL);
           }
 
@@ -5401,6 +5403,8 @@ void log_history_periodic() {
    if (ss_time()/10 > last_log_fast/10) {
       for (i = 0; i < hist_log_max; i++)
          if (hist_log[i].hKeyVar > 0 && hist_log[i].period <= 10) {
+            if (verbose)
+               printf("log_history_periodic fast at %d\n", ss_time());
             log_history(hDB, hist_log[i].hKeyVar, NULL);
          }
 
