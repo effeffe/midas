@@ -9,9 +9,9 @@
 
  \********************************************************************/
 
-var run_state_names = {1: "Stopped", 2: "Paused", 3: "Running"};
+let run_state_names = {1: "Stopped", 2: "Paused", 3: "Running"};
 
-var transition_names = {
+let transition_names = {
    1: "Starting run...",
    2: "Stopping run...",
    4: "Pausing run...",
@@ -34,57 +34,57 @@ CanvasRenderingContext2D.prototype.drawLine = function (x1, y1, x2, y2) {
 //
 
 function mie_to_string(tid, jvalue, format) {
-   if (tid == TID_BOOL) {
+   if (tid === TID_BOOL) {
       if (jvalue)
          return "y";
       else
          return "n";
    }
 
-   if (tid == TID_FLOAT || tid == TID_DOUBLE) {
+   if (tid === TID_FLOAT || tid === TID_DOUBLE) {
       if (jvalue === "NaN")
          return jvalue;
-      if (format && format.indexOf("e") != -1) {
-         var p = parseInt(format.substr(format.indexOf("e") + 1));
+      if (format && format.indexOf("e") !== -1) {
+         let p = parseInt(format.substr(format.indexOf("e") + 1));
          return jvalue.toExponential(p);
       }
-      if (format && format.indexOf("p") != -1) {
-         var p = parseInt(format.substr(format.indexOf("p") + 1));
+      if (format && format.indexOf("p") !== -1) {
+         let p = parseInt(format.substr(format.indexOf("p") + 1));
          return jvalue.toPrecision(p);
       }
-      if (format && format.indexOf("f") != -1) {
-         var p = parseInt(format.substr(format.indexOf("f") + 1));
+      if (format && format.indexOf("f") !== -1) {
+         let p = parseInt(format.substr(format.indexOf("f") + 1));
          return jvalue.toFixed(p);
       }
       return jvalue;
    }
 
-   var t = typeof jvalue;
+   let t = typeof jvalue;
 
-   if (t == 'number') {
+   if (t === 'number') {
       jvalue = "" + jvalue;
    }
 
-   if (tid == TID_DWORD || tid == TID_INT || tid == TID_WORD || tid == TID_SHORT || tid == TID_BYTE) {
-      if (format == undefined)
+   if (tid === TID_DWORD || tid === TID_INT || tid === TID_WORD || tid === TID_SHORT || tid === TID_BYTE) {
+      if (format === undefined)
          format = "d";
-      var str = "";
+      let str = "";
       for (i = 0; i < format.length; i++) {
-         if (format[i] == "d") {
+         if (format[i] === "d") {
             if (str.length > 0)
                str += " / " + parseInt(jvalue);
             else
                str = parseInt(jvalue);
          }
-         if (format[i] == "x") {
-            var hex = parseInt(jvalue).toString(16);
+         if (format[i] === "x") {
+            let hex = parseInt(jvalue).toString(16);
             if (str.length > 0)
                str += " / 0x" + hex;
             else
                str = "0x" + hex;
          }
-         if (format[i] == "b") {
-            var bin = parseInt(jvalue).toString(2);
+         if (format[i] === "b") {
+            let bin = parseInt(jvalue).toString(2);
             if (str.length > 0)
                str += " / " + bin + "b";
             else
@@ -95,7 +95,7 @@ function mie_to_string(tid, jvalue, format) {
       return str;
    }
 
-   if (t == 'string') {
+   if (t === 'string') {
       return jvalue;
    }
 
@@ -110,7 +110,7 @@ function mie_to_string(tid, jvalue, format) {
 //
 
 function mhttpd_escape(s) {
-   var ss = s;
+   let ss = s;
 
    if (typeof s !== 'string')
       return ss;
@@ -133,14 +133,14 @@ function mhttpd_escape(s) {
 //
 
 function mie_back_to_link(p, path, bracket) {
-   var link = document.createElement('a');
+   let link = document.createElement('a');
    link.href = path + "?cmd=Set";
    link.innerHTML = "(loading...)";
 
    mjsonrpc_db_get_values([path]).then(function (rpc) {
-      var value = rpc.result.data[0];
-      var tid = rpc.result.tid[0];
-      var mvalue = mie_to_string(tid, value, p.dataset.format);
+      let value = rpc.result.data[0];
+      let tid = rpc.result.tid[0];
+      let mvalue = mie_to_string(tid, value, p.dataset.format);
       if (mvalue === "")
          mvalue = "(empty)";
       link.innerHTML = mhttpd_escape(mvalue);
@@ -153,7 +153,7 @@ function mie_back_to_link(p, path, bracket) {
       };
 
       // what is this for?!?
-      if (p.childNodes.length == 2)//two values means it was editing an array
+      if (p.childNodes.length === 2)//two values means it was editing an array
          setTimeout(function () {
             p.appendChild(link);
             p.removeChild(p.childNodes[1])
@@ -173,16 +173,16 @@ function mie_back_to_link(p, path, bracket) {
 //
 
 function ODBFinishInlineEdit(p, path, bracket) {
-   var value;
+   let value;
 
-   if (p.ODBsent == true)
+   if (p.ODBsent === true)
       return;
 
    if (!p.inEdit)
       return;
    p.inEdit = false;
 
-   if (p.childNodes.length == 2)
+   if (p.childNodes.length === 2)
       value = p.childNodes[1].value;
    else
       value = p.childNodes[0].value;
@@ -203,9 +203,9 @@ function ODBFinishInlineEdit(p, path, bracket) {
 //
 
 function ODBInlineEditKeydown(event, p, path, bracket) {
-   var keyCode = ('which' in event) ? event.which : event.keyCode;
+   let keyCode = ('which' in event) ? event.which : event.keyCode;
 
-   if (keyCode == 27) {
+   if (keyCode === 27) {
       /* cancel editing */
       p.ODBsent = true;
       p.inEdit = false;
@@ -213,7 +213,7 @@ function ODBInlineEditKeydown(event, p, path, bracket) {
       return false;
    }
 
-   if (keyCode == 13) {
+   if (keyCode === 13) {
       ODBFinishInlineEdit(p, path, bracket);
       return false;
    }
@@ -225,19 +225,20 @@ function ODBInlineEditKeydown(event, p, path, bracket) {
 // odb inline edit - convert link to edit field
 //
 
-function mie_link_to_edit(p, odb_path, bracket, cur_val) {
-   var index;
-   var string_val = String(cur_val)
+function mie_link_to_edit(p, odb_path, bracket, cur_val, size) {
+   let index;
+   let string_val = String(cur_val)
 
    p.ODBsent = false;
 
-   var str = mhttpd_escape(string_val);
-   var size = str.length + 10;
-   var width = p.offsetWidth - 10;
+   if (size === undefined)
+      size = 10;
+   let str = mhttpd_escape(string_val);
+   let width = p.offsetWidth - 10;
 
    if (odb_path.indexOf('[') > 0) {
       index = odb_path.substr(odb_path.indexOf('['));
-      if (bracket == 0) {
+      if (bracket === 0) {
          p.innerHTML = "<input type='text' size='" + size + "' value='" + str +
             "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" +
             odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
@@ -284,34 +285,35 @@ function ODBInlineEdit(p, odb_path, bracket) {
       return;
    p.inEdit = true;
    mjsonrpc_db_get_values([odb_path]).then(function (rpc) {
-      var value = rpc.result.data[0];
-      var tid = rpc.result.tid[0];
-      var format = p.dataset.format;
+      let value = rpc.result.data[0];
+      let tid = rpc.result.tid[0];
+      let format = p.dataset.format;
+      let size = p.dataset.size;
       if(format){
          if(format.length > 1){
-            if(format[0] == 'd' || format[0] == 'x' || format[0] == 'b'){
+            if(format[0] === 'd' || format[0] === 'x' || format[0] === 'b'){
                //when going to edit consider only the first format specifier for integers
                format = String(format[0]);
             }
          }
       }
-      var mvalue = mie_to_string(tid, value, format);
-      mie_link_to_edit(p, odb_path, bracket, mvalue);
+      let mvalue = mie_to_string(tid, value, format);
+      mie_link_to_edit(p, odb_path, bracket, mvalue, size);
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
    });
 }
 
 function dlgOdbEditKeydown(event, input) {
-   var keyCode = ('which' in event) ? event.which : event.keyCode;
+   let keyCode = ('which' in event) ? event.which : event.keyCode;
 
-   if (keyCode == 27) {
+   if (keyCode === 27) {
       // cancel editing
       dlgMessageDestroy(input.parentElement.parentElement);
       return false;
    }
 
-   if (keyCode == 13) {
+   if (keyCode === 13) {
       dlgOdbEditSend(input.parentElement);
       dlgMessageDestroy(input.parentElement.parentElement);
       return false;
@@ -321,8 +323,8 @@ function dlgOdbEditKeydown(event, input) {
 }
 
 function dlgOdbEditSend(b) {
-   var path = b.parentElement.parentElement.parentElement.odbPath;
-   var value = b.parentElement.parentElement.elements[0].value;
+   let path = b.parentElement.parentElement.parentElement.odbPath;
+   let value = b.parentElement.parentElement.elements[0].value;
 
    mjsonrpc_db_set_value(path, value).then(function (rpc) {
       //mjsonrpc_debug_alert(rpc);
@@ -337,9 +339,9 @@ function dlgOdbEditSend(b) {
 function dlgOdbEdit(path) {
 
    mjsonrpc_db_get_value(path).then(function (rpc) {
-      var value = rpc.result.data[0];
-      var tid = rpc.result.tid[0];
-      var value = mie_to_string(tid, value);
+      let value = rpc.result.data[0];
+      let tid = rpc.result.tid[0];
+      value = mie_to_string(tid, value);
 
       d = document.createElement("div");
       d.className = "dlgFrame";
@@ -445,7 +447,7 @@ function mhttpd_unhide_button(button) {
 }
 
 function mhttpd_hide(id) {
-   var e = document.getElementById(id);
+   let e = document.getElementById(id);
    if (e) {
       mhttpd_set_style_visibility(e, "hidden");
       mhttpd_set_style_display(e, "none");
@@ -453,7 +455,7 @@ function mhttpd_hide(id) {
 }
 
 function mhttpd_unhide(id) {
-   var e = document.getElementById(id);
+   let e = document.getElementById(id);
    if (e) {
       mhttpd_set_style_visibility(e, "visible");
       mhttpd_set_style_display(e, "");
@@ -488,7 +490,7 @@ function mhttpd_unhide_overlay(overlay) {
 }
 
 function mhttpd_getParameterByName(name) {
-   var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+   let match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
 }
 
@@ -513,9 +515,9 @@ function mhttpd_navigation_bar(current_page, path) {
 
    if (localStorage.mNavigationButtons != undefined) {
       document.getElementById("navigationTableButtons").innerHTML = localStorage.mNavigationButtons;
-      var button = document.getElementById("navigationTableButtons").children;
-      for (var i = 0; i < button.length; i++)
-         if (button[i].value == current_page)
+      let button = document.getElementById("navigationTableButtons").children;
+      for (let i = 0; i < button.length; i++)
+         if (button[i].value === current_page)
             button[i].className = "mnav mnavsel navButtonSel";
          else
             button[i].className = "mnav navButton";
@@ -523,18 +525,18 @@ function mhttpd_navigation_bar(current_page, path) {
    }
 
    mjsonrpc_db_get_values(["/Custom/Header", "/Experiment/Menu", "/Experiment/Menu Buttons"]).then(function (rpc) {
-      var custom_header = rpc.result.data[0];
+      let custom_header = rpc.result.data[0];
 
       if (custom_header && custom_header.length > 0)
          document.getElementById("customHeader").innerHTML = custom_header;
 
-      var menu = rpc.result.data[1];
-      var buttons = rpc.result.data[2];
-      var b = [];
+      let menu = rpc.result.data[1];
+      let buttons = rpc.result.data[2];
+      let b = [];
 
       if (menu) {
-         for (var k in menu) {
-            var kk = k + "/name";
+         for (let k in menu) {
+            let kk = k + "/name";
             if (kk in menu) {
                if (menu[k]) {
                   b.push(menu[kk]);
@@ -549,11 +551,11 @@ function mhttpd_navigation_bar(current_page, path) {
          b = ["Status", "ODB", "Messages", "Chat", "ELog", "Alarms", "Programs", "History", "MSCB", "Sequencer", "Config", "Help"];
       }
 
-      var html = "";
+      let html = "";
 
-      for (var i = 0; i < b.length; i++) {
-         var bb = b[i].trim();
-         var cc = "mnav navButton";
+      for (let i = 0; i < b.length; i++) {
+         let bb = b[i].trim();
+         let cc = "mnav navButton";
          if (bb === current_page) {
             cc = "mnav mnavsel navButtonSel";
          }
@@ -570,7 +572,7 @@ function mhttpd_navigation_bar(current_page, path) {
 }
 
 function mhttpd_show_menu(flag) {
-   var m = document.getElementById("msidenav");
+   let m = document.getElementById("msidenav");
 
    if (m.initialWidth === undefined)
       m.initialWidth = m.clientWidth;
@@ -588,17 +590,17 @@ function mhttpd_show_menu(flag) {
 }
 
 function mhttpd_toggle_menu() {
-   var flag = mhttpdConfig().showMenu;
+   let flag = mhttpdConfig().showMenu;
    flag = !flag;
    mhttpd_show_menu(flag);
 }
 
 function mhttpd_exec_script(name) {
    //console.log("exec_script: " + name);
-   var params = new Object;
+   let params = new Object;
    params.script = name;
    mjsonrpc_call("exec_script", params).then(function (rpc) {
-      var status = rpc.result.status;
+      let status = rpc.result.status;
       if (status != 1) {
          dlgAlert("Exec script \"" + name + "\" status " + status);
       }
@@ -607,12 +609,12 @@ function mhttpd_exec_script(name) {
    });
 }
 
-var mhttpd_refresh_id;
-var mhttpd_refresh_history_id;
-var mhttpd_refresh_interval;
-var mhttpd_refresh_paused;
-var mhttpd_refresh_history_interval;
-var mhttpd_spinning_wheel;
+let mhttpd_refresh_id;
+let mhttpd_refresh_history_id;
+let mhttpd_refresh_interval;
+let mhttpd_refresh_paused;
+let mhttpd_refresh_history_interval;
+let mhttpd_spinning_wheel;
 
 function mhttpd_init(current_page, interval, callback) {
    /*
@@ -630,13 +632,13 @@ function mhttpd_init(current_page, interval, callback) {
       mjsonrpc_set_url(url);
 
    // create header
-   var h = document.getElementById("mheader");
-   if (h == null) {
+   let h = document.getElementById("mheader");
+   if (h === null) {
       dlgAlert('Web page does not contain "mheader" element');
       return;
    }
-   var s = document.getElementById("msidenav");
-   if (s == null) {
+   let s = document.getElementById("msidenav");
+   if (s === null) {
       dlgAlert('Web page does not contain "msidenav" element');
       return;
    }
@@ -661,7 +663,7 @@ function mhttpd_init(current_page, interval, callback) {
    window.addEventListener('resize', mhttpd_resize_event_call_resize_sidenav);
 
    // put error header in front of header
-   var d = document.createElement('div');
+   let d = document.createElement('div');
    d.id = 'mheader_error';
    h.parentNode.insertBefore(d, h);
 
@@ -670,10 +672,10 @@ function mhttpd_init(current_page, interval, callback) {
 
       // get it from session storage cache if present
       if (sessionStorage.msidenav !== undefined && sessionStorage.mexpname !== undefined) {
-         var menu = document.getElementById("msidenav");
+         let menu = document.getElementById("msidenav");
          menu.innerHTML = sessionStorage.msidenav;
-         var item = menu.children;
-         for (var i = 0; i < item.length; i++) {
+         let item = menu.children;
+         for (let i = 0; i < item.length; i++) {
             if (item[i].className !== "mseparator") {
                if (item[i].innerHTML === current_page)
                   item[i].className = "mmenuitem mmenuitemsel";
@@ -684,7 +686,7 @@ function mhttpd_init(current_page, interval, callback) {
          document.getElementById("mheader_expt_name").innerHTML = sessionStorage.mexpname;
 
          // now the side navigation has its full width, adjust the main body and make it visible
-         var m = document.getElementById("mmain");
+         let m = document.getElementById("mmain");
          if (m !== undefined) {
             m.style.marginLeft = document.getElementById("msidenav").clientWidth + "px";
             m.style.opacity = 1;
@@ -695,12 +697,12 @@ function mhttpd_init(current_page, interval, callback) {
       mjsonrpc_db_get_values(["/Experiment/Name", "/Experiment/Menu", "/Experiment/Menu Buttons",
          "/Custom", "/Script", "/Alias"]).then(function (rpc) {
 
-         var expt_name = rpc.result.data[0];
-         var menu = rpc.result.data[1];
-         var buttons = rpc.result.data[2];
-         var custom = rpc.result.data[3];
-         var script = rpc.result.data[4];
-         var alias = rpc.result.data[5];
+         let expt_name = rpc.result.data[0];
+         let menu = rpc.result.data[1];
+         let buttons = rpc.result.data[2];
+         let custom = rpc.result.data[3];
+         let script = rpc.result.data[4];
+         let alias = rpc.result.data[5];
 
          document.getElementById("mheader_expt_name").innerHTML = expt_name;
          sessionStorage.setItem("mexpname", expt_name);
@@ -712,9 +714,9 @@ function mhttpd_init(current_page, interval, callback) {
          }
 
          // menu buttons
-         var b = [];
+         let b = [];
          if (menu) {
-            for (var k in menu) {
+            for (let k in menu) {
                if (k.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
                   continue;
                if (menu[k]) // show button if not disabled
@@ -728,11 +730,11 @@ function mhttpd_init(current_page, interval, callback) {
             b = ["Status", "ODB", "Messages", "Chat", "ELog", "Alarms", "Programs", "History", "MSCB", "Sequencer", "Config", "Help"];
          }
 
-         var html = "";
+         let html = "";
 
-         for (var i = 0; i < b.length; i++) {
-            var bb = b[i].trim();
-            var cc = "mmenuitem";
+         for (let i = 0; i < b.length; i++) {
+            let bb = b[i].trim();
+            let cc = "mmenuitem";
             if (bb === current_page) {
                cc += " mmenuitemsel";
             }
@@ -744,7 +746,7 @@ function mhttpd_init(current_page, interval, callback) {
             // add separator
             html += "<div class='mseparator'></div>\n";
 
-            for (var b in custom) {
+            for (let b in custom) {
                if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
                   continue;
                if (typeof custom[b] !== "string") // skip any items that don't have type of string, since can't be valid links
@@ -754,7 +756,7 @@ function mhttpd_init(current_page, interval, callback) {
                   cc += " mmenuitemsel";
                if (b === "path")
                   continue;
-               var l = custom[b + "/name"];
+               let l = custom[b + "/name"];
                if (l.substr(-1) === '!')
                   continue;
                if (l.substr(-1) === '&')
@@ -768,10 +770,10 @@ function mhttpd_init(current_page, interval, callback) {
             // add separator
             html += "<div class='mseparator'></div>\n";
 
-            for (var b in script) {
+            for (let b in script) {
                if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
                   continue;
-               var n = script[b + "/name"];
+               let n = script[b + "/name"];
                //html += "<div class='mmenuitem'><a href='?script=" + b + "' class='mmenulink'>" + n + "</a></div>\n";
                html += "<div class='mmenuitem'><button class='mbutton' onclick='mhttpd_exec_script(\"" + n + "\")'>" + n + "</button></div>\n";
             }
@@ -803,7 +805,7 @@ function mhttpd_init(current_page, interval, callback) {
          document.getElementById("msidenav").innerHTML = html;
 
          // re-adjust size of mmain element if menu has changed
-         var m = document.getElementById("mmain");
+         let m = document.getElementById("mmain");
          if (m !== undefined) {
             m.style.marginLeft = document.getElementById("msidenav").clientWidth + "px";
             m.style.opacity = 1;
@@ -860,13 +862,13 @@ function mhttpd_scan() {
 
    // go through all name="modbvalue" tags
    let modbvalue = getMElements("modbvalue");
-   for (i = 0; i < modbvalue.length; i++) {
-      var o = modbvalue[i];
-      var loading = "(Loading " + modbvalue[i].dataset.odbPath + " ...)";
+   for (let i = 0; i < modbvalue.length; i++) {
+      let o = modbvalue[i];
+      let loading = "(Loading " + modbvalue[i].dataset.odbPath + " ...)";
       if (o.dataset.odbEditable) {
 
          // add event handler if tag is editable
-         var link = document.createElement('a');
+         let link = document.createElement('a');
          link.href = "#";
          link.innerHTML = loading;
          link.onclick = function () {
@@ -887,8 +889,8 @@ function mhttpd_scan() {
    }
 
    // go through all name="modbcheckbox" tags
-   var modbcheckbox = getMElements("modbcheckbox");
-   for (i = 0; i < modbcheckbox.length; i++) {
+   let modbcheckbox = getMElements("modbcheckbox");
+   for (let i = 0; i < modbcheckbox.length; i++) {
       modbcheckbox[i].onclick = function () {
          mjsonrpc_db_set_value(this.dataset.odbPath, this.checked ? 1 : 0);
          mhttpd_refresh();
@@ -896,27 +898,27 @@ function mhttpd_scan() {
    }
 
    // go through all name="modbbox" tags
-   var modbbox = getMElements("modbbox");
-   for (i = 0; i < modbbox.length; i++) {
+   let modbbox = getMElements("modbbox");
+   for (let i = 0; i < modbbox.length; i++) {
       modbbox[i].style.border = "1px solid #808080";
    }
 
    // attach "set" function to all ODB buttons
-   var modbbutton = getMElements("modbbutton");
-   for (i = 0; i < modbbutton.length; i++)
+   let modbbutton = getMElements("modbbutton");
+   for (let i = 0; i < modbbutton.length; i++)
       modbbutton[i].onclick = function () {
          mjsonrpc_db_set_value(this.dataset.odbPath, this.dataset.odbValue);
          mhttpd_refresh();
       };
 
    // replace all horizontal bars with proper <div>'s
-   var mbar = getMElements("modbhbar");
-   for (i = 0; i < mbar.length; i++) {
+   let mbar = getMElements("modbhbar");
+   for (let i = 0; i < mbar.length; i++) {
       mbar[i].style.display = "block";
       if (mbar[i].style.position === "")
          mbar[i].style.position = "relative";
       mbar[i].style.border = "1px solid #808080";
-      var color = mbar[i].style.color;
+      let color = mbar[i].style.color;
       mbar[i].innerHTML = "<div style='background-color:" + color + ";" + "color:black;" +
          "width:0;height:" + mbar[i].clientHeight + "px;" +
          "position:relative; display:inline-block;border-right:1px solid #808080'>&nbsp;</div>";
@@ -924,7 +926,7 @@ function mhttpd_scan() {
 
    // replace all vertical bars with proper <div>'s
    mbar = getMElements("modbvbar");
-   for (i = 0; i < mbar.length; i++) {
+   for (let i = 0; i < mbar.length; i++) {
       mbar[i].style.display = "inline-block";
       if (mbar[i].style.position === "")
          mbar[i].style.position = "relative";
@@ -934,15 +936,15 @@ function mhttpd_scan() {
    }
 
    // replace all thermometers with canvas
-   var mth = getMElements("modbthermo");
-   for (i = 0; i < mth.length; i++) {
+   let mth = getMElements("modbthermo");
+   for (let i = 0; i < mth.length; i++) {
       mth[i].style.display = "inline-block";
       if (mth[i].style.position === "")
          mth[i].style.position = "relative";
 
       cvs = document.createElement("canvas");
-      var w = mth[i].clientWidth;
-      var h = mth[i].clientHeight;
+      let w = mth[i].clientWidth;
+      let h = mth[i].clientHeight;
       w = Math.floor(w / 4) * 4; // 2 must be devidable by 4
       cvs.width = w + 1;
       cvs.height = h;
@@ -952,13 +954,13 @@ function mhttpd_scan() {
    }
 
    // replace all gauges with canvas
-   var mg = getMElements("modbgauge");
-   for (i = 0; i < mg.length; i++) {
+   let mg = getMElements("modbgauge");
+   for (let i = 0; i < mg.length; i++) {
       mg[i].style.display = "inline-block";
       if (mg[i].style.position === "")
          mg[i].style.position = "relative";
 
-      var cvs = document.createElement("canvas");
+      let cvs = document.createElement("canvas");
       cvs.width = mg[i].clientWidth;
       cvs.height = mg[i].clientHeight;
       mg[i].appendChild(cvs);
@@ -967,13 +969,13 @@ function mhttpd_scan() {
    }
 
    // replace all haxis with canvas
-   var mha = getMElements("mhaxis");
-   for (i = 0; i < mha.length; i++) {
+   let mha = getMElements("mhaxis");
+   for (let i = 0; i < mha.length; i++) {
       mha[i].style.display = "block";
       if (mha[i].style.position === "")
          mha[i].style.position = "relative";
 
-      var cvs = document.createElement("canvas");
+      let cvs = document.createElement("canvas");
       cvs.width = mha[i].clientWidth + 2;
       cvs.height = mha[i].clientHeight;
       mha[i].appendChild(cvs);
@@ -982,13 +984,13 @@ function mhttpd_scan() {
    }
 
    // replace all vaxis with canvas
-   var mva = getMElements("mvaxis");
-   for (i = 0; i < mva.length; i++) {
+   let mva = getMElements("mvaxis");
+   for (let i = 0; i < mva.length; i++) {
       mva[i].style.display = "inline-block";
       if (mva[i].style.position === "")
          mva[i].style.position = "relative";
 
-      var cvs = document.createElement("canvas");
+      let cvs = document.createElement("canvas");
       cvs.width = mva[i].clientWidth;
       cvs.height = mva[i].clientHeight + 2; // leave space for vbar border
       mva[i].appendChild(cvs);
@@ -997,14 +999,14 @@ function mhttpd_scan() {
    }
 
    // replace all mhistory tags with history plots
-   var mhist = getMElements("mhistory");
-   for (i = 0; i < mhist.length; i++) {
-      w = mhist[i].style.width;
+   let mhist = getMElements("mhistory");
+   for (let i = 0; i < mhist.length; i++) {
+      let w = mhist[i].style.width;
       if (w === "")
          w = 320;
       else
          w = parseInt(w);
-      h = mhist[i].style.height;
+      let h = mhist[i].style.height;
       if (h === "")
          h = 200;
       else
@@ -1024,10 +1026,10 @@ function mhttpd_scan() {
 }
 
 function mhttpd_thermo_draw() {
-   var ctx = this.firstChild.getContext("2d");
+   let ctx = this.firstChild.getContext("2d");
    ctx.save();
-   var w = this.firstChild.width;
-   var h = this.firstChild.height;
+   let w = this.firstChild.width;
+   let h = this.firstChild.height;
    ctx.clearRect(0, 0, w, h);
    w = w - 1; // space for full circles
    h = h - 1;
@@ -1041,17 +1043,17 @@ function mhttpd_thermo_draw() {
       h = h - 14;
    }
 
-   var x0 = Math.round(w / 4 * 0);
-   var x1 = Math.round(w / 4 * 1);
-   var x2 = Math.round(w / 4 * 2);
-   var x3 = Math.round(w / 4 * 3);
+   let x0 = Math.round(w / 4 * 0);
+   let x1 = Math.round(w / 4 * 1);
+   let x2 = Math.round(w / 4 * 2);
+   let x3 = Math.round(w / 4 * 3);
 
-   var v = this.value;
+   let v = this.value;
    if (v < this.dataset.minValue)
       v = this.dataset.minValue;
    if (v > this.dataset.maxValue)
       v = this.dataset.maxValue;
-   var yt = (h - 4 * x1) - (h - 5 * x1) * (v - this.dataset.minValue) / (this.dataset.maxValue - this.dataset.minValue);
+   let yt = (h - 4 * x1) - (h - 5 * x1) * (v - this.dataset.minValue) / (this.dataset.maxValue - this.dataset.minValue);
 
    ctx.translate(0.5, 0.5);
    ctx.strokeStyle = "#000000";
@@ -1139,18 +1141,18 @@ function mhttpd_thermo_draw() {
 }
 
 function mhttpd_gauge_draw() {
-   var ctx = this.firstChild.getContext("2d");
+   let ctx = this.firstChild.getContext("2d");
    ctx.save();
-   var w = this.firstChild.width;
-   var h = this.firstChild.height;
-   var y = h;
+   let w = this.firstChild.width;
+   let h = this.firstChild.height;
+   let y = h;
    if (this.dataset.scale === "1")
       y -= 15;
    else
       y -= 1;
    ctx.clearRect(0, 0, w, h);
 
-   var v = this.value;
+   let v = this.value;
    if (v < this.dataset.minValue)
       v = this.dataset.minValue;
    if (v > this.dataset.maxValue)
@@ -1219,21 +1221,21 @@ function mhttpd_gauge_draw() {
 }
 
 function mhttpd_vaxis_draw() {
-   var ctx = this.firstChild.getContext("2d");
+   let ctx = this.firstChild.getContext("2d");
    ctx.save();
-   var w = this.firstChild.width;
-   var h = this.firstChild.height;
+   let w = this.firstChild.width;
+   let h = this.firstChild.height;
    ctx.clearRect(0, 0, w, h);
 
-   var line = true;
+   let line = true;
    if (this.dataset.line === "0")
       line = false;
-   var log = false;
+   let log = false;
    if (this.dataset.log === "1")
       log = true;
 
-   var scaleMin = 0;
-   var scaleMax = 1;
+   let scaleMin = 0;
+   let scaleMax = 1;
    if (this.dataset.minValue !== undefined)
       scaleMin = parseFloat(this.dataset.minValue);
    if (log && scaleMin === 0)
@@ -1260,21 +1262,21 @@ function mhttpd_vaxis_draw() {
 }
 
 function mhttpd_haxis_draw() {
-   var ctx = this.firstChild.getContext("2d");
+   let ctx = this.firstChild.getContext("2d");
    ctx.save();
-   var w = this.firstChild.width;
-   var h = this.firstChild.height;
+   let w = this.firstChild.width;
+   let h = this.firstChild.height;
    ctx.clearRect(0, 0, w, h);
 
-   var line = true;
+   let line = true;
    if (this.dataset.line === "0")
       line = false;
-   var log = false;
+   let log = false;
    if (this.dataset.log === "1")
       log = true;
 
-   var scaleMin = 0;
-   var scaleMax = 1;
+   let scaleMin = 0;
+   let scaleMax = 1;
    if (this.dataset.minValue !== undefined)
       scaleMin = parseFloat(this.dataset.minValue);
    if (log && scaleMin === 0)
@@ -1300,7 +1302,7 @@ function mhttpd_haxis_draw() {
 }
 
 String.prototype.stripZeros = function () {
-   var s = this.trim();
+   let s = this.trim();
    if (s.search("[.]") >= 0) {
       let i = s.search("[e]");
       if (i >= 0) {
@@ -1321,9 +1323,9 @@ String.prototype.stripZeros = function () {
 };
 
 function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xmin, xmax, logaxis) {
-   var dx, int_dx, frac_dx, x_act, label_dx, major_dx, x_screen, maxwidth;
-   var tick_base, major_base, label_base, n_sig1, n_sig2, xs;
-   var base = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+   let dx, int_dx, frac_dx, x_act, label_dx, major_dx, x_screen, maxwidth;
+   let tick_base, major_base, label_base, n_sig1, n_sig2, xs;
+   let base = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
 
    ctx.textAlign = "center";
    ctx.textBaseline = "top";
@@ -1360,12 +1362,12 @@ function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xm
 
       do {
          /* number of significant digits */
-         if (xmin == 0)
+         if (xmin === 0)
             n_sig1 = 0;
          else
             n_sig1 = Math.floor(Math.log(Math.abs(xmin)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dx)) / Math.log(10)) + 1;
 
-         if (xmax == 0)
+         if (xmax === 0)
             n_sig2 = 0;
          else
             n_sig2 = Math.floor(Math.log(Math.abs(xmax)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dx)) / Math.log(10)) + 1;
@@ -1379,8 +1381,8 @@ function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xm
             n_sig1 = Math.max(n_sig1, Math.floor(Math.log(Math.abs(xmax)) / Math.log(10)) + 1);
 
          /* determination of maximal width of labels */
-         var str = (Math.floor(xmin / dx) * dx).toPrecision(n_sig1);
-         var ext = ctx.measureText(str);
+         let str = (Math.floor(xmin / dx) * dx).toPrecision(n_sig1);
+         let ext = ctx.measureText(str);
          maxwidth = ext.width;
 
          str = (Math.floor(xmax / dx) * dx).toPrecision(n_sig1).stripZeros();
@@ -1393,7 +1395,7 @@ function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xm
          if (maxwidth > 0.5 * label_dx / (xmax - xmin) * width) {
             label_base++;
             label_dx = Math.pow(10, int_dx) * base[label_base];
-            if (label_base % 3 == 2 && major_base % 3 == 1) {
+            if (label_base % 3 === 2 && major_base % 3 === 1) {
                major_base++;
                major_dx = Math.pow(10, int_dx) * base[major_base];
             }
@@ -1412,7 +1414,7 @@ function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xm
 
    x_act = Math.floor(xmin / dx) * dx;
 
-   var last_label_x = x1;
+   let last_label_x = x1;
 
    if (line === true)
       ctx.drawLine(x1, y1, x1 + width, y1);
@@ -1499,16 +1501,16 @@ function haxisDraw(ctx, x1, y1, width, line, minor, major, text, label, grid, xm
 
 
 function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, ymin, ymax, logaxis) {
-   var dy, int_dy, frac_dy, y_act, label_dy, major_dy, y_screen, maxwidth;
-   var tick_base, major_base, label_base, n_sig1, n_sig2, ys;
-   var base = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+   let dy, int_dy, frac_dy, y_act, label_dy, major_dy, y_screen, maxwidth;
+   let tick_base, major_base, label_base, n_sig1, n_sig2, ys;
+   let base = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
 
    if (x1 > 0)
       ctx.textAlign = "right";
    else
       ctx.textAlign = "left";
    ctx.textBaseline = "middle";
-   var textHeight = parseInt(ctx.font.match(/\d+/)[0]);
+   let textHeight = parseInt(ctx.font.match(/\d+/)[0]);
 
    if (ymax <= ymin || height <= 0)
       return;
@@ -1541,12 +1543,12 @@ function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, y
       label_dy = major_dy;
 
       /* number of significant digits */
-      if (ymin == 0)
+      if (ymin === 0)
          n_sig1 = 0;
       else
          n_sig1 = Math.floor(Math.log(Math.abs(xmin)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dy)) / Math.log(10)) + 1;
 
-      if (ymax == 0)
+      if (ymax === 0)
          n_sig2 = 0;
       else
          n_sig2 = Math.floor(Math.log(Math.abs(ymax)) / Math.log(10)) - Math.floor(Math.log(Math.abs(label_dy)) / Math.log(10)) + 1;
@@ -1563,7 +1565,7 @@ function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, y
       while (label_dy / (ymax - ymin) * height < 1.5 * textHeight) {
          label_base++;
          label_dy = Math.pow(10, int_dy) * base[label_base];
-         if (label_base % 3 == 2 && major_base % 3 == 1) {
+         if (label_base % 3 === 2 && major_base % 3 === 1) {
             major_base++;
             major_dy = Math.pow(10, int_dy) * base[major_base];
          }
@@ -1579,7 +1581,7 @@ function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, y
 
    y_act = Math.floor(ymin / dy) * dy;
 
-   var last_label_y = y1;
+   let last_label_y = y1;
 
    if (line === true)
       ctx.drawLine(x1, y1, x1, y1 - height);
@@ -1670,15 +1672,15 @@ function mhttpd_resize_event_call_resize_sidenav() {
 
 function mhttpd_resize_sidenav() {
    //console.log("mhttpd_resize_sidenav!");
-   var h = document.getElementById('mheader');
-   var s = document.getElementById('msidenav');
-   var top = h.clientHeight + 1 + "px";
+   let h = document.getElementById('mheader');
+   let s = document.getElementById('msidenav');
+   let top = h.clientHeight + 1 + "px";
    if (s.style.top !== top) {
       //console.log("httpd_resize_sidenav: top changed from " + s.style.top + " to " + top);
       s.style.top = top;
    }
-   var m = document.getElementById('mmain');
-   var paddingTop = h.clientHeight + 1 + "px";
+   let m = document.getElementById('mmain');
+   let paddingTop = h.clientHeight + 1 + "px";
    if (m.style.paddingTop !== paddingTop) {
       //console.log("httpd_resize_sidenav: paddingTop changed from " + m.style.paddingTop + " to " + paddingTop);
       m.style.paddingTop = paddingTop;
@@ -1689,7 +1691,7 @@ function mhttpd_resize_header() {
 
 }
 
-var mhttpd_last_alarm = 0;
+let mhttpd_last_alarm = 0;
 
 function mhttpd_refresh() {
    if (mhttpd_refresh_id !== undefined)
@@ -1708,15 +1710,15 @@ function mhttpd_refresh() {
       if (new Date().getTime() > mhttpd_last_alarm + 10000) {
 
          // request current alarms
-         var req = mjsonrpc_make_request("get_alarms");
+         let req = mjsonrpc_make_request("get_alarms");
          mjsonrpc_send_request([req]).then(function (rpc) {
 
-            var alarms = rpc[0].result;
+            let alarms = rpc[0].result;
 
             // update alarm display
             if (alarms.alarm_system_active) {
-               var n = 0;
-               for (var a in alarms.alarms)
+               let n = 0;
+               for (let a in alarms.alarms)
                   n++;
                if (n > 0)
                   mhttpd_alarm_play();
@@ -1750,49 +1752,49 @@ function mhttpd_refresh() {
    });
 
    // go through all "modbvalue" tags
-   var modbvalue = getMElements("modbvalue");
-   for (i = 0; i < modbvalue.length; i++)
+   let modbvalue = getMElements("modbvalue");
+   for (let i = 0; i < modbvalue.length; i++)
       paths.push(modbvalue[i].dataset.odbPath);
 
-   var modbcheckbox = getMElements("modbcheckbox");
-   for (i = 0; i < modbcheckbox.length; i++)
+   let modbcheckbox = getMElements("modbcheckbox");
+   for (let i = 0; i < modbcheckbox.length; i++)
       paths.push(modbcheckbox[i].dataset.odbPath);
 
-   var modbbox = getMElements("modbbox");
-   for (i = 0; i < modbbox.length; i++)
+   let modbbox = getMElements("modbbox");
+   for (let i = 0; i < modbbox.length; i++)
       paths.push(modbbox[i].dataset.odbPath);
 
-   var modbhbar = getMElements("modbhbar");
-   for (i = 0; i < modbhbar.length; i++)
+   let modbhbar = getMElements("modbhbar");
+   for (let i = 0; i < modbhbar.length; i++)
       paths.push(modbhbar[i].dataset.odbPath);
 
-   var modbvbar = getMElements("modbvbar");
-   for (i = 0; i < modbvbar.length; i++)
+   let modbvbar = getMElements("modbvbar");
+   for (let i = 0; i < modbvbar.length; i++)
       paths.push(modbvbar[i].dataset.odbPath);
 
-   var modbthermo = getMElements("modbthermo");
-   for (i = 0; i < modbthermo.length; i++)
+   let modbthermo = getMElements("modbthermo");
+   for (let i = 0; i < modbthermo.length; i++)
       paths.push(modbthermo[i].dataset.odbPath);
 
-   var modbgauge = getMElements("modbgauge");
-   for (i = 0; i < modbgauge.length; i++)
+   let modbgauge = getMElements("modbgauge");
+   for (let i = 0; i < modbgauge.length; i++)
       paths.push(modbgauge[i].dataset.odbPath);
 
    // request ODB contents for all variables
-   var req1 = mjsonrpc_make_request("db_get_values", {"paths": paths});
+   let req1 = mjsonrpc_make_request("db_get_values", {"paths": paths});
 
    // request current alarms
-   var req2 = mjsonrpc_make_request("get_alarms");
+   let req2 = mjsonrpc_make_request("get_alarms");
 
    // request new messages
-   var req3 = mjsonrpc_make_request("cm_msg_retrieve", {
+   let req3 = mjsonrpc_make_request("cm_msg_retrieve", {
       "facility": "midas",
       "time": 0,
       "min_messages": 1
    });
 
    // request new char messages
-   var req4 = mjsonrpc_make_request("cm_msg_retrieve", {
+   let req4 = mjsonrpc_make_request("cm_msg_retrieve", {
       "facility": "chat",
       "time": 0,
       "min_messages": 1
@@ -1801,8 +1803,8 @@ function mhttpd_refresh() {
    mjsonrpc_send_request([req1, req2, req3, req4]).then(function (rpc) {
 
       // update time in header
-      var d = new Date();
-      var dstr = d.toLocaleString("en-gb", {
+      let d = new Date();
+      let dstr = d.toLocaleString("en-gb", {
          hour12: false, day: 'numeric', month: 'short', year: 'numeric',
          hour: 'numeric', minute: 'numeric', second: 'numeric', timeZoneName: 'short'
       });
@@ -1812,9 +1814,9 @@ function mhttpd_refresh() {
          mhttpd_set_firstChild_data(document.getElementById("mheader_last_updated"), dstr);
       }
 
-      var idata = 0;
+      let idata = 0;
 
-      for (var i = 0; i < modb.length; i++, idata++) {
+      for (let i = 0; i < modb.length; i++, idata++) {
          let x = rpc[0].result.data[idata];
          if (typeof x === 'object' && x !== null) { // subdircectory
             if (modb[i].onchange !== null) {
@@ -1829,7 +1831,7 @@ function mhttpd_refresh() {
          }
       }
 
-      for (i = 0; i < modbvalue.length; i++, idata++) {
+      for (let i = 0; i < modbvalue.length; i++, idata++) {
          if (rpc[0].result.status[i] === 312) {
             modbvalue[i].innerHTML = "ODB key \"" + modbvalue[i].dataset.odbPath + "\" not found";
          } else {
@@ -1837,10 +1839,10 @@ function mhttpd_refresh() {
             let tid = rpc[0].result.tid[idata];
             if (modbvalue[i].dataset.formula !== undefined)
                x = eval(modbvalue[i].dataset.formula);
-            var mvalue = mie_to_string(tid, x, modbvalue[i].dataset.format);
+            let mvalue = mie_to_string(tid, x, modbvalue[i].dataset.format);
             if (mvalue === "")
                mvalue = "(empty)";
-            var html = mhttpd_escape(mvalue);
+            let html = mhttpd_escape(mvalue);
             if (modbvalue[i].dataset.odbEditable) {
                if (modbvalue[i].childNodes[0] === undefined) {
                   // element has not been scanned yet
@@ -1860,14 +1862,14 @@ function mhttpd_refresh() {
             modbvalue[i].onchange();
       }
 
-      for (i = 0; i < modbcheckbox.length; i++, idata++) {
+      for (let i = 0; i < modbcheckbox.length; i++, idata++) {
          let x = rpc[0].result.data[idata];
          modbcheckbox[i].checked = (x === 1 || x === true);
          if (modbcheckbox[i].onchange !== null)
             modbcheckbox[i].onchange();
       }
 
-      for (i = 0; i < modbbox.length; i++, idata++) {
+      for (let i = 0; i < modbbox.length; i++, idata++) {
          let x = rpc[0].result.data[idata];
          if (modbbox[i].dataset.formula !== undefined)
             x = eval(modbbox[i].dataset.formula);
@@ -1883,7 +1885,7 @@ function mhttpd_refresh() {
             modbbox[i].onchange();
       }
 
-      for (i = 0; i < modbhbar.length; i++, idata++) {
+      for (let i = 0; i < modbhbar.length; i++, idata++) {
          let x = rpc[0].result.data[idata];
          let tid = rpc[0].result.tid[idata];
          if (modbhbar[i].dataset.formula !== undefined)
@@ -1895,8 +1897,8 @@ function mhttpd_refresh() {
          modbhbar[i].value = x;
          if (modbhbar[i].dataset.printValue === "1")
             modbhbar[i].children[0].innerHTML = html;
-         var minValue = parseFloat(modbhbar[i].dataset.minValue);
-         var maxValue = parseFloat(modbhbar[i].dataset.maxValue);
+         let minValue = parseFloat(modbhbar[i].dataset.minValue);
+         let maxValue = parseFloat(modbhbar[i].dataset.maxValue);
          if (isNaN(minValue))
             minValue = 0;
          if (modbhbar[i].dataset.log === "1" &&
@@ -1920,12 +1922,12 @@ function mhttpd_refresh() {
          modbhbar[i].children[0].style.backgroundColor = modbhbar[i].style.color;
       }
 
-      for (i = 0; i < modbvbar.length; i++, idata++) {
+      for (let i = 0; i < modbvbar.length; i++, idata++) {
          let x = rpc[0].result.data[idata];
          let tid = rpc[0].result.tid[idata];
          if (modbvbar[i].dataset.formula !== undefined)
             x = eval(modbvbar[i].dataset.formula);
-         mvalue = mie_to_string(tid, x, modbvbar[i].dataset.format);
+         let mvalue = mie_to_string(tid, x, modbvbar[i].dataset.format);
          if (mvalue === "")
             mvalue = "(empty)";
          html = mhttpd_escape("&nbsp;" + mvalue);
@@ -1957,7 +1959,7 @@ function mhttpd_refresh() {
          modbvbar[i].children[0].style.backgroundColor = modbvbar[i].style.color;
       }
 
-      for (i = 0; i < modbthermo.length; i++, idata++) {
+      for (let i = 0; i < modbthermo.length; i++, idata++) {
          let x = rpc[0].result.data[idata];
          let tid = rpc[0].result.tid[idata];
          if (modbthermo[i].dataset.formula !== undefined)
@@ -1973,7 +1975,7 @@ function mhttpd_refresh() {
          modbthermo[i].draw();
       }
 
-      for (i = 0; i < modbgauge.length; i++, idata++) {
+      for (let i = 0; i < modbgauge.length; i++, idata++) {
          let x = rpc[0].result.data[idata];
          let tid = rpc[0].result.tid[idata];
          if (modbgauge[i].dataset.formula !== undefined)
@@ -1989,17 +1991,17 @@ function mhttpd_refresh() {
          modbgauge[i].draw();
       }
 
-      var alarms = rpc[1].result;
+      let alarms = rpc[1].result;
 
       // update alarm display
-      var e = document.getElementById('mheader_alarm');
+      let e = document.getElementById('mheader_alarm');
       if (!alarms.alarm_system_active) {
          mhttpd_set_innerHTML(e, "<a href=\"?cmd=Alarms\">Alarms: Off</a>");
          mhttpd_set_className(e, "mgray mbox");
       } else {
-         var s = "";
-         var n = 0;
-         for (var a in alarms.alarms) {
+         let s = "";
+         let n = 0;
+         for (let a in alarms.alarms) {
             s += a + ", ";
             n++;
          }
@@ -2019,8 +2021,9 @@ function mhttpd_refresh() {
       }
 
       // update messages
+      let msg;
       if (rpc[2].result.messages !== undefined) {
-         var msg = rpc[2].result.messages.split("\n");
+         msg = rpc[2].result.messages.split("\n");
          if (msg[msg.length - 1] === "")
             msg = msg.slice(0, -1);
       } else
@@ -2028,7 +2031,7 @@ function mhttpd_refresh() {
 
       // update chat messages
       if (rpc[3].result.messages !== undefined) {
-         var chat = rpc[3].result.messages.split("\n");
+         let chat = rpc[3].result.messages.split("\n");
          if (chat[chat.length - 1] === "")
             chat = chat.slice(0, -1);
       } else
@@ -2058,9 +2061,9 @@ function mhttpd_refresh_history() {
 
    /* this fuction gets called by mhttpd_init to periodically refresh all history panels */
 
-   var mhist = document.getElementsByName("mhistory");
-   for (var i = 0; i < mhist.length; i++) {
-      var s = mhist[i].childNodes[0].src;
+   let mhist = document.getElementsByName("mhistory");
+   for (let i = 0; i < mhist.length; i++) {
+      let s = mhist[i].childNodes[0].src;
 
       if (s.lastIndexOf("&rnd=") !== -1) {
          s = s.substr(0, s.lastIndexOf('&rnd='));
@@ -2092,13 +2095,13 @@ window.addEventListener('resize', mhttpd_resize_message);
 
 function mhttpd_resize_message() {
    //console.log("mhttpd_resize_message() via resize event listener");
-   var d = document.getElementById("mheader_message");
+   let d = document.getElementById("mheader_message");
    if (d.currentMessage !== undefined && d.style.display !== 'none')
       mhttpd_fit_message(d.currentMessage);
 }
 
 function mhttpd_close_message() {
-   var d = document.getElementById("mheader_message");
+   let d = document.getElementById("mheader_message");
 
    // remember time of messages to suppress
    mhttpdConfigSet('suppressMessageBefore', d.currentMessageT);
@@ -2108,16 +2111,16 @@ function mhttpd_close_message() {
 }
 
 function mhttpd_fit_message(m) {
-   var d = document.getElementById("mheader_message");
-   var cross = "&nbsp;&nbsp;&nbsp;<span style=\"cursor: pointer;\" onclick=\"mhttpd_close_message();\">&#9587;</span>";
-   var link1 = "<span style=\"cursor: pointer;\" onclick=\"window.location.href='&quot;'?cmd=Messages&quot;\">";
-   var link2 = "</span>";
+   let d = document.getElementById("mheader_message");
+   let cross = "&nbsp;&nbsp;&nbsp;<span style=\"cursor: pointer;\" onclick=\"mhttpd_close_message();\">&#9587;</span>";
+   let link1 = "<span style=\"cursor: pointer;\" onclick=\"window.location.href='&quot;'?cmd=Messages&quot;\">";
+   let link2 = "</span>";
    d.style.display = "inline-block";
 
    // limit message to fit parent element
 
-   var parentWidth = d.parentNode.offsetWidth;
-   var maxWidth = parentWidth - 30;
+   let parentWidth = d.parentNode.offsetWidth;
+   let maxWidth = parentWidth - 30;
 
    // check if the full message fits
 
@@ -2131,7 +2134,7 @@ function mhttpd_fit_message(m) {
 
    m = m.substr(m.indexOf(']')+1);
    d.innerHTML = link1 + m + link2 + cross;
-   var w = d.offsetWidth;
+   let w = d.offsetWidth;
    //console.log("mhttpd_fit_message: len: " + w + ", max: " + maxWidth + ", message: " + m);
    if (w <= maxWidth) {
       return;
@@ -2139,10 +2142,10 @@ function mhttpd_fit_message(m) {
 
    // guess the length assuming fix pixels per char
 
-   var charWidth = w/m.length;
-   var guessLength = maxWidth/charWidth - 3; // 3 chars of "..."
+   let charWidth = w/m.length;
+   let guessLength = maxWidth/charWidth - 3; // 3 chars of "..."
 
-   var g = m.substr(0, guessLength);
+   let g = m.substr(0, guessLength);
    d.innerHTML = link1 + g + "..." + link2 + cross;
    w = d.offsetWidth;
    //console.log("mhttpd_fit_message: char: " + charWidth + ", guess: " + guessLength + ", len: " + w + ", max: " + maxWidth);
@@ -2151,8 +2154,8 @@ function mhttpd_fit_message(m) {
    
    if (w < maxWidth) {
       //console.log("mhttpd_fit_message: too short, grow");
-      for (var i=guessLength+1; i<=m.length; i++) {
-         var s = m.substr(0, i);
+      for (let i=guessLength+1; i<=m.length; i++) {
+         let s = m.substr(0, i);
          d.innerHTML = link1 + s + "..." + link2 + cross;
          w = d.offsetWidth;
          //console.log("mhttpd_fit_message: len: " + w + ", max: " + maxWidth + ", message: " + s);
@@ -2174,15 +2177,15 @@ function mhttpd_fit_message(m) {
 
 function mhttpd_message(msg, chat) {
 
-   var mTalk = "";
-   var mType = "";
-   var chatName = "";
-   var talkTime = 0;
-   var lastMsg = "";
-   var lastMsgT = 0;
-   var lastChat = "";
-   var lastChatT = 0;
-   var lastT = 0;
+   let mTalk = "";
+   let mType = "";
+   let chatName = "";
+   let talkTime = 0;
+   let lastMsg = "";
+   let lastMsgT = 0;
+   let lastChat = "";
+   let lastChatT = 0;
+   let lastT = 0;
 
    if (msg !== undefined) {
       lastMsg = msg[0].substr(msg[0].indexOf(" ") + 1);
@@ -2202,8 +2205,8 @@ function mhttpd_message(msg, chat) {
    }
 
    if (lastChatT > lastMsgT) {
-      var m = lastChat;
-      var c = "var(--mblue)";
+      let m = lastChat;
+      let c = "var(--mblue)";
       mType = "USER";
       talkTime = lastChatT;
       lastT = lastChatT;
@@ -2217,7 +2220,7 @@ function mhttpd_message(msg, chat) {
    }
 
    if (m !== "") {
-      var d = document.getElementById("mheader_message");
+      let d = document.getElementById("mheader_message");
       if (d !== undefined && d.currentMessage !== m &&
          (mhttpdConfig().suppressMessageBefore === undefined || lastT > mhttpdConfig().suppressMessageBefore)) {
 
@@ -2230,7 +2233,7 @@ function mhttpd_message(msg, chat) {
              mType === "INFO" && mhttpdConfig().displayInfo ||
              mType === "LOG" && mhttpdConfig().displayLog) {
 
-            var first = (d.currentMessage === undefined);
+            let first = (d.currentMessage === undefined);
             d.currentMessage = m; // store full message in user-defined attribute
             d.currentMessageT = lastMsgT; // store message time in user-defined attribute
 
@@ -2277,9 +2280,9 @@ function mhttpd_message(msg, chat) {
             }
          }
       }
-      var t = new Date() / 1000;
+      let t = new Date() / 1000;
       if (t > d.age + 5 && d.style.backgroundColor === "var(--myellow)") {
-         var backgroundColor = "var(--mgray)";
+         let backgroundColor = "var(--mgray)";
          d.style.setProperty("-webkit-transition", "background-color 3s", "");
          d.style.setProperty("transition", "background-color 3s", "");
          d.style.backgroundColor = backgroundColor;
@@ -2288,7 +2291,7 @@ function mhttpd_message(msg, chat) {
 }
 
 function mhttpd_error(error) {
-   var d = document.getElementById("mheader_error");
+   let d = document.getElementById("mheader_error");
    if (d !== undefined) {
       error += "<div style=\"display: inline; float: right; padding-right: 10px; cursor: pointer;\"" +
          " onclick=\"document.getElementById(&quot;mheader_error&quot;).style.zIndex = 0;\">&#9587;</div>";
@@ -2305,13 +2308,13 @@ function mhttpd_error_clear() {
 }
 
 function mhttpd_create_page_handle_create(mouseEvent) {
-   var path = "";
-   var type = "";
-   var name = "";
-   var arraylength = "";
-   var stringlength = "";
+   let path = "";
+   let type = "";
+   let name = "";
+   let arraylength = "";
+   let stringlength = "";
 
-   var form = document.getElementsByTagName('form')[0];
+   let form = document.getElementsByTagName('form')[0];
 
    if (form) {
       path = form.elements['odb'].value;
@@ -2320,7 +2323,7 @@ function mhttpd_create_page_handle_create(mouseEvent) {
       arraylength = form.elements['index'].value;
       stringlength = form.elements['strlen'].value;
    } else {
-      var e = document.getElementById("odbpath");
+      let e = document.getElementById("odbpath");
       path = JSON.parse(e.innerHTML);
       if (path === "/") path = "";
 
@@ -2339,7 +2342,7 @@ function mhttpd_create_page_handle_create(mouseEvent) {
       return false;
    }
 
-   var int_array_length = parseInt(arraylength);
+   let int_array_length = parseInt(arraylength);
 
    //alert("int_array_length: " + int_array_length);
 
@@ -2348,14 +2351,14 @@ function mhttpd_create_page_handle_create(mouseEvent) {
       return false;
    }
 
-   var int_string_length = parseInt(stringlength);
+   let int_string_length = parseInt(stringlength);
 
    if (!int_string_length || int_string_length < 1) {
       dlgAlert("Bad string length " + stringlength);
       return false;
    }
 
-   var param = {};
+   let param = {};
    param.path = path + "/" + name;
    param.type = parseInt(type);
    if (int_array_length > 1)
@@ -2364,7 +2367,7 @@ function mhttpd_create_page_handle_create(mouseEvent) {
       param.string_length = int_string_length;
 
    mjsonrpc_db_create([param]).then(function (rpc) {
-      var status = rpc.result.status[0];
+      let status = rpc.result.status[0];
       if (status === 311) {
          dlgMessage("Error", "ODB entry with this name already exists.", true, true, function () {
             location.search = "?cmd=odb&odb_path=" + path; // reloads the document
@@ -2390,12 +2393,12 @@ function mhttpd_create_page_handle_cancel(mouseEvent) {
 }
 
 function mhttpd_link_page_handle_link(mouseEvent) {
-   var e = document.getElementById("link_odbpath");
-   var path = JSON.parse(e.innerHTML);
-   if (path == "/") path = "";
-   //var path   = document.getElementById("odb_path").value;
-   var name = document.getElementById("link_name").value;
-   var target = document.getElementById("link_target").value;
+   let e = document.getElementById("link_odbpath");
+   let path = JSON.parse(e.innerHTML);
+   if (path === "/") path = "";
+   //let path   = document.getElementById("odb_path").value;
+   let name = document.getElementById("link_name").value;
+   let target = document.getElementById("link_target").value;
 
    //console.log("Path: " + path + " Name: " + name + " Target: [" + target + "]");
 
@@ -2409,29 +2412,29 @@ function mhttpd_link_page_handle_link(mouseEvent) {
       return false;
    }
 
-   var param = {};
+   let param = {};
    param.new_links = [path + "/" + name];
    param.target_paths = [target];
 
    mjsonrpc_call("db_link", param).then(function (rpc) {
-      var status = rpc.result.status[0];
-      if (status == 304) {
+      let status = rpc.result.status[0];
+      if (status === 304) {
          dlgMessage("Error", "Invalid link, see MIDAS messages.", true, true, function () {
             //location.search = "?cmd=odb&odb_path="+path; // reloads the document
          });
-      } else if (status == 311) {
+      } else if (status === 311) {
          dlgMessage("Error", "ODB entry with this name already exists.", true, true, function () {
             //location.search = "?cmd=odb&odb_path="+path; // reloads the document
          });
-      } else if (status == 312) {
+      } else if (status === 312) {
          dlgMessage("Error", "Target path " + target + " does not exist in ODB.", true, true, function () {
             //location.search = "?cmd=odb&odb_path="+path; // reloads the document
          });
-      } else if (status == 315) {
+      } else if (status === 315) {
          dlgMessage("Error", "ODB data type mismatch, see MIDAS messages.", true, true, function () {
             //location.search = "?cmd=odb&odb_path="+path; // reloads the document
          });
-      } else if (status != 1) {
+      } else if (status !== 1) {
          dlgMessage("Error", "db_create_link() error " + status + ", see MIDAS messages.", true, true, function () {
             location.search = "?cmd=odb&odb_path=" + path; // reloads the document
          });
@@ -2452,36 +2455,36 @@ function mhttpd_link_page_handle_cancel(mouseEvent) {
 }
 
 function mhttpd_delete_page_handle_delete(mouseEvent, xpath) {
-   var form = document.getElementsByTagName('form')[0];
-   var path;
-   var names = [];
+   let form = document.getElementsByTagName('form')[0];
+   let path;
+   let names = [];
 
    if (form) {
       path = form.elements['odb'].value;
 
       if (path === "/") path = "";
 
-      for (var i = 0; ; i++) {
-         var n = "name" + i;
-         var v = form.elements[n];
-         if (v === undefined) break;
-         if (v === undefined) break;
+      for (let i = 0; ; i++) {
+         let n = "name" + i;
+         let v = form.elements[n];
+         if (v === undefined)
+            break;
          if (v.checked)
             names.push(path + "/" + v.value);
       }
    } else {
-      var e = document.getElementById("odbpath");
+      let e = document.getElementById("odbpath");
       path = JSON.parse(e.innerHTML);
       if (path === "/") path = "";
 
       //alert("Path: " + path);
 
       for (i = 0; ; i++) {
-         var v = document.getElementById("delete" + i);
-         if (v == undefined) break;
-         if (v == undefined) break;
+         let v = document.getElementById("delete" + i);
+         if (v === undefined)
+            break;
          if (v.checked) {
-            var name = JSON.parse(v.value);
+            let name = JSON.parse(v.value);
             if (name.length > 0) {
                names.push(path + "/" + name);
             }
@@ -2499,13 +2502,13 @@ function mhttpd_delete_page_handle_delete(mouseEvent, xpath) {
 
    //alert(names);
 
-   var params = {};
+   let params = {};
    params.paths = names;
    mjsonrpc_call("db_delete", params).then(function (rpc) {
-      var message = "";
-      var status = rpc.result.status;
+      let message = "";
+      let status = rpc.result.status;
       //alert(JSON.stringify(status));
-      for (var i = 0; i < status.length; i++) {
+      for (let i = 0; i < status.length; i++) {
          if (status[i] !== 1) {
             message += "Cannot delete \"" + rpc.request.params.paths[i] + "\", db_delete_key() status " + status[i] + "\n";
          }
@@ -2584,22 +2587,22 @@ function mhttpd_resume_run(ret) {
 
 function mhttpd_cancel_transition() {
    dlgConfirm('Are you sure to cancel the currently active run transition?', function (flag) {
-      if (flag == true) {
-         var paths = new Array;
-         var values = new Array;
+      if (flag === true) {
+         let paths = [];
+         let values = [];
 
          paths.push("/Runinfo/Requested Transition");
          values.push(0);
          paths.push("/Runinfo/Transition in progress");
          values.push(0);
 
-         var params = new Object;
+         let params = {};
          params.paths = paths;
          params.values = values;
 
          mjsonrpc_call("db_paste", params).then(function (rpc) {
             //mjsonrpc_debug_alert(rpc);
-            if ((rpc.result.status[0] != 1) || (rpc.result.status[1] != 1)) {
+            if ((rpc.result.status[0] !== 1) || (rpc.result.status[1] !== 1)) {
                throw new Error("Cannot cancel transition, db_paste() status " + rpc.result.status + ", see MIDAS messages");
             }
             mhttpd_goto_page("Transition"); // DOES NOT RETURN
@@ -2623,15 +2626,15 @@ function mhttpd_reset_alarm(alarm_name) {
 
 /*---- message functions -------------------------------------*/
 
-var facility;
-var first_tstamp = 0;
-var last_tstamp = 0;
-var end_of_messages = false;
-var n_messages = 0;
+let facility;
+let first_tstamp = 0;
+let last_tstamp = 0;
+let end_of_messages = false;
+let n_messages = 0;
 
 function msg_load(f) {
    facility = f;
-   var msg = ODBGetMsg(facility, 0, 100);
+   let msg = ODBGetMsg(facility, 0, 100);
    msg_append(msg);
    if (isNaN(last_tstamp))
       end_of_messages = true;
@@ -2645,15 +2648,15 @@ function msg_load(f) {
 }
 
 function msg_prepend(msg) {
-   var mf = document.getElementById('messageFrame');
+   let mf = document.getElementById('messageFrame');
 
    for (i = 0; i < msg.length; i++) {
-      var line = msg[i];
-      var t = parseInt(line);
+      let line = msg[i];
+      let t = parseInt(line);
 
       if (line.indexOf(" ") && (t > 0 || t === -1))
          line = line.substr(line.indexOf(" ") + 1);
-      var e = document.createElement("p");
+      let e = document.createElement("p");
       e.className = "messageLine";
       e.appendChild(document.createTextNode(line));
 
@@ -2677,11 +2680,11 @@ function msg_prepend(msg) {
 }
 
 function msg_append(msg) {
-   var mf = document.getElementById('messageFrame');
+   let mf = document.getElementById('messageFrame');
 
    for (i = 0; i < msg.length; i++) {
-      var line = msg[i];
-      var t = parseInt(line);
+      let line = msg[i];
+      let t = parseInt(line);
 
       if (t !== -1 && t > first_tstamp)
          first_tstamp = t;
@@ -2689,7 +2692,7 @@ function msg_append(msg) {
          last_tstamp = t;
       if (line.indexOf(" ") && (t > 0 || t === -1))
          line = line.substr(line.indexOf(" ") + 1);
-      var e = document.createElement("p");
+      let e = document.createElement("p");
       e.className = "messageLine";
       e.appendChild(document.createTextNode(line));
       if (line.search("ERROR]") > 0) {
@@ -2703,7 +2706,7 @@ function msg_append(msg) {
 }
 
 function findPos(obj) {
-   var curleft = curtop = 0;
+   let curleft = curtop = 0;
    if (obj.offsetParent) {
       do {
          curleft += obj.offsetLeft;
@@ -2723,7 +2726,7 @@ function msg_extend() {
       if (!end_of_messages) {
 
          if (last_tstamp > 0) {
-            var msg = ODBGetMsg(facility, last_tstamp - 1, 100);
+            let msg = ODBGetMsg(facility, last_tstamp - 1, 100);
             if (msg[0] === "")
                end_of_messages = true;
             if (!end_of_messages) {
@@ -2734,7 +2737,7 @@ function msg_extend() {
             msg = ODBGetMsg(facility, 0, n_messages + 100);
             n_messages = 0;
 
-            var mf = document.getElementById('messageFrame');
+            let mf = document.getElementById('messageFrame');
             for (i = mf.childNodes.length - 1; i > 1; i--)
                mf.removeChild(mf.childNodes[i]);
             msg_append(msg);
@@ -2768,7 +2771,7 @@ function msg_extend() {
 
  mhttpdConfigSet('speakChat', false); // write individual config
 
- var c = mhttpdConfig();              // write whole config
+ let c = mhttpdConfig();              // write whole config
  c.speakChat = false;
  c.... = ...;
  mhttpdConfigSetAll(c);
@@ -2779,7 +2782,7 @@ function msg_extend() {
  values are returned.
  */
 
-var mhttpd_config_defaults = {
+let mhttpd_config_defaults = {
    'chatName': "",
 
    'pageTalk': true,
@@ -2819,14 +2822,14 @@ var mhttpd_config_defaults = {
 };
 
 function mhttpdConfig() {
-   var c = mhttpd_config_defaults;
+   let c = mhttpd_config_defaults;
    try {
       if (localStorage.mhttpd)
          c = JSON.parse(localStorage.mhttpd);
 
       // if element has been added to mhttpd_config_defaults, merge it
       if (Object.keys(c).length !== Object.keys(mhttpd_config_defaults).length) {
-         for (var o in mhttpd_config_defaults)
+         for (let o in mhttpd_config_defaults)
             if (!(o in c))
                c[o] = mhttpd_config_defaults[o];
       }
@@ -2838,10 +2841,10 @@ function mhttpdConfig() {
 
 function mhttpdConfigSet(item, value) {
    try {
-      var c = mhttpdConfig();
+      let c = mhttpdConfig();
       if (item.indexOf('.') > 0) {
-         var c1 = item.substring(0, item.indexOf('.'));
-         var c2 = item.substring(item.indexOf('.') + 1);
+         let c1 = item.substring(0, item.indexOf('.'));
+         let c2 = item.substring(item.indexOf('.') + 1);
          c[c1][c2] = value;
       } else
          c[item] = value;
@@ -2859,12 +2862,12 @@ function mhttpdConfigSetAll(new_config) {
 
 /*---- sound and speak functions --------------------------*/
 
-var last_audio = null;
-var inside_new_audio = false;
-var count_audio = 0;
+let last_audio = null;
+let inside_new_audio = false;
+let count_audio = 0;
 
 //function mhttpd_alarm_done() {
-//   var ended;
+//   let ended;
 //   if (last_audio) {
 //      ended = last_audio.ended;
 //      last_audio = null;
@@ -2934,7 +2937,7 @@ function mhttpd_alarm_play_now() {
    //console.log(Date() + ": mhttpd_alarm_play: created: " + count_audio_created + ", done: " + count_audio_done + ", last_ended: " + ended + ", audio.play!");
    //count_audio_created++;
 
-   var audio = new Audio(mhttpdConfig().alarmSoundFile);
+   let audio = new Audio(mhttpdConfig().alarmSoundFile);
    audio.volume = mhttpdConfig().alarmVolume;
    audio.counter = ++count_audio;
 
@@ -2946,7 +2949,7 @@ function mhttpd_alarm_play_now() {
    //audio.addEventListener("ended", mhttpd_audio_ended);
    //audio.addEventListener("paused", mhttpd_audio_paused);
 
-   var promise = audio.play();
+   let promise = audio.play();
    if (promise) {
       promise.then(function(e) {
          //console.log(Date() + ": mhttpd_alarm_play: promise fulfilled, counter " + audio.counter);
@@ -2970,11 +2973,11 @@ function mhttpd_alarm_play_now() {
 
 function mhttpd_alarm_play() {
    if (mhttpdConfig().alarmSound && mhttpdConfig().alarmSoundFile) {
-      var now = new Date() / 1000;
-      var last = mhttpdConfig().var.lastAlarm;
-      var next = last + parseFloat(mhttpdConfig().alarmRepeat);
-      var wait = next - now;
-      var do_play = (now > next);
+      let now = new Date() / 1000;
+      let last = mhttpdConfig().var.lastAlarm;
+      let next = last + parseFloat(mhttpdConfig().alarmRepeat);
+      let wait = next - now;
+      let do_play = (now > next);
       //console.log("mhttpd_alarm_play: now: " + now + ", next: " + next + ", last: " + last + ", wait: " + wait + ", play: " + do_play);
       if (do_play) {
          mhttpdConfigSet("var.lastAlarm", now);
@@ -2984,7 +2987,7 @@ function mhttpd_alarm_play() {
 }
 
 function mhttpd_speak_now(text) {
-   var u = new SpeechSynthesisUtterance(text);
+   let u = new SpeechSynthesisUtterance(text);
    u.voice = speechSynthesis.getVoices().filter(function (voice) {
       return voice.name === mhttpdConfig().speakVoice;
    })[0];
