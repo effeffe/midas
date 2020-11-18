@@ -5388,7 +5388,7 @@ void log_history_periodic() {
    cm_get_experiment_database(&hDB, NULL);
 
    // log at least once every minute for "slow" equipment
-   if (ss_time()/60 > last_log_slow/60) {
+   if ((int)ss_time()/60 > last_log_slow/60) {
       for (i = 0; i < hist_log_max; i++)
           if (hist_log[i].hKeyVar > 0 && hist_log[i].period > 10) {
              if (verbose)
@@ -5400,7 +5400,7 @@ void log_history_periodic() {
    }
 
    // log at least once every ten seconds for "fast" equipment
-   if (ss_time()/10 > last_log_fast/10) {
+   if ((int)ss_time()/10 > last_log_fast/10) {
       for (i = 0; i < hist_log_max; i++)
          if (hist_log[i].hKeyVar > 0 && hist_log[i].period <= 10) {
             if (verbose)
