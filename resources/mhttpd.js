@@ -234,7 +234,6 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val, size) {
    if (size === undefined)
       size = 10;
    let str = mhttpd_escape(string_val);
-   let width = p.offsetWidth - 10;
 
    if (odb_path.indexOf('[') > 0) {
       index = odb_path.substr(odb_path.indexOf('['));
@@ -272,8 +271,6 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val, size) {
          p.childNodes[0].select();
       }, 10);
    }
-
-   p.style.width = width + "px";
 }
 
 //
@@ -289,9 +286,9 @@ function ODBInlineEdit(p, odb_path, bracket) {
       let tid = rpc.result.tid[0];
       let format = p.dataset.format;
       let size = p.dataset.size;
-      if(format){
-         if(format.length > 1){
-            if(format[0] === 'd' || format[0] === 'x' || format[0] === 'b'){
+      if (format) {
+         if (format.length > 1) {
+            if (format[0] === 'd' || format[0] === 'x' || format[0] === 'b') {
                //when going to edit consider only the first format specifier for integers
                format = String(format[0]);
             }
