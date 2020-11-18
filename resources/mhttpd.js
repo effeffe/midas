@@ -2027,8 +2027,9 @@ function mhttpd_refresh() {
          msg = undefined;
 
       // update chat messages
+      let chat;
       if (rpc[3].result.messages !== undefined) {
-         let chat = rpc[3].result.messages.split("\n");
+         chat = rpc[3].result.messages.split("\n");
          if (chat[chat.length - 1] === "")
             chat = chat.slice(0, -1);
       } else
