@@ -190,8 +190,19 @@ function ODBFinishInlineEdit(p, path, bracket) {
    //console.log("mie_write odb [" + path + "] value [" + value + "]");
 
    if (p.dataset.validate !== undefined) {
-
+      let flag = eval(p.dataset.validate)(value, p);
+      if (!flag) {
+         p.ODBsent = true;
+         mie_back_to_link(p, path, bracket);
+         return;
+      }
    }
+
+   // validator might have changed the value
+   if (p.childNodes.length === 2)
+      value = p.childNodes[1].value;
+   else
+      value = p.childNodes[0].value;
 
    mjsonrpc_db_set_value(path, value).then(function (rpc) {
       //mjsonrpc_debug_alert(rpc);
