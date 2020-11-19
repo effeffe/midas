@@ -189,6 +189,10 @@ function ODBFinishInlineEdit(p, path, bracket) {
 
    //console.log("mie_write odb [" + path + "] value [" + value + "]");
 
+   if (p.dataset.validate !== undefined) {
+
+   }
+
    mjsonrpc_db_set_value(path, value).then(function (rpc) {
       //mjsonrpc_debug_alert(rpc);
       p.ODBsent = true;
@@ -2620,144 +2624,6 @@ function mhttpd_reset_alarm(alarm_name) {
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
    });
-}
-
-/*---- message functions -------------------------------------*/
-
-let facility;
-let first_tstamp = 0;
-let last_tstamp = 0;
-let end_of_messages = false;
-let n_messages = 0;
-
-function msg_load(f) {
-   facility = f;
-   let msg = ODBGetMsg(facility, 0, 100);
-   msg_append(msg);
-   if (isNaN(last_tstamp))
-      end_of_messages = true;
-
-   // set message window height to fit browser window
-   mf = document.getElementById('messageFrame');
-   mf.style.height = window.innerHeight - findPos(mf)[1] - 4;
-
-   // check for new messages and end of scroll
-   window.setTimeout(msg_extend, 1000);
-}
-
-function msg_prepend(msg) {
-   let mf = document.getElementById('messageFrame');
-
-   for (i = 0; i < msg.length; i++) {
-      let line = msg[i];
-      let t = parseInt(line);
-
-      if (line.indexOf(" ") && (t > 0 || t === -1))
-         line = line.substr(line.indexOf(" ") + 1);
-      let e = document.createElement("p");
-      e.className = "messageLine";
-      e.appendChild(document.createTextNode(line));
-
-      if (e.innerHTML === mf.childNodes[2 + i].innerHTML)
-         break;
-      mf.insertBefore(e, mf.childNodes[2 + i]);
-      first_tstamp = t;
-      n_messages++;
-
-      if (line.search("ERROR]") > 0) {
-         e.style.backgroundColor = "red";
-         e.style.color = "white";
-      } else {
-         e.style.backgroundColor = "yellow";
-         e.age = new Date() / 1000;
-         e.style.setProperty("-webkit-transition", "background-color 3s");
-         e.style.setProperty("transition", "background-color 3s");
-      }
-
-   }
-}
-
-function msg_append(msg) {
-   let mf = document.getElementById('messageFrame');
-
-   for (i = 0; i < msg.length; i++) {
-      let line = msg[i];
-      let t = parseInt(line);
-
-      if (t !== -1 && t > first_tstamp)
-         first_tstamp = t;
-      if (t !== -1 && (last_tstamp === 0 || t < last_tstamp))
-         last_tstamp = t;
-      if (line.indexOf(" ") && (t > 0 || t === -1))
-         line = line.substr(line.indexOf(" ") + 1);
-      let e = document.createElement("p");
-      e.className = "messageLine";
-      e.appendChild(document.createTextNode(line));
-      if (line.search("ERROR]") > 0) {
-         e.style.backgroundColor = "red";
-         e.style.color = "white";
-      }
-
-      mf.appendChild(e);
-      n_messages++;
-   }
-}
-
-function findPos(obj) {
-   let curleft = curtop = 0;
-   if (obj.offsetParent) {
-      do {
-         curleft += obj.offsetLeft;
-         curtop += obj.offsetTop;
-      } while (obj = obj.offsetParent);
-      return [curleft, curtop];
-   }
-}
-
-function msg_extend() {
-   // set message window height to fit browser window
-   mf = document.getElementById('messageFrame');
-   mf.style.height = window.innerHeight - findPos(mf)[1] - 4;
-
-   // if scroll bar is close to end, append messages
-   if (mf.scrollHeight - mf.scrollTop - mf.clientHeight < 2000) {
-      if (!end_of_messages) {
-
-         if (last_tstamp > 0) {
-            let msg = ODBGetMsg(facility, last_tstamp - 1, 100);
-            if (msg[0] === "")
-               end_of_messages = true;
-            if (!end_of_messages) {
-               msg_append(msg);
-            }
-         } else {
-            // in non-timestamped mode, simple load full message list
-            msg = ODBGetMsg(facility, 0, n_messages + 100);
-            n_messages = 0;
-
-            let mf = document.getElementById('messageFrame');
-            for (i = mf.childNodes.length - 1; i > 1; i--)
-               mf.removeChild(mf.childNodes[i]);
-            msg_append(msg);
-         }
-      }
-   }
-
-   // check for new message if time stamping is on
-   if (first_tstamp) {
-      msg = ODBGetMsg(facility, first_tstamp, 0);
-      msg_prepend(msg);
-   }
-
-   // remove color of elements
-   for (i = 2; i < mf.childNodes.length; i++) {
-      if (mf.childNodes[i].age !== undefined) {
-         t = new Date() / 1000;
-         if (t > mf.childNodes[i].age + 5)
-            mf.childNodes[i].style.backgroundColor = "";
-      }
-   }
-   window.setTimeout(msg_extend, 1000);
 }
 
 /*---- site and session storage ----------------------------*/

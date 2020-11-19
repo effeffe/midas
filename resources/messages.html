@@ -37,16 +37,16 @@
 </div>
 
 <script>
-   var facility;
-   var first_tstamp;
-   var last_tstamp;
-   var n_messages;
-   var end_of_messages;
-   var timer_front;
-   var timer_tail;
+   let facility;
+   let first_tstamp;
+   let last_tstamp;
+   let n_messages;
+   let end_of_messages;
+   let timer_front;
+   let timer_tail;
 
    function show_facilities() {
-      if (localStorage.mNavigationButtons != undefined) {
+      if (localStorage.mNavigationButtons !== undefined) {
          document.getElementById("navigationFacilitiesButtons").innerHTML = localStorage.mFacilitiesButtons;
       }
 
@@ -55,7 +55,7 @@
          var html = "";
          for (var i = 0; i < f.length; i++) {
             var c = "mnav navButton";
-            if (f[i] == facility) {
+            if (f[i] === facility) {
                c = "mnav mnavsel navButtonSel";
             }
             html += "<input type=button name=cmd value=\"" + f[i] + "\" class=\"" + c + "\" onclick=\"msg_load(\'" + f[i] + "\');return false;\">\n";
@@ -120,15 +120,15 @@
       n_messages = 0;
       end_of_messages = false;
 
-      if (timer_front != undefined)
+      if (timer_front !== undefined)
          window.clearTimeout(timer_front);
-      if (timer_tail != undefined)
+      if (timer_tail !== undefined)
          window.clearTimeout(timer_tail);
 
       // manage selection of facility button
-      var button = document.getElementById("navigationFacilitiesButtons").children;
-      for (var i = 0; i < button.length; i++)
-         if (button[i].value == facility)
+      let button = document.getElementById("navigationFacilitiesButtons").children;
+      for (let i = 0; i < button.length; i++)
+         if (button[i].value === facility)
             button[i].className = "mnav mnavsel navButtonSel";
          else
             button[i].className = "mnav navButton";
@@ -193,13 +193,13 @@
          var line = msg[i];
          var t = parseInt(line);
 
-         if (line.indexOf(" ") && (t > 0 || t == -1))
+         if (line.indexOf(" ") && (t > 0 || t === -1))
             line = line.substr(line.indexOf(" ") + 1);
          var e = document.createElement("p");
          e.className = "mmessageline";
          e.appendChild(document.createTextNode(line));
 
-         if (e.innerHTML == mf.childNodes[1 + i].innerHTML)
+         if (e.innerHTML === mf.childNodes[1 + i].innerHTML)
             break;
          mf.insertBefore(e, mf.childNodes[1 + i]);
          if (t > first_tstamp)
@@ -222,7 +222,7 @@
 
       msg_filter(msg);
 
-      if (msg[0] == "")
+      if (msg[0] === "")
          end_of_messages = true;
       if (end_of_messages)
          return;
@@ -232,11 +232,11 @@
          line = msg[i];
          var t = parseInt(line);
 
-         if (t != -1 && t > first_tstamp)
+         if (t !== -1 && t > first_tstamp)
             first_tstamp = t;
-         if (t != -1 && (last_tstamp == 0 || t < last_tstamp))
+         if (t !== -1 && (last_tstamp === 0 || t < last_tstamp))
             last_tstamp = t;
-         if (line.indexOf(" ") && (t > 0 || t == -1))
+         if (line.indexOf(" ") && (t > 0 || t === -1))
             line = line.substr(line.indexOf(" ") + 1);
          var e = document.createElement("p");
          e.className = "mmessageline";
@@ -304,13 +304,13 @@
 
 function msg_extend_front() {
 
-   if (timer_front != undefined)
+   if (timer_front !== undefined)
       window.clearTimeout(timer_front);
 
    // remove color of new elements after a while
    var mf = document.getElementById('messageFrame');
    for (i = 1; i < mf.childNodes.length; i++) {
-      if (mf.childNodes[i].age != undefined) {
+      if (mf.childNodes[i].age !== undefined) {
          var t = new Date() / 1000;
          if (t > mf.childNodes[i].age + 5)
             mf.childNodes[i].style.backgroundColor = "";
@@ -328,7 +328,7 @@ function msg_extend_front() {
          timer_front = window.setTimeout(msg_extend_front, 1000);
       }).catch(function(error) {
 
-         if (error.xhr && error.xhr.readyState == 4 && error.xhr.status == 0) {
+         if (error.xhr && error.xhr.readyState === 4 && error.xhr.status === 0) {
             // don't display error, since this one is shown on the header automatically
 
             // retry communication
