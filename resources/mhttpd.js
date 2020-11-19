@@ -904,6 +904,13 @@ function mhttpd_scan() {
    let modbcheckbox = getMElements("modbcheckbox");
    for (let i = 0; i < modbcheckbox.length; i++) {
       modbcheckbox[i].onclick = function () {
+         if (this.dataset.validate !== undefined) {
+            let flag = eval(this.dataset.validate)(this.checked, this);
+            if (!flag) {
+               mhttpd_refresh();
+               return;
+            }
+         }
          mjsonrpc_db_set_value(this.dataset.odbPath, this.checked ? 1 : 0);
          mhttpd_refresh();
       };
@@ -919,6 +926,15 @@ function mhttpd_scan() {
    let modbbutton = getMElements("modbbutton");
    for (let i = 0; i < modbbutton.length; i++)
       modbbutton[i].onclick = function () {
+
+         if (this.dataset.validate !== undefined) {
+            let flag = eval(this.dataset.validate)(this);
+            if (!flag) {
+               mhttpd_refresh();
+               return;
+            }
+         }
+         
          mjsonrpc_db_set_value(this.dataset.odbPath, this.dataset.odbValue);
          mhttpd_refresh();
       };
