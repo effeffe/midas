@@ -916,6 +916,22 @@ function mhttpd_scan() {
       };
    }
 
+   // go through all name="modbselect" tags
+   let modbselect = getMElements("modbselect");
+   for (let i = 0; i < modbselect.length; i++) {
+      modbselect[i].onchange = function () {
+         if (this.dataset.validate !== undefined) {
+            let flag = eval(this.dataset.validate)(this.value, this);
+            if (!flag) {
+               mhttpd_refresh();
+               return;
+            }
+         }
+         mjsonrpc_db_set_value(this.dataset.odbPath, this.value);
+         mhttpd_refresh();
+      };
+   }
+
    // go through all name="modbbox" tags
    let modbbox = getMElements("modbbox");
    for (let i = 0; i < modbbox.length; i++) {
@@ -1788,6 +1804,10 @@ function mhttpd_refresh() {
    for (let i = 0; i < modbcheckbox.length; i++)
       paths.push(modbcheckbox[i].dataset.odbPath);
 
+   let modbselect = getMElements("modbselect");
+   for (let i = 0; i < modbselect.length; i++)
+      paths.push(modbselect[i].dataset.odbPath);
+
    let modbbox = getMElements("modbbox");
    for (let i = 0; i < modbbox.length; i++)
       paths.push(modbbox[i].dataset.odbPath);
@@ -1891,9 +1911,13 @@ function mhttpd_refresh() {
                }
             } else
                modbvalue[i].innerHTML = html;
+
+            if (modbvalue[i].value !== x && modbvalue[i].onchange !== null) {
+               if (modbvalue[i].value !== undefined)
+                  modbvalue[i].onchange();
+               modbvalue[i].value = x;
+            }
          }
-         if (modbvalue[i].onchange !== null)
-            modbvalue[i].onchange();
       }
 
       for (let i = 0; i < modbcheckbox.length; i++, idata++) {
@@ -1901,6 +1925,29 @@ function mhttpd_refresh() {
          modbcheckbox[i].checked = (x === 1 || x === true);
          if (modbcheckbox[i].onchange !== null)
             modbcheckbox[i].onchange();
+      }
+
+      for (let i = 0; i < modbselect.length; i++, idata++) {
+         let x = rpc[0].result.data[idata];
+         if (modbselect[i].value !== x.toString()) {
+
+            // check if option is available
+            let j;
+            for (j=0 ; j<modbselect[i].options.length ; j++)
+               if (modbselect[i].options[j].value === x.toString())
+                  break;
+
+            // if option is available, set it
+            if (j < modbselect[i].options.length) {
+               modbselect[i].value = x.toString();
+               if (modbselect[i].onchange !== null)
+                  modbselect[i].onchange();
+            } else {
+               // if not, set blank
+               if (modbselect[i].value !== "")
+                  modbselect[i].value = "";
+            }
+         }
       }
 
       for (let i = 0; i < modbbox.length; i++, idata++) {

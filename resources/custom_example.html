@@ -85,7 +85,7 @@
       </tr>
       <tr>
          <td>
-            <div class="modbvalue" data-odb-path="/Runinfo/Run number" data-format="x"></div>
+            <div class="modbvalue" data-odb-path="/Runinfo/Run number" data-format="x"  data-odb-editable="1"></div>
          </td>
          <td>
             Displays <i>/Runinfo/Run number</i> in hex format
@@ -93,7 +93,7 @@
       </tr>
       <tr>
          <td>
-            <div class="modbvalue" data-odb-path="/Runinfo/Run number" data-format="b"></div>
+            <div class="modbvalue" data-odb-path="/Runinfo/Run number" data-format="b" data-odb-editable="1"></div>
          </td>
          <td>
             Displays <i>/Runinfo/Run number</i> in binary format
@@ -125,6 +125,21 @@
          </td>
          <td>
             Display <i>/Logger/Write data</i> as checkbox, user can change it by clicking on it
+         </td>
+      </tr>
+      <tr>
+         <td>
+            <b>modbselect</b>
+         </td>
+         <td>
+            <select class="modbselect" data-odb-path="/Runinfo/Run number">
+               <option value="1">1</option>
+               <option value="5">5</option>
+               <option value="10">10</option>
+            </select>
+         </td>
+         <td>
+            Drop-down box with certain user-definable values to be put into the ODB under <i>/Runinfo/Run number</i> when selected
          </td>
       </tr>
       <tr>
