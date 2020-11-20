@@ -1846,12 +1846,18 @@ function mhttpd_refresh() {
 
       for (let i = 0; i < modb.length; i++, idata++) {
          let x = rpc[0].result.data[idata];
-         if (typeof x === 'object' && x !== null) { // subdircectory
-            if (modb[i].onchange !== null) {
-               modb[i].value = x;
+         if (typeof x === 'object' && x !== null) {
+            // subdircectory
+            if (modb[i].value === undefined)
+               modb[i].value = JSON.stringify(x);
+            if (modb[i].onchange !== null && JSON.stringify(x) !== modb[i].value) {
+               modb[i].value = JSON.stringify(x);
                modb[i].onchange();
             }
-         } else {                         // individual value
+         } else {
+            // individual value
+            if (modb[i].value === undefined)
+               modb[i].value = x;
             if (modb[i].onchange !== null && x !== modb[i].value) {
                modb[i].value = x;
                modb[i].onchange();
