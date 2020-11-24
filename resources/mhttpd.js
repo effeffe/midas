@@ -2563,7 +2563,7 @@ function mhttpd_delete_page_handle_delete(mouseEvent, xpath) {
 
       for (i = 0; ; i++) {
          let v = document.getElementById("delete" + i);
-         if (v === undefined)
+         if (v === undefined || v === null)
             break;
          if (v.checked) {
             let name = JSON.parse(v.value);
