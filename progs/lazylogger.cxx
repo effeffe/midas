@@ -26,7 +26,10 @@ $Id$
 #include <libgen.h> // basename()
 #include <mutex>
 #include <iostream>
+
+#ifdef HAVE_CURL
 #include <curl/curl.h>
+#endif
 
 #define URL_SIZE 256
 
@@ -1404,6 +1407,7 @@ int lazy_disk_copy_loop(const char *outfile, const char *infile, FILE *fpout, FI
    return 0;
 }
 
+#ifdef HAVE_CURL
 //
 // function to read the data file
 INT cpy_sftp_loop_time = 0;
@@ -1617,6 +1621,7 @@ int lazy_sftp_copy(const char *outfile, const char *infile) {
 
    return 0;
 }
+#endif // HAVE_CURL
 
 INT lazy_disk_copy(const char *outfile, const char *infile)
 /********************************************************************\
@@ -2338,8 +2343,12 @@ Function value:
          assert(!"lazy_script_copy not supported under Windows");
 #endif
       } else if (dev_type == LOG_TYPE_SFTP) {
+#ifdef HAVE_CURL
          // copy CURL SFTP
          status = lazy_sftp_copy(outffile, inffile);
+#else
+         assert(!"SFTP copying requires CURL to be installed! Install CURL, re-run cmake, and re-compile!");
+#endif
       } else if (dev_type == LOG_TYPE_DISK) {
          // copy block mode
          status = lazy_disk_copy(outffile, inffile);

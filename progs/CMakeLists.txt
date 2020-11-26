@@ -17,11 +17,8 @@ set(PROGS
    fetest_tmfe
    fetest_tmfe_thread
    crc32c_sum
+   lazylogger
 )
-
-if (HAVE_CURL)
-   set(PROGS ${PROGS} lazylogger)
-endif()
 
 if (NO_LOCAL_ROUTINES)
 else()
@@ -119,6 +116,13 @@ target_link_libraries(mhttpd6 midas ${LIBS} ${DB_LIBS})
 add_executable(odbedit odbedit cmdedit)
 target_include_directories(odbedit PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 target_link_libraries(odbedit midas ${LIBS})
+
+#
+# lazylogger
+#
+if (HAVE_CURL)
+   target_compile_options(lazylogger PRIVATE -DHAVE_CURL)   
+endif (HAVE_CURL)
 
 #
 # rmlogger
