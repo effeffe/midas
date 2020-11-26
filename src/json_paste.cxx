@@ -558,7 +558,8 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, bool is_array, i
       return DB_SUCCESS;
    }
    case TID_LINK: {
-      const char* value = node->GetString().c_str();
+      std::string value_string = node->GetString();
+      const char* value = value_string.c_str();
       int size = strlen(value) + 1;
 
       status = db_set_data(hDB, hKey, value, size, 1, TID_LINK);
