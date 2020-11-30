@@ -54,6 +54,8 @@ DEVICE_DRIVER mscb_driver[] = {
    {""}
 };
 
+BOOL equipment_common_overwrite = TRUE;
+
 EQUIPMENT equipment[] = {
 
    {"Environment",              /* equipment name */

@@ -45,6 +45,8 @@ INT read_scaler_event(char *pevent, INT off);
 
 /*-- Equipment list ------------------------------------------------*/
 
+BOOL equipment_common_overwrite = FALSE;
+
 EQUIPMENT equipment[] = {
 
    {"Trigger",               /* equipment name */

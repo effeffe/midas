@@ -71,6 +71,8 @@ INT interrupt_configure(INT cmd, INT source, POINTER_T adr);
 
 /*-- Equipment list ------------------------------------------------*/
 
+BOOL equipment_common_overwrite = TRUE;
+
 EQUIPMENT equipment[] = {
 
    {"Trigger",               /* equipment name */
@@ -142,7 +144,6 @@ INT frontend_init()
    /* put any hardware initialization here */
 
    /* print message and return FE_ERR_HW if frontend should not be started */
-
    return SUCCESS;
 }
 

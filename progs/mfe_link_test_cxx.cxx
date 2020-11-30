@@ -20,6 +20,7 @@ int event_buffer_size = 1000;
 int max_event_size = 1000;
 int max_event_size_frag = 1000;
 int display_period = 1000;
+BOOL equipment_common_overwrite = FALSE;
 EQUIPMENT equipment[1];
 int frontend_init() { return 0; };
 int frontend_exit() { return 0; };

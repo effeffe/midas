@@ -63,6 +63,7 @@ DEVICE_DRIVER multi_driver[] = {
    {""}
 };
 
+BOOL equipment_common_overwrite = TRUE;
 
 EQUIPMENT equipment[] = {
 

@@ -424,13 +424,24 @@ static INT register_equipment(void)
          exit(0);
       }
 
-      /* set equipment Common from equipment[] list */
-      status = db_set_record(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), 0);
-      if (status != DB_SUCCESS) {
-         printf("ERROR: Cannot set  record \"%s\", db_set_record() status %d", str, status);
-         cm_disconnect_experiment();
-         ss_sleep(3000);
-         exit(0);
+      /* set equipment Common from equipment[] list if flag is set in user frontend code */
+      if (equipment_common_overwrite) {
+         status = db_set_record(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), 0);
+         if (status != DB_SUCCESS) {
+            printf("ERROR: Cannot set record \"%s\", db_set_record() status %d", str, status);
+            cm_disconnect_experiment();
+            ss_sleep(3000);
+            exit(0);
+         }
+      } else {
+         size = sizeof(EQUIPMENT_INFO);
+         status = db_get_record(hDB, hKey, eq_info, &size, 0);
+         if (status != DB_SUCCESS) {
+            printf("ERROR: Cannot get record \"%s\", db_get_record() status %d", str, status);
+            cm_disconnect_experiment();
+            ss_sleep(3000);
+            exit(0);
+         }
       }
 
       /* open hot link to equipment info */
@@ -595,37 +606,6 @@ static INT register_equipment(void)
    n_events = (int*)calloc(sizeof(int), idx);
 
    return SUCCESS;
-}
-
-/*------------------------------------------------------------------*/
-
-INT set_odb_equipment_common(EQUIPMENT eq[], const char *name)
-/* set ODB tree /Equipmnet/<name>/Common record from user structure */
-{
-   HNDLE hDB, hKey;
-   char str[256];
-
-   sprintf(str, "/Equipment/%s/Common", name);
-   cm_get_experiment_database(&hDB, NULL);
-   for (int i=0 ; eq[i].name[0] ; i++) {
-      if (strcmp(eq[i].name, name) == 0) {
-         int status = db_find_key(hDB, 0, str, &hKey);
-         if (status != DB_SUCCESS) {
-            cm_msg(MERROR, "set_odb_equipment_common", "Cannot find ODB key \"%s\"", str);
-            return status;
-         }
-         int size = sizeof(EQUIPMENT_INFO);
-         status = db_set_record(hDB, hKey, (void *)(&eq[i].info), size, 0);
-         if (status != DB_SUCCESS) {
-            cm_msg(MERROR, "set_odb_equipment_common",
-                    "Cannot set record \"%s\" status %d", str, status);
-
-            return status;
-         }
-      }
-   }
-
-   return FE_SUCCESS;
 }
 
 /*------------------------------------------------------------------*/

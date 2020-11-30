@@ -91,6 +91,8 @@ int read_system_load(char *pevent, int off);
 
 #define EVID_MONITOR 63
 
+BOOL equipment_common_overwrite = FALSE;
+
 EQUIPMENT equipment[] = {
 
   { "${HOSTNAME}_msysmon",   /* equipment name */    {

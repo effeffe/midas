@@ -70,6 +70,8 @@ int read_random_event(char *pevent, int off);
 #define EVID_SLOW 2
 #define EVID_RANDOM 3
 
+BOOL equipment_common_overwrite = FALSE;
+
 EQUIPMENT equipment[] = {
 
   { "test"   ,         /* equipment name */

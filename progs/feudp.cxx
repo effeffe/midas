@@ -46,6 +46,8 @@ const char *frontend_file_name = __FILE__;               /* The frontend file na
 #define EQ_EVID 1
 #endif
 
+BOOL equipment_common_overwrite = FALSE;
+
 EQUIPMENT equipment[] = {
    { EQ_NAME,                         /* equipment name */
       {EQ_EVID, 0, "SYSTEM",          /* event ID, trigger mask, Evbuf */

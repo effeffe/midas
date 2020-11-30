@@ -21,6 +21,7 @@ extern INT max_event_size;
 extern INT max_event_size_frag;
 extern INT event_buffer_size;
 extern INT display_period;
+extern BOOL equipment_common_overwrite;
 extern EQUIPMENT equipment[];
 extern INT frontend_init(void);
 extern INT frontend_exit(void);
