@@ -426,6 +426,11 @@ static INT register_equipment(void)
 
       /* set equipment Common from equipment[] list if flag is set in user frontend code */
       if (equipment_common_overwrite) {
+         // do not overwrite "enabled" flag, this is always defined by the
+         BOOL old_enabled;
+         int size;
+         size = sizeof(old_enabled);
+         db_get_value(hDB, hKey, "enabled", &old_enabled, &size, TID_BOOL, FALSE);
          status = db_set_record(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), 0);
          if (status != DB_SUCCESS) {
             printf("ERROR: Cannot set record \"%s\", db_set_record() status %d", str, status);
@@ -433,6 +438,8 @@ static INT register_equipment(void)
             ss_sleep(3000);
             exit(0);
          }
+         eq_info->enabled = old_enabled;
+         db_set_value(hDB, hKey, "enabled", &old_enabled, size, 1, TID_BOOL);
       } else {
          size = sizeof(EQUIPMENT_INFO);
          status = db_get_record(hDB, hKey, eq_info, &size, 0);
