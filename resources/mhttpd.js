@@ -869,7 +869,8 @@ function mhttpd_scan() {
    // go through all name="modb" tags
    let modb = getMElements("modb");
    for (let i = 0; i < modb.length; i++) {
-      // nothing needs to be done here
+      if (modb[i].onload !== null)
+         eval(modb[i].onload());
    }
 
    // go through all name="modbvalue" tags
@@ -898,6 +899,8 @@ function mhttpd_scan() {
          // just display "loading" text, tag will be updated during mhttpd_refresh()
          o.innerHTML = loading;
       }
+      if (modbvalue[i].onload !== null)
+         modbvalue[i].onload();
    }
 
    // go through all name="modbcheckbox" tags
@@ -914,6 +917,8 @@ function mhttpd_scan() {
          mjsonrpc_db_set_value(this.dataset.odbPath, this.checked ? 1 : 0);
          mhttpd_refresh();
       };
+      if (modbcheckbox[i].onload !== null)
+         modbcheckbox[i].onload();
    }
 
    // go through all name="modbselect" tags
@@ -930,12 +935,16 @@ function mhttpd_scan() {
          mjsonrpc_db_set_value(this.dataset.odbPath, this.value);
          mhttpd_refresh();
       };
+      if (modbselect[i].onload !== null)
+         modbselect[i].onload();
    }
 
    // go through all name="modbbox" tags
    let modbbox = getMElements("modbbox");
    for (let i = 0; i < modbbox.length; i++) {
       modbbox[i].style.border = "1px solid #808080";
+      if (modbbox[i].onload !== null)
+         modbbox[i].onload();
    }
 
    // attach "set" function to all ODB buttons
@@ -966,6 +975,9 @@ function mhttpd_scan() {
       mbar[i].innerHTML = "<div style='background-color:" + color + ";" + "color:black;" +
          "width:0;height:" + mbar[i].clientHeight + "px;" +
          "position:relative; display:inline-block;border-right:1px solid #808080'>&nbsp;</div>";
+
+      if (mbar[i].onload !== null)
+         mbar[i].onload();
    }
 
    // replace all vertical bars with proper <div>'s
@@ -977,6 +989,9 @@ function mhttpd_scan() {
       mbar[i].style.border = "1px solid #808080";
       color = mbar[i].style.color;
       mbar[i].innerHTML = "<div style='background-color:" + color + "; height:0; width:100%; position:absolute; bottom:0; left:0; display:inline-block; border-top:1px solid #808080'>&nbsp;</div>";
+
+      if (mbar[i].onload !== null)
+         mbar[i].onload();
    }
 
    // replace all thermometers with canvas
@@ -995,6 +1010,9 @@ function mhttpd_scan() {
       mth[i].appendChild(cvs);
       mth[i].draw = mhttpd_thermo_draw;
       mth[i].draw();
+
+      if (mth[i].onload !== null)
+         mth[i].onload();
    }
 
    // replace all gauges with canvas
@@ -1010,6 +1028,9 @@ function mhttpd_scan() {
       mg[i].appendChild(cvs);
       mg[i].draw = mhttpd_gauge_draw;
       mg[i].draw();
+
+      if (mg[i].onload !== null)
+         mg[i].onload();
    }
 
    // replace all haxis with canvas
