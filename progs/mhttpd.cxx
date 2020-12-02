@@ -8743,6 +8743,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
 {
    int keyPresent, size, status, line, link_index;
    char keyname[32];
+   char keyname_urlencoded[256];
    char link_name[256];
    char full_path[256];
    char root_path[256];
@@ -8937,10 +8938,13 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
          else
             strlcpy(style, "ODBtableOdd", sizeof(style));
 
-         strlcpy(full_path, root_path, sizeof(full_path));
-         strlcat(full_path, key.name, sizeof(full_path));
-         urlEncode(full_path, sizeof(full_path));
          strlcpy(keyname, key.name, sizeof(keyname));
+         strlcpy(keyname_urlencoded, key.name, sizeof(keyname_urlencoded));
+         urlEncode(keyname_urlencoded);
+
+         strlcpy(full_path, root_path, sizeof(full_path));
+         strlcat(full_path, keyname_urlencoded, sizeof(full_path));
+
          std::string odb_path = dec_path;
          if (odb_path.length() > 0 && odb_path[odb_path.length() - 1] != '/')
             odb_path += "/";
