@@ -866,13 +866,6 @@ function getMElements(name) {
 }
 
 function mhttpd_scan() {
-   // go through all name="modb" tags
-   let modb = getMElements("modb");
-   for (let i = 0; i < modb.length; i++) {
-      if (modb[i].onload !== null)
-         eval(modb[i].onload());
-   }
-
    // go through all name="modbvalue" tags
    let modbvalue = getMElements("modbvalue");
    for (let i = 0; i < modbvalue.length; i++) {
@@ -899,8 +892,6 @@ function mhttpd_scan() {
          // just display "loading" text, tag will be updated during mhttpd_refresh()
          o.innerHTML = loading;
       }
-      if (modbvalue[i].onload !== null)
-         modbvalue[i].onload();
    }
 
    // go through all name="modbcheckbox" tags
@@ -917,8 +908,6 @@ function mhttpd_scan() {
          mjsonrpc_db_set_value(this.dataset.odbPath, this.checked ? 1 : 0);
          mhttpd_refresh();
       };
-      if (modbcheckbox[i].onload !== null)
-         modbcheckbox[i].onload();
    }
 
    // go through all name="modbselect" tags
@@ -935,16 +924,12 @@ function mhttpd_scan() {
          mjsonrpc_db_set_value(this.dataset.odbPath, this.value);
          mhttpd_refresh();
       };
-      if (modbselect[i].onload !== null)
-         modbselect[i].onload();
    }
 
    // go through all name="modbbox" tags
    let modbbox = getMElements("modbbox");
    for (let i = 0; i < modbbox.length; i++) {
       modbbox[i].style.border = "1px solid #808080";
-      if (modbbox[i].onload !== null)
-         modbbox[i].onload();
    }
 
    // attach "set" function to all ODB buttons
@@ -975,9 +960,6 @@ function mhttpd_scan() {
       mbar[i].innerHTML = "<div style='background-color:" + color + ";" + "color:black;" +
          "width:0;height:" + mbar[i].clientHeight + "px;" +
          "position:relative; display:inline-block;border-right:1px solid #808080'>&nbsp;</div>";
-
-      if (mbar[i].onload !== null)
-         mbar[i].onload();
    }
 
    // replace all vertical bars with proper <div>'s
@@ -989,9 +971,6 @@ function mhttpd_scan() {
       mbar[i].style.border = "1px solid #808080";
       color = mbar[i].style.color;
       mbar[i].innerHTML = "<div style='background-color:" + color + "; height:0; width:100%; position:absolute; bottom:0; left:0; display:inline-block; border-top:1px solid #808080'>&nbsp;</div>";
-
-      if (mbar[i].onload !== null)
-         mbar[i].onload();
    }
 
    // replace all thermometers with canvas
@@ -1010,9 +989,6 @@ function mhttpd_scan() {
       mth[i].appendChild(cvs);
       mth[i].draw = mhttpd_thermo_draw;
       mth[i].draw();
-
-      if (mth[i].onload !== null)
-         mth[i].onload();
    }
 
    // replace all gauges with canvas
@@ -1028,9 +1004,6 @@ function mhttpd_scan() {
       mg[i].appendChild(cvs);
       mg[i].draw = mhttpd_gauge_draw;
       mg[i].draw();
-
-      if (mg[i].onload !== null)
-         mg[i].onload();
    }
 
    // replace all haxis with canvas
@@ -1895,6 +1868,10 @@ function mhttpd_refresh() {
                modb[i].value = JSON.stringify(x);
                modb[i].onchange();
             }
+            if (modb[i].dataset.odbLoaded === undefined && modb[i].onload !== null) {
+               modb[i].onload();
+               modb[i].dataset.odbLoaded = "1";
+            }
          } else {
             // individual value
             if (modb[i].value === undefined)
@@ -1902,6 +1879,10 @@ function mhttpd_refresh() {
             if (modb[i].onchange !== null && x !== modb[i].value) {
                modb[i].value = x;
                modb[i].onchange();
+            }
+            if (modb[i].dataset.odbLoaded === undefined && modb[i].onload !== null) {
+               modb[i].onload();
+               modb[i].dataset.odbLoaded = "1";
             }
          }
       }
@@ -1938,6 +1919,10 @@ function mhttpd_refresh() {
                   modbvalue[i].onchange();
                modbvalue[i].value = x;
             }
+            if (modbvalue[i].dataset.odbLoaded === undefined && modbvalue[i].onload !== null) {
+               modbvalue[i].onload();
+               modbvalue[i].dataset.odbLoaded = "1";
+            }
          }
       }
 
@@ -1946,6 +1931,10 @@ function mhttpd_refresh() {
          modbcheckbox[i].checked = (x === 1 || x === true);
          if (modbcheckbox[i].onchange !== null)
             modbcheckbox[i].onchange();
+         if (modbcheckbox[i].dataset.odbLoaded === undefined && modbcheckbox[i].onload !== null) {
+            modbcheckbox[i].onload();
+            modbcheckbox[i].dataset.odbLoaded = "1";
+        }
       }
 
       for (let i = 0; i < modbselect.length; i++, idata++) {
@@ -1969,6 +1958,10 @@ function mhttpd_refresh() {
                   modbselect[i].value = "";
             }
          }
+         if (modbselect[i].dataset.odbLoaded === undefined && modbselect[i].onload !== null) {
+            modbselect[i].onload();
+            modbselect[i].dataset.odbLoaded = "1";
+         }
       }
 
       for (let i = 0; i < modbbox.length; i++, idata++) {
@@ -1985,6 +1978,10 @@ function mhttpd_refresh() {
          }
          if (modbbox[i].onchange !== null)
             modbbox[i].onchange();
+         if (modbbox[i].dataset.odbLoaded === undefined && modbbox[i].onload !== null) {
+            modbbox[i].onload();
+            modbbox[i].dataset.odbLoaded = "1";
+         }
       }
 
       for (let i = 0; i < modbhbar.length; i++, idata++) {
@@ -2021,6 +2018,10 @@ function mhttpd_refresh() {
          modbhbar[i].children[0].style.width = percent + "%";
          if (modbhbar[i].onchange !== null)
             modbhbar[i].onchange();
+         if (modbhbar[i].dataset.odbLoaded === undefined && modbhbar[i].onload !== null) {
+            modbhbar[i].onload();
+            modbhbar[i].dataset.odbLoaded = "1";
+         }
          modbhbar[i].children[0].style.backgroundColor = modbhbar[i].style.color;
       }
 
@@ -2058,6 +2059,10 @@ function mhttpd_refresh() {
          modbvbar[i].children[0].style.height = percent + "%";
          if (modbvbar[i].onchange !== null)
             modbvbar[i].onchange();
+         if (modbvbar[i].dataset.odbLoaded === undefined && modbvbar[i].onload !== null) {
+            modbvbar[i].onload();
+            modbvbar[i].dataset.odbLoaded = "1";
+         }
          modbvbar[i].children[0].style.backgroundColor = modbvbar[i].style.color;
       }
 
@@ -2073,6 +2078,10 @@ function mhttpd_refresh() {
 
          if (modbthermo[i].onchange !== null)
             modbthermo[i].onchange();
+         if (modbthermo[i].dataset.odbLoaded === undefined && modbthermo[i].onload !== null) {
+            modbthermo[i].onload();
+            modbthermo[i].dataset.odbLoaded = "1";
+         }
 
          modbthermo[i].draw();
       }
@@ -2089,6 +2098,10 @@ function mhttpd_refresh() {
 
          if (modbgauge[i].onchange !== null)
             modbgauge[i].onchange();
+         if (modbgauge[i].dataset.odbLoaded === undefined && modbgauge[i].onload !== null) {
+            modbgauge[i].onload();
+            modbgauge[i].dataset.odbLoaded = "1";
+         }
 
          modbgauge[i].draw();
       }
