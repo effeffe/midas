@@ -29,13 +29,13 @@ static MJsonNode* user_example1(const MJsonNode* params)
 
    MJsonNode* error = NULL;
 
-   const char* arg  = mjsonrpc_get_param(params, "arg", &error)->GetString().c_str(); if (error) return error;
+   std::string arg  = mjsonrpc_get_param(params, "arg", &error)->GetString(); if (error) return error;
    int optional_arg = mjsonrpc_get_param(params, "optional_arg", NULL)->GetInt();
 
    if (mjsonrpc_debug)
-      printf("user_example1(%s,%d)\n", arg, optional_arg);
+      printf("user_example1(%s,%d)\n", arg.c_str(), optional_arg);
 
-   return mjsonrpc_make_result("string", MJsonNode::MakeString(arg), "integer", MJsonNode::MakeInt(optional_arg));
+   return mjsonrpc_make_result("string", MJsonNode::MakeString(arg.c_str()), "integer", MJsonNode::MakeInt(optional_arg));
 }
 
 //
@@ -59,15 +59,15 @@ static MJsonNode* user_example2(const MJsonNode* params)
 
    MJsonNode* error = NULL;
 
-   const char* arg  = mjsonrpc_get_param(params, "arg", &error)->GetString().c_str(); if (error) return error;
+   std::string arg  = mjsonrpc_get_param(params, "arg", &error)->GetString(); if (error) return error;
    int optional_arg = mjsonrpc_get_param(params, "optional_arg", NULL)->GetInt();
 
    if (mjsonrpc_debug)
-      printf("user_example2(%s,%d)\n", arg, optional_arg);
+      printf("user_example2(%s,%d)\n", arg.c_str(), optional_arg);
 
    MJsonNode* result = MJsonNode::MakeObject();
 
-   result->AddToObject("string1", MJsonNode::MakeString(arg));
+   result->AddToObject("string1", MJsonNode::MakeString(arg.c_str()));
    result->AddToObject("string2", MJsonNode::MakeString("hello"));
    result->AddToObject("string3", MJsonNode::MakeString("world!"));
    result->AddToObject("value1", MJsonNode::MakeInt(optional_arg));
