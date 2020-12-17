@@ -291,7 +291,8 @@ struct hist_log_s {
    INT buffer_size;
    HNDLE hKeyVar;
    DWORD n_var;
-   DWORD period;
+   DWORD min_period;
+   DWORD max_period;
    DWORD last_log;
 };
 
@@ -4490,7 +4491,7 @@ void log_history(HNDLE hDB, HNDLE hKey, void *info);
 static std::vector<MidasHistoryInterface*> mh;
 static std::vector<std::string> history_events;
 
-static int add_event(int* indexp, time_t timestamp, int event_id, const char* event_name, HNDLE hKey, int ntags, const TAG* tags, int period, int hotlink)
+static int add_event(int* indexp, time_t timestamp, int event_id, const char* event_name, HNDLE hKey, int ntags, const TAG* tags, int min_period, int max_period, int hotlink)
 {
    int status;
    int size, i;
@@ -4570,7 +4571,8 @@ static int add_event(int* indexp, time_t timestamp, int event_id, const char* ev
    hist_log[index].hKeyVar     = hKey;
    hist_log[index].buffer_size = size;
    hist_log[index].buffer      = (char*)malloc(size);
-   hist_log[index].period      = period;
+   hist_log[index].min_period  = min_period;
+   hist_log[index].max_period  = max_period;
    hist_log[index].last_log    = 0;
 
    if (hist_log[index].buffer == NULL) {
@@ -4606,7 +4608,7 @@ INT open_history()
    INT n_var, n_tags, n_names = 0;
    HNDLE hKeyRoot, hKeyVar, hLinkKey, hVarKey, hKeyEq, hHistKey, hKey;
    HNDLE hKeyHist;
-   DWORD history;
+   int min_period, max_period;
    TAG *tag = NULL;
    KEY key, varkey, linkkey, histkey;
    WORD eq_id;
@@ -4833,12 +4835,14 @@ INT open_history()
       if (status != DB_SUCCESS)
          break;
 
-      /* check history flag */
-      size = sizeof(history);
-      db_get_value(hDB, hKeyEq, "Common/Log history", &history, &size, TID_INT32, TRUE);
+      /* retrieve min & max period for history logging */
+      size = sizeof(min_period);
+      db_get_value(hDB, hKeyEq, "Common/Log history", &min_period, &size, TID_INT32, TRUE);
+      size = sizeof(max_period);
+      db_get_value(hDB, hKeyEq, "Common/Period", &max_period, &size, TID_INT32, TRUE);
 
       /* define history tags only if log history flag is on */
-      if (history > 0) {
+      if (min_period > 0) {
          BOOL per_variable_history = global_per_variable_history;
 
          /* get equipment name */
@@ -5040,7 +5044,8 @@ INT open_history()
 
                assert(i_tag <= n_tags);
 
-               status = add_event(&index, now, event_id, event_name, hKey, i_tag, tag, history, 1);
+               status = add_event(&index, now, event_id, event_name, hKey, i_tag, tag,
+                       min_period, max_period, 1);
                if (status != DB_SUCCESS)
                   return status;
 
@@ -5054,7 +5059,8 @@ INT open_history()
          if (!per_variable_history && i_tag>0) {
             assert(i_tag <= n_tags);
 
-            status = add_event(&index, now, eq_id, eq_name, hKeyVar, i_tag, tag, history, 1);
+            status = add_event(&index, now, eq_id, eq_name, hKeyVar, i_tag, tag,
+                    min_period, max_period, 1);
             if (status != DB_SUCCESS)
                return status;
 
@@ -5158,9 +5164,7 @@ INT open_history()
             if (histkey.type == TID_LINK)
                db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history, (void *) (POINTER_T) index);
 
-            int period = 10;
-
-            status = add_event(&index, now, max_event_id, hist_name, hHistKey, n_var, tag, period, 0);
+            status = add_event(&index, now, max_event_id, hist_name, hHistKey, n_var, tag, 1000, 60000, 0);
             if (status != DB_SUCCESS)
                return status;
 
@@ -5216,9 +5220,9 @@ INT open_history()
 DWORD last_history_flush = 0;
 
 void maybe_flush_history(DWORD now) {
-   DWORD flush_period_sec = 1;
+   DWORD flush_period_msec = 1000; // flush once every 1000 milliseconds
 
-   if ((last_history_flush == 0) || (now > last_history_flush + flush_period_sec)) {
+   if ((last_history_flush == 0) || (now > last_history_flush + flush_period_msec)) {
 
       if (verbose)
          printf("flush history buffers!\n");
@@ -5277,10 +5281,8 @@ void log_history(HNDLE hDB, HNDLE hKey, void *info)
    if (i == hist_log_max)
       return;
 
-   DWORD now = ss_time();
-
-   /* check if over period */
-   if (now - hist_log[i].last_log < hist_log[i].period)
+   /* check if over minimum period */
+   if (start_time - hist_log[i].last_log < hist_log[i].min_period)
       return;
 
    /* check if event size has changed */
@@ -5296,10 +5298,10 @@ void log_history(HNDLE hDB, HNDLE hKey, void *info)
       return;
    }
 
-   hist_log[i].last_log = now;
+   hist_log[i].last_log = start_time;
 
    if (verbose)
-      printf("write history event: \'%s\', timestamp %d, buffer %p, size %d\n", hist_log[i].event_name, hist_log[i].last_log, hist_log[i].buffer, hist_log[i].buffer_size);
+      printf("Log history event: \'%s\', timestamp %d, buffer %p, size %d\n", hist_log[i].event_name, hist_log[i].last_log, hist_log[i].buffer, hist_log[i].buffer_size);
 
    for (unsigned h=0; h<mh.size(); h++) {
       status = mh[h]->hs_write_event(hist_log[i].event_name, hist_log[i].last_log, hist_log[i].buffer_size, hist_log[i].buffer);
@@ -5308,7 +5310,7 @@ void log_history(HNDLE hDB, HNDLE hKey, void *info)
             printf("write_history_event: \'%s\', channel \'%s\' hs_write_event() status %d\n", hist_log[i].event_name, mh[h]->name, status);
    }
 
-   maybe_flush_history(now);
+   maybe_flush_history(start_time);
 
    actual_time = ss_millitime();
    if (actual_time - start_time > 3000)
@@ -5330,7 +5332,7 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
    DWORD now = ss_time();
 
    /* check if over period */
-   if (now - hist_log[index].last_log < hist_log[index].period)
+   if (now - hist_log[index].last_log < hist_log[index].min_period)
       return;
 
    for (i = 0, total_size = 0;; i++) {
@@ -5380,35 +5382,17 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
 /*---- log_history_periodic ----------------------------------------*/
 
 void log_history_periodic() {
-   static int last_log_slow = 0;
-   static int last_log_fast = 0;
    INT i;
    HNDLE hDB;
-
    cm_get_experiment_database(&hDB, NULL);
 
    // log at least once every minute for "slow" equipment
-   if ((int)ss_time()/60 > last_log_slow/60) {
-      for (i = 0; i < hist_log_max; i++)
-          if (hist_log[i].hKeyVar > 0 && hist_log[i].period > 10) {
-             if (verbose)
-                printf("log_history_periodic slow at %d\n", ss_time());
-             log_history(hDB, hist_log[i].hKeyVar, NULL);
-          }
-
-      last_log_slow = ss_time();
-   }
-
-   // log at least once every ten seconds for "fast" equipment
-   if ((int)ss_time()/10 > last_log_fast/10) {
-      for (i = 0; i < hist_log_max; i++)
-         if (hist_log[i].hKeyVar > 0 && hist_log[i].period <= 10) {
-            if (verbose)
-               printf("log_history_periodic fast at %d\n", ss_time());
-            log_history(hDB, hist_log[i].hKeyVar, NULL);
-         }
-
-      last_log_fast = ss_time();
+   for (i = 0; i < hist_log_max; i++) {
+      if (hist_log[i].hKeyVar > 0 && ss_millitime() - hist_log[i].last_log >= hist_log[i].max_period) {
+         if (verbose)
+            printf("Log periodic history event: \'%s\'\n", hist_log[i].event_name);
+         log_history(hDB, hist_log[i].hKeyVar, NULL);
+      }
    }
 }
 
