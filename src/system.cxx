@@ -4980,6 +4980,40 @@ INT ss_recv_net_command(int sock, DWORD* routine_id, DWORD* param_size, char **p
 }
 
 /*------------------------------------------------------------------*/
+std::string ss_gethostname()
+/********************************************************************\
+
+  Routine: ss_gethostname
+
+  Purpose: Get name of local machine using gethostname() syscall
+
+  Input:
+    int   buffer_size        Size of the buffer in bytes.
+
+  Output:
+    char  *buffer            receive buffer
+
+  Function value:
+    INT                      SS_SUCCESS or SS_IO_ERROR
+
+\********************************************************************/
+{
+   char buf[256];
+   memset(buf, 0, sizeof(buf));
+
+   int status = gethostname(buf, sizeof(buf)-1);
+
+   //printf("gethostname %d (%s)\n", status, buffer);
+
+   if (status != 0) {
+      cm_msg(MERROR, "ss_gethostname", "gethostname() errno %d (%s)", errno, strerror(errno));
+      return "";
+   }
+
+   return buf;
+}
+
+/*------------------------------------------------------------------*/
 INT ss_gethostname(char* buffer, int buffer_size)
 /********************************************************************\
 
@@ -4998,16 +5032,14 @@ INT ss_gethostname(char* buffer, int buffer_size)
 
 \********************************************************************/
 {
-   int status = gethostname(buffer, buffer_size);
+   std::string h = ss_gethostname();
 
-   //printf("gethostname %d (%s)\n", status, buffer);
-
-   if (status != 0) {
-      cm_msg(MERROR, "ss_gethostname", "gethostname() errno %d (%s)", errno, strerror(errno));
+   if (h.length() == 0) {
       return SS_IO_ERROR;
+   } else {
+      strlcpy(buffer, h.c_str(), buffer_size);
+      return SS_SUCCESS;
    }
-
-   return SS_SUCCESS;
 }
 
 /*------------------------------------------------------------------*/

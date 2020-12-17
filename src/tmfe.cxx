@@ -54,10 +54,7 @@ TMFeError TMFE::Connect(const char* progname, const char* filename, const char* 
    if (filename)
       fFrontendFilename = filename;
 
-   char local_hostname[256];
-   local_hostname[0] = 0;
-   ss_gethostname(local_hostname, sizeof(local_hostname));
-   fFrontendHostname = local_hostname;
+   fFrontendHostname = ss_gethostname();
 
    int status;
   

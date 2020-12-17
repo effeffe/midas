@@ -327,28 +327,6 @@ typedef struct {
    INT port;                    /*  ip port                 */
    std::string exp_name;        /*  experiment to connect   */
    int send_sock;               /*  tcp send socket         */
-   int connected;               /*  socket is connected     */
-   INT remote_hw_type;          /*  remote hardware type    */
-   std::string client_name;     /* name of remote client    */
-   INT rpc_timeout;             /*  in milliseconds         */
-
-   void clear() {
-      host_name = "";
-      port = 0;
-      exp_name = "";
-      send_sock = 0;
-      connected = 0;
-      remote_hw_type = 0;
-      client_name = "";
-      rpc_timeout = 0;
-   }
-} RPC_CLIENT_CONNECTION;
-
-typedef struct {
-   std::string host_name;       /*  server name        */
-   INT port;                    /*  ip port                 */
-   std::string exp_name;        /*  experiment to connect   */
-   int send_sock;               /*  tcp send socket         */
    int recv_sock;               /*  tcp receive socket      */
    int event_sock;              /*  event socket            */
    INT remote_hw_type;          /*  remote hardware type    */
@@ -646,6 +624,7 @@ typedef struct {
    void EXPRT ss_stack_history_entry(char *tag);
    void EXPRT ss_stack_history_dump(char *filename);
    INT ss_gethostname(char* buffer, int buffer_size);
+   std::string ss_gethostname();
    BOOL ss_pid_exists(int pid);
    void ss_kill(int pid);
 
