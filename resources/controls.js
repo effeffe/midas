@@ -268,6 +268,7 @@ Controls.prototype.init = function () // scan DOM
       sl.addEventListener("contextmenu", this.ctrlHSliderHandler.bind(this));
       sl.addEventListener("mousemove", this.ctrlHSliderHandler.bind(this));
       sl.addEventListener("touchmove", this.ctrlHSliderHandler.bind(this));
+      sl.addEventListener("mouseup", this.ctrlHSliderHandler.bind(this));
       sl.draw = this.ctrlHSliderDraw;
       sl.draw(sl);
       sl.set = this.ctrlHSliderSet;
@@ -424,24 +425,34 @@ Controls.prototype.ctrlHSliderHandler = function (e) {
 
    if (e.type === "contextmenu") {
       b.position = 0.5;
+      b.contextMenu = true;
       this.ctrlHSliderDraw(b);
       let f = b.dataset.update;
       if (f.indexOf("("))
          f = f.substr(0, f.indexOf("("));
-      window[f](b.position);
-   } else {
-      if (x !== undefined) {
-         b.position = (x - b.sliderOfs) / (b.clientWidth - 2 * b.sliderOfs);
-         if (b.position < 0)
-            b.position = 0;
-         if (b.position > 1)
-            b.position = 1;
-         this.ctrlHSliderDraw(b);
-         let f = b.dataset.update;
-         if (f.indexOf("("))
-            f = f.substr(0, f.indexOf("("));
-         window[f](b.position);
-      }
+      window[f](b.position, true);
+   }
+
+   if (x !== undefined) {
+      b.contextMenu = false;
+      b.position = (x - b.sliderOfs) / (b.clientWidth - 2 * b.sliderOfs);
+      if (b.position < 0)
+         b.position = 0;
+      if (b.position > 1)
+         b.position = 1;
+      this.ctrlHSliderDraw(b);
+      let f = b.dataset.update;
+      if (f.indexOf("("))
+         f = f.substr(0, f.indexOf("("));
+      window[f](b.position, false);
+   }
+
+   if (e.type === "mouseup" && !b.contextMenu) {
+      console.log(e.buttons);
+      let f = b.dataset.update;
+      if (f.indexOf("("))
+         f = f.substr(0, f.indexOf("("));
+      window[f](b.position, true);
    }
 };
 

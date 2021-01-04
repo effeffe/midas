@@ -2799,6 +2799,41 @@ let mhttpd_config_defaults = {
    'facility': 'midas'
 };
 
+function mhttpdConfigODB(callback) {
+   let c = mhttpd_config_defaults;
+   try {
+      if (localStorage.mhttpd) {
+         c = JSON.parse(localStorage.mhttpd);
+         callback();
+      } else {
+         // obtain some defaults from ODB
+         mjsonrpc_db_get_value("/Experiment/Enable sound").then(function (rpc) {
+            let flag = rpc.result.data[0];
+            if (flag === null) {
+               mjsonrpc_db_create([{"path" : "/Experiment/Enable sound", "type" : TID_BOOL}]).then(function (rpc) {
+                  mjsonrpc_db_paste(["/Experiment/Enable sound"],[true]).then(function(rpc) {}).catch(function(error) {
+                     mjsonrpc_error_alert(error); });
+               }).catch(function (error) {
+                  mjsonrpc_error_alert(error);
+               });
+            } else if (flag === false) {
+               c.speakChat = false;
+               c.speakTalk = false;
+               c.speakError = false;
+               c.speakInfo = false;
+               c.speakLog = false;
+               c.alarmSound = false;
+               localStorage.setItem('mhttpd', JSON.stringify(c));
+            }
+            callback();
+         }).catch(function (error) {
+            mjsonrpc_error_alert(error);
+         });
+      }
+   } catch {
+   }
+}
+
 function mhttpdConfig() {
    let c = mhttpd_config_defaults;
    try {
@@ -2844,36 +2879,6 @@ let last_audio = null;
 let inside_new_audio = false;
 let count_audio = 0;
 
-//function mhttpd_alarm_done() {
-//   let ended;
-//   if (last_audio) {
-//      ended = last_audio.ended;
-//      last_audio = null;
-//   }
-//   count_audio_done++;
-//   console.log(Date() + ": mhttpd_alarm_done: created: " + count_audio_created + ", done: " + count_audio_done + ", last_ended: " + ended);
-//}
-//
-//function mhttpd_audio_loadeddata(e) {
-//   console.log(Date() + ": mhttpd_audio_loadeddata: counter " + e.target.counter);
-//}
-//
-//function mhttpd_audio_canplay(e) {
-//   console.log(Date() + ": mhttpd_audio_canplay: counter " + e.target.counter);
-//}
-//
-//function mhttpd_audio_canplaythrough(e) {
-//   console.log(Date() + ": mhttpd_audio_canplaythrough: counter " + e.target.counter);
-//}
-//
-//function mhttpd_audio_ended(e) {
-//   console.log(Date() + ": mhttpd_audio_ended: counter " + e.target.counter);
-//}
-//
-//function mhttpd_audio_paused(e) {
-//   console.log(Date() + ": mhttpd_audio_paused: counter " + e.target.counter);
-//}
-
 function mhttpd_alarm_play_now() {
    if (last_audio) {
       //
@@ -2912,20 +2917,12 @@ function mhttpd_alarm_play_now() {
    }
    inside_new_audio = true;
 
-   //console.log(Date() + ": mhttpd_alarm_play: created: " + count_audio_created + ", done: " + count_audio_done + ", last_ended: " + ended + ", audio.play!");
-   //count_audio_created++;
-
    let audio = new Audio(mhttpdConfig().alarmSoundFile);
    audio.volume = mhttpdConfig().alarmVolume;
    audio.counter = ++count_audio;
 
    last_audio = audio;
    inside_new_audio = false;
-   //audio.addEventListener("loadeddata", mhttpd_audio_loadeddata);
-   //audio.addEventListener("canplay", mhttpd_audio_canplay);
-   //audio.addEventListener("canplaythrough", mhttpd_audio_canplaythrough);
-   //audio.addEventListener("ended", mhttpd_audio_ended);
-   //audio.addEventListener("paused", mhttpd_audio_paused);
 
    let promise = audio.play();
    if (promise) {

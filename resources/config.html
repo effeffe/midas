@@ -19,14 +19,14 @@
 <script>
 
    function load_voices() {
-      var s = document.getElementById("speakVoice");
+      let s = document.getElementById("speakVoice");
       if (s.length > 0)
          return; // new loaded voice can re-trigger this function
 
-      var voices = speechSynthesis.getVoices();
-      voices = voices.filter(function (v) { return v.lang == "en-US"; });
-      for (var i = 0; i < voices.length; i++) {
-         var o = document.createElement('option');
+      let voices = speechSynthesis.getVoices();
+      voices = voices.filter(function (v) { return v.lang === "en-US"; });
+      for (let i = 0; i < voices.length; i++) {
+         let o = document.createElement('option');
          o.text = voices[i].name;
          s.add(o);
       }
@@ -34,14 +34,14 @@
       s.value = mhttpdConfig().speakVoice;
 
       // if configured voice not available, use first one
-      if (s.value == "") {
+      if (s.value === "") {
          s.value = voices[0].name;
          mhttpdConfigSet('speakVoice', s.value);
       }
 
-      s.addEventListener('change', function (e) {
+      s.addEventListener('change', function () {
          mhttpdConfigSet('speakVoice', this.value);
-         var u = new SpeechSynthesisUtterance('The speed synthesis has been changed to voice ' + this.value);
+         let u = new SpeechSynthesisUtterance('The speed synthesis has been changed to voice ' + this.value);
          u.voice = speechSynthesis.getVoices().filter(function (v) {
             return v.name === this.value;
          }, this)[0];
@@ -51,38 +51,42 @@
    }
 
    function config_init() {
-      var config = mhttpdConfig();
-      var input = document.getElementsByTagName('input');
-      for (var i = 0; i < input.length; i++) {
+      mhttpdConfigODB(config_init_callback);
+   }
+
+   function config_init_callback() {
+      let config = mhttpdConfig();
+      let input = document.getElementsByTagName('input');
+      for (let i = 0; i < input.length; i++) {
          if (input[i].type === 'checkbox') {
             input[i].checked = config[input[i].id];
-            input[i].addEventListener('change', function (e) {
+            input[i].addEventListener('change', function () {
                mhttpdConfigSet(this.id, this.checked);
             });
          }
          if (input[i].type === 'text') {
             input[i].value = config[input[i].id];
-            input[i].addEventListener('change', function (e) {
-               if (this.dataset.minValue != undefined)
+            input[i].addEventListener('change', function () {
+               if (this.dataset.minValue !== undefined)
                   if (parseFloat(this.value) < parseFloat(this.dataset.minValue))
                      this.value = this.dataset.minValue;
-               if (this.dataset.maxValue != undefined)
+               if (this.dataset.maxValue !== undefined)
                   if (parseFloat(this.value) > parseFloat(this.dataset.maxValue))
                      this.value = this.dataset.maxValue;
                mhttpdConfigSet(this.id, this.value);
             });
          }
       }
-      var sliders = document.getElementsByName('ctrlHSlider');
-      for (var i = 0; i < sliders.length; i++) {
+      let sliders = document.getElementsByName('ctrlHSlider');
+      for (let i = 0; i < sliders.length; i++) {
          sliders[i].set(parseFloat(config[sliders[i].id]).toFixed(2));
       }
 
-      var s = document.getElementById("alarmSoundFile");
+      let s = document.getElementById("alarmSoundFile");
       s.value = config.alarmSoundFile.slice(0, -4);
-      s.addEventListener('change', function (e) {
+      s.addEventListener('change', function () {
          mhttpdConfigSet('alarmSoundFile', this.value + ".mp3");
-         var audio = new Audio(this.value + ".mp3");
+         let audio = new Audio(this.value + ".mp3");
          audio.volume = parseFloat(mhttpdConfig().alarmVolume);
          audio.play();
       });
@@ -97,7 +101,7 @@
       if (final) {
          mhttpdConfigSet('speakVolume', value);
 
-         var u = new SpeechSynthesisUtterance('The voice volume has been changed');
+         let u = new SpeechSynthesisUtterance('The voice volume has been changed');
          u.voice = speechSynthesis.getVoices().filter(function (v) { return v.name === mhttpdConfig().speakVoice; }, this)[0];
          u.volume = value;
          speechSynthesis.speak(u);
@@ -108,7 +112,7 @@
    function alarmVolumeUpdate(value, final) {
       if (final) {
          mhttpdConfigSet('alarmVolume', value.toFixed(2));
-         var audio = new Audio(mhttpdConfig().alarmSoundFile);
+         let audio = new Audio(mhttpdConfig().alarmSoundFile);
          audio.volume = mhttpdConfig().alarmVolume;
          audio.play();
       }
@@ -129,13 +133,13 @@
       <tr>
          <td>
          </td>
-         <td width="100px" align="center">
+         <td style="width: 100px; text-align: center">
             Display in "Messages" page
          </td>
-         <td width="100px" align="center">
+         <td style="width: 100px; text-align: center">
             Display in header
          </td>
-         <td width="100px" align="center">
+         <td style="width: 100px; text-align: center">
             Speak
          </td>
       </tr>
