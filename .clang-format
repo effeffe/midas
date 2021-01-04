@@ -36,7 +36,7 @@ BreakInheritanceList: BeforeColon
 ColumnLimit: 0
 CompactNamespaces: false
 ContinuationIndentWidth: 3
-IndentCaseLabels: false
+IndentCaseLabels: true
 IndentPPDirectives: None
 IndentWidth: 3
 KeepEmptyLinesAtTheStartOfBlocks: true
