@@ -57,45 +57,41 @@ DEVICE_DRIVER mscb_driver[] = {
 BOOL equipment_common_overwrite = TRUE;
 
 EQUIPMENT equipment[] = {
+   {
+      "Environment",     /* equipment name */
+      {10, 0,            /* event ID, trigger mask */
+       "SYSTEM",         /* event buffer */
+       EQ_SLOW,          /* equipment type */
+       0,                /* event source */
+       "MIDAS",          /* format */
+       TRUE,             /* enabled */
+       RO_ALWAYS, 60000, /* read full event every 60 sec */
+       100,              /* read one value every 100 msec */
+       0,                /* number of sub events */
+       1,                /* log history every second */
+       "", "", ""},
+      cd_multi_read, /* readout routine */
+      cd_multi,      /* class driver main routine */
+      mscb_driver,   /* device driver list */
+      NULL,          /* init string */
+   },
 
-   {"Environment",              /* equipment name */
-    {10, 0,                     /* event ID, trigger mask */
-     "SYSTEM",                  /* event buffer */
-     EQ_SLOW,                   /* equipment type */
-     0,                         /* event source */
-     "MIDAS",                   /* format */
-     TRUE,                      /* enabled */
-     RO_ALWAYS,
-     60000,                     /* read full event every 60 sec */
-     100,                       /* read one value every 100 msec */
-     0,                         /* number of sub events */
-     1,                         /* log history every second */
-     "", "", ""} ,
-    cd_multi_read,              /* readout routine */
-    cd_multi,                   /* class driver main routine */
-    mscb_driver,                /* device driver list */
-    NULL,                       /* init string */
-    },
-
-  {""}
+   {""}
 };
 
 /*-- Dummy routines ------------------------------------------------*/
 
-INT poll_event(INT source, INT count, BOOL test)
-{
+INT poll_event(INT source, INT count, BOOL test) {
    return 1;
 };
-INT interrupt_configure(INT cmd, INT source, PTYPE adr)
-{
+INT interrupt_configure(INT cmd, INT source, PTYPE adr) {
    return 1;
 };
 
 /*-- Function to define MSCB variables in a convenient way ---------*/
 
-void mscb_define(const char *submaster, const char *equipment, const char *devname, DEVICE_DRIVER *driver, 
-                 int address, unsigned char var_index, const char *name, double threshold)
-{
+void mscb_define(const char *submaster, const char *equipment, const char *devname, DEVICE_DRIVER *driver, int address,
+                 unsigned char var_index, const char *name, double threshold) {
    int i, dev_index, chn_index, chn_total;
    char str[256];
    float f_threshold;
@@ -111,7 +107,7 @@ void mscb_define(const char *submaster, const char *equipment, const char *devna
    }
 
    /* find device in device driver */
-   for (dev_index=0 ; driver[dev_index].name[0] ; dev_index++)
+   for (dev_index = 0; driver[dev_index].name[0]; dev_index++)
       if (equal_ustring(driver[dev_index].name, devname))
          break;
 
@@ -121,7 +117,7 @@ void mscb_define(const char *submaster, const char *equipment, const char *devna
    }
 
    /* count total number of channels */
-   for (i=chn_total=0 ; i<=dev_index ; i++)
+   for (i = chn_total = 0; i <= dev_index; i++)
       chn_total += driver[i].channels;
 
    chn_index = driver[dev_index].channels;
@@ -131,9 +127,9 @@ void mscb_define(const char *submaster, const char *equipment, const char *devna
    db_set_value_index(hDB, 0, str, &var_index, sizeof(char), chn_index, TID_UINT8, TRUE);
 
    if (threshold != -1) {
-     sprintf(str, "/Equipment/%s/Settings/Update Threshold", equipment);
-     f_threshold = (float) threshold;
-     db_set_value_index(hDB, 0, str, &f_threshold, sizeof(float), chn_total, TID_FLOAT, TRUE);
+      sprintf(str, "/Equipment/%s/Settings/Update Threshold", equipment);
+      f_threshold = (float) threshold;
+      db_set_value_index(hDB, 0, str, &f_threshold, sizeof(float), chn_total, TID_FLOAT, TRUE);
    }
 
    if (name && name[0]) {
@@ -147,8 +143,7 @@ void mscb_define(const char *submaster, const char *equipment, const char *devna
 
 /*-- Error dispatcher causing communiction alarm -------------------*/
 
-void scfe_error(const char *error)
-{
+void scfe_error(const char *error) {
    char str[256];
 
    strlcpy(str, error, sizeof(str));
@@ -158,8 +153,7 @@ void scfe_error(const char *error)
 
 /*-- Frontend Init -------------------------------------------------*/
 
-INT frontend_init()
-{
+INT frontend_init() {
    /* set error dispatcher for alarm functionality */
    mfe_set_error(scfe_error);
 
@@ -178,43 +172,37 @@ INT frontend_init()
 
 /*-- Frontend Exit -------------------------------------------------*/
 
-INT frontend_exit()
-{
+INT frontend_exit() {
    return CM_SUCCESS;
 }
 
 /*-- Begin of Run --------------------------------------------------*/
 
-INT begin_of_run(INT run_number, char *error)
-{
+INT begin_of_run(INT run_number, char *error) {
    return CM_SUCCESS;
 }
 
 /*-- End of Run ----------------------------------------------------*/
 
-INT end_of_run(INT run_number, char *error)
-{
+INT end_of_run(INT run_number, char *error) {
    return CM_SUCCESS;
 }
 
 /*-- Pause Run -----------------------------------------------------*/
 
-INT pause_run(INT run_number, char *error)
-{
+INT pause_run(INT run_number, char *error) {
    return CM_SUCCESS;
 }
 
 /*-- Resuem Run ----------------------------------------------------*/
 
-INT resume_run(INT run_number, char *error)
-{
+INT resume_run(INT run_number, char *error) {
    return CM_SUCCESS;
 }
 
 /*-- Frontend Loop -------------------------------------------------*/
 
-INT frontend_loop()
-{  
+INT frontend_loop() {
    /* don't eat up all CPU time in main thread */
    ss_sleep(100);
 
