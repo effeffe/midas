@@ -3721,8 +3721,7 @@ static midas_thread_t _ss_client_thread = 0;
 static RPC_SERVER_CONNECTION* _ss_client_connection = NULL; // client-side connection to the mserver
 
 static midas_thread_t _ss_server_thread = 0;
-static int _ss_server_num_acceptions = 0;
-static RPC_SERVER_ACCEPTION* _ss_server_acceptions = NULL; // server side RPC connections (run transitions, etc)
+static RPC_SERVER_ACCEPTION_LIST* _ss_server_acceptions = NULL; // server side RPC connections (run transitions, etc)
 
 /*------------------------------------------------------------------*/
 static bool ss_match_thread(midas_thread_t tid1, midas_thread_t tid2)
@@ -4018,10 +4017,9 @@ INT ss_suspend_set_client_connection(RPC_SERVER_CONNECTION* connection)
    return SS_SUCCESS;
 }
 
-INT ss_suspend_set_server_acceptions_array(int num, RPC_SERVER_ACCEPTION* acceptions)
+INT ss_suspend_set_server_acceptions(RPC_SERVER_ACCEPTION_LIST* acceptions)
 {
    // server side of the RPC connections (run transitions, etc)
-   _ss_server_num_acceptions = num;
    _ss_server_acceptions = acceptions;
    return SS_SUCCESS;
 }
@@ -4134,9 +4132,11 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
    
    // NB: do not need to check thread id, the mserver is single-threaded. K.O.
    int mserver_client_socket = 0;
-   for (int i = 0; i < _ss_server_num_acceptions; i++) {
-      if (_ss_server_acceptions[i].is_mserver) {
-         mserver_client_socket = _ss_server_acceptions[i].send_sock;
+   if (_ss_server_acceptions) {
+      for (unsigned i = 0; i < _ss_server_acceptions->size(); i++) {
+         if ((*_ss_server_acceptions)[i]->is_mserver) {
+            mserver_client_socket = (*_ss_server_acceptions)[i]->send_sock;
+         }
       }
    }
    
@@ -4304,11 +4304,11 @@ INT ss_suspend(INT millisec, INT msg)
       }
 
       /* check server channels */
-      if (ss_match_thread(_ss_server_thread, thread_id) && (_ss_server_num_acceptions > 0))
+      if (ss_match_thread(_ss_server_thread, thread_id) && _ss_server_acceptions) {
          //printf("ss_suspend: thread %s server acceptions %d\n", ss_tid_to_string(thread_id).c_str(), _ss_server_num_acceptions);
-         for (int i = 0; i < _ss_server_num_acceptions; i++) {
+         for (unsigned i = 0; i < _ss_server_acceptions->size(); i++) {
             /* RPC channel */
-            int sock = _ss_server_acceptions[i].recv_sock;
+            int sock = (*_ss_server_acceptions)[i]->recv_sock;
 
             if (!sock)
                continue;
@@ -4326,7 +4326,7 @@ INT ss_suspend(INT millisec, INT msg)
                millisec = 0;
 
             /* event channel */
-            sock = _ss_server_acceptions[i].event_sock;
+            sock = (*_ss_server_acceptions)[i]->event_sock;
 
             if (!sock)
                continue;
@@ -4339,6 +4339,7 @@ INT ss_suspend(INT millisec, INT msg)
             else if (msg == 0)
                millisec = 0;
          }
+      }
 
       /* watch for messages from the mserver */
       if (ss_match_thread(_ss_client_thread, thread_id)) {
@@ -4392,10 +4393,10 @@ INT ss_suspend(INT millisec, INT msg)
       }
 
       /* check server channels */
-      if (_ss_server_num_acceptions > 0)
-         for (int i = 0; i < _ss_server_num_acceptions; i++) {
+      if (_ss_server_acceptions) {
+         for (unsigned i = 0; i < _ss_server_acceptions->size(); i++) {
             /* rpc channel */
-            int sock = _ss_server_acceptions[i].recv_sock;
+            int sock = (*_ss_server_acceptions)[i]->recv_sock;
 
             if (!sock)
                continue;
@@ -4404,7 +4405,7 @@ INT ss_suspend(INT millisec, INT msg)
 
             if (recv_tcp_check(sock) || FD_ISSET(sock, &readfds)) {
                status = rpc_server_receive(i, sock, msg != 0);
-               _ss_server_acceptions[i].last_activity = ss_millitime();
+               (*_ss_server_acceptions)[i]->last_activity = ss_millitime();
 
                if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
                   return status;
@@ -4413,14 +4414,14 @@ INT ss_suspend(INT millisec, INT msg)
             }
 
             /* event channel */
-            sock = _ss_server_acceptions[i].event_sock;
+            sock = (*_ss_server_acceptions)[i]->event_sock;
 
             if (!sock)
                continue;
 
             if (recv_event_check(sock) || FD_ISSET(sock, &readfds)) {
                status = rpc_server_receive(i, sock, msg != 0);
-               _ss_server_acceptions[i].last_activity = ss_millitime();
+               (*_ss_server_acceptions)[i]->last_activity = ss_millitime();
 
                if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
                   return status;
@@ -4428,6 +4429,7 @@ INT ss_suspend(INT millisec, INT msg)
                return_status = SS_SERVER_RECV;
             }
          }
+      }
 
       /* check for messages from the mserver */
       if (_ss_client_connection) {
