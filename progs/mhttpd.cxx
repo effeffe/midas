@@ -1923,7 +1923,7 @@ void check_obsolete_odb(HNDLE hDB, const char* odb_path)
    }
 }
 
-void init_menu_buttons()
+void init_menu_buttons(MVOdb* odb)
 {
    HNDLE hDB;
    BOOL true_value = TRUE;
@@ -1966,7 +1966,7 @@ void init_menu_buttons()
 
 /*------------------------------------------------------------------*/
 
-void init_mhttpd_odb()
+void init_mhttpd_odb(MVOdb* odb)
 {
    HNDLE hDB;
    HNDLE hKey;
@@ -1993,6 +1993,9 @@ void init_mhttpd_odb()
    if (status == DB_SUCCESS) {
       cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/Start-Stop Buttons\" is obsolete, please delete it.");
    }
+
+   bool xdefault = true;
+   odb->RB("Experiment/Pause-Resume Buttons", &xdefault, true);
 
 #ifdef HAVE_MONGOOSE616
    check_obsolete_odb(hDB, "/Experiment/midas http port");
@@ -19859,10 +19862,10 @@ int main(int argc, const char *argv[])
 #endif
 
    /* initialize odb entries needed for mhttpd and midas web pages */
-   init_mhttpd_odb();
+   init_mhttpd_odb(odb);
 
    /* initialize menu buttons */
-   init_menu_buttons();
+   init_menu_buttons(odb);
 
 #ifdef OLD_SEQUENCER
    /* initialize sequencer */
