@@ -347,12 +347,13 @@ static int sql2midasType_sqlite(const char* name)
 ////////////////////////////////////////
 
 struct HsSchemaEntry {
-   std::string tag_name;
-   std::string tag_type;
-   std::string name;
-   int type;
-   int n_data;
-   int n_bytes;
+   std::string tag_name; // tag name from MIDAS
+   std::string tag_type; // tag type from MIDAS
+   std::string name;     // entry name, same as tag_name except when read from SQL history when it could be the SQL column name
+   int type    = 0; // MIDAS data type TID_xxx
+   int n_data  = 0; // MIDAS array size
+   int n_bytes = 0; // n_data * size of MIDAS data type (only used by HsFileSchema?)
+   bool inactive = false; // inactive SQL column
 
    HsSchemaEntry() // ctor
    {
@@ -719,6 +720,7 @@ void HsSqlSchema::print(bool print_tags) const
       for (unsigned j=0; j<nv; j++) {
          printf("  %d: name [%s], type [%s] tid %d, n_data %d, n_bytes %d", j, this->variables[j].name.c_str(), rpc_tid_name(this->variables[j].type), this->variables[j].type, this->variables[j].n_data, this->variables[j].n_bytes);
          printf(", sql_column [%s], sql_type [%s], offset %d", this->column_names[j].c_str(), this->column_types[j].c_str(), this->offsets[j]);
+         printf(", inactive %d", this->variables[j].inactive);
          printf("\n");
       }
    }
@@ -1881,7 +1883,7 @@ int HsFileSchema::write_event(const time_t t, const char* data, const int data_s
 
    int expected_size = s->record_size - 4;
 
-   // sanity check: record_size and n_bytes are computed from the byte counts in he file header
+   // sanity check: record_size and n_bytes are computed from the byte counts in the file header
    assert(expected_size == s->n_bytes);
 
    if (s->last_size == 0)
@@ -2688,6 +2690,8 @@ int SchemaHistoryBase::hs_write_event(const char* event_name, time_t timestamp, 
    if (s->n_bytes == 0) { // compute expected data size
       // NB: history data does not have any padding!
       for (unsigned i=0; i<s->variables.size(); i++) {
+         if (s->variables[i].inactive)
+            continue;
          s->n_bytes += s->variables[i].n_bytes;
       }
    }
@@ -3263,7 +3267,7 @@ int HsSqlSchema::write_event(const time_t t, const char* data, const int data_si
    std::string values;
 
    for (unsigned i=0; i<s->variables.size(); i++) {
-      if (s->variables[i].name.length() < 1)
+      if (s->variables[i].inactive)
          continue;
 
       int type   = s->variables[i].type;
@@ -4617,6 +4621,7 @@ int MysqlHistory::read_column_names(HsSchemaVector *sv, const char* table_name, 
             s->variables[j].tag_type = tag_type;
             if (!iactive) {
                s->variables[j].name = "";
+               s->variables[j].inactive = true;
             } else {
                s->variables[j].name = tag_name;
             }
