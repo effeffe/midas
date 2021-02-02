@@ -2879,6 +2879,45 @@ let last_audio = null;
 let inside_new_audio = false;
 let count_audio = 0;
 
+//
+// Do not delete the following code. It is not used at this moment,
+// but may become necessary in the future. Included
+// is an alternative method of allocating and releasing Audio objects
+// and code for tracing Audio object life time and activity. It is needed
+// to debug interactions between Audio objects and throttled javascript code
+// in inactive tabs; and with the "user did not interact with this tab" business.
+// K.O. Jan 2021.
+//
+//function mhttpd_alarm_done() {
+//   let ended;
+//   if (last_audio) {
+//      ended = last_audio.ended;
+//      last_audio = null;
+//   }
+//   count_audio_done++;
+//   console.log(Date() + ": mhttpd_alarm_done: created: " + count_audio_created + ", done: " + count_audio_done + ", last_ended: " + ended);
+//}
+//
+//function mhttpd_audio_loadeddata(e) {
+//   console.log(Date() + ": mhttpd_audio_loadeddata: counter " + e.target.counter);
+//}
+//
+//function mhttpd_audio_canplay(e) {
+//   console.log(Date() + ": mhttpd_audio_canplay: counter " + e.target.counter);
+//}
+//
+//function mhttpd_audio_canplaythrough(e) {
+//   console.log(Date() + ": mhttpd_audio_canplaythrough: counter " + e.target.counter);
+//}
+//
+//function mhttpd_audio_ended(e) {
+//   console.log(Date() + ": mhttpd_audio_ended: counter " + e.target.counter);
+//}
+//
+//function mhttpd_audio_paused(e) {
+//   console.log(Date() + ": mhttpd_audio_paused: counter " + e.target.counter);
+//}
+
 function mhttpd_alarm_play_now() {
    if (last_audio) {
       //
@@ -2917,12 +2956,23 @@ function mhttpd_alarm_play_now() {
    }
    inside_new_audio = true;
 
+   // reference counting of Audio objects. Not in use today. Do not remove. K.O. Jan 2021
+   //console.log(Date() + ": mhttpd_alarm_play: created: " + count_audio_created + ", done: " + count_audio_done + ", last_ended: " + ended + ", audio.play!");
+   //count_audio_created++;
+
    let audio = new Audio(mhttpdConfig().alarmSoundFile);
    audio.volume = mhttpdConfig().alarmVolume;
    audio.counter = ++count_audio;
 
    last_audio = audio;
    inside_new_audio = false;
+
+   // code for tracing activity of Audio objects. do not remove. K.O. Jan 2021
+   //audio.addEventListener("loadeddata", mhttpd_audio_loadeddata);
+   //audio.addEventListener("canplay", mhttpd_audio_canplay);
+   //audio.addEventListener("canplaythrough", mhttpd_audio_canplaythrough);
+   //audio.addEventListener("ended", mhttpd_audio_ended);
+   //audio.addEventListener("paused", mhttpd_audio_paused);
 
    let promise = audio.play();
    if (promise) {
