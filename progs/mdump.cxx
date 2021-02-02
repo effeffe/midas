@@ -355,7 +355,7 @@ int main(int argc, char **argv)
   char buf_name[32] = EVENT_BUFFER_NAME, rep_file[128];
   unsigned int status, start_time, stop_time;
   BOOL debug = FALSE, rep_flag;
-  INT ch, request_id, size, get_flag, action, single, i;
+  INT ch, request_id, size, get_flag, action, single, i, max_event_size;
   BUFFER_HEADER buffer_header;
   
   /* set default */
@@ -376,6 +376,7 @@ int main(int argc, char **argv)
   single = 0;
   consistency = 0;
   action = REP_EVENT;
+  max_event_size = DEFAULT_MAX_EVENT_SIZE;
   
   /* Get if existing the pre-defined experiment */
   cm_get_environment(host_name, sizeof(host_name), expt_name, sizeof(expt_name));
@@ -418,6 +419,8 @@ int main(int argc, char **argv)
 	  event_id = atoi(argv[++i]);
 	else if (strncmp(argv[i], "-k", 2) == 0)
 	  event_msk = atoi(argv[++i]);
+   else if (strncmp(argv[i], "-a", 2) == 0)
+     max_event_size = atoi(argv[++i]);
 	else if (strncmp(argv[i], "-m", 2) == 0) {
 	  strlcpy(str, argv[++i], sizeof(str));
 	  if (strncmp(str, "r", 1) == 0)
@@ -480,6 +483,8 @@ int main(int argc, char **argv)
 	    ("                  -f format (auto): data representation ([x]/[d]/[a]scii) def:bank header content\n");
 	  printf
 	    ("                  -r #            : skip event(MIDAS) to #\n");
+     printf
+	    ("                  -a bytes        : max event size to support (defaults to %d bytes)\n", DEFAULT_MAX_EVENT_SIZE);
 	  return 0;
 	}
       }
@@ -616,7 +621,7 @@ int main(int argc, char **argv)
   
   /* steer to replog function */
   if (rep_flag) {
-    replog(data_fmt, rep_file, bl, action, DEFAULT_MAX_EVENT_SIZE);
+    replog(data_fmt, rep_file, bl, action, max_event_size);
     return 0;
   } else {
     /* check parameters */
