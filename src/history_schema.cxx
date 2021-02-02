@@ -366,18 +366,20 @@ struct HsSchema
 {
    // event schema definitions
    std::string event_name;
-   time_t time_from;
-   time_t time_to;
+   time_t time_from = 0;
+   time_t time_to = 0;
    std::vector<HsSchemaEntry> variables;
    std::vector<int> offsets;
-   int  n_bytes;
+   int  n_bytes = 0;
 
    // run time data used by hs_write_event()
-   bool active;
-   int count_write_undersize;
-   int count_write_oversize;
-   int write_max_size;
-   int write_min_size;
+   int count_write_undersize = 0;
+   int count_write_oversize = 0;
+   int write_max_size = 0;
+   int write_min_size = 0;
+
+   // schema disabled by write error
+   bool disabled = true;
 
    HsSchema() // ctor
    {
@@ -385,7 +387,6 @@ struct HsSchema
       time_to = 0;
       n_bytes = 0;
 
-      active = false;
       count_write_undersize = 0;
       count_write_oversize = 0;
       write_max_size = 0;
@@ -2645,7 +2646,7 @@ int SchemaHistoryBase::hs_define_event(const char* event_name, time_t timestamp,
    if (!s)
       return HS_FILE_ERROR;
 
-   s->active = true;
+   s->disabled = false;
 
    // find empty slot in events list
    for (unsigned int i=0; i<fEvents.size(); i++)
@@ -2681,7 +2682,7 @@ int SchemaHistoryBase::hs_write_event(const char* event_name, time_t timestamp, 
       return HS_UNDEFINED_EVENT;
 
    // deactivated because of error?
-   if (!s->active)
+   if (s->disabled)
       return HS_FILE_ERROR;
 
    if (s->n_bytes == 0) { // compute expected data size
@@ -2726,7 +2727,7 @@ int SchemaHistoryBase::hs_write_event(const char* event_name, time_t timestamp, 
 
    // if could not write event, deactivate it
    if (status != HS_SUCCESS) {
-      s->active = false;
+      s->disabled = true;
       cm_msg(MERROR, "hs_write_event", "Event \'%s\' disabled after write error %d", event_name, status);
       return HS_FILE_ERROR;
    }
