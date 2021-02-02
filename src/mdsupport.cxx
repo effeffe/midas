@@ -1202,6 +1202,14 @@ none
       length_type = sizeof(float);
       strcpy(strbktype, "Real*4 (FMT machine dependent)");
    }
+   if (type == TID_UINT64) {
+      length_type = sizeof(uint64_t);
+      strcpy(strbktype, "Unsigned Integer*8");
+   }
+   if (type == TID_INT64) {
+      length_type = sizeof(int64_t);
+      strcpy(strbktype, "Signed Integer*8");
+   }
    if (type == TID_DWORD) {
       length_type = sizeof(DWORD);
       strcpy(strbktype, "Unsigned Integer*4");
@@ -1270,6 +1278,32 @@ none
             if (dsp_fmt == DSP_HEX)
                printf("0x%8.8x ", *((DWORD *) pdata));
             pdata = (char *) (((DWORD *) pdata) + 1);
+            j++;
+            break;
+         case TID_UINT64:
+            if (j > 7) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 8;
+            }
+            if (dsp_fmt == DSP_DEC)
+               printf("%16.1llu ", *((uint64_t *) pdata));
+            if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
+               printf("0x%16.16llx ", *((uint64_t *) pdata));
+            pdata = (char *) (((uint64_t *) pdata) + 1);
+            j++;
+            break;
+         case TID_INT64:
+            if (j > 7) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 8;
+            }
+            if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
+               printf("%16.1lli ", *((int64_t *) pdata));
+            if (dsp_fmt == DSP_HEX)
+               printf("0x%16.16llx ", *((int64_t *) pdata));
+            pdata = (char *) (((int64_t *) pdata) + 1);
             j++;
             break;
          case TID_DWORD:
@@ -1424,6 +1458,14 @@ none
       length_type = sizeof(float);
       strcpy(strbktype, "Real*4 (FMT machine dependent)");
    }
+   if (type == TID_UINT64) {
+      length_type = sizeof(uint64_t);
+      strcpy(strbktype, "Unsigned Integer*8");
+   }
+   if (type == TID_INT64) {
+      length_type = sizeof(int64_t);
+      strcpy(strbktype, "Signed Integer*8");
+   }
    if (type == TID_DWORD) {
       length_type = sizeof(DWORD);
       strcpy(strbktype, "Unsigned Integer*4");
@@ -1492,6 +1534,32 @@ none
             if (dsp_fmt == DSP_HEX)
                printf("0x%8.8x ", *((DWORD *) pdata));
             pdata = (char *) (((DWORD *) pdata) + 1);
+            j++;
+            break;
+         case TID_UINT64:
+            if (j > 7) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 8;
+            }
+            if (dsp_fmt == DSP_DEC)
+               printf("%16.1llu ", *((uint64_t *) pdata));
+            if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
+               printf("0x%16.16llx ", *((uint64_t *) pdata));
+            pdata = (char *) (((uint64_t *) pdata) + 1);
+            j++;
+            break;
+         case TID_INT64:
+            if (j > 7) {
+               printf("\n%4i-> ", i);
+               j = 0;
+               i += 8;
+            }
+            if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
+               printf("%16.1lli ", *((int64_t *) pdata));
+            if (dsp_fmt == DSP_HEX)
+               printf("0x%16.16llx ", *((int64_t *) pdata));
+            pdata = (char *) (((int64_t *) pdata) + 1);
             j++;
             break;
          case TID_DWORD:
