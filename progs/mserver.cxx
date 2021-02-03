@@ -331,7 +331,7 @@ int main(int argc, char **argv)
       if (argc > 8)
          callback.user = argv[8];
 #endif
-      callback.index = 0;
+      //callback.index = 0;
 
       if (callback.debug) {
          rpc_set_debug(debug_print, 1);
@@ -362,9 +362,6 @@ int main(int argc, char **argv)
 
       /* must be done after cm_set_path() */
       ss_suspend_init_odb_port();
-
-      /* switch rpc to mserver mode */
-      rpc_set_mserver_mode();
 
       /* register system functions */
       rpc_register_functions(rpc_get_internal_list(0), rpc_server_dispatch);
@@ -438,9 +435,8 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
 \********************************************************************/
 {
    INT status = 0;
-   INT convert_flags;
 
-   convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+   int convert_flags = rpc_get_convert_flags();
 
    switch (index) {
       /* common functions */

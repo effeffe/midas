@@ -11245,7 +11245,7 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
       else {
          /* only convert data if called remotely, as indicated by align != 0 */
          if (rpc_is_mserver()) {
-            convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+            convert_flags = rpc_get_convert_flags();
          }
       }
 
@@ -11823,7 +11823,7 @@ INT db_set_record(HNDLE hDB, HNDLE hKey, void *data, INT buf_size, INT align)
       else {
          /* only convert data if called remotely, as indicated by align != 0 */
          if (rpc_is_mserver()) {
-            convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+            convert_flags = rpc_get_convert_flags();
          }
       }
 
@@ -13109,7 +13109,7 @@ INT db_update_record_mserver(INT hDB, INT hKeyRoot, INT hKey, int index, int cli
 {
    char buffer[32];
 
-   int convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+   int convert_flags = rpc_get_convert_flags();
    
    NET_COMMAND* nc = (NET_COMMAND *) buffer;
    

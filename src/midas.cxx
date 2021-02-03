@@ -3361,11 +3361,12 @@ INT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout)
    if (rpc_is_remote()) { // we are connected remotely
       return rpc_call(RPC_CM_SET_WATCHDOG_PARAMS, call_watchdog, timeout);
    } else if (rpc_is_mserver()) { // we are the mserver
-      HNDLE hDB, hKey;
-      
-      rpc_set_server_option(RPC_WATCHDOG_TIMEOUT, timeout);
+      RPC_SERVER_ACCEPTION* sa = rpc_get_mserver_acception();
+      if (sa)
+         sa->watchdog_timeout = timeout;
       
       /* write timeout value to client enty in ODB */
+      HNDLE hDB, hKey;
       cm_get_experiment_database(&hDB, &hKey);
       
       if (hDB) {
@@ -9595,7 +9596,6 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT *buf_size, INT as
    }
 #ifdef LOCAL_ROUTINES
    {
-      INT convert_flags = 0;
       INT status = BM_SUCCESS;
 
       BUFFER *pbuf;
@@ -9605,10 +9605,7 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT *buf_size, INT as
       if (status != BM_SUCCESS)
          return status;
 
-      if (rpc_is_mserver())
-         convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
-      else
-         convert_flags = 0;
+      int convert_flags = rpc_get_convert_flags();
 
       status = bm_read_buffer(pbuf, buffer_handle, NULL, destination, buf_size, async_flag, convert_flags, FALSE);
       //printf("bm_receive_event: handle %d, async %d, status %d, size %d\n", buffer_handle, async_flag, status, *buf_size);
@@ -9699,7 +9696,6 @@ INT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER **ppevent, INT async_
    }
 #ifdef LOCAL_ROUTINES
    {
-      INT convert_flags = 0;
       INT status = BM_SUCCESS;
 
       BUFFER *pbuf;
@@ -9709,10 +9705,7 @@ INT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER **ppevent, INT async_
       if (status != BM_SUCCESS)
          return status;
 
-      if (rpc_is_mserver())
-         convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
-      else
-         convert_flags = 0;
+      int convert_flags = rpc_get_convert_flags();
 
       return bm_read_buffer(pbuf, buffer_handle, (void **) ppevent, NULL, NULL, async_flag, convert_flags, FALSE);
    }
@@ -9941,7 +9934,7 @@ static INT bm_notify_client(const char *buffer_name, int client_socket)
    if (!_buffer[i].callback)
       return DB_SUCCESS;
 
-   int convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+   int convert_flags = rpc_get_convert_flags();
 
    /* only send notification once each 500ms */
    if (now - last_time < 500)
@@ -10263,14 +10256,125 @@ static void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
 *                                                                    *
 \********************************************************************/
 
+class RPC_CLIENT_CONNECTION
+{
+public:
+   int index = 0;               /* index in the connection array */
+   std::string client_name;     /* name of remote client    */
+   std::string host_name;       /*  server name             */
+   int port = 0;                /*  server port             */
+   int send_sock = 0;           /*  tcp socket              */
+   int connected = 0;           /*  socket is connected     */
+   int remote_hw_type = 0;      /*  remote hardware type    */
+   int rpc_timeout = 0;         /*  timeout in milliseconds */
+   std::mutex mutex;            /*  connection lock         */
+
+   void print() {
+      printf("index %d, client \"%s\", host \"%s\", port %d, socket %d, connected %d, timeout %d",
+             index,
+             client_name.c_str(),
+             host_name.c_str(),
+             port,
+             send_sock,
+             connected,
+             rpc_timeout);
+   }
+
+   void close_locked() {
+      if (send_sock > 0) {
+         closesocket(send_sock);
+      }
+      send_sock = 0;
+      port = 0;
+      remote_hw_type = 0;
+      connected = 0;
+   }
+};
+
 /* globals */
 
-static MUTEX_T *_client_connection_mutex = NULL;
-static RPC_CLIENT_CONNECTION _client_connection[MAX_RPC_CONNECTION];
+// locking rules for client connections:
+// path 1: lock _client_connections_mutex, lock individual connection, work on the connection, unlock the connection, unlock _client_connections_mutex
+// path 2: lock _client_connections_mutex, lock individual connection, unlock _client_connections_mutex, work on the connection, unlock the connection
+// path 3: lock individual connection, work on the connection, unlock connection; lock of _client_connections_mutex not permitted (deadlock with paths 1 and 2).
+
+static std::mutex _client_connections_mutex;
+static std::vector<RPC_CLIENT_CONNECTION*> _client_connections;
+
 static RPC_SERVER_CONNECTION _server_connection; // connection to the mserver
 static BOOL _rpc_is_remote = FALSE;
+   
+//static RPC_SERVER_ACCEPTION _server_acception[MAX_RPC_CONNECTION];
+static std::vector<RPC_SERVER_ACCEPTION*> _server_acceptions;
+static RPC_SERVER_ACCEPTION* _mserver_acception = NULL; // mserver acception
 
-static RPC_SERVER_ACCEPTION _server_acception[MAX_RPC_CONNECTION];
+static RPC_SERVER_ACCEPTION* rpc_get_server_acception(int idx)
+{
+   assert(idx >= 0);
+   assert(idx < _server_acceptions.size());
+   assert(_server_acceptions[idx] != NULL);
+   return _server_acceptions[idx];
+}
+
+RPC_SERVER_ACCEPTION* rpc_get_mserver_acception()
+{
+   return _mserver_acception;
+}
+
+static RPC_SERVER_ACCEPTION* rpc_new_server_acception()
+{
+   for (unsigned idx = 0; idx < _server_acceptions.size(); idx++) {
+      if (_server_acceptions[idx] && (_server_acceptions[idx]->recv_sock == 0)) {
+         //printf("rpc_new_server_acception: reuse acception in slot %d\n", idx);
+         return _server_acceptions[idx];
+      }
+   }
+
+   RPC_SERVER_ACCEPTION* sa = new RPC_SERVER_ACCEPTION;
+
+   for (unsigned idx = 0; idx < _server_acceptions.size(); idx++) {
+      if (_server_acceptions[idx] == NULL) {
+         //printf("rpc_new_server_acception: new acception, reuse slot %d\n", idx);
+         _server_acceptions[idx] = sa;
+         return _server_acceptions[idx];
+      }
+   }
+
+   //printf("rpc_new_server_acception: new acception, array size %d, push_back\n", (int)_server_acceptions.size());
+   _server_acceptions.push_back(sa);
+   
+   return sa;
+}
+
+void RPC_SERVER_ACCEPTION::close()
+{
+   //printf("RPC_SERVER_ACCEPTION::close: connection from %s program %s mserver %d\n", host_name.c_str(), prog_name.c_str(), is_mserver);
+
+   if (is_mserver) {
+      assert(_mserver_acception == this);
+      _mserver_acception = NULL;
+      is_mserver = false;
+   }
+   
+   /* close server connection */
+   if (recv_sock)
+      closesocket(recv_sock);
+   if (send_sock)
+      closesocket(send_sock);
+   if (event_sock)
+      closesocket(event_sock);
+
+   recv_sock = 0;
+   send_sock = 0;
+   event_sock = 0;
+
+   /* free TCP cache */
+   M_FREE(net_buffer);
+   net_buffer = NULL;
+
+   /* mark this entry as invalid */
+   clear();
+}
 
 static RPC_LIST *rpc_list = NULL;
 
@@ -10750,13 +10854,8 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
 
 \********************************************************************/
 {
-   INT i, status, idx, size;
-   struct sockaddr_in bind_addr;
-   INT sock;
-   INT remote_hw_type, hw_type;
-   char version[32], v1[32];
-   char local_host_name[HOST_NAME_LENGTH];
-   struct hostent *phe;
+   INT i, status;
+   bool debug = false;
 
 #ifdef OS_WINNT
    {
@@ -10780,67 +10879,113 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
       return RPC_NET_ERROR;
    }
 
-   /* make this funciton multi-thread safe */
-   if (!_client_connection_mutex) {
-      ss_mutex_create(&_client_connection_mutex, FALSE);
+   _client_connections_mutex.lock();
+
+   if (debug) {
+      printf("rpc_client_connect: host \"%s\", port %d, client \"%s\"\n", host_name, port, client_name);
+      for (size_t i = 0; i < _client_connections.size(); i++) {
+         if (_client_connections[i]) {
+            printf("client connection %d: ", (int)i);
+            _client_connections[i]->print();
+            printf("\n");
+         }
+      }
    }
 
-   ss_mutex_wait_for(_client_connection_mutex, 10000);
+   // slot with index 0 is not used, fill it with a NULL
 
-#if 0
-   for (i = 0; i < MAX_RPC_CONNECTION; i++)
-      if (_client_connection[i].send_sock != 0)
-         printf("connection %d: client \"%s\" on host \"%s\" port %d, socket %d, connected %d\n", i, _client_connection[i].client_name, _client_connection[i].host_name, _client_connection[i].port, _client_connection[i].send_sock, _client_connection[i].connected);
-#endif
+   if (_client_connections.empty()) {
+      _client_connections.push_back(NULL);
+   }
 
    /* check if connection already exists */
-   for (i = 0; i < MAX_RPC_CONNECTION; i++)
-      if (_client_connection[i].send_sock != 0 &&
-          strcmp(_client_connection[i].host_name.c_str(), host_name) == 0 && _client_connection[i].port == port) {
-         status = ss_socket_wait(_client_connection[i].send_sock, 0);
-         if (status == SS_TIMEOUT) { // socket should be empty
-            *hConnection = i + 1;
-            ss_mutex_release(_client_connection_mutex);
-            return RPC_SUCCESS;
+   for (size_t i = 1; i < _client_connections.size(); i++) {
+      RPC_CLIENT_CONNECTION* c = _client_connections[i];
+      if (c) {
+         c->mutex.lock();
+         if ((c->host_name == host_name) && (c->port == port)) {
+            // found connection slot with matching hostname and port number
+            if (c->connected) {
+               // check if socket is still connected
+               status = ss_socket_wait(c->send_sock, 0);
+               if (status == SS_TIMEOUT) { // yes, still connected and empty
+                  // so reuse it connection
+                  *hConnection = c->index;
+                  if (debug) {
+                     printf("already connected: ");
+                     c->print();
+                     printf("\n");
+                  }
+                  c->mutex.unlock();
+                  _client_connections_mutex.unlock();
+                  return RPC_SUCCESS;
+               }
+               //cm_msg(MINFO, "rpc_client_connect", "Stale connection to \"%s\" on host %s is closed", _client_connection[i].client_name, _client_connection[i].host_name);
+               c->close_locked();
+            }
          }
-         //cm_msg(MINFO, "rpc_client_connect", "Stale connection to \"%s\" on host %s is closed", _client_connection[i].client_name, _client_connection[i].host_name);
-         closesocket(_client_connection[i].send_sock);
-         _client_connection[i].send_sock = 0;
+         c->mutex.unlock();
       }
-
-   /* search for free entry */
-   for (i = 0; i < MAX_RPC_CONNECTION; i++)
-      if (_client_connection[i].send_sock == 0)
-         break;
-
-   /* open new network connection */
-   if (i == MAX_RPC_CONNECTION) {
-      cm_msg(MERROR, "rpc_client_connect", "maximum number of connections exceeded");
-      ss_mutex_release(_client_connection_mutex);
-      return RPC_NO_CONNECTION;
    }
 
+   RPC_CLIENT_CONNECTION* c = NULL;
+
+   // only start reusing connections once we have
+   // a good number of slots allocated.
+   if (_client_connections.size() > 10) {
+      static int last_reused = 0;
+
+      int size = _client_connections.size();
+      for (size_t j = 1; j < size; j++) {
+         int i = (last_reused + j) % size;
+         if (_client_connections[i] && !_client_connections[i]->connected) {
+            c = _client_connections[i];
+            if (debug) {
+               printf("last reused %d, reusing slot %d: ", last_reused, (int)i);
+               c->print();
+               printf("\n");
+            }
+            last_reused = i;
+            break;
+         }
+      }
+   }
+
+   // no slots to reuse, allocate a new slot.
+   if (!c) {
+      c = new RPC_CLIENT_CONNECTION;
+      c->mutex.lock();
+
+      // if empty slot not found, add to end of array
+      c->index = _client_connections.size();
+      _client_connections.push_back(c);
+
+      if (debug) {
+         printf("new connection appended to array: ");
+         c->print();
+         printf("\n");
+      }
+   }
+
+   // done with the array of connections
+   _client_connections_mutex.unlock();
+
    /* create a new socket for connecting to remote server */
-   sock = socket(AF_INET, SOCK_STREAM, 0);
-   if (sock == -1) {
+   c->send_sock = socket(AF_INET, SOCK_STREAM, 0);
+   if (c->send_sock == -1) {
       cm_msg(MERROR, "rpc_client_connect", "cannot create socket, socket() errno %d (%s)", errno, strerror(errno));
-      ss_mutex_release(_client_connection_mutex);
+      c->mutex.unlock();
       return RPC_NET_ERROR;
    }
 
-   idx = i;
-   _client_connection[idx].host_name = host_name;
-   _client_connection[idx].client_name = client_name;
-   _client_connection[idx].port = port;
-   _client_connection[idx].exp_name = "";
-   _client_connection[idx].rpc_timeout = DEFAULT_RPC_TIMEOUT;
-   _client_connection[idx].rpc_timeout = DEFAULT_RPC_TIMEOUT;
-   _client_connection[idx].send_sock = sock;
-   _client_connection[idx].connected = 0;
-
-   ss_mutex_release(_client_connection_mutex);
+   c->host_name   = host_name;
+   c->client_name = client_name;
+   c->port        = port;
+   c->rpc_timeout = DEFAULT_RPC_TIMEOUT;
+   c->connected   = 0;
 
    /* connect to remote node */
+   struct sockaddr_in bind_addr;
    memset(&bind_addr, 0, sizeof(bind_addr));
    bind_addr.sin_family = AF_INET;
    bind_addr.sin_addr.s_addr = 0;
@@ -10854,10 +10999,11 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
       memcpy((char *) &(bind_addr.sin_addr), &host_addr, 4);
    }
 #else
-   phe = gethostbyname(host_name);
+   struct hostent *phe = gethostbyname(host_name);
    if (phe == NULL) {
       cm_msg(MERROR, "rpc_client_connect", "cannot lookup host name \'%s\'", host_name);
-      _client_connection[idx].send_sock = 0;
+      c->close_locked();
+      c->mutex.unlock();
       return RPC_NET_ERROR;
    }
    memcpy((char *) &(bind_addr.sin_addr), phe->h_addr, phe->h_length);
@@ -10865,42 +11011,42 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
 
 #ifdef OS_UNIX
    do {
-      status = connect(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
+      status = connect(c->send_sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
 
       /* don't return if an alarm signal was cought */
    } while (status == -1 && errno == EINTR);
 #else
-   status = connect(sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
+   status = connect(c->send_sock, (struct sockaddr *) &bind_addr, sizeof(bind_addr));
 #endif
 
    if (status != 0) {
       cm_msg(MERROR, "rpc_client_connect",
              "cannot connect to host \"%s\", port %d: connect() returned %d, errno %d (%s)", host_name, port, status,
              errno, strerror(errno));
-      _client_connection[idx].send_sock = 0;
+      c->close_locked();
+      c->mutex.unlock();
       return RPC_NET_ERROR;
    }
 
-   _client_connection[idx].connected = 1;
+   c->connected = 1;
 
    /* set TCP_NODELAY option for better performance */
    i = 1;
-   setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &i, sizeof(i));
+   setsockopt(c->send_sock, IPPROTO_TCP, TCP_NODELAY, (char *) &i, sizeof(i));
 
    /* send local computer info */
    std::string local_prog_name = rpc_get_name();
-   ss_gethostname(local_host_name, sizeof(local_host_name));
+   std::string local_host_name = ss_gethostname();
 
-   hw_type = rpc_get_option(0, RPC_OHW_TYPE);
+   int hw_type = rpc_get_option(0, RPC_OHW_TYPE);
 
-   char str[128 + NAME_LENGTH + HOST_NAME_LENGTH];
-   sprintf(str, "%d %s %s %s", hw_type, cm_get_version(), local_prog_name.c_str(), local_host_name);
+   std::string cstr = msprintf("%d %s %s %s", hw_type, cm_get_version(), local_prog_name.c_str(), local_host_name.c_str());
 
-   size = strlen(str) + 1;
-   i = send(sock, str, size, 0);
+   int size = cstr.length() + 1;
+   i = send(c->send_sock, cstr.c_str(), size, 0);
    if (i < 0 || i != size) {
-      cm_msg(MERROR, "rpc_client_connect", "cannot send %d bytes, send() returned %d, errno %d (%s)", size, i, errno,
-             strerror(errno));
+      cm_msg(MERROR, "rpc_client_connect", "cannot send %d bytes, send() returned %d, errno %d (%s)", size, i, errno, strerror(errno));
+      c->mutex.unlock();
       return RPC_NET_ERROR;
    }
 
@@ -10916,39 +11062,50 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
       cm_set_watchdog_params(watchdog_call, _rpc_connect_timeout + 1000);
    }
 
+   char str[256];
+
    /* receive remote computer info */
-   i = recv_string(sock, str, sizeof(str), _rpc_connect_timeout);
+   i = recv_string(c->send_sock, str, sizeof(str), _rpc_connect_timeout);
 
    if (restore_watchdog_timeout) {
       cm_set_watchdog_params(watchdog_call, watchdog_timeout);
    }
 
    if (i <= 0) {
-      cm_msg(MERROR, "rpc_client_connect", "timeout on receive remote computer info: %s", str);
+      cm_msg(MERROR, "rpc_client_connect", "timeout waiting for server reply");
+      c->close_locked();
+      c->mutex.unlock();
       return RPC_NET_ERROR;
    }
 
-   remote_hw_type = version[0] = 0;
-   sscanf(str, "%d %s", &remote_hw_type, version);
-   _client_connection[idx].remote_hw_type = remote_hw_type;
+   int remote_hw_type = 0;
+   char remote_version[32];
+   remote_version[0] = 0;
+   sscanf(str, "%d %s", &remote_hw_type, remote_version);
+
+   c->remote_hw_type = remote_hw_type;
 
    /* print warning if version patch level doesn't agree */
-   strcpy(v1, version);
+   char v1[32];
+   strlcpy(v1, remote_version, sizeof(v1));
    if (strchr(v1, '.'))
       if (strchr(strchr(v1, '.') + 1, '.'))
          *strchr(strchr(v1, '.') + 1, '.') = 0;
 
-   strcpy(str, cm_get_version());
+   strlcpy(str, cm_get_version(), sizeof(str));
    if (strchr(str, '.'))
       if (strchr(strchr(str, '.') + 1, '.'))
          *strchr(strchr(str, '.') + 1, '.') = 0;
 
    if (strcmp(v1, str) != 0) {
-      cm_msg(MERROR, "rpc_client_connect", "remote MIDAS version \'%s\' differs from local version \'%s\'", version,
-             cm_get_version());
+      cm_msg(MERROR, "rpc_client_connect", "remote MIDAS version \'%s\' differs from local version \'%s\'", remote_version, cm_get_version());
    }
 
-   *hConnection = idx + 1;
+   c->connected = 1;
+
+   *hConnection = c->index;
+
+   c->mutex.unlock();
 
    return RPC_SUCCESS;
 }
@@ -10963,29 +11120,35 @@ void rpc_client_check()
 
 \********************************************************************/
 {
-   INT i, status;
-
 #if 0
    for (i = 0; i < MAX_RPC_CONNECTION; i++)
       if (_client_connection[i].send_sock != 0)
          printf("slot %d, checking client %s socket %d, connected %d\n", i, _client_connection[i].client_name, _client_connection[i].send_sock, _client_connection[i].connected);
 #endif
 
+   _client_connections_mutex.lock();
+
    /* check for broken connections */
-   for (i = 0; i < MAX_RPC_CONNECTION; i++)
-      if (_client_connection[i].send_sock != 0 && _client_connection[i].connected) {
-         int sock;
-         fd_set readfds;
-         struct timeval timeout;
-         char buffer[64];
+   for (unsigned i = 0; i < _client_connections.size(); i++) {
+      RPC_CLIENT_CONNECTION* c = _client_connections[i];
+      if (c && c->connected) {
+         c->mutex.lock();
+
+         //printf("rpc_client_check: connection %d: ", i);
+         //c->print();
+         //printf("\n");
+
          int ok = 0;
 
-         sock = _client_connection[i].send_sock;
+         fd_set readfds;
          FD_ZERO(&readfds);
-         FD_SET(sock, &readfds);
+         FD_SET(c->send_sock, &readfds);
 
+         struct timeval timeout;
          timeout.tv_sec = 0;
          timeout.tv_usec = 0;
+
+         int status;
 
 #ifdef OS_WINNT
          status = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
@@ -10995,10 +11158,14 @@ void rpc_client_check()
          } while (status == -1 && errno == EINTR); /* dont return if an alarm signal was cought */
 #endif
 
-         if (!FD_ISSET(sock, &readfds))
+         if (!FD_ISSET(c->send_sock, &readfds)) {
+            c->mutex.unlock();
             continue;
+         }
 
-         status = recv(sock, (char *) buffer, sizeof(buffer), MSG_PEEK);
+         char buffer[64];
+
+         status = recv(c->send_sock, (char *) buffer, sizeof(buffer), MSG_PEEK);
          //printf("recv %d status %d, errno %d (%s)\n", sock, status, errno, strerror(errno));
 
          if (status < 0) {
@@ -11010,19 +11177,19 @@ void rpc_client_check()
             {
                // connection error
                cm_msg(MERROR, "rpc_client_check",
-                      "Connection to \"%s\" on host \"%s\" is broken, recv() errno %d (%s)",
-                      _client_connection[i].client_name.c_str(),
-                      _client_connection[i].host_name.c_str(),
+                      "RPC client connection to \"%s\" on host \"%s\" is broken, recv() errno %d (%s)",
+                      c->client_name.c_str(),
+                      c->host_name.c_str(),
                       errno, strerror(errno));
+               ok = 0;
             }
          } else if (status == 0) {
             // connection closed by remote end without sending an EXIT message
             // this can happen if the remote end has crashed, so this message
             // is still necessary as a useful diagnostic for unexpected crashes
             // of midas programs. K.O.
-            cm_msg(MINFO, "rpc_client_check",
-                   "Connection to \"%s\" on host \"%s\" unexpectedly closed",
-                   _client_connection[i].client_name.c_str(), _client_connection[i].host_name.c_str());
+            cm_msg(MINFO, "rpc_client_check", "RPC client connection to \"%s\" on host \"%s\" unexpectedly closed", c->client_name.c_str(), c->host_name.c_str());
+            ok = 0;
          } else {
             // read some data
             ok = 1;
@@ -11032,13 +11199,20 @@ void rpc_client_check()
             }
          }
 
-         if (ok)
-            continue;
+         if (!ok) {
+            //printf("rpc_client_check: closing connection %d: ", i);
+            //c->print();
+            //printf("\n");
 
-         // connection lost, close the socket
-         closesocket(sock);
-         _client_connection[i].send_sock = 0;
+            // connection lost, close the socket
+            c->close_locked();
+         }
+
+         c->mutex.unlock();
       }
+   }
+
+   _client_connections_mutex.unlock();
 }
 
 
@@ -11358,6 +11532,25 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
 }
 
 /********************************************************************/
+
+static RPC_CLIENT_CONNECTION* rpc_get_locked_client_connection(HNDLE hConn)
+{
+   RPC_CLIENT_CONNECTION* c = NULL;
+   _client_connections_mutex.lock();
+   if (hConn >= 0 && hConn < _client_connections.size()) {
+      c = _client_connections[hConn];
+      if (c) {
+         if (!c->connected) {
+            c = NULL;
+         }
+      }
+   }
+   c->mutex.lock();
+   _client_connections_mutex.unlock();
+   return c;
+}
+
+/********************************************************************/
 INT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown)
 /********************************************************************\
 
@@ -11377,31 +11570,37 @@ INT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown)
 
 \********************************************************************/
 {
-   INT i;
-
    if (hConn == -1) {
       /* close all open connections */
-      for (i = MAX_RPC_CONNECTION - 1; i >= 0; i--)
-         if (_client_connection[i].send_sock != 0)
-            rpc_client_disconnect(i + 1, FALSE);
+      _client_connections_mutex.lock();
+      for (unsigned i = 0; i < _client_connections.size(); i++) {
+         RPC_CLIENT_CONNECTION* c = _client_connections[i];
+         if (c && c->connected) {
+            int index = c->index;
+            // must unlock the array, otherwise we hang -
+            // rpc_client_disconnect() will do rpc_call_client()
+            // which needs to lock the array to convert handle
+            // to connection pointer. Ouch! K.O. Dec 2020.
+            _client_connections_mutex.unlock();
+            rpc_client_disconnect(index, FALSE);
+            _client_connections_mutex.lock();
+         }
+      }
+      _client_connections_mutex.unlock();
 
       /* close server connection from other clients */
-      for (i = 0; i < MAX_RPC_CONNECTION; i++)
-         if (_server_acception[i].recv_sock) {
-            send(_server_acception[i].recv_sock, "EXIT", 5, 0);
-            closesocket(_server_acception[i].recv_sock);
+      for (unsigned i = 0; i < _server_acceptions.size(); i++)
+         if (_server_acceptions[i] && _server_acceptions[i]->recv_sock) {
+            send(_server_acceptions[i]->recv_sock, "EXIT", 5, 0);
+            closesocket(_server_acceptions[i]->recv_sock);
+            _server_acceptions[i]->recv_sock = 0;
          }
    } else {
       /* notify server about exit */
 
       /* call exit and shutdown with RPC_NO_REPLY because client will exit immediately without possibility of replying */
+
       rpc_client_call(hConn, bShutdown ? (RPC_ID_SHUTDOWN | RPC_NO_REPLY) : (RPC_ID_EXIT | RPC_NO_REPLY));
-
-      /* close socket */
-      if (_client_connection[hConn - 1].send_sock)
-         closesocket(_client_connection[hConn - 1].send_sock);
-
-      _client_connection[hConn - 1].clear();
    }
 
    return RPC_SUCCESS;
@@ -11494,45 +11693,20 @@ std::string rpc_get_mserver_hostname(void)
    return _server_connection.host_name;
 }
 
-static BOOL _mserver_mode = FALSE;
-
 /********************************************************************/
-INT rpc_set_mserver_mode(void)
-/********************************************************************\
-
-  Routine: rpc_set_mserver_mode
-
-  Purpose: Set the RPC layer to mserver mode
-
-  Function value:
-    INT    RPC_SUCCESS
-
-\********************************************************************/
-{
-   _mserver_mode = TRUE;
-   return RPC_SUCCESS;
-}
-
-/********************************************************************/
-INT rpc_is_mserver(void)
+bool rpc_is_mserver(void)
 /********************************************************************\
 
   Routine: rpc_is_mserver
 
   Purpose: Return true if we are the mserver
 
-  Input:
-   none
-
-  Output:
-    none
-
   Function value:
-    INT    RPC connection index
+    INT    "true" if we are the mserver
 
 \********************************************************************/
 {
-   return _mserver_mode;
+   return _mserver_acception != NULL;
 }
 
 /********************************************************************/
@@ -11557,13 +11731,21 @@ INT rpc_get_option(HNDLE hConn, INT item)
 \********************************************************************/
 {
    switch (item) {
-      case RPC_OTIMEOUT:
+      case RPC_OTIMEOUT: {
          if (hConn == -1)
             return _server_connection.rpc_timeout;
          if (hConn == -2)
             return _rpc_connect_timeout;
-         return _client_connection[hConn - 1].rpc_timeout;
 
+         RPC_CLIENT_CONNECTION* c = rpc_get_locked_client_connection(hConn);
+         if (c) {
+            int rpc_timeout = c->rpc_timeout;
+            c->mutex.unlock();
+            return rpc_timeout;
+         } else {
+            return 0;
+         }
+      }
       case RPC_OHW_TYPE: {
          INT tmp_type, size;
          DWORD dummy;
@@ -11659,16 +11841,25 @@ INT rpc_set_option(HNDLE hConn, INT item, INT value) {
             _server_connection.rpc_timeout = value;
          else if (hConn == -2)
             _rpc_connect_timeout = value;
-         else
-            _client_connection[hConn - 1].rpc_timeout = value;
+         else {
+            RPC_CLIENT_CONNECTION* c = rpc_get_locked_client_connection(hConn);
+            if (c) {
+               c->rpc_timeout = value;
+               c->mutex.unlock();
+            }
+         }
          break;
 
       case RPC_NODELAY:
-         if (hConn == -1)
+         if (hConn == -1) {
             setsockopt(_server_connection.send_sock, IPPROTO_TCP, TCP_NODELAY, (char *) &value, sizeof(value));
-         else
-            setsockopt(_client_connection[hConn - 1].send_sock, IPPROTO_TCP, TCP_NODELAY, (char *) &value,
-                       sizeof(value));
+         } else {
+            RPC_CLIENT_CONNECTION* c = rpc_get_locked_client_connection(hConn);
+            if (c) {
+               setsockopt(c->send_sock, IPPROTO_TCP, TCP_NODELAY, (char *) &value, sizeof(value));
+               c->mutex.unlock();
+            }
+         }
          break;
 
       default:
@@ -11684,71 +11875,22 @@ INT rpc_set_option(HNDLE hConn, INT item, INT value) {
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-INT rpc_get_server_option(INT item)
+INT rpc_get_convert_flags(void)
 /********************************************************************\
 
-  Routine: rpc_get_server_option
+  Routine: rpc_get_convert_flags
 
-  Purpose: Get actual RPC option for server connection
-
-  Input:
-    INT  item               One of RPC_Oxxx
-
-  Output:
-    none
+  Purpose: Get RPC convert_flags for the mserver connection
 
   Function value:
     INT                     Actual option
 
 \********************************************************************/
 {
-   INT i = 0;
-
-   switch (item) {
-      case RPC_CONVERT_FLAGS:
-         return _server_acception[i].convert_flags;
-      case RPC_SEND_SOCK:
-         return _server_acception[i].send_sock;
-      case RPC_WATCHDOG_TIMEOUT:
-         return _server_acception[i].watchdog_timeout;
-   }
-
-   return 0;
-}
-
-
-/********************************************************************/
-INT rpc_set_server_option(INT item, INT value)
-/********************************************************************\
-
-  Routine: rpc_set_server_option
-
-  Purpose: Set RPC option for server connection
-
-  Input:
-   INT  item               One of RPC_Oxxx
-   INT  value              Value to set
-
-  Output:
-    none
-
-  Function value:
-    RPC_SUCCESS             Successful completion
-
-\********************************************************************/
-{
-   INT i = 0;
-
-   switch (item) {
-      case RPC_CONVERT_FLAGS:
-         _server_acception[i].convert_flags = value;
-         break;
-      case RPC_WATCHDOG_TIMEOUT:
-         _server_acception[i].watchdog_timeout = value;
-         break;
-   }
-
-   return RPC_SUCCESS;
+   if (_mserver_acception)
+      return _mserver_acception->convert_flags;
+   else
+      return 0;
 }
 
 static std::string _mserver_path;
@@ -12160,15 +12302,18 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
 
 \********************************************************************/
 {
-   va_list ap;
-   INT i, status;
+   RPC_CLIENT_CONNECTION* c = rpc_get_locked_client_connection(hConn);
 
-   int idx = hConn - 1;
-
-   if (_client_connection[idx].send_sock == 0) {
-      cm_msg(MERROR, "rpc_client_call", "no rpc connection or invalid rpc connection handle %d", hConn);
+   if (!c) {
+      cm_msg(MERROR, "rpc_client_call", "invalid rpc connection handle %d", hConn);
       return RPC_NO_CONNECTION;
    }
+
+   //printf("rpc_client_call: handle %d, connection: ", hConn);
+   //c->print();
+   //printf("\n");
+
+   INT i, status;
 
    BOOL rpc_no_reply = routine_id & RPC_NO_REPLY;
    routine_id &= ~RPC_NO_REPLY;
@@ -12176,13 +12321,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
    //if (rpc_no_reply)
    //   printf("rpc_client_call: routine_id %d, RPC_NO_REPLY\n", routine_id);
 
-   int send_sock = _client_connection[idx].send_sock;
-   int rpc_timeout = _client_connection[idx].rpc_timeout;
-
    // make local copy of the client name just in case _client_connection is erased by another thread
-
-   const char *host_name = _client_connection[idx].host_name.c_str();
-   const char *client_name = _client_connection[idx].client_name.c_str();
 
    /* find rpc_index */
 
@@ -12193,8 +12332,8 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
    int rpc_index = i;
 
    if (rpc_list[rpc_index].id == 0) {
-      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" with invalid RPC ID %d", client_name, host_name,
-             routine_id);
+      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" with invalid RPC ID %d", c->client_name.c_str(), c->host_name.c_str(), routine_id);
+      c->mutex.unlock();
       return RPC_INVALID_ID;
    }
 
@@ -12203,6 +12342,7 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
    NET_COMMAND *nc = NULL;
 
    /* examine variable argument list and convert it to parameter array */
+   va_list ap;
    va_start(ap, routine_id);
 
    rpc_call_encode(ap, rpc_index, rpc_name, &nc);
@@ -12218,23 +12358,33 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
 
    /* in FAST TCP mode, only send call and return immediately */
    if (rpc_no_reply) {
-      i = send_tcp(send_sock, (char *) nc, send_size, 0);
+      i = send_tcp(c->send_sock, (char *) nc, send_size, 0);
 
       if (i != send_size) {
-         cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": send_tcp() failed", client_name,
-                host_name, rpc_name);
+         cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": send_tcp() failed", c->client_name.c_str(), c->host_name.c_str(), rpc_name);
          free(nc);
+         c->mutex.unlock();
          return RPC_NET_ERROR;
       }
 
       free(nc);
+
+      if (routine_id == RPC_ID_EXIT || routine_id == RPC_ID_SHUTDOWN) {
+         //printf("rpc_client_call: routine_id %d is RPC_ID_EXIT %d or RPC_ID_SHUTDOWN %d, closing connection: ", routine_id, RPC_ID_EXIT, RPC_ID_SHUTDOWN);
+         //c->print();
+         //printf("\n");
+         c->close_locked();
+      }
+
+      c->mutex.unlock();
       return RPC_SUCCESS;
    }
 
    /* in TCP mode, send and wait for reply on send socket */
-   i = send_tcp(send_sock, (char *) nc, send_size, 0);
+   i = send_tcp(c->send_sock, (char *) nc, send_size, 0);
    if (i != send_size) {
-      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": send_tcp() failed", client_name, host_name, rpc_name);
+      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": send_tcp() failed", c->client_name.c_str(), c->host_name.c_str(), rpc_name);
+      c->mutex.unlock();
       return RPC_NET_ERROR;
    }
 
@@ -12246,11 +12396,11 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
    DWORD watchdog_timeout;
    cm_get_watchdog_params(&watchdog_call, &watchdog_timeout);
 
-   //printf("watchdog timeout: %d, rpc_timeout: %d\n", watchdog_timeout, rpc_timeout);
+   //printf("watchdog timeout: %d, rpc_timeout: %d\n", watchdog_timeout, c->rpc_timeout);
 
-   if (rpc_timeout >= (int) watchdog_timeout) {
+   if (c->rpc_timeout >= (int) watchdog_timeout) {
       restore_watchdog_timeout = true;
-      cm_set_watchdog_params(watchdog_call, rpc_timeout + 1000);
+      cm_set_watchdog_params(watchdog_call, c->rpc_timeout + 1000);
    }
 
    DWORD rpc_status = 0;
@@ -12258,27 +12408,29 @@ INT rpc_client_call(HNDLE hConn, DWORD routine_id, ...)
    char* buf = NULL;
 
    /* receive result on send socket */
-   status = ss_recv_net_command(send_sock, &rpc_status, &buf_size, &buf, rpc_timeout);
+   status = ss_recv_net_command(c->send_sock, &rpc_status, &buf_size, &buf, c->rpc_timeout);
 
    if (restore_watchdog_timeout) {
       cm_set_watchdog_params(watchdog_call, watchdog_timeout);
    }
 
    if (status == SS_TIMEOUT) {
-      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": timeout waiting for reply", client_name,
-             host_name, rpc_name);
+      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": timeout waiting for reply", c->client_name.c_str(), c->host_name.c_str(), rpc_name);
       if (buf)
          free(buf);
+      c->mutex.unlock();
       return RPC_TIMEOUT;
    }
 
    if (status != SS_SUCCESS) {
-      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": error, ss_recv_net_command() status %d",
-             client_name, host_name, rpc_name, status);
+      cm_msg(MERROR, "rpc_client_call", "call to \"%s\" on \"%s\" RPC \"%s\": error, ss_recv_net_command() status %d", c->client_name.c_str(), c->host_name.c_str(), rpc_name, status);
       if (buf)
          free(buf);
+      c->mutex.unlock();
       return RPC_NET_ERROR;
    }
+
+   c->mutex.unlock();
 
    /* extract result variables and place it to argument list */
 
@@ -12952,32 +13104,33 @@ static int recv_net_command_realloc(INT idx, char **pbuf, int *pbufsize, INT *re
 {
    char *buffer = NULL; // buffer is changed to point to *pbuf when we receive the NET_COMMAND header
 
-   int sock = _server_acception[idx].recv_sock;
+   RPC_SERVER_ACCEPTION* sa = rpc_get_server_acception(idx);
 
-   if (!_server_acception[idx].net_buffer) {
-      if (rpc_is_mserver())
-         _server_acception[idx].net_buffer_size = NET_TCP_SIZE;
+   int sock = sa->recv_sock;
+
+   if (!sa->net_buffer) {
+      if (sa->is_mserver)
+         sa->net_buffer_size = NET_TCP_SIZE;
       else
-         _server_acception[idx].net_buffer_size = NET_BUFFER_SIZE;
+         sa->net_buffer_size = NET_BUFFER_SIZE;
 
-      _server_acception[idx].net_buffer = (char *) M_MALLOC(_server_acception[idx].net_buffer_size);
-      _server_acception[idx].write_ptr = 0;
-      _server_acception[idx].read_ptr = 0;
-      _server_acception[idx].misalign = 0;
+      sa->net_buffer = (char *) M_MALLOC(sa->net_buffer_size);
+      sa->write_ptr = 0;
+      sa->read_ptr = 0;
+      sa->misalign = 0;
    }
-   if (!_server_acception[idx].net_buffer) {
-      cm_msg(MERROR, "recv_net_command", "Cannot allocate %d bytes for network buffer",
-             _server_acception[idx].net_buffer_size);
+   if (!sa->net_buffer) {
+      cm_msg(MERROR, "recv_net_command", "Cannot allocate %d bytes for network buffer", sa->net_buffer_size);
       return -1;
    }
 
    int copied = 0;
    int param_size = -1;
 
-   int write_ptr = _server_acception[idx].write_ptr;
-   int read_ptr = _server_acception[idx].read_ptr;
-   int misalign = _server_acception[idx].misalign;
-   char *net_buffer = _server_acception[idx].net_buffer;
+   int write_ptr = sa->write_ptr;
+   int read_ptr = sa->read_ptr;
+   int misalign = sa->misalign;
+   char *net_buffer = sa->net_buffer;
 
    do {
       if (write_ptr - read_ptr >= (INT) sizeof(NET_COMMAND_HEADER) - copied) {
@@ -12992,8 +13145,8 @@ static int recv_net_command_realloc(INT idx, char **pbuf, int *pbufsize, INT *re
                param_size = (INT) nc->header.param_size;
             }
 
-            if (_server_acception[idx].convert_flags)
-               rpc_convert_single(&param_size, TID_UINT32, 0, _server_acception[idx].convert_flags);
+            if (sa->convert_flags)
+               rpc_convert_single(&param_size, TID_UINT32, 0, sa->convert_flags);
          }
 
          //printf("recv_net_command: param_size %d, NET_COMMAND_HEADER %d, buffer_size %d\n", param_size, (int)sizeof(NET_COMMAND_HEADER), *pbufsize);
@@ -13004,10 +13157,9 @@ static int recv_net_command_realloc(INT idx, char **pbuf, int *pbufsize, INT *re
             char *p = (char *) realloc(*pbuf, new_size);
             //printf("recv_net_command: reallocate buffer %d -> %d, %p\n", *pbufsize, new_size, p);
             if (p == NULL) {
-               cm_msg(MERROR, "recv_net_command", "cannot reallocate buffer from %d bytes to %d bytes", *pbufsize,
-                      new_size);
-               _server_acception[idx].read_ptr = 0;
-               _server_acception[idx].write_ptr = 0;
+               cm_msg(MERROR, "recv_net_command", "cannot reallocate buffer from %d bytes to %d bytes", *pbufsize, new_size);
+               sa->read_ptr = 0;
+               sa->write_ptr = 0;
                return -1;
             }
             *pbuf = p;
@@ -13031,22 +13183,20 @@ static int recv_net_command_realloc(INT idx, char **pbuf, int *pbufsize, INT *re
       }
 #ifdef OS_UNIX
       do {
-         write_ptr = recv(sock, net_buffer + misalign, _server_acception[idx].net_buffer_size - 8, 0);
+         write_ptr = recv(sock, net_buffer + misalign, sa->net_buffer_size - 8, 0);
 
          /* don't return if an alarm signal was cought */
       } while (write_ptr == -1 && errno == EINTR);
 #else
-      write_ptr = recv(sock, net_buffer + misalign, _server_acception[idx].net_buffer_size - 8, 0);
+      write_ptr = recv(sock, net_buffer + misalign, sa->net_buffer_size - 8, 0);
 #endif
 
       /* abort if connection broken */
       if (write_ptr <= 0) {
          if (write_ptr == 0)
-            cm_msg(MERROR, "recv_net_command", "rpc connection from \'%s\' on \'%s\' unexpectedly closed",
-                   _server_acception[idx].prog_name.c_str(), _server_acception[idx].host_name.c_str());
+            cm_msg(MERROR, "recv_net_command", "rpc connection from \'%s\' on \'%s\' unexpectedly closed", sa->prog_name.c_str(), sa->host_name.c_str());
          else
-            cm_msg(MERROR, "recv_net_command", "recv() returned %d, errno: %d (%s)", write_ptr, errno,
-                   strerror(errno));
+            cm_msg(MERROR, "recv_net_command", "recv() returned %d, errno: %d (%s)", write_ptr, errno, strerror(errno));
 
          if (remaining)
             *remaining = 0;
@@ -13073,9 +13223,9 @@ static int recv_net_command_realloc(INT idx, char **pbuf, int *pbufsize, INT *re
          *remaining = write_ptr - read_ptr;
    }
 
-   _server_acception[idx].write_ptr = write_ptr;
-   _server_acception[idx].read_ptr = read_ptr;
-   _server_acception[idx].misalign = misalign;
+   sa->write_ptr = write_ptr;
+   sa->read_ptr = read_ptr;
+   sa->misalign = misalign;
 
    return size + copied;
 }
@@ -13101,14 +13251,13 @@ INT recv_tcp_check(int sock)
 
 \********************************************************************/
 {
-   INT idx;
-
    /* figure out to which connection socket belongs */
-   for (idx = 0; idx < MAX_RPC_CONNECTION; idx++)
-      if (_server_acception[idx].recv_sock == sock)
-         break;
+   for (unsigned idx = 0; idx < _server_acceptions.size(); idx++)
+      if (_server_acceptions[idx] && _server_acceptions[idx]->recv_sock == sock) {
+         return _server_acceptions[idx]->write_ptr - _server_acceptions[idx]->read_ptr;
+      }
 
-   return _server_acception[idx].write_ptr - _server_acception[idx].read_ptr;
+   return 0;
 }
 
 
@@ -13136,7 +13285,7 @@ int recv_event_server_realloc(INT idx, char **pbuffer, int *pbuffer_size)
 
 \********************************************************************/
 {
-   RPC_SERVER_ACCEPTION *psa = &_server_acception[idx];
+   RPC_SERVER_ACCEPTION *psa = rpc_get_server_acception(idx);
    psa->ev_write_ptr = 0;
    psa->ev_read_ptr = 0;
 
@@ -13276,14 +13425,12 @@ INT recv_event_check(int sock)
 
 \********************************************************************/
 {
-   INT idx;
-
    /* figure out to which connection socket belongs */
-   for (idx = 0; idx < MAX_RPC_CONNECTION; idx++)
-      if (_server_acception[idx].event_sock == sock)
-         break;
-
-   return _server_acception[idx].ev_write_ptr - _server_acception[idx].ev_read_ptr;
+   for (unsigned idx = 0; idx < _server_acceptions.size(); idx++)
+      if (_server_acceptions[idx] && _server_acceptions[idx]->event_sock == sock) {
+         return _server_acceptions[idx]->ev_write_ptr - _server_acceptions[idx]->ev_read_ptr;
+      }
+   return 0;
 }
 
 
@@ -14233,14 +14380,14 @@ INT rpc_client_accept(int lsock)
 
 \********************************************************************/
 {
-   INT idx, i, status;
+   INT i, status;
    //int version;
    unsigned int size;
    int sock;
    struct sockaddr_in acc_addr;
    INT client_hw_type = 0, hw_type;
-   char str[100], client_program[NAME_LENGTH];
-   char host_name[HOST_NAME_LENGTH];
+   std::string client_program;
+   std::string host_name;
    INT convert_flags;
    char net_buffer[256], *p;
 
@@ -14320,18 +14467,8 @@ INT rpc_client_accept(int lsock)
       }
    }
 
-   strcpy(host_name, "(unknown)");
-
-   strcpy(client_program, "(unknown)");
-
-   /* look for next free entry */
-   for (idx = 0; idx < MAX_RPC_CONNECTION; idx++)
-      if (_server_acception[idx].recv_sock == 0)
-         break;
-   if (idx == MAX_RPC_CONNECTION) {
-      closesocket(sock);
-      return RPC_NET_ERROR;
-   }
+   host_name = "(unknown)";
+   client_program = "(unknown)";
 
    /* receive string with timeout */
    i = recv_string(sock, net_buffer, sizeof(net_buffer), 10000);
@@ -14351,38 +14488,40 @@ INT rpc_client_accept(int lsock)
       p = strtok(NULL, " ");
    }
    if (p != NULL) {
-      strlcpy(client_program, p, sizeof(client_program));
+      client_program = p;
       p = strtok(NULL, " ");
    }
    if (p != NULL) {
-      strlcpy(host_name, p, sizeof(host_name));
+      host_name = p;
       p = strtok(NULL, " ");
    }
 
    //printf("rpc_client_accept: client_hw_type %d, version %d, client_name \'%s\', hostname \'%s\'\n", client_hw_type, version, client_program, host_name);
 
+   RPC_SERVER_ACCEPTION* sa = rpc_new_server_acception();
+
    /* save information in _server_acception structure */
-   _server_acception[idx].recv_sock = sock;
-   _server_acception[idx].send_sock = 0;
-   _server_acception[idx].event_sock = 0;
-   _server_acception[idx].remote_hw_type = client_hw_type;
-   _server_acception[idx].host_name = host_name;
-   _server_acception[idx].prog_name = client_program;
-   _server_acception[idx].last_activity = ss_millitime();
-   _server_acception[idx].watchdog_timeout = 0;
-   _server_acception[idx].is_mserver = FALSE;
+   sa->recv_sock = sock;
+   sa->send_sock = 0;
+   sa->event_sock = 0;
+   sa->remote_hw_type = client_hw_type;
+   sa->host_name = host_name;
+   sa->prog_name = client_program;
+   sa->last_activity = ss_millitime();
+   sa->watchdog_timeout = 0;
+   sa->is_mserver = FALSE;
 
    /* send my own computer id */
    hw_type = rpc_get_option(0, RPC_OHW_TYPE);
-   sprintf(str, "%d %s", hw_type, cm_get_version());
-   status = send(sock, str, strlen(str) + 1, 0);
-   if (status != (INT) strlen(str) + 1)
+   std::string str = msprintf("%d %s", hw_type, cm_get_version());
+   status = send(sock, str.c_str(), str.length() + 1, 0);
+   if (status != (INT) str.length() + 1)
       return RPC_NET_ERROR;
 
    rpc_calc_convert_flags(hw_type, client_hw_type, &convert_flags);
-   rpc_set_server_option(RPC_CONVERT_FLAGS, convert_flags);
+   sa->convert_flags = convert_flags;
 
-   ss_suspend_set_server_acceptions_array(MAX_RPC_CONNECTION, _server_acception);
+   ss_suspend_set_server_acceptions(&_server_acceptions);
 
    return RPC_SUCCESS;
 }
@@ -14408,12 +14547,13 @@ INT rpc_server_callback(struct callback_addr *pcallback)
 
 \********************************************************************/
 {
-   INT idx, status;
+   INT status;
    int recv_sock, send_sock, event_sock;
    struct sockaddr_in bind_addr;
    struct hostent *phe;
-   char str[100], client_program[NAME_LENGTH];
-   char host_name[HOST_NAME_LENGTH];
+   char str[100];
+   std::string client_program;
+   std::string host_name;
    INT client_hw_type, hw_type;
    INT convert_flags;
    char net_buffer[256];
@@ -14421,8 +14561,8 @@ INT rpc_server_callback(struct callback_addr *pcallback)
    int flag;
 
    /* copy callback information */
-   struct callback_addr callback(*pcallback);
-   idx = callback.index;
+   struct callback_addr callback = *pcallback;
+   //idx = callback.index;
 
    /* create new sockets for TCP */
    recv_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -14466,7 +14606,10 @@ INT rpc_server_callback(struct callback_addr *pcallback)
    if (status != 0) {
       cm_msg(MERROR, "rpc_server_callback", "cannot connect receive socket, host \"%s\", port %d, errno %d (%s)",
              callback.host_name.c_str(), callback.host_port1, errno, strerror(errno));
-      goto error;
+      closesocket(recv_sock);
+      //closesocket(send_sock);
+      //closesocket(event_sock);
+      return RPC_NET_ERROR;
    }
 
    bind_addr.sin_port = htons(callback.host_port2);
@@ -14484,7 +14627,10 @@ INT rpc_server_callback(struct callback_addr *pcallback)
 
    if (status != 0) {
       cm_msg(MERROR, "rpc_server_callback", "cannot connect send socket");
-      goto error;
+      closesocket(recv_sock);
+      closesocket(send_sock);
+      //closesocket(event_sock);
+      return RPC_NET_ERROR;
    }
 
    bind_addr.sin_port = htons(callback.host_port3);
@@ -14502,7 +14648,10 @@ INT rpc_server_callback(struct callback_addr *pcallback)
 
    if (status != 0) {
       cm_msg(MERROR, "rpc_server_callback", "cannot connect event socket");
-      goto error;
+      closesocket(recv_sock);
+      closesocket(send_sock);
+      closesocket(event_sock);
+      return RPC_NET_ERROR;
    }
 #ifndef OS_ULTRIX               /* crashes ULTRIX... */
    /* increase send buffer size to 2 Mbytes, on Linux also limited by sysctl net.ipv4.tcp_rmem and net.ipv4.tcp_wmem */
@@ -14515,7 +14664,10 @@ INT rpc_server_callback(struct callback_addr *pcallback)
 
    if (recv_string(recv_sock, net_buffer, 256, _rpc_connect_timeout) <= 0) {
       cm_msg(MERROR, "rpc_server_callback", "timeout on receive remote computer info");
-      goto error;
+      closesocket(recv_sock);
+      closesocket(send_sock);
+      closesocket(event_sock);
+      return RPC_NET_ERROR;
    }
    //printf("rpc_server_callback: \'%s\'\n", net_buffer);
 
@@ -14525,7 +14677,7 @@ INT rpc_server_callback(struct callback_addr *pcallback)
    while (*p == ' ')
       p++;
 
-   strlcpy(client_program, p, sizeof(client_program));
+   client_program = p;
 
    //printf("hw type %d, name \'%s\'\n", client_hw_type, client_program);
 
@@ -14537,21 +14689,29 @@ INT rpc_server_callback(struct callback_addr *pcallback)
 #else
    phe = gethostbyaddr((char *) &bind_addr.sin_addr, 4, PF_INET);
    if (phe == NULL)
-      strcpy(host_name, "unknown");
+      host_name = "unknown";
    else
-      strcpy(host_name, phe->h_name);
+      host_name = phe->h_name;
 #endif
 
+   //printf("rpc_server_callback: mserver acception\n");
+
+   RPC_SERVER_ACCEPTION* sa = rpc_new_server_acception();
+
    /* save information in _server_acception structure */
-   _server_acception[idx].recv_sock = recv_sock;
-   _server_acception[idx].send_sock = send_sock;
-   _server_acception[idx].event_sock = event_sock;
-   _server_acception[idx].remote_hw_type = client_hw_type;
-   _server_acception[idx].host_name = host_name;
-   _server_acception[idx].prog_name = client_program;
-   _server_acception[idx].last_activity = ss_millitime();
-   _server_acception[idx].watchdog_timeout = 0;
-   _server_acception[idx].is_mserver = TRUE;
+   sa->recv_sock = recv_sock;
+   sa->send_sock = send_sock;
+   sa->event_sock = event_sock;
+   sa->remote_hw_type = client_hw_type;
+   sa->host_name = host_name;
+   sa->prog_name = client_program;
+   sa->last_activity = ss_millitime();
+   sa->watchdog_timeout = 0;
+   sa->is_mserver = TRUE;
+
+   assert(_mserver_acception == NULL);
+
+   _mserver_acception = sa;
 
    //printf("rpc_server_callback: _server_acception %p, idx %d\n", _server_acception, idx);
 
@@ -14561,24 +14721,15 @@ INT rpc_server_callback(struct callback_addr *pcallback)
    send(recv_sock, str, strlen(str) + 1, 0);
 
    rpc_calc_convert_flags(hw_type, client_hw_type, &convert_flags);
-   rpc_set_server_option(RPC_CONVERT_FLAGS, convert_flags);
+   sa->convert_flags = convert_flags;
 
-   ss_suspend_set_server_acceptions_array(MAX_RPC_CONNECTION, _server_acception);
+   ss_suspend_set_server_acceptions(&_server_acceptions);
 
    if (rpc_is_mserver()) {
-      rpc_debug_printf("Connection to %s:%s established\n", _server_acception[idx].host_name.c_str(),
-                       _server_acception[idx].prog_name.c_str());
+      rpc_debug_printf("Connection to %s:%s established\n", sa->host_name.c_str(), sa->prog_name.c_str());
    }
 
    return RPC_SUCCESS;
-
-   error:
-
-   closesocket(recv_sock);
-   closesocket(send_sock);
-   closesocket(event_sock);
-
-   return RPC_NET_ERROR;
 }
 
 
@@ -14664,8 +14815,10 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       return SS_SUCCESS;
    }
 
+   RPC_SERVER_ACCEPTION* sa = rpc_get_server_acception(idx);
+
    /* receive command */
-   if (sock == _server_acception[idx].recv_sock) {
+   if (sock == sa->recv_sock) {
       int remaining = 0;
 
       char *buf = NULL;
@@ -14680,7 +14833,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
             goto error;
          }
 
-         status = rpc_execute(_server_acception[idx].recv_sock, buf, _server_acception[idx].convert_flags);
+         status = rpc_execute(sa->recv_sock, buf, sa->convert_flags);
 
          if (status == SS_ABORT) {
             cm_msg(MERROR, "rpc_server_receive", "rpc_execute() returned %d, abort", status);
@@ -14689,8 +14842,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
          if (status == SS_EXIT || status == RPC_SHUTDOWN) {
             if (rpc_is_mserver())
-               rpc_debug_printf("Connection to %s:%s closed\n", _server_acception[idx].host_name.c_str(),
-                                _server_acception[idx].prog_name.c_str());
+               rpc_debug_printf("Connection to %s:%s closed\n", sa->host_name.c_str(), sa->prog_name.c_str());
             goto exit;
          }
 
@@ -14703,7 +14855,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       }
    } else {
       /* receive event */
-      if (sock == _server_acception[idx].event_sock) {
+      if (sock == sa->event_sock) {
          DWORD start_time = ss_millitime();
 
          char *buf = NULL;
@@ -14748,11 +14900,10 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
    {
       char str[80];
-      strlcpy(str, _server_acception[idx].host_name.c_str(), sizeof(str));
+      strlcpy(str, sa->host_name.c_str(), sizeof(str));
       if (strchr(str, '.'))
          *strchr(str, '.') = 0;
-      cm_msg(MTALK, "rpc_server_receive", "Program \'%s\' on host \'%s\' aborted",
-             _server_acception[idx].prog_name.c_str(), str);
+      cm_msg(MTALK, "rpc_server_receive", "Program \'%s\' on host \'%s\' aborted", sa->prog_name.c_str(), str);
    }
 
    exit:
@@ -14788,27 +14939,16 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       }
    }
 
-   /* close server connection */
-   if (_server_acception[idx].recv_sock)
-      closesocket(_server_acception[idx].recv_sock);
-   if (_server_acception[idx].send_sock)
-      closesocket(_server_acception[idx].send_sock);
-   if (_server_acception[idx].event_sock)
-      closesocket(_server_acception[idx].event_sock);
+   bool is_mserver = sa->is_mserver;
 
-   /* free TCP cache */
-   M_FREE(_server_acception[idx].net_buffer);
-   _server_acception[idx].net_buffer = NULL;
-
-   /* mark this entry as invalid */
-   _server_acception[idx].clear();
+   sa->close();
 
    /* signal caller a shutdonw */
    if (status == RPC_SHUTDOWN)
       return status;
 
    /* only the mserver should stop on server connection closure */
-   if (!rpc_is_mserver()) {
+   if (!is_mserver) {
       return SS_SUCCESS;
    }
 
@@ -14835,31 +14975,31 @@ INT rpc_server_shutdown(void)
 
 \********************************************************************/
 {
-   INT i;
    struct linger ling;
 
    /* close all open connections */
-   for (i = 0; i < MAX_RPC_CONNECTION; i++)
-      if (_server_acception[i].recv_sock != 0) {
+   for (unsigned idx = 0; idx < _server_acceptions.size(); idx++)
+      if (_server_acceptions[idx] && _server_acceptions[idx]->recv_sock != 0) {
+         RPC_SERVER_ACCEPTION* sa = _server_acceptions[idx];
          /* lingering needed for PCTCP */
          ling.l_onoff = 1;
          ling.l_linger = 0;
-         setsockopt(_server_acception[i].recv_sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling));
-         closesocket(_server_acception[i].recv_sock);
+         setsockopt(sa->recv_sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling));
+         closesocket(sa->recv_sock);
 
-         if (_server_acception[i].send_sock) {
-            setsockopt(_server_acception[i].send_sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling));
-            closesocket(_server_acception[i].send_sock);
+         if (sa->send_sock) {
+            setsockopt(sa->send_sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling));
+            closesocket(sa->send_sock);
          }
 
-         if (_server_acception[i].event_sock) {
-            setsockopt(_server_acception[i].event_sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling));
-            closesocket(_server_acception[i].event_sock);
+         if (sa->event_sock) {
+            setsockopt(sa->event_sock, SOL_SOCKET, SO_LINGER, (char *) &ling, sizeof(ling));
+            closesocket(sa->event_sock);
          }
 
-         _server_acception[i].recv_sock = 0;
-         _server_acception[i].send_sock = 0;
-         _server_acception[i].event_sock = 0;
+         sa->recv_sock = 0;
+         sa->send_sock = 0;
+         sa->event_sock = 0;
       }
 
    if (_rpc_registered) {
@@ -14895,96 +15035,110 @@ INT rpc_check_channels(void)
 
 \********************************************************************/
 {
-   INT status, idx, i, convert_flags;
+   INT status;
    NET_COMMAND nc;
    fd_set readfds;
    struct timeval timeout;
 
-   for (idx = 0; idx < MAX_RPC_CONNECTION; idx++) {
-      if (_server_acception[idx].recv_sock &&
-          //_server_acception[idx].tid == ss_gettid() &&
-          _server_acception[idx].watchdog_timeout &&
-          (ss_millitime() - _server_acception[idx].last_activity >
-           (DWORD) _server_acception[idx].watchdog_timeout)) {
-/* printf("Send watchdog message to %s on %s\n",
-                _server_acception[idx].prog_name,
-                _server_acception[idx].host_name); */
+   for (unsigned idx = 0; idx < _server_acceptions.size(); idx++) {
+      if (_server_acceptions[idx] && _server_acceptions[idx]->recv_sock) {
+         RPC_SERVER_ACCEPTION* sa = _server_acceptions[idx];
 
-         /* send a watchdog message */
-         nc.header.routine_id = MSG_WATCHDOG;
-         nc.header.param_size = 0;
-
-         convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
-         if (convert_flags) {
-            rpc_convert_single(&nc.header.routine_id, TID_UINT32, RPC_OUTGOING, convert_flags);
-            rpc_convert_single(&nc.header.param_size, TID_UINT32, RPC_OUTGOING, convert_flags);
+         if (sa->watchdog_timeout == 0) {
+            continue;
          }
 
-         /* send the header to the client */
-         i = send_tcp(_server_acception[idx].send_sock, (char *) &nc, sizeof(NET_COMMAND_HEADER), 0);
+         DWORD elapsed = ss_millitime() - sa->last_activity;
+         //printf("rpc_check_channels: idx %d, watchdog_timeout %d, last_activity %d, elapsed %d\n", idx, sa->watchdog_timeout, sa->last_activity, elapsed);
 
-         if (i < 0)
-            goto exit;
+         if (sa->watchdog_timeout && (elapsed > sa->watchdog_timeout)) {
+         
+            //printf("rpc_check_channels: send watchdog message to %s on %s\n", sa->prog_name.c_str(), sa->host_name.c_str());
 
-         /* make some timeout checking */
-         FD_ZERO(&readfds);
-         FD_SET(_server_acception[idx].send_sock, &readfds);
-         FD_SET(_server_acception[idx].recv_sock, &readfds);
+            /* send a watchdog message */
+            nc.header.routine_id = MSG_WATCHDOG;
+            nc.header.param_size = 0;
 
-         timeout.tv_sec = _server_acception[idx].watchdog_timeout / 1000;
-         timeout.tv_usec = (_server_acception[idx].watchdog_timeout % 1000) * 1000;
+            int convert_flags = sa->convert_flags;
+            if (convert_flags) {
+               rpc_convert_single(&nc.header.routine_id, TID_UINT32, RPC_OUTGOING, convert_flags);
+               rpc_convert_single(&nc.header.param_size, TID_UINT32, RPC_OUTGOING, convert_flags);
+            }
 
-         do {
-            status = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
+            /* send the header to the client */
+            int i = send_tcp(sa->send_sock, (char *) &nc, sizeof(NET_COMMAND_HEADER), 0);
 
-            /* if an alarm signal was cought, restart select with reduced timeout */
-            if (status == -1 && timeout.tv_sec >= WATCHDOG_INTERVAL / 1000)
-               timeout.tv_sec -= WATCHDOG_INTERVAL / 1000;
+            if (i < 0) {
+               cm_msg(MINFO, "rpc_check_channels", "client \"%s\" on host \"%s\" failed watchdog test after %d sec, send_tcp() returned %d",
+                      sa->prog_name.c_str(),
+                      sa->host_name.c_str(),
+                      sa->watchdog_timeout / 1000,
+                      i);
+               
+               /* disconnect from experiment */
+               if (rpc_is_mserver())
+                  cm_disconnect_experiment();
+               
+               sa->close();
+               return RPC_NET_ERROR;
+            }
 
-         } while (status == -1);        /* dont return if an alarm signal was cought */
+            /* make some timeout checking */
+            FD_ZERO(&readfds);
+            FD_SET(sa->send_sock, &readfds);
+            FD_SET(sa->recv_sock, &readfds);
 
-         if (!FD_ISSET(_server_acception[idx].send_sock, &readfds) &&
-             !FD_ISSET(_server_acception[idx].recv_sock, &readfds))
-            goto exit;
+            timeout.tv_sec = sa->watchdog_timeout / 1000;
+            timeout.tv_usec = (sa->watchdog_timeout % 1000) * 1000;
 
-         /* receive result on send socket */
-         if (FD_ISSET(_server_acception[idx].send_sock, &readfds)) {
-            i = recv_tcp(_server_acception[idx].send_sock, (char *) &nc, sizeof(nc), 0);
-            if (i <= 0)
-               goto exit;
+            do {
+               status = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
+
+               /* if an alarm signal was cought, restart select with reduced timeout */
+               if (status == -1 && timeout.tv_sec >= WATCHDOG_INTERVAL / 1000)
+                  timeout.tv_sec -= WATCHDOG_INTERVAL / 1000;
+
+            } while (status == -1);        /* dont return if an alarm signal was cought */
+
+            if (!FD_ISSET(sa->send_sock, &readfds) &&
+                !FD_ISSET(sa->recv_sock, &readfds)) {
+
+               cm_msg(MINFO, "rpc_check_channels", "client \"%s\" on host \"%s\" failed watchdog test after %d sec",
+                      sa->prog_name.c_str(),
+                      sa->host_name.c_str(),
+                      sa->watchdog_timeout / 1000);
+               
+               /* disconnect from experiment */
+               if (rpc_is_mserver())
+                  cm_disconnect_experiment();
+               
+               sa->close();
+               return RPC_NET_ERROR;
+            }
+
+            /* receive result on send socket */
+            if (FD_ISSET(sa->send_sock, &readfds)) {
+               i = recv_tcp(sa->send_sock, (char *) &nc, sizeof(nc), 0);
+               if (i <= 0) {
+                  cm_msg(MINFO, "rpc_check_channels", "client \"%s\" on host \"%s\" failed watchdog test after %d sec, recv_tcp() returned %d",
+                         sa->prog_name.c_str(),
+                         sa->host_name.c_str(),
+                         sa->watchdog_timeout / 1000,
+                         i);
+                  
+                  /* disconnect from experiment */
+                  if (rpc_is_mserver())
+                     cm_disconnect_experiment();
+                  
+                  sa->close();
+                  return RPC_NET_ERROR;
+               }
+            }
          }
       }
    }
 
    return RPC_SUCCESS;
-
-   exit:
-
-   cm_msg(MINFO, "rpc_check_channels", "client \"%s\" on host \"%s\" failed watchdog test after %d sec",
-          _server_acception[idx].prog_name.c_str(),
-          _server_acception[idx].host_name.c_str(),
-          _server_acception[idx].watchdog_timeout / 1000);
-
-   /* disconnect from experiment */
-   if (rpc_is_mserver())
-      cm_disconnect_experiment();
-
-   /* close server connection */
-   if (_server_acception[idx].recv_sock)
-      closesocket(_server_acception[idx].recv_sock);
-   if (_server_acception[idx].send_sock)
-      closesocket(_server_acception[idx].send_sock);
-   if (_server_acception[idx].event_sock)
-      closesocket(_server_acception[idx].event_sock);
-
-   /* free TCP cache */
-   M_FREE(_server_acception[idx].net_buffer);
-   _server_acception[idx].net_buffer = NULL;
-
-   /* mark this entry as invalid */
-   _server_acception[idx].clear();
-
-   return RPC_NET_ERROR;
 }
 
 /** @} */

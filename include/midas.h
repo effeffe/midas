@@ -1937,7 +1937,7 @@ Data conversion flags */
    std::string rpc_get_name();
    INT EXPRT rpc_is_remote(void);
    std::string rpc_get_mserver_hostname();
-   INT EXPRT rpc_is_mserver(void);
+   bool EXPRT rpc_is_mserver(void);
    INT EXPRT rpc_set_debug(void (*func) (const char *), INT mode);
    void EXPRT rpc_debug_printf(const char *format, ...);
 

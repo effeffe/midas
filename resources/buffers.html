@@ -98,19 +98,24 @@
       td.innerHTML = "Waits";
       tr.appendChild(td);
       
-      td = document.createElement("th");
-      td.align = "center";
-      td.innerHTML = "Wait time";
-      tr.appendChild(td);
+      //td = document.createElement("th");
+      //td.align = "center";
+      //td.innerHTML = "Wait time";
+      //tr.appendChild(td);
+      
+      //td = document.createElement("th");
+      //td.align = "center";
+      //td.innerHTML = "Wait bytes";
+      //tr.appendChild(td);
+      
+      //td = document.createElement("th");
+      //td.align = "center";
+      //td.innerHTML = "Wait client";
+      //tr.appendChild(td);
       
       td = document.createElement("th");
       td.align = "center";
-      td.innerHTML = "Wait bytes";
-      tr.appendChild(td);
-      
-      td = document.createElement("th");
-      td.align = "center";
-      td.innerHTML = "Wait client";
+      td.innerHTML = "GET_ALL";
       tr.appendChild(td);
       
       td = document.createElement("th");
@@ -205,22 +210,28 @@
       td.innerHTML = "waits";
       tr.appendChild(td);
       
-      td = document.createElement("td");
-      td.id = p + "_wait_time";
-      td.align = "center";
-      td.innerHTML = "wait_time";
-      tr.appendChild(td);
+      //td = document.createElement("td");
+      //td.id = p + "_wait_time";
+      //td.align = "center";
+      //td.innerHTML = "wait_time";
+      //tr.appendChild(td);
+      
+      //td = document.createElement("td");
+      //td.id = p + "_wait_bytes";
+      //td.align = "center";
+      //td.innerHTML = "wait_bytes";
+      //tr.appendChild(td);
+      
+      //td = document.createElement("td");
+      //td.id = p + "_wait_client";
+      //td.align = "center";
+      //td.innerHTML = "wait_client";
+      //tr.appendChild(td);
       
       td = document.createElement("td");
-      td.id = p + "_wait_bytes";
+      td.id = p + "_get_all";
       td.align = "center";
-      td.innerHTML = "wait_bytes";
-      tr.appendChild(td);
-      
-      td = document.createElement("td");
-      td.id = p + "_wait_client";
-      td.align = "center";
-      td.innerHTML = "wait_client";
+      td.innerHTML = "GET_ALL";
       tr.appendChild(td);
       
       td = document.createElement("td");
@@ -235,11 +246,95 @@
    }
 
    function set_text(id, text) {
-      var e = document.getElementById(id);
+      let e = document.getElementById(id);
       if (e) {
          if (e.innerHTML != text) {
             e.innerHTML = text;
          }
+      }
+   }
+
+   function set_attr(id, attr, value) {
+      let e = document.getElementById(id);
+      if (e) {
+         let v = e[attr];
+         console.log("set_attr [" + id + "] attr [" + attr + "] to [" + value + "] old value is [" + v + "]");
+         if (v) {
+            if (value != v) {
+               e[attr] = value;
+            }
+         }
+      }
+   }
+
+   function millitime_age(now, millitime) {
+      let xnow = parseInt(now); // convert to number
+      let xmillitime = parseInt(millitime); // convert to number
+      if (xnow < xmillitime) {
+         let age = -1;
+         //console.log("millitime_age: " + xmillitime + " now " + xnow + " age " + age);
+         return age;
+      }
+      let age = xnow - xmillitime;
+      //console.log("millitime_age: " + xmillitime + " now " + xnow + " age " + age);
+      return age;
+   }
+
+   let rate_last_time = {};
+   let rate_last_value = {};
+
+   function get_rate(id, value) {
+      let now = Date.now();
+      if (rate_last_time[id]) {
+         let last_time  = rate_last_time[id];
+         let last_value = rate_last_value[id];
+         let dt = now - last_time;
+         let dv = value - last_value;
+         let rate = dv/dt*1000.0;
+         console.log("get_rate: " + id + " value " + value + " last " + last_value + " rate " + dv + "/" + dt + " = " + rate);
+         rate_last_time[id] = now;
+         rate_last_value[id] = value;
+         return rate;
+      } else {
+         rate_last_time[id] = now;
+         rate_last_value[id] = value;
+         return 0;
+      }
+   }
+
+   function rate_or_count(id, value) {
+      let rate = get_rate(id, value);
+      if (rate) {
+         return rate.toFixed(1) + "&nbspHz";
+      } else {
+         return value;
+      }
+   }
+
+   function bps_or_count(id, value) {
+      let rate = get_rate(id, value);
+      if (rate) {
+         if (rate > 1000000) {
+            return (rate/1000000.0).toFixed(1) + "&nbspMB/s";
+         } else if (rate > 10000) {
+            return (rate/1000.0).toFixed(1) + "&nbspKB/s";
+         } else {
+            return rate.toFixed(1) + "&nbspB/s";
+         }
+      } else {
+         return bytes_to_string(value);
+      }
+   }
+
+   function bytes_to_string(bytes) {
+      if (bytes > 1000000) {
+         return (bytes/1000000.0).toFixed(1) + "&nbsp;MB";
+      } else if (bytes > 10000) {
+         return (bytes/1000.0).toFixed(1) + "&nbsp;KB";
+      } else if (bytes > 0) {
+         return bytes + "&nbsp;B";
+      } else {
+         return bytes; // zero
       }
    }
 
@@ -249,57 +344,85 @@
       }
       var sectime = millitime/1000;
       if (sectime < 60) {
-         return sectime.toFixed(1) + " sec";
+         return sectime.toFixed(1) + "&nbsp;sec";
       }
       var mintime = sectime/60;
       if (mintime < 2*60) {
-         return mintime.toFixed(1) + " min";
+         return mintime.toFixed(1) + "&nbsp;min";
       }
       var hrstime = mintime/60;
       if (hrstime < 24) {
-         return hrstime.toFixed(0) + " hrs";
+         return hrstime.toFixed(0) + "&nbsp;hrs";
       }
       var daystime = hrstime/24;
-      return daystime.toFixed(0) + " days";
+      return daystime.toFixed(0) + "&nbsp;days";
    }
 
    function show_client(bufname, client_name, client, now) {
       create_client(bufname, client_name);
-      set_text(bufname + "_" + client_name + "_locks", client.count_lock);
-      if (client.count_read > 0) {
-         set_text(bufname + "_" + client_name + "_events", client.count_sent + "w+" + client.count_read + "r");
+      set_text(bufname + "_" + client_name + "_locks", get_rate(bufname + "_" + client_name + "_locks", client.count_lock).toFixed(1) + " Hz");
+      if (client.count_read == 0) {
+         set_text(bufname + "_" + client_name + "_events", rate_or_count(bufname + "_" + client_name + "_events", client.count_sent) + "&nbsp;w");
+      } else if (client.count_sent == 0) {
+         set_text(bufname + "_" + client_name + "_events", rate_or_count(bufname + "_" + client_name + "_events", client.count_read) + "&nbsp;r");
       } else {
-         set_text(bufname + "_" + client_name + "_events", client.count_sent);
+         set_text(bufname + "_" + client_name + "_events", client.count_sent + "&nbsp;w " + client.count_read + "&nbsp;w");
       }
-      if (client.bytes_read > 0) {
-         set_text(bufname + "_" + client_name + "_bytes", client.bytes_sent + "w+" + client.bytes_read + "r");
+      if (client.bytes_read == 0) {
+         set_text(bufname + "_" + client_name + "_bytes", bps_or_count(bufname + "_" + client_name + "_bytes", client.bytes_sent) + "&nbsp;w");
+      } else if (client.bytes_sent == 0) {
+         set_text(bufname + "_" + client_name + "_bytes", bps_or_count(bufname + "_" + client_name + "_bytes", client.bytes_read) + "&nbsp;r");
       } else {
-         set_text(bufname + "_" + client_name + "_bytes", client.bytes_sent);
+         set_text(bufname + "_" + client_name + "_bytes", bps_or_count(bufname + "_" + client_name + "_bytes", client.bytes_sent) + "&nbsp;w " + client.bytes_read + "&nbsp;r");
       }
-      set_text(bufname + "_" + client_name + "_waits", client.count_write_wait);
-      set_text(bufname + "_" + client_name + "_wait_time", client.time_write_wait);
-      set_text(bufname + "_" + client_name + "_wait_bytes", client.max_bytes_write_wait);
-      var wc = "";
-      if (client.get_all_flag) {
-         if (wc.length > 0)
-            wc += "<br>";
-         wc += "GET_ALL";
-         wc += " ";
-         wc += "Used " + client.bytes_used + " bytes";
-         wc += " ";
-         wc += client.pct_used.toFixed(1) + "%";
+      let wait_text = "";
+      //set_text(bufname + "_" + client_name + "_waits", client.count_write_wait);
+      if (client.time_write_wait > 0) {
+         //set_text(bufname + "_" + client_name + "_wait_time", millitime_to_string(client.time_write_wait));
+         wait_text += client.count_write_wait;
+         wait_text += "&nbsp;-&nbsp;";
+         wait_text += millitime_to_string(client.time_write_wait);
+      } else {
+         //set_text(bufname + "_" + client_name + "_wait_time", "-");
+         wait_text += "-";
+      }
+      if (client.max_bytes_write_wait > 0) {
+         //set_text(bufname + "_" + client_name + "_wait_bytes", client.max_bytes_write_wait);
+         wait_text += "&nbsp;-&nbsp;";
+         wait_text += client.max_bytes_write_wait + "&nbspB";
+      } else {
+         //set_text(bufname + "_" + client_name + "_wait_bytes", "-");
       }
       for (var w in client.writes_blocked_by) {
          if (w.indexOf("/") > 0)
             continue;
          var wclient = client.writes_blocked_by[w];
          var wclient_name = client.writes_blocked_by[w+"/name"];
-         if (wc.length > 0)
-            wc += "<br>";
-         wc += wclient_name + " " + wclient.count_write_wait + " " + wclient.time_write_wait;
+         if (wait_text.length > 0)
+            wait_text += "<br>";
+         wait_text += wclient_name + "&nbsp-&nbsp;" + wclient.count_write_wait + "&nbsp;-&nbsp;" + millitime_to_string(wclient.time_write_wait);
       }
-      set_text(bufname + "_" + client_name + "_wait_client", wc);
-      set_text(bufname + "_" + client_name + "_age", millitime_to_string(now - client.last_updated));
+      //set_text(bufname + "_" + client_name + "_wait_client", wc);
+      set_text(bufname + "_" + client_name + "_waits", wait_text);
+      var get_all_text = "";
+      if (client.get_all_flag) {
+         if (client.bytes_used) {
+            //get_all_text += "Used " + client.bytes_used + " bytes";
+            //get_all_text += " ";
+            get_all_text += client.pct_used.toFixed(1) + "%";
+         } else {
+            get_all_text += "0%";
+         }
+      }
+      set_text(bufname + "_" + client_name + "_get_all", get_all_text);
+      let age = millitime_age(now, client.last_updated);
+      set_text(bufname + "_" + client_name + "_age", millitime_to_string(age));
+      if ((age < 0) || (age > 60*60*1000)) {
+         //set_attr(bufname + "_" + client_name + "_age", "style", "xcolor:red");
+         mhttpd_hide(bufname + "_" + client_name);
+      } else {
+         mhttpd_unhide(bufname + "_" + client_name);
+      }
    }
 
    function show_buffer(bufname, buffer, now) {
@@ -308,7 +431,7 @@
       
       var buffer_table = create_buffer_table(bufname);
 
-      console.log("buffer: " + JSON.stringify(buffer));
+      //console.log("buffer: " + JSON.stringify(buffer));
 
       set_text(bufname + "_bufsize", buffer.size);
       set_text(bufname + "_buffill", buffer["filled"] + " bytes, " + buffer["filled pct"].toFixed(1) + "%");
