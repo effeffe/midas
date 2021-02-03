@@ -3060,7 +3060,10 @@ static MJsonNode* jrpc(const MJsonNode* params)
    status = rpc_client_call(hconn, RPC_JRPC, cmd.c_str(), args.c_str(), buf, buf_length);
 
    // disconnect return status ignored on purpose.
-   cm_disconnect_client(hconn, FALSE);
+   // disconnect not needed, there is no limit on number
+   // of connections. dead and closed connections are reaped
+   // automatically. K.O. Feb 2021.
+   // cm_disconnect_client(hconn, FALSE);
    jrpc_client_mutexes[name].unlock();
 
    if (status != RPC_SUCCESS) {

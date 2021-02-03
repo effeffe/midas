@@ -2180,7 +2180,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          if (client_name[0]) {
             if (cm_connect_client(client_name, &hConn) == CM_SUCCESS) {
                rpc_client_call(hConn, RPC_ANA_CLEAR_HISTOS, n1, n2);
-               cm_disconnect_client(hConn, FALSE);
+               //cm_disconnect_client(hConn, FALSE);
             } else
                printf("Cannot connect to client %s\n", client_name);
          }

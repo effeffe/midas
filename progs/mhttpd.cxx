@@ -6083,7 +6083,7 @@ void do_jrpc_rev0(Param* p, Return* r)
                                            );
                   r->rsprintf(" %d", status);
 
-                  status = cm_disconnect_client(hconn, FALSE);
+                  //status = cm_disconnect_client(hconn, FALSE);
                   r->rsprintf(" %d", status);
                }
 
@@ -6247,7 +6247,7 @@ void do_jrpc_rev1(Param* p, Return* r)
                      reply_body += buf;
                   }
 
-                  disconnect_status = cm_disconnect_client(hconn, FALSE);
+                  //disconnect_status = cm_disconnect_client(hconn, FALSE);
                   //r->rsprintf("    <disconnect_status>%d</disconnect_status>\n", status);
                }
 
@@ -6322,7 +6322,7 @@ void do_jrpc(Param* p, Return* r)
 
    r->rsprintf("%s", buf);
 
-   status = cm_disconnect_client(hconn, FALSE);
+   //status = cm_disconnect_client(hconn, FALSE);
 
    free(buf);
 }
@@ -7752,17 +7752,16 @@ static void show_cnaf_page(Param* p, Return* rr)
 
             if (status == RPC_NET_ERROR) {
                /* try to reconnect */
-               cm_disconnect_client(hconn, FALSE);
+               //cm_disconnect_client(hconn, FALSE);
                status = cm_connect_client(client_name, &hconn);
                if (status != RPC_SUCCESS) {
                   hconn = 0;
                   client_name[0] = 0;
                }
 
-               if (hconn)
-                  status =
-                      rpc_client_call(hconn, RPC_CNAF24, CNAF, 0, c, n, a, f, &d, &size,
-                                      &x, &q);
+               if (hconn) {
+                  status = rpc_client_call(hconn, RPC_CNAF24, CNAF, 0, c, n, a, f, &d, &size, &x, &q);
+               }
             }
          }
 
@@ -16246,7 +16245,7 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
             else
                redirect(r, "");
 
-            cm_disconnect_client(hconn, FALSE);
+            //cm_disconnect_client(hconn, FALSE);
          }
       }
 
