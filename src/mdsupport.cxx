@@ -67,7 +67,8 @@ INT midas_event_skip(INT evtn);
 
 void midas_bank_display(BANK *pbk, INT dsp_fmt);
 
-void midas_bank_display32(auto *pbk, INT dsp_fmt);
+template<typename T>
+void midas_bank_display32(T *pbk, INT dsp_fmt);
 
 struct stat *filestat;
 char *ptopmrd;
@@ -1422,7 +1423,8 @@ none
 }
 
 /*------------------------------------------------------------------*/
-void midas_bank_display32(auto *pbk, INT dsp_fmt)
+template<typename T>
+void midas_bank_display32(T *pbk, INT dsp_fmt)
 /********************************************************************\
 Routine: midas_bank_display32
 Purpose: display on screen the pointed MIDAS bank data using MIDAS Bank structure.
