@@ -18,6 +18,12 @@
 #include "msystem.h"
 #include "mrpc.h"
 
+TMFeResult TMFeMidasError(int status, const std::string& str)
+{
+   return TMFeResult(status, str);
+}
+
+
 TMFE::TMFE() // ctor
 {
    fDB = 0;
@@ -47,7 +53,7 @@ TMFE* TMFE::Instance()
    return gfMFE;
 }
 
-TMFeError TMFE::Connect(const char* progname, const char* filename, const char* hostname, const char* exptname)
+TMFeResult TMFE::Connect(const char* progname, const char* filename, const char* hostname, const char* exptname)
 {
    if (progname)
       fFrontendName     = progname;
@@ -83,45 +89,45 @@ TMFeError TMFE::Connect(const char* progname, const char* filename, const char* 
    
    if (status == CM_UNDEF_EXP) {
       fprintf(stderr, "TMidasOnline::connect: Error: experiment \"%s\" not defined.\n", fExptname.c_str());
-      return TMFeError(status, "experiment is not defined");
+      return TMFeMidasError(status, "experiment is not defined");
    } else if (status != CM_SUCCESS) {
       fprintf(stderr, "TMidasOnline::connect: Cannot connect to MIDAS, status %d.\n", status);
-      return TMFeError(status, "cannot connect");
+      return TMFeMidasError(status, "cannot connect");
    }
 
    status = cm_get_experiment_database(&fDB, NULL);
    if (status != CM_SUCCESS) {
-      return TMFeError(status, "cm_get_experiment_database");
+      return TMFeMidasError(status, "cm_get_experiment_database");
    }
 
    fOdbRoot = MakeMidasOdb(fDB);
   
-   return TMFeError();
+   return TMFeOk();
 }
 
-TMFeError TMFE::SetWatchdogSec(int sec)
+TMFeResult TMFE::SetWatchdogSec(int sec)
 {
    if (sec == 0) {
       cm_set_watchdog_params(false, 0);
    } else {
       cm_set_watchdog_params(true, sec*1000);
    }
-   return TMFeError();
+   return TMFeOk();
 }
 
-TMFeError TMFE::Disconnect()
+TMFeResult TMFE::Disconnect()
 {
    fprintf(stderr, "TMFE::Disconnect: Disconnecting from experiment \"%s\" on host \"%s\"\n", fExptname.c_str(), fHostname.c_str());
    StopRpcThread();
    StopPeriodicThread();
    cm_disconnect_experiment();
-   return TMFeError();
+   return TMFeOk();
 }
 
-TMFeError TMFE::RegisterEquipment(TMFeEquipment* eq)
+TMFeResult TMFE::RegisterEquipment(TMFeEquipment* eq)
 {
    fEquipments.push_back(eq);
-   return TMFeError();
+   return TMFeOk();
 }
 
 void TMFE::EquipmentPeriodicTasks()
@@ -360,29 +366,34 @@ std::string TMFE::GetThreadId() ///< return identification of this thread
    return ss_tid_to_string(ss_gettid());
 }
 
-std::string TMFeRpcHandlerInterface::HandleRpc(const char* cmd, const char* args)
+TMFeResult TMFeRpcHandlerInterface::HandleRpc(const char* cmd, const char* args, std::string& result)
 {
-   return "";
+   return TMFeOk();
 }
 
-void TMFeRpcHandlerInterface::HandleBeginRun()
+TMFeResult TMFeRpcHandlerInterface::HandleBeginRun()
 {
+   return TMFeOk();
 }
 
-void TMFeRpcHandlerInterface::HandleEndRun()
+TMFeResult TMFeRpcHandlerInterface::HandleEndRun()
 {
+   return TMFeOk();
 }
 
-void TMFeRpcHandlerInterface::HandlePauseRun()
+TMFeResult TMFeRpcHandlerInterface::HandlePauseRun()
 {
+   return TMFeOk();
 }
 
-void TMFeRpcHandlerInterface::HandleResumeRun()
+TMFeResult TMFeRpcHandlerInterface::HandleResumeRun()
 {
+   return TMFeOk();
 }
 
-void TMFeRpcHandlerInterface::HandleStartAbortRun()
+TMFeResult TMFeRpcHandlerInterface::HandleStartAbortRun()
 {
+   return TMFeOk();
 }
 
 static INT rpc_callback(INT index, void *prpc_param[])
@@ -397,10 +408,11 @@ static INT rpc_callback(INT index, void *prpc_param[])
    TMFE* mfe = TMFE::Instance();
 
    for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
-      std::string r = mfe->fRpcHandlers[i]->HandleRpc(cmd, args);
-      if (r.length() > 0) {
+      std::string result = "";
+      TMFeResult r = mfe->fRpcHandlers[i]->HandleRpc(cmd, args, result);
+      if (result.length() > 0) {
          //printf("Handler reply [%s]\n", C(r));
-         strlcpy(return_buf, r.c_str(), return_max_length);
+         strlcpy(return_buf, result.c_str(), return_max_length);
          return RPC_SUCCESS;
       }
    }
@@ -627,7 +639,7 @@ TMFeEquipment::TMFeEquipment(TMFE* mfe, const char* name, TMFeCommon* common) //
    fOdbEqVariables = NULL;
 }
 
-TMFeError TMFeEquipment::Init()
+TMFeResult TMFeEquipment::Init()
 {
    //
    // create ODB /eq/name/common
@@ -672,7 +684,7 @@ TMFeError TMFeEquipment::Init()
    if (fCommon->Buffer.length() > 0) {
       int status = bm_open_buffer(fCommon->Buffer.c_str(), DEFAULT_BUFFER_SIZE, &fBufferHandle);
       if (status != BM_SUCCESS) {
-         return TMFeError(status, "bm_open_buffer");
+         return TMFeMidasError(status, "bm_open_buffer");
       }
    }
 
@@ -685,10 +697,10 @@ TMFeError TMFeEquipment::Init()
    ZeroStatistics();
    WriteStatistics();
 
-   return TMFeError();
+   return TMFeOk();
 };
 
-TMFeError TMFeEquipment::ZeroStatistics()
+TMFeResult TMFeEquipment::ZeroStatistics()
 {
    fStatEvents = 0;
    fStatBytes = 0;
@@ -699,10 +711,10 @@ TMFeError TMFeEquipment::ZeroStatistics()
    fStatLastEvents = 0;
    fStatLastBytes = 0;
 
-   return TMFeError();
+   return TMFeOk();
 }
 
-TMFeError TMFeEquipment::WriteStatistics()
+TMFeResult TMFeEquipment::WriteStatistics()
 {
    double now = TMFE::GetTime();
    double elapsed = now - fStatLastTime;
@@ -720,10 +732,10 @@ TMFeError TMFeEquipment::WriteStatistics()
    fOdbEqStatistics->WD("Events per sec.", fStatEpS);
    fOdbEqStatistics->WD("kBytes per sec.", fStatKBpS);
 
-   return TMFeError();
+   return TMFeOk();
 }
 
-TMFeError TMFeEquipment::ComposeEvent(char* event, int size)
+TMFeResult TMFeEquipment::ComposeEvent(char* event, int size)
 {
    EVENT_HEADER* pevent = (EVENT_HEADER*)event;
    pevent->event_id = fCommon->EventID;
@@ -731,28 +743,28 @@ TMFeError TMFeEquipment::ComposeEvent(char* event, int size)
    pevent->serial_number = fSerial;
    pevent->time_stamp = TMFE::GetTime();
    pevent->data_size = 0;
-   return TMFeError();
+   return TMFeOk();
 }
 
-TMFeError TMFeEquipment::SendData(const char* buf, int size)
+TMFeResult TMFeEquipment::SendData(const char* buf, int size)
 {
    if (fBufferHandle == 0) {
-      return TMFeError();
+      return TMFeOk();
    }
    int status = bm_send_event(fBufferHandle, (const EVENT_HEADER*)buf, size, BM_WAIT);
    if (status == BM_CORRUPTED) {
       TMFE::Instance()->Msg(MERROR, "TMFeEquipment::SendData", "bm_send_event() returned %d, event buffer is corrupted, shutting down the frontend", status);
       TMFE::Instance()->fShutdownRequested = true;
-      return TMFeError(status, "bm_send_event: event buffer is corrupted, shutting down the frontend");
+      return TMFeMidasError(status, "bm_send_event: event buffer is corrupted, shutting down the frontend");
    } else if (status != BM_SUCCESS) {
-      return TMFeError(status, "bm_send_event");
+      return TMFeMidasError(status, "bm_send_event");
    }
    fStatEvents += 1;
    fStatBytes  += size;
-   return TMFeError();
+   return TMFeOk();
 }
 
-TMFeError TMFeEquipment::SendEvent(const char* event)
+TMFeResult TMFeEquipment::SendEvent(const char* event)
 {
    fSerial++;
    return SendData(event, sizeof(EVENT_HEADER) + BkSize(event));
@@ -763,10 +775,10 @@ int TMFeEquipment::BkSize(const char* event)
    return bk_size((void*)(event + sizeof(EVENT_HEADER))); // FIXME: need const in prototype!
 }
 
-TMFeError TMFeEquipment::BkInit(char* event, int size)
+TMFeResult TMFeEquipment::BkInit(char* event, int size)
 {
    bk_init32(event + sizeof(EVENT_HEADER));
-   return TMFeError();
+   return TMFeOk();
 }
 
 void* TMFeEquipment::BkOpen(char* event, const char* name, int tid)
@@ -776,21 +788,21 @@ void* TMFeEquipment::BkOpen(char* event, const char* name, int tid)
    return ptr;
 }
 
-TMFeError TMFeEquipment::BkClose(char* event, void* ptr)
+TMFeResult TMFeEquipment::BkClose(char* event, void* ptr)
 {
    bk_close(event + sizeof(EVENT_HEADER), ptr);
    ((EVENT_HEADER*)event)->data_size = BkSize(event);
-   return TMFeError();
+   return TMFeOk();
 }
 
-TMFeError TMFeEquipment::SetStatus(char const* eq_status, char const* eq_color)
+TMFeResult TMFeEquipment::SetStatus(char const* eq_status, char const* eq_color)
 {
    HNDLE hDB;
    int status;
 
    status = cm_get_experiment_database(&hDB, NULL);
    if (status != CM_SUCCESS) {
-      return TMFeError(status, "cm_get_experiment_database");
+      return TMFeMidasError(status, "cm_get_experiment_database");
    }
 
    if (eq_status) {
@@ -801,29 +813,29 @@ TMFeError TMFeEquipment::SetStatus(char const* eq_status, char const* eq_color)
       fOdbEqCommon->WS("Status color", eq_color, NAME_LENGTH);
    }
 
-   return TMFeError();
+   return TMFeOk();
 }
 
-TMFeError TMFE::TriggerAlarm(const char* name, const char* message, const char* aclass)
+TMFeResult TMFE::TriggerAlarm(const char* name, const char* message, const char* aclass)
 {
    int status = al_trigger_alarm(name, message, aclass, message, AT_INTERNAL);
 
    if (status) {
-      return TMFeError(status, "al_trigger_alarm");
+      return TMFeMidasError(status, "al_trigger_alarm");
    }
 
-   return TMFeError();
+   return TMFeOk();
 }
 
-TMFeError TMFE::ResetAlarm(const char* name)
+TMFeResult TMFE::ResetAlarm(const char* name)
 {
    int status = al_reset_alarm(name);
 
    if (status) {
-      return TMFeError(status, "al_reset_alarm");
+      return TMFeMidasError(status, "al_reset_alarm");
    }
 
-   return TMFeError();
+   return TMFeOk();
 }
 
 // singleton instance

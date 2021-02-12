@@ -68,7 +68,7 @@ BOOL equipment_common_overwrite = TRUE;
 EQUIPMENT equipment[] = {
 
    {"HV",                       /* equipment name */
-    {3, 0,                       /* event ID, trigger mask */
+    {3, 0,                      /* event ID, trigger mask */
      "SYSTEM",                  /* event buffer */
      EQ_SLOW,                   /* equipment type */
      0,                         /* event source */
@@ -78,7 +78,7 @@ EQUIPMENT equipment[] = {
      60000,                     /* read every 60 sec */
      0,                         /* stop run after this event limit */
      0,                         /* number of sub events */
-     10000,                         /* log history every event */
+     10000,                     /* log history at most every ten seconds */
      "", "", ""} ,
     cd_hv_read,                 /* readout routine */
     cd_hv,                      /* class driver main routine */
@@ -97,7 +97,7 @@ EQUIPMENT equipment[] = {
      60000,                     /* read every 60 sec */
      0,                         /* stop run after this event limit */
      0,                         /* number of sub events */
-     1,                         /* log history every event */
+     1,                         /* log history every event as often as it changes (max 1 Hz) */
      "", "", ""} ,
     cd_multi_read,              /* readout routine */
     cd_multi,                   /* class driver main routine */
