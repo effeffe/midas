@@ -81,23 +81,30 @@ System message types */
 #define MATTRPRINTF(a, b)
 #endif
 
-class TMFeError
+class TMFeResult
 {
  public:
-   int error;
-   std::string error_string;
+   bool error_flag = false;
+   int  error_code = 0;
+   std::string error_string = "success";
 
  public:
-   TMFeError() { // default ctor for success
-      error = 0;
-      error_string = "success";
+   TMFeResult() { // default ctor for success
    }
 
-   TMFeError(int status, const std::string& str) { // ctor
-      error = status;
+   TMFeResult(int code, const std::string& str) { // ctor
+      error_flag = true;
+      error_code = code;
       error_string = str;
    }
 };
+
+// special TMFeResult constructors
+
+inline TMFeResult TMFeOk() { return TMFeResult(); }
+TMFeResult TMFeMidasError(int status, const std::string& str);
+
+// Equipment Common
 
 class TMFeCommon
 {
@@ -159,28 +166,28 @@ class TMFeEquipment
 
  public:
    TMFeEquipment(TMFE* mfe, const char* name, TMFeCommon* common); // ctor
-   TMFeError Init(); ///< Initialize equipment
-   TMFeError SendData(const char* data, int size);    ///< ...
-   TMFeError ComposeEvent(char* pevent, int size);
-   TMFeError BkInit(char* pevent, int size);
-   void*     BkOpen(char* pevent, const char* bank_name, int bank_type);
-   TMFeError BkClose(char* pevent, void* ptr);
+   TMFeResult Init(); ///< Initialize equipment
+   TMFeResult SendData(const char* data, int size);    ///< ...
+   TMFeResult ComposeEvent(char* pevent, int size);
+   TMFeResult BkInit(char* pevent, int size);
+   void*      BkOpen(char* pevent, const char* bank_name, int bank_type);
+   TMFeResult BkClose(char* pevent, void* ptr);
    int       BkSize(const char* pevent);
-   TMFeError SendEvent(const char* pevent);
-   TMFeError ZeroStatistics();
-   TMFeError WriteStatistics();
-   TMFeError SetStatus(const char* status, const char* color);
+   TMFeResult SendEvent(const char* pevent);
+   TMFeResult ZeroStatistics();
+   TMFeResult WriteStatistics();
+   TMFeResult SetStatus(const char* status, const char* color);
 };
 
 class TMFeRpcHandlerInterface
 {
  public:
-   virtual void HandleBeginRun();
-   virtual void HandleEndRun();
-   virtual void HandlePauseRun();
-   virtual void HandleResumeRun();
-   virtual void HandleStartAbortRun();
-   virtual std::string HandleRpc(const char* cmd, const char* args);
+   virtual TMFeResult HandleBeginRun();
+   virtual TMFeResult HandleEndRun();
+   virtual TMFeResult HandlePauseRun();
+   virtual TMFeResult HandleResumeRun();
+   virtual TMFeResult HandleStartAbortRun();
+   virtual TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response);
 };
 
 class TMFePeriodicHandlerInterface
@@ -249,10 +256,10 @@ class TMFE
    /// to the one instance of this class.
    static TMFE* Instance();
    
-   TMFeError Connect(const char* progname, const char* filename = NULL, const char*hostname = NULL, const char*exptname = NULL);
-   TMFeError Disconnect();
+   TMFeResult Connect(const char* progname, const char* filename = NULL, const char*hostname = NULL, const char*exptname = NULL);
+   TMFeResult Disconnect();
 
-   TMFeError RegisterEquipment(TMFeEquipment* eq);
+   TMFeResult RegisterEquipment(TMFeEquipment* eq);
    void RegisterRpcHandler(TMFeRpcHandlerInterface* handler); ///< RPC handlers are executed from the RPC thread, if started
    void RegisterPeriodicHandler(TMFeEquipment* eq, TMFePeriodicHandlerInterface* handler); ///< periodic handlers are executed from the periodic thread, if started
 
@@ -262,14 +269,14 @@ class TMFE
    void StopRpcThread();
    void StopPeriodicThread();
 
-   TMFeError SetWatchdogSec(int sec);
+   TMFeResult SetWatchdogSec(int sec);
 
    void PollMidas(int millisec);
    void MidasPeriodicTasks();
    void EquipmentPeriodicTasks();
 
-   TMFeError TriggerAlarm(const char* name, const char* message, const char* aclass);
-   TMFeError ResetAlarm(const char* name);
+   TMFeResult TriggerAlarm(const char* name, const char* message, const char* aclass);
+   TMFeResult ResetAlarm(const char* name);
 
    void Msg(int message_type, const char *filename, int line, const char *routine, const char *format, ...) MATTRPRINTF(6,7);
 

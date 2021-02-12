@@ -62,22 +62,24 @@ public:
       fEq->SendEvent(fEventBuf);
    }
 
-   std::string HandleRpc(const char* cmd, const char* args)
+   TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response)
    {
       fMfe->Msg(MINFO, "HandleRpc", "Thread %s, RPC cmd [%s], args [%s]", TMFE::GetThreadId().c_str(), cmd, args);
-      return "OK";
+      return TMFeOk();
    }
 
-   void HandleBeginRun()
+   TMFeResult HandleBeginRun()
    {
       fMfe->Msg(MINFO, "HandleBeginRun", "Thread %s, Begin run!", TMFE::GetThreadId().c_str());
       fEq->SetStatus("Running", "#00FF00");
+      return TMFeOk();
    }
 
-   void HandleEndRun()
+   TMFeResult HandleEndRun()
    {
       fMfe->Msg(MINFO, "HandleEndRun", "Thread %s, End run!", TMFE::GetThreadId().c_str());
       fEq->SetStatus("Stopped", "#00FF00");
+      return TMFeOk();
    }
 
    void HandlePeriodic()
@@ -113,8 +115,8 @@ int main(int argc, char* argv[])
 
    TMFE* mfe = TMFE::Instance();
 
-   TMFeError err = mfe->Connect("fetest_tmfe_thread", __FILE__);
-   if (err.error) {
+   TMFeResult result = mfe->Connect("fetest_tmfe_thread", __FILE__);
+   if (result.error_flag) {
       printf("Cannot connect, bye.\n");
       return 1;
    }

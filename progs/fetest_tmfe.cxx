@@ -61,22 +61,24 @@ public:
       fEq->SendEvent(fEventBuf);
    }
 
-   std::string HandleRpc(const char* cmd, const char* args)
+   TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response)
    {
       fMfe->Msg(MINFO, "HandleRpc", "RPC cmd [%s], args [%s]", cmd, args);
-      return "OK";
+      return TMFeOk();
    }
 
-   void HandleBeginRun()
+   TMFeResult HandleBeginRun()
    {
       fMfe->Msg(MINFO, "HandleBeginRun", "Begin run!");
       fEq->SetStatus("Running", "#00FF00");
+      return TMFeOk();
    }
 
-   void HandleEndRun()
+   TMFeResult HandleEndRun()
    {
       fMfe->Msg(MINFO, "HandleEndRun", "End run!");
       fEq->SetStatus("Stopped", "#00FF00");
+      return TMFeOk();
    }
 
    //void HandleStartAbortRun()
@@ -118,8 +120,8 @@ int main(int argc, char* argv[])
 
    TMFE* mfe = TMFE::Instance();
 
-   TMFeError err = mfe->Connect("fetest_tmfe", __FILE__);
-   if (err.error) {
+   TMFeResult result = mfe->Connect("fetest_tmfe", __FILE__);
+   if (result.error_flag) {
       printf("Cannot connect, bye.\n");
       return 1;
    }
