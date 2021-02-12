@@ -67,7 +67,8 @@ INT midas_event_skip(INT evtn);
 
 void midas_bank_display(BANK *pbk, INT dsp_fmt);
 
-void midas_bank_display32(BANK32 *pbk, INT dsp_fmt);
+template<typename T>
+void midas_bank_display32(T *pbk, INT dsp_fmt);
 
 struct stat *filestat;
 char *ptopmrd;
@@ -922,10 +923,10 @@ none
                bk_iterate32a(pbh, &pmbk32a, &pdata);
                if (pmbk32a != NULL)
                   if (single && (pdata == pdata1))
-                     midas_bank_display32((BANK32*)pmbk32a, dsp_fmt);
+                     midas_bank_display32<BANK32A>(pmbk32a, dsp_fmt);
                if (!single)
                   if (pmbk32a != NULL)
-                     midas_bank_display32((BANK32*)pmbk32a, dsp_fmt);
+                     midas_bank_display32<BANK32A>(pmbk32a, dsp_fmt);
             } while (pmbk32a != NULL);
          } else if (bk_is32(pbh)) {
             pmbk32 = NULL;
@@ -933,10 +934,10 @@ none
                bk_iterate32(pbh, &pmbk32, &pdata);
                if (pmbk32 != NULL)
                   if (single && (pdata == pdata1))
-                     midas_bank_display32(pmbk32, dsp_fmt);
+                     midas_bank_display32<BANK32>(pmbk32, dsp_fmt);
                if (!single)
                   if (pmbk32 != NULL)
-                     midas_bank_display32(pmbk32, dsp_fmt);
+                     midas_bank_display32<BANK32>(pmbk32, dsp_fmt);
             } while (pmbk32 != NULL);
          } else {
             pmbk = NULL;
@@ -980,7 +981,7 @@ none
    else {
       if (data_fmt == FORMAT_MIDAS) {
          if (bk_is32(pmbh))
-            midas_bank_display32((BANK32 *) pbk, dsp_fmt);
+            midas_bank_display32<BANK32>((BANK32 *) pbk, dsp_fmt);
          else
             midas_bank_display((BANK *) pbk, dsp_fmt);
       } else if (data_fmt == FORMAT_YBOS)
@@ -1422,7 +1423,8 @@ none
 }
 
 /*------------------------------------------------------------------*/
-void midas_bank_display32(BANK32 *pbk, INT dsp_fmt)
+template<typename T>
+void midas_bank_display32(T *pbk, INT dsp_fmt)
 /********************************************************************\
 Routine: midas_bank_display32
 Purpose: display on screen the pointed MIDAS bank data using MIDAS Bank structure.
