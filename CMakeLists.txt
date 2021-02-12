@@ -7,7 +7,7 @@
 message(STATUS "MIDAS: cmake version: " ${CMAKE_VERSION})
 cmake_minimum_required(VERSION 3.0)
 
-set(CMAKE_CXX_STANDARD 11) # this does not work on SL6
+set(CMAKE_CXX_STANDARD 14) # this does not work on SL6
 set(CMAKE_CXX_STANDARD_REQUIRED ON) # this does not work on SL6
 
 #message(STATUS "MIDAS: CMAKE_CXX_FLAGS_RELWITHDEBINFO: ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
