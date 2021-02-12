@@ -14,8 +14,8 @@ set(PROGS
    melog
    mh2sql
    hwtest
-   fetest_tmfe
-   fetest_tmfe_thread
+   tmfe_example
+   tmfe_example_multithread
    crc32c_sum
    lazylogger
 )
