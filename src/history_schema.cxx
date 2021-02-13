@@ -2193,6 +2193,9 @@ int HsFileSchema::read_data(const time_t start_time,
 
          time_t t = *(DWORD*)buf;
 
+         if (debug > 1)
+            printf("FileHistory::read: file %s, schema time %s..%s, read time %s..%s, row time %s\n", s->file_name.c_str(), TimeToString(s->time_from).c_str(), TimeToString(s->time_to).c_str(), TimeToString(start_time).c_str(), TimeToString(end_time).c_str(), TimeToString(t).c_str());
+
          if (t < start_time) {
             cm_msg(MERROR, "FileHistory::read_data", "Bad timestamp in history file \'%s\', time 0x%08x less then start_time 0x%08x, irec %d, nrec %d, fpos %d", s->file_name.c_str(), (DWORD)t, (DWORD)start_time, irec, nrec, fpos);
             break;
