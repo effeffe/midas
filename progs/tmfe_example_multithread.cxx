@@ -1,7 +1,7 @@
 //
-// fetest_tmfe_thread.cxx
+// tmfe_example_multithread.cxx
 //
-// Frontend for test and example of multithreaded tmfe c++ frontend
+// Example tmfe multithreaded c++ frontend
 //
 
 #include <stdio.h>
@@ -9,57 +9,40 @@
 #include <assert.h> // assert()
 #include <stdlib.h> // malloc()
 #include <unistd.h> // sleep()
+#include <math.h> // M_PI
 
 #include "midas.h"
 #include "tmfe.h"
 
 class Myfe :
    public TMFeRpcHandlerInterface,
-   public  TMFePeriodicHandlerInterface   
+   public TMFePeriodicHandlerInterface   
 {
 public:
    TMFE* fMfe;
    TMFeEquipment* fEq;
 
-   int fEventSize;
-   char* fEventBuf;
-
    Myfe(TMFE* mfe, TMFeEquipment* eq) // ctor
    {
       fMfe = mfe;
       fEq  = eq;
-      fEventSize = 0;
-      fEventBuf  = NULL;
    }
 
    ~Myfe() // dtor
    {
-      if (fEventBuf) {
-         free(fEventBuf);
-         fEventBuf = NULL;
-      }
    }
 
-   void Init()
+   void SendData(double dvalue)
    {
-      fEventSize = 100;
-      fEq->fOdbEqSettings->RI("event_size", &fEventSize, true);
-      if (fEventBuf) {
-         free(fEventBuf);
-      }
-      fEventBuf = (char*)malloc(fEventSize);
-   }
-
-   void SendEvent(double dvalue)
-   {
-      fEq->ComposeEvent(fEventBuf, fEventSize);
-      fEq->BkInit(fEventBuf, fEventSize);
+      char buf[1024];
+      fEq->ComposeEvent(buf, sizeof(buf));
+      fEq->BkInit(buf, sizeof(buf));
          
-      double* ptr = (double*)fEq->BkOpen(fEventBuf, "test", TID_DOUBLE);
-      *ptr = dvalue;
-      fEq->BkClose(fEventBuf, ptr+1);
+      double* ptr = (double*)fEq->BkOpen(buf, "test", TID_DOUBLE);
+      *ptr++ = dvalue;
+      fEq->BkClose(buf, ptr);
 
-      fEq->SendEvent(fEventBuf);
+      fEq->SendEvent(buf);
    }
 
    TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response)
@@ -85,16 +68,20 @@ public:
    void HandlePeriodic()
    {
       printf("Thread %s, periodic!\n", TMFE::GetThreadId().c_str());
-      //char buf[256];
-      //sprintf(buf, "buffered %d (max %d), dropped %d, unknown %d, max flushed %d", gUdpPacketBufSize, fMaxBuffered, fCountDroppedPackets, fCountUnknownPackets, fMaxFlushed);
-      //fEq->SetStatus(buf, "#00FF00");
-      //fEq->WriteStatistics();
+      double t = TMFE::GetTime();
+      double data = 100.0*sin(M_PI/2.0+M_PI*t/60);
+      SendData(data);
+      fEq->fOdbEqVariables->WD("data", data);
+      fEq->WriteStatistics();
+      char status_buf[256];
+      sprintf(status_buf, "value %.1f", data);
+      fEq->SetStatus(status_buf, "#00FF00");
    }
 };
 
 static void usage()
 {
-   fprintf(stderr, "Usage: fetest_tmfe_thread ...\n");
+   fprintf(stderr, "Usage: tmfe_example_mt ...\n");
    exit(1);
 }
 
@@ -105,19 +92,19 @@ int main(int argc, char* argv[])
 
    signal(SIGPIPE, SIG_IGN);
 
-   std::string name = "";
-
-   if (argc == 2) {
-      name = argv[1];
-   } else {
-      usage(); // DOES NOT RETURN
-   }
+   //std::string name = "";
+   //
+   //if (argc == 2) {
+   //   name = argv[1];
+   //} else {
+   //   usage(); // DOES NOT RETURN
+   //}
 
    TMFE* mfe = TMFE::Instance();
 
-   TMFeResult result = mfe->Connect("fetest_tmfe_thread", __FILE__);
+   TMFeResult result = mfe->Connect("tmfe_example_mt", __FILE__);
    if (result.error_flag) {
-      printf("Cannot connect, bye.\n");
+      fprintf(stderr, "Cannot connect to MIDAS, error \"%s\", bye.\n", result.error_message.c_str());
       return 1;
    }
 
@@ -126,9 +113,10 @@ int main(int argc, char* argv[])
    TMFeCommon *common = new TMFeCommon();
    common->EventID = 1;
    common->LogHistory = 1;
+   common->Period = 1000; // milliseconds
    //common->Buffer = "SYSTEM";
    
-   TMFeEquipment* eq = new TMFeEquipment(mfe, "tmfe", common);
+   TMFeEquipment* eq = new TMFeEquipment(mfe, "tmfe_example_mt", common);
    eq->Init();
    eq->SetStatus("Starting...", "white");
    eq->ZeroStatistics();
@@ -144,8 +132,6 @@ int main(int argc, char* argv[])
    //mfe->SetTransitionSequenceStop(90);
    //mfe->DeregisterTransitionPause();
    //mfe->DeregisterTransitionResume();
-
-   myfe->Init();
 
    mfe->RegisterPeriodicHandler(eq, myfe);
 
