@@ -86,7 +86,7 @@ class TMFeResult
  public:
    bool error_flag = false;
    int  error_code = 0;
-   std::string error_string = "success";
+   std::string error_message = "success";
 
  public:
    TMFeResult() { // default ctor for success
@@ -95,7 +95,7 @@ class TMFeResult
    TMFeResult(int code, const std::string& str) { // ctor
       error_flag = true;
       error_code = code;
-      error_string = str;
+      error_message = str;
    }
 };
 
