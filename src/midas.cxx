@@ -3670,8 +3670,7 @@ INT cm_register_transition(INT transition, INT(*func)(INT, char *), INT sequence
    char str[256];
 
    /* check for valid transition */
-   if (transition != TR_START && transition != TR_STOP && transition != TR_PAUSE && transition != TR_RESUME
-       && transition != TR_STARTABORT) {
+   if (transition != TR_START && transition != TR_STOP && transition != TR_PAUSE && transition != TR_RESUME && transition != TR_STARTABORT) {
       cm_msg(MERROR, "cm_register_transition", "Invalid transition request \"%d\"", transition);
       return CM_INVALID_TRANSITION;
    }
@@ -3688,8 +3687,7 @@ INT cm_register_transition(INT transition, INT(*func)(INT, char *), INT sequence
          break;
 
    if (i == MAX_TRANSITIONS) {
-      cm_msg(MERROR, "cm_register_transition",
-             "To many transition registrations. Please increase MAX_TRANSITIONS and recompile");
+      cm_msg(MERROR, "cm_register_transition", "To many transition registrations. Please increase MAX_TRANSITIONS and recompile");
       return CM_TOO_MANY_REQUESTS;
    }
 
@@ -3733,7 +3731,7 @@ INT cm_deregister_transition(INT transition) {
    char str[256];
 
    /* check for valid transition */
-   if (transition != TR_START && transition != TR_STOP && transition != TR_PAUSE && transition != TR_RESUME) {
+   if (transition != TR_START && transition != TR_STOP && transition != TR_PAUSE && transition != TR_RESUME && transition != TR_STARTABORT) {
       cm_msg(MERROR, "cm_deregister_transition", "Invalid transition request \"%d\"", transition);
       return CM_INVALID_TRANSITION;
    }
@@ -3746,8 +3744,7 @@ INT cm_deregister_transition(INT transition) {
          break;
 
    if (i == MAX_TRANSITIONS) {
-      cm_msg(MERROR, "cm_register_transition",
-             "Cannot de-register transition registration, request not found");
+      cm_msg(MERROR, "cm_register_transition", "Cannot de-register transition %d registration, request not found", transition);
       return CM_INVALID_TRANSITION;
    }
 
@@ -4015,7 +4012,7 @@ typedef struct {
    int async_flag;
    int debug_flag;
    int status;
-   char errorstr[256];
+   char errorstr[TRANSITION_ERROR_STRING_LENGTH];
    DWORD start_time;
    DWORD end_time;
    int num_clients;
@@ -4367,8 +4364,7 @@ int cm_transition_call(void *param) {
 
    t0 = ss_millitime();
 
-   status = rpc_client_call(hConn, RPC_RC_TRANSITION, tr_client->transition, tr_client->run_number, tr_client->errorstr,
-                            sizeof(tr_client->errorstr), tr_client->sequence_number);
+   status = rpc_client_call(hConn, RPC_RC_TRANSITION, tr_client->transition, tr_client->run_number, tr_client->errorstr, sizeof(tr_client->errorstr), tr_client->sequence_number);
 
    t1 = ss_millitime();
 
@@ -4515,7 +4511,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    KEY key;
    BOOL deferred;
    TR_CLIENT *tr_client;
-   char xerrstr[256];
+   char xerrstr[TRANSITION_ERROR_STRING_LENGTH];
 
    /* if needed, use internal error string */
    if (!errstr) {

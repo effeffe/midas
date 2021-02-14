@@ -259,6 +259,7 @@ typedef std::vector<std::string> STRING_LIST;
 #define MAX_ODB_PATH           256           /**< length of path in ODB       */
 #define BANKLIST_MAX           4096          /**< max # of banks in event     */
 #define STRING_BANKLIST_MAX    BANKLIST_MAX * 4   /**< for bk_list()          */
+#define TRANSITION_ERROR_STRING_LENGTH 256   /**< length of transition error string */
 
 
 #define MIDAS_TCP_PORT 1175     /* port under which server is listening */
