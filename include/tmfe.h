@@ -182,11 +182,11 @@ class TMFeEquipment
 class TMFeRpcHandlerInterface
 {
  public:
-   virtual TMFeResult HandleBeginRun();
-   virtual TMFeResult HandleEndRun();
-   virtual TMFeResult HandlePauseRun();
-   virtual TMFeResult HandleResumeRun();
-   virtual TMFeResult HandleStartAbortRun();
+   virtual TMFeResult HandleBeginRun(int run_number);
+   virtual TMFeResult HandleEndRun(int run_number);
+   virtual TMFeResult HandlePauseRun(int run_number);
+   virtual TMFeResult HandleResumeRun(int run_number);
+   virtual TMFeResult HandleStartAbortRun(int run_number);
    virtual TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response);
 };
 

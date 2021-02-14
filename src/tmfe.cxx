@@ -371,27 +371,27 @@ TMFeResult TMFeRpcHandlerInterface::HandleRpc(const char* cmd, const char* args,
    return TMFeOk();
 }
 
-TMFeResult TMFeRpcHandlerInterface::HandleBeginRun()
+TMFeResult TMFeRpcHandlerInterface::HandleBeginRun(int run_number)
 {
    return TMFeOk();
 }
 
-TMFeResult TMFeRpcHandlerInterface::HandleEndRun()
+TMFeResult TMFeRpcHandlerInterface::HandleEndRun(int run_number)
 {
    return TMFeOk();
 }
 
-TMFeResult TMFeRpcHandlerInterface::HandlePauseRun()
+TMFeResult TMFeRpcHandlerInterface::HandlePauseRun(int run_number)
 {
    return TMFeOk();
 }
 
-TMFeResult TMFeRpcHandlerInterface::HandleResumeRun()
+TMFeResult TMFeRpcHandlerInterface::HandleResumeRun(int run_number)
 {
    return TMFeOk();
 }
 
-TMFeResult TMFeRpcHandlerInterface::HandleStartAbortRun()
+TMFeResult TMFeRpcHandlerInterface::HandleStartAbortRun(int run_number)
 {
    return TMFeOk();
 }
@@ -421,7 +421,7 @@ static INT rpc_callback(INT index, void *prpc_param[])
    return RPC_SUCCESS;
 }
 
-static INT tr_start(INT runno, char *errstr)
+static INT tr_start(INT run_number, char *errstr)
 {
    cm_msg(MINFO, "tr_start", "tr_start");
 
@@ -433,19 +433,19 @@ static INT tr_start(INT runno, char *errstr)
    }
 
    for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
-      mfe->fRpcHandlers[i]->HandleBeginRun();
+      mfe->fRpcHandlers[i]->HandleBeginRun(run_number);
    }
 
    return SUCCESS;
 }
 
-static INT tr_stop(INT runno, char *errstr)
+static INT tr_stop(INT run_number, char *errstr)
 {
    cm_msg(MINFO, "tr_stop", "tr_stop");
 
    TMFE* mfe = TMFE::Instance();
    for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
-      mfe->fRpcHandlers[i]->HandleEndRun();
+      mfe->fRpcHandlers[i]->HandleEndRun(run_number);
    }
 
    for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
@@ -456,37 +456,37 @@ static INT tr_stop(INT runno, char *errstr)
    return SUCCESS;
 }
 
-static INT tr_pause(INT runno, char *errstr)
+static INT tr_pause(INT run_number, char *errstr)
 {
    cm_msg(MINFO, "tr_pause", "tr_pause");
 
    TMFE* mfe = TMFE::Instance();
    for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
-      mfe->fRpcHandlers[i]->HandlePauseRun();
+      mfe->fRpcHandlers[i]->HandlePauseRun(run_number);
    }
 
    return SUCCESS;
 }
 
-static INT tr_resume(INT runno, char *errstr)
+static INT tr_resume(INT run_number, char *errstr)
 {
    cm_msg(MINFO, "tr_resume", "tr_resume");
 
    TMFE* mfe = TMFE::Instance();
    for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
-      mfe->fRpcHandlers[i]->HandleResumeRun();
+      mfe->fRpcHandlers[i]->HandleResumeRun(run_number);
    }
 
    return SUCCESS;
 }
 
-static INT tr_startabort(INT runno, char *errstr)
+static INT tr_startabort(INT run_number, char *errstr)
 {
    cm_msg(MINFO, "tr_startabort", "tr_startabort");
 
    TMFE* mfe = TMFE::Instance();
    for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
-      mfe->fRpcHandlers[i]->HandleStartAbortRun();
+      mfe->fRpcHandlers[i]->HandleStartAbortRun(run_number);
    }
 
    return SUCCESS;

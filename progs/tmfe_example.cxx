@@ -50,24 +50,25 @@ public:
       return TMFeOk();
    }
 
-   TMFeResult HandleBeginRun()
+   TMFeResult HandleBeginRun(int run_number)
    {
-      fMfe->Msg(MINFO, "HandleBeginRun", "Begin run!");
+      fMfe->Msg(MINFO, "HandleBeginRun", "Begin run %d!", run_number);
       fEq->SetStatus("Running", "#00FF00");
       return TMFeOk();
    }
 
-   TMFeResult HandleEndRun()
+   TMFeResult HandleEndRun(int run_number)
    {
-      fMfe->Msg(MINFO, "HandleEndRun", "End run!");
+      fMfe->Msg(MINFO, "HandleEndRun", "End run %d!", run_number);
       fEq->SetStatus("Stopped", "#00FF00");
       return TMFeOk();
    }
 
-   //void HandleStartAbortRun()
+   //TMFeResult HandleStartAbortRun(int run_number)
    //{
-   //   fMfe->Msg(MINFO, "HandleStartAbortRun", "Begin run aborted!");
+   //   fMfe->Msg(MINFO, "HandleStartAbortRun", "Begin run %d aborted!", run_number);
    //   fEq->SetStatus("Stopped", "#00FF00");
+   //   return TMFeOk();
    //}
 
    void HandlePeriodic()
@@ -135,8 +136,10 @@ int main(int argc, char* argv[])
 
    //mfe->SetTransitionSequenceStart(910);
    //mfe->SetTransitionSequenceStop(90);
+
    //mfe->DeregisterTransitionPause();
    //mfe->DeregisterTransitionResume();
+
    //mfe->RegisterTransitionStartAbort();
 
    mfe->RegisterPeriodicHandler(eq, myfe);
