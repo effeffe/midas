@@ -18,10 +18,23 @@
 #include "msystem.h"
 #include "mrpc.h"
 
-TMFeResult TMFeMidasError(int status, const std::string& str)
+//////////////////////////////////////////////////////////////////////
+// error handling
+//////////////////////////////////////////////////////////////////////
+
+TMFeResult TMFeErrorMessage(const std::string& message)
 {
-   return TMFeResult(status, str);
+   return TMFeResult(0, message);
 }
+
+TMFeResult TMFeMidasError(int midas_status, const std::string& str)
+{
+   return TMFeResult(midas_status, str);
+}
+
+//////////////////////////////////////////////////////////////////////
+// TMFE singleton class
+//////////////////////////////////////////////////////////////////////
 
 
 TMFE::TMFE() // ctor
@@ -432,8 +445,26 @@ static INT tr_start(INT run_number, char *errstr)
       mfe->fEquipments[i]->WriteStatistics();
    }
 
+   TMFeResult result;
+
    for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
-      mfe->fRpcHandlers[i]->HandleBeginRun(run_number);
+      result = mfe->fRpcHandlers[i]->HandleBeginRun(run_number);
+      if (result.error_flag) {
+         // error handling in this function matches general transition error handling:
+         // on run start, the first user handler to return an error code
+         // will abort the transition. This leaves everything in an
+         // inconsistent state: frontends called before the abort
+         // think the run is running, which it does not. They should register
+         // a handler for the "start abort" transition. This transition calls
+         // all already started frontends so they can cleanup their state. K.O.
+         // 
+         break;
+      }
+   }
+
+   if (result.error_flag) {
+      strlcpy(errstr, result.error_message.c_str(), TRANSITION_ERROR_STRING_LENGTH);
+      return FE_ERR_DRIVER;
    }
 
    return SUCCESS;
@@ -443,15 +474,28 @@ static INT tr_stop(INT run_number, char *errstr)
 {
    cm_msg(MINFO, "tr_stop", "tr_stop");
 
+   TMFeResult result;
+
    TMFE* mfe = TMFE::Instance();
    for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
-      mfe->fRpcHandlers[i]->HandleEndRun(run_number);
+      TMFeResult xresult = mfe->fRpcHandlers[i]->HandleEndRun(run_number);
+      if (xresult.error_flag) {
+         // error handling in this function matches general transition error handling:
+         // the "run stop" transition is always sucessful, the run always stops.
+         // if some frontend returns an error, this error is remembered and is returned
+         // as the transition over all status. K.O.
+         result = xresult;
+      }
    }
 
    for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
       mfe->fEquipments[i]->WriteStatistics();
    }
 
+   if (result.error_flag) {
+      strlcpy(errstr, result.error_message.c_str(), TRANSITION_ERROR_STRING_LENGTH);
+      return FE_ERR_DRIVER;
+   }
 
    return SUCCESS;
 }
@@ -460,9 +504,21 @@ static INT tr_pause(INT run_number, char *errstr)
 {
    cm_msg(MINFO, "tr_pause", "tr_pause");
 
+   TMFeResult result;
+
    TMFE* mfe = TMFE::Instance();
    for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
-      mfe->fRpcHandlers[i]->HandlePauseRun(run_number);
+      result = mfe->fRpcHandlers[i]->HandlePauseRun(run_number);
+      if (result.error_flag) {
+         // error handling in this function matches general transition error handling:
+         // logic is same as "start run"
+         break;
+      }
+   }
+
+   if (result.error_flag) {
+      strlcpy(errstr, result.error_message.c_str(), TRANSITION_ERROR_STRING_LENGTH);
+      return FE_ERR_DRIVER;
    }
 
    return SUCCESS;
@@ -472,9 +528,21 @@ static INT tr_resume(INT run_number, char *errstr)
 {
    cm_msg(MINFO, "tr_resume", "tr_resume");
 
+   TMFeResult result;
+
    TMFE* mfe = TMFE::Instance();
    for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
-      mfe->fRpcHandlers[i]->HandleResumeRun(run_number);
+      result = mfe->fRpcHandlers[i]->HandleResumeRun(run_number);
+      if (result.error_flag) {
+         // error handling in this function matches general transition error handling:
+         // logic is same as "start run"
+         break;
+      }
+   }
+
+   if (result.error_flag) {
+      strlcpy(errstr, result.error_message.c_str(), TRANSITION_ERROR_STRING_LENGTH);
+      return FE_ERR_DRIVER;
    }
 
    return SUCCESS;
@@ -484,9 +552,21 @@ static INT tr_startabort(INT run_number, char *errstr)
 {
    cm_msg(MINFO, "tr_startabort", "tr_startabort");
 
+   TMFeResult result;
+
    TMFE* mfe = TMFE::Instance();
    for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
-      mfe->fRpcHandlers[i]->HandleStartAbortRun(run_number);
+      result = mfe->fRpcHandlers[i]->HandleStartAbortRun(run_number);
+      if (result.error_flag) {
+         // error handling in this function matches general transition error handling:
+         // logic is same as "start run"
+         break;
+      }
+   }
+
+   if (result.error_flag) {
+      strlcpy(errstr, result.error_message.c_str(), TRANSITION_ERROR_STRING_LENGTH);
+      return FE_ERR_DRIVER;
    }
 
    return SUCCESS;

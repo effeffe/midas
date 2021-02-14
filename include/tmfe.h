@@ -102,7 +102,8 @@ class TMFeResult
 // special TMFeResult constructors
 
 inline TMFeResult TMFeOk() { return TMFeResult(); }
-TMFeResult TMFeMidasError(int status, const std::string& str);
+TMFeResult TMFeErrorMessage(const std::string& message);
+TMFeResult TMFeMidasError(int midas_status, const std::string& str);
 
 // Equipment Common
 
