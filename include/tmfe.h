@@ -139,23 +139,27 @@ class MVOdb;
 
 class TMFeEquipment
 {
- public:
+public:
    std::string fName;
-   TMFeCommon *fCommon;
-   TMFE* fMfe;
+   TMFeCommon *fCommon = NULL;
+   TMFE* fMfe = NULL;
 
- public:
-   int fBufferHandle;
-   int fSerial;
+public:
+   size_t fBufferSize = 0;
+   size_t fMaxEventSize = 0;
 
- public:
+public:
+   int fBufferHandle = 0;
+   int fSerial = 0;
+
+public:
    MVOdb* fOdbEq;           ///< ODB Equipment/EQNAME
    MVOdb* fOdbEqCommon;     ///< ODB Equipment/EQNAME/Common
    MVOdb* fOdbEqSettings;   ///< ODB Equipment/EQNAME/Settings
    MVOdb* fOdbEqVariables;  ///< ODB Equipment/EQNAME/Variables
    MVOdb* fOdbEqStatistics; ///< ODB Equipment/EQNAME/Statistics
 
- public:
+public:
    double fStatEvents;
    double fStatBytes;
    double fStatEpS; // events/sec
@@ -165,12 +169,12 @@ class TMFeEquipment
    double fStatLastEvents;
    double fStatLastBytes;
 
- public:
+public:
    TMFeEquipment(TMFE* mfe, const char* name, TMFeCommon* common); // ctor
    TMFeResult Init(); ///< Initialize equipment
-   TMFeResult SendData(const char* data, int size);    ///< ...
-   TMFeResult ComposeEvent(char* pevent, int size);
-   TMFeResult BkInit(char* pevent, int size);
+   TMFeResult SendData(const char* data, size_t size);    ///< ...
+   TMFeResult ComposeEvent(char* pevent, size_t size);
+   TMFeResult BkInit(char* pevent, size_t size);
    void*      BkOpen(char* pevent, const char* bank_name, int bank_type);
    TMFeResult BkClose(char* pevent, void* ptr);
    int       BkSize(const char* pevent);

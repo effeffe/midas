@@ -761,12 +761,35 @@ TMFeResult TMFeEquipment::Init()
    fCommon->Status += fMfe->fFrontendHostname;
    fCommon->StatusColor = "greenLight";
 
+   uint32_t odb_max_event_size = DEFAULT_MAX_EVENT_SIZE;
+   fMfe->fOdbRoot->RU32("Experiment/MAX_EVENT_SIZE", &odb_max_event_size, true);
+
+   fMaxEventSize = odb_max_event_size;
+
    if (fCommon->Buffer.length() > 0) {
       int status = bm_open_buffer(fCommon->Buffer.c_str(), DEFAULT_BUFFER_SIZE, &fBufferHandle);
       if (status != BM_SUCCESS) {
          return TMFeMidasError(status, "bm_open_buffer");
       }
+
+      uint32_t buffer_size = 0;
+      fMfe->fOdbRoot->RU32(std::string("Experiment/Buffer Sizes/" + fCommon->Buffer).c_str(), &buffer_size);
+
+      if (buffer_size > 0) {
+         fBufferSize = buffer_size;
+
+         // in bm_send_event(), maximum event size is the event buffer size,
+         // here, we half it, to make sure we can buffer at least 2 events. K.O.
+
+         uint32_t buffer_max_event_size = buffer_size/2;
+      
+         if (buffer_max_event_size < fMaxEventSize) {
+            fMaxEventSize = buffer_max_event_size;
+         }
+      }
    }
+
+   printf("Equipment \"%s\": max event size: %d, max event size in ODB: %d, buffer \"%s\" size: %d\n", fName.c_str(), (int)fMaxEventSize, (int)odb_max_event_size, fCommon->Buffer.c_str(), (int)fBufferSize);
 
    fOdbEqCommon->WS("Frontend host", fCommon->FrontendHost.c_str(), NAME_LENGTH);
    fOdbEqCommon->WS("Frontend name", fCommon->FrontendName.c_str(), NAME_LENGTH);
@@ -815,7 +838,7 @@ TMFeResult TMFeEquipment::WriteStatistics()
    return TMFeOk();
 }
 
-TMFeResult TMFeEquipment::ComposeEvent(char* event, int size)
+TMFeResult TMFeEquipment::ComposeEvent(char* event, size_t size)
 {
    EVENT_HEADER* pevent = (EVENT_HEADER*)event;
    pevent->event_id = fCommon->EventID;
@@ -826,7 +849,7 @@ TMFeResult TMFeEquipment::ComposeEvent(char* event, int size)
    return TMFeOk();
 }
 
-TMFeResult TMFeEquipment::SendData(const char* buf, int size)
+TMFeResult TMFeEquipment::SendData(const char* buf, size_t size)
 {
    if (fBufferHandle == 0) {
       return TMFeOk();
@@ -852,10 +875,10 @@ TMFeResult TMFeEquipment::SendEvent(const char* event)
 
 int TMFeEquipment::BkSize(const char* event)
 {
-   return bk_size((void*)(event + sizeof(EVENT_HEADER))); // FIXME: need const in prototype!
+   return bk_size(event + sizeof(EVENT_HEADER));
 }
 
-TMFeResult TMFeEquipment::BkInit(char* event, int size)
+TMFeResult TMFeEquipment::BkInit(char* event, size_t size)
 {
    bk_init32(event + sizeof(EVENT_HEADER));
    return TMFeOk();
