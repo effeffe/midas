@@ -500,9 +500,6 @@ $(BIN_DIR)/%: progs/%.cxx $(LIB)
 $(BIN_DIR)/odbedit: progs/odbedit.cxx progs/cmdedit.cxx $(LIB)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
 
-$(BIN_DIR)/fetest: progs/fetest.cxx $(LIB_DIR)/mfe.o $(LIB)
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
-
 #
 # Main target
 #

@@ -24,22 +24,6 @@
 #include <string.h>
 
 #include "midas.h"
-#include "mfe.h"
-
-/*-- Globals -------------------------------------------------------*/
-
-/* The frontend name (client name) as seen by other MIDAS clients   */
-const char *frontend_name = "fetest";
-
-/* The frontend file name, don't change it */
-const char *frontend_file_name = __FILE__;
-
-/* frontend_loop is called periodically if this variable is TRUE    */
-BOOL frontend_call_loop = FALSE;
-
-/* a frontend status page is displayed with this frequency in ms */
-//INT display_period = 3000;
-INT display_period = 0;
 
 /* maximum event size produced by this frontend */
 INT max_event_size      = 4*1024*1024;
@@ -48,29 +32,14 @@ INT max_event_size_frag = 4*1024*1024;
 /* buffer size to hold events */
 INT event_buffer_size = 10*1024*1024;
 
-/*-- Function declarations -----------------------------------------*/
-
-INT frontend_init();
-INT frontend_exit();
-INT begin_of_run(INT run_number, char *error);
-INT end_of_run(INT run_number, char *error);
-INT pause_run(INT run_number, char *error);
-INT resume_run(INT run_number, char *error);
-INT frontend_loop();
-INT poll_event(INT source, INT count, BOOL test);
-INT interrupt_configure(INT cmd, INT source, PTYPE adr);
-
 int read_test_event(char *pevent, int off);
 int read_slow_event(char *pevent, int off);
-int read_random_event(char *pevent, int off);
 
 /*-- Equipment list ------------------------------------------------*/
 
 #define EVID_TEST 1
 #define EVID_SLOW 2
 #define EVID_RANDOM 3
-
-BOOL equipment_common_overwrite = FALSE;
 
 EQUIPMENT equipment[] = {
 
@@ -108,23 +77,6 @@ EQUIPMENT equipment[] = {
     },
     read_slow_event,/* readout routine */
   },
-  { "random"   ,         /* equipment name */
-    {
-      EVID_RANDOM, (1<<EVID_RANDOM),           /* event ID, trigger mask */
-      "SYSTEM",             /* event buffer */
-      EQ_PERIODIC,          /* equipment type */
-      0,                    /* event source */
-      "MIDAS",              /* format */
-      TRUE,                 /* enabled */
-      RO_RUNNING,           /* Read when running */
-      100,                  /* poll every so milliseconds */
-      0,                    /* stop run after this event limit */
-      0,                    /* number of sub events */
-      0,                    /* history period */
-      "", "", ""
-    },
-    read_random_event,/* readout routine */
-  },
   { "" }
 };
 
@@ -158,35 +110,12 @@ int event_size = 10*1024;
 
 /*-- Frontend Init -------------------------------------------------*/
 
-HNDLE hSet;
-int test_rb_wait_sleep = 1;
-
-// RPC handler
-
-INT rpc_callback(INT index, void *prpc_param[])
-{
-   const char* cmd  = CSTRING(0);
-   const char* args = CSTRING(1);
-   char* return_buf = CSTRING(2);
-   int   return_max_length = CINT(3);
-
-   cm_msg(MINFO, "rpc_callback", "--------> rpc_callback: index %d, max_length %d, cmd [%s], args [%s]", index, return_max_length, cmd, args);
-
-   //int example_int = strtol(args, NULL, 0);
-   //int size = sizeof(int);
-   //int status = db_set_value(hDB, 0, "/Equipment/" EQ_NAME "/Settings/example_int", &example_int, size, 1, TID_INT);
-
-   char tmp[256];
-   time_t now = time(NULL);
-   sprintf(tmp, "{ \"current_time\" : [ %d, \"%s\"] }", (int)now, ctime(&now));
-
-   strlcpy(return_buf, tmp, return_max_length);
-
-   return RPC_SUCCESS;
-}
+//HNDLE hSet;
+//int test_rb_wait_sleep = 1;
 
 void configure()
 {
+#if 0
    int size, status;
 
    size = sizeof(event_size);
@@ -200,6 +129,7 @@ void configure()
    assert(status == DB_SUCCESS);
 
    printf("Ring buffer wait sleep %d ms\n", test_rb_wait_sleep);
+#endif
 }
 
 #include "msystem.h"
@@ -209,6 +139,7 @@ int test_rb_wait_count = 0;
 int test_event_count = 0;
 int test_rbh = 0;
 
+#if 0
 int test_thread(void *param)
 {
    int status;
@@ -292,7 +223,9 @@ int test_thread(void *param)
 
    return 0;
 }
+#endif
 
+#if 0
 INT frontend_init()
 {
    int status, size;
@@ -309,11 +242,6 @@ INT frontend_init()
    status = db_find_key(hDB, 0, "/equipment/test/Settings", &hSet);
    assert(status == DB_SUCCESS);
 
-#ifdef RPC_JRPC
-   status = cm_register_function(RPC_JRPC, rpc_callback);
-   assert(status == SUCCESS);
-#endif
-
    create_event_rb(test_rbh);
    ss_thread_create(test_thread, 0);
 
@@ -325,182 +253,7 @@ INT frontend_init()
    
    return SUCCESS;
 }
-
-/*-- Frontend Exit -------------------------------------------------*/
-
-INT frontend_exit()
-{
-   printf("frontend_exit!\n");
-   return SUCCESS;
-}
-
-/*-- Begin of Run --------------------------------------------------*/
-
-INT begin_of_run(INT run_number, char *error)
-{
-   printf("begin_of_run %d\n", run_number);
-
-   int fail = 0;
-   int status;
-   int size;
-
-   size = sizeof(fail);
-   status = db_get_value(hDB, hSet, "fail_begin_of_run", &fail, &size, TID_INT, TRUE);
-   assert(status == DB_SUCCESS);
-
-   if (fail) {
-      printf("fail_begin_of_run: returning error status %d\n", fail);
-      return fail;
-   }
-   
-   configure();
-   
-   int s = 0;
-   size = sizeof(s);
-   status = db_get_value(hDB, hSet, "sleep_begin_of_run", &s, &size, TID_INT, TRUE);
-   assert(status == DB_SUCCESS);
-   
-   if (s) {
-      printf("sleep_begin_of_run: calling ss_sleep(%d)\n", s);
-      ss_sleep(s);
-   }
-
-   test_event_count = 0;
-   test_rb_wait_count = 0;
-   test_run_number = run_number; // tell thread to start running
-   
-   return SUCCESS;
-}
-
-/*-- End of Run ----------------------------------------------------*/
-
-INT end_of_run(INT run_number, char *error)
-{
-   printf("end_of_run %d\n", run_number);
-
-   int fail = 0;
-   int status;
-   int size;
-
-   size = sizeof(fail);
-   status = db_get_value(hDB, hSet, "fail_end_of_run", &fail, &size, TID_INT, TRUE);
-   assert(status == DB_SUCCESS);
-
-   if (fail) {
-      printf("fail_end_of_run: returning error status %d\n", fail);
-      return fail;
-   }
-   
-   test_run_number = 0; // tell thread to stop running
-
-   int s = 0;
-   size = sizeof(s);
-   status = db_get_value(hDB, hSet, "sleep_end_of_run", &s, &size, TID_INT, TRUE);
-   assert(status == DB_SUCCESS);
-   
-   if (s) {
-      printf("sleep_end_of_run: calling ss_sleep(%d)\n", s);
-      ss_sleep(s);
-   }
-
-   printf("test_event_count: %d events sent, ring buffer wait count %d\n", test_event_count, test_rb_wait_count);
-
-   return SUCCESS;
-}
-
-/*-- Pause Run -----------------------------------------------------*/
-
-INT pause_run(INT run_number, char *error)
-{
-   printf("pause_run %d\n", run_number);
-
-   int fail = 0;
-   int status;
-   int size;
-
-   size = sizeof(fail);
-   status = db_get_value(hDB, hSet, "fail_pause_run", &fail, &size, TID_INT, TRUE);
-   assert(status == DB_SUCCESS);
-
-   if (fail) {
-      printf("fail_pause_run: returning error status %d\n", fail);
-      return fail;
-   }
-   
-   test_run_number = 0; // tell thread to stop running
-   return SUCCESS;
-}
-
-/*-- Resume Run ----------------------------------------------------*/
-
-INT resume_run(INT run_number, char *error)
-{
-   printf("resume_run %d\n", run_number);
-
-   int fail = 0;
-   int status;
-   int size;
-
-   size = sizeof(fail);
-   status = db_get_value(hDB, hSet, "fail_resume_run", &fail, &size, TID_INT, TRUE);
-   assert(status == DB_SUCCESS);
-
-   if (fail) {
-      printf("fail_resume_run: returning error status %d\n", fail);
-      return fail;
-   }
-
-   test_run_number = run_number; // tell thread to start running
-   return SUCCESS;
-}
-
-/*-- Frontend Loop -------------------------------------------------*/
-
-INT frontend_loop()
-{
-   /* if frontend_call_loop is true, this routine gets called when
-      the frontend is idle or once between every event */
-   return SUCCESS;
-}
-
-/*------------------------------------------------------------------*/
-
-/********************************************************************\
-  
-  Readout routines for different events
-
-\********************************************************************/
-
-INT poll_event(INT source, INT count, BOOL test)
-/* Polling routine for events. Returns TRUE if event
-   is available. If test equals TRUE, don't return. The test
-   flag is used to time the polling */
-{
-   if (test) {
-      ss_sleep (count);
-   }
-   return (0);
-}
-
-/*-- Interrupt configuration ---------------------------------------*/
-
-INT interrupt_configure(INT cmd, INT source, PTYPE adr)
-{
-   printf("interrupt_configure!\n");
-
-   switch(cmd)
-      {
-      case CMD_INTERRUPT_ENABLE:
-         break;
-      case CMD_INTERRUPT_DISABLE:
-         break;
-      case CMD_INTERRUPT_ATTACH:
-         break;
-      case CMD_INTERRUPT_DETACH:
-         break;
-      }
-   return SUCCESS;
-}
+#endif
 
 /*-- Event readout -------------------------------------------------*/
 
@@ -540,37 +293,358 @@ int read_slow_event(char *pevent, int off)
    return bk_size(pevent);
 }
 
-int read_random_event(char *pevent, int off)
+//
+// tmfe_example.cxx
+//
+// Example tmfe c++ frontend with a periodic equipment
+//
+
+#include <stdio.h>
+#include <signal.h> // SIGPIPE
+#include <assert.h> // assert()
+#include <stdlib.h> // malloc()
+#include <math.h> // M_PI
+
+#include "midas.h"
+#include "tmfe.h"
+
+class EqRandom :
+   public TMFeEquipment,
+   public TMFePeriodicHandlerInterface   
 {
-   if (drand48() < 0.5)
-      bk_init(pevent);
-   else
-      bk_init32(pevent);
+public:
+   EqRandom(TMFE* mfe, const char* name, TMFeCommon* common)
+      : TMFeEquipment(mfe, name, common)
+   {
 
-   int nbank = 1+8*drand48();
 
-   for (int i=nbank; i>=0; i--) {
-      char name[5];
-      name[0] = 'R';
-      name[1] = 'N';
-      name[2] = 'D';
-      name[3] = '0' + i;
-      name[4] = 0;
-
-      int tid = 1+(TID_LAST-1)*drand48();
-
-      int size = 100*drand48();
-
-      char* ptr;
-      bk_create(pevent, name, tid, (void**)&ptr);
-
-      for (int j=0; j<size; j++)
-         ptr[j] = i;
-
-      bk_close(pevent, ptr + size);
+   }
+   
+   void HandlePeriodic()
+   {
+      char pevent[4*1024*1024];
+      
+      if (drand48() < 0.5)
+         bk_init(pevent);
+      else
+         bk_init32(pevent);
+      
+      int nbank = 1+8*drand48();
+      
+      for (int i=nbank; i>=0; i--) {
+         char name[5];
+         name[0] = 'R';
+         name[1] = 'N';
+         name[2] = 'D';
+         name[3] = '0' + i;
+         name[4] = 0;
+         
+         int tid = 1+(TID_LAST-1)*drand48();
+         
+         int size = 100*drand48();
+         
+         char* ptr;
+         bk_create(pevent, name, tid, (void**)&ptr);
+         
+         for (int j=0; j<size; j++)
+            ptr[j] = i;
+         
+         bk_close(pevent, ptr + size);
+      }
+      
+      SendEvent(pevent);
    }
 
-   return bk_size(pevent);
+#if 0
+  { "random"   ,         /* equipment name */
+    {
+      EVID_RANDOM, (1<<EVID_RANDOM),           /* event ID, trigger mask */
+      "SYSTEM",             /* event buffer */
+      EQ_PERIODIC,          /* equipment type */
+      0,                    /* event source */
+      "MIDAS",              /* format */
+      TRUE,                 /* enabled */
+      RO_RUNNING,           /* Read when running */
+      100,                  /* poll every so milliseconds */
+      0,                    /* stop run after this event limit */
+      0,                    /* number of sub events */
+      0,                    /* history period */
+      "", "", ""
+    },
+    read_random_event,/* readout routine */
+  },
+#endif
+
+};
+
+class Myfe :
+   public TMFeRpcHandlerInterface,
+   public TMFePeriodicHandlerInterface   
+{
+public:
+   TMFE* fMfe = NULL;
+   TMFeEquipment* fEq = NULL;
+
+   Myfe(TMFE* mfe, TMFeEquipment* eq) // ctor
+   {
+      fMfe = mfe;
+      fEq  = eq;
+   }
+
+   ~Myfe() // dtor
+   {
+   }
+
+   void SendData(double dvalue)
+   {
+      char buf[1024];
+      fEq->ComposeEvent(buf, sizeof(buf));
+      fEq->BkInit(buf, sizeof(buf));
+         
+      double* ptr = (double*)fEq->BkOpen(buf, "test", TID_DOUBLE);
+      *ptr++ = dvalue;
+      fEq->BkClose(buf, ptr);
+
+      fEq->SendEvent(buf);
+   }
+
+   TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response)
+   {
+      fMfe->Msg(MINFO, "HandleRpc", "RPC cmd [%s], args [%s]", cmd, args);
+
+      // RPC handler
+      
+      //int example_int = strtol(args, NULL, 0);
+      //int size = sizeof(int);
+      //int status = db_set_value(hDB, 0, "/Equipment/" EQ_NAME "/Settings/example_int", &example_int, size, 1, TID_INT);
+      
+      char tmp[256];
+      time_t now = time(NULL);
+      sprintf(tmp, "{ \"current_time\" : [ %d, \"%s\"] }", (int)now, ctime(&now));
+      
+      response = tmp;
+
+      return TMFeOk();
+   }
+
+   TMFeResult HandleBeginRun(int run_number)
+   {
+      fMfe->Msg(MINFO, "HandleBeginRun", "Begin run %d!", run_number);
+      fEq->SetStatus("Running", "#00FF00");
+      
+      printf("begin_of_run %d\n", run_number);
+      
+      int fail = 0;
+      fEq->fOdbEqSettings->RI("fail_begin_of_run", &fail, true);
+      
+      if (fail) {
+         printf("fail_begin_of_run: returning error status %d\n", fail);
+         return TMFeErrorMessage("begin of run failed by ODB setting!");
+      }
+      
+      configure();
+      
+      int s = 0;
+      fEq->fOdbEqSettings->RI("sleep_begin_of_run", &s, true);
+      
+      if (s) {
+         printf("sleep_begin_of_run: calling ss_sleep(%d)\n", s);
+         ss_sleep(s);
+      }
+      
+      test_event_count = 0;
+      test_rb_wait_count = 0;
+      test_run_number = run_number; // tell thread to start running
+      
+      return TMFeOk();
+   }
+
+   TMFeResult HandleEndRun(int run_number)
+   {
+      fMfe->Msg(MINFO, "HandleEndRun", "End run %d!", run_number);
+      fEq->SetStatus("Stopped", "#00FF00");
+
+      printf("end_of_run %d\n", run_number);
+      
+      int fail = 0;
+      fEq->fOdbEqSettings->RI("fail_end_of_run", &fail, true);
+      
+      if (fail) {
+         printf("fail_end_of_run: returning error status %d\n", fail);
+         return TMFeResult(fail, "end of run failed by ODB setting!");
+      }
+      
+      test_run_number = 0; // tell thread to stop running
+      
+      int s = 0;
+      fEq->fOdbEqSettings->RI("sleep_end_of_run", &s, true);
+      
+      if (s) {
+         printf("sleep_end_of_run: calling ss_sleep(%d)\n", s);
+         ss_sleep(s);
+      }
+      
+      printf("test_event_count: %d events sent, ring buffer wait count %d\n", test_event_count, test_rb_wait_count);
+      
+      return TMFeOk();
+   }
+
+   TMFeResult HandlePauseRun(int run_number)
+   {
+      fMfe->Msg(MINFO, "HandlePauseRun", "Pause run %d!", run_number);
+      fEq->SetStatus("Stopped", "#00FF00");
+
+      printf("pause_run %d\n", run_number);
+
+      int fail = 0;
+      fEq->fOdbEqSettings->RI("fail_pause_run", &fail, true);
+      
+      if (fail) {
+         printf("fail_pause_run: returning error status %d\n", fail);
+         return TMFeResult(fail, "pause run failed by ODB setting!");
+      }
+      
+      test_run_number = 0; // tell thread to stop running
+
+      return TMFeOk();
+   }
+
+   TMFeResult HandleResumeRun(int run_number)
+   {
+      fMfe->Msg(MINFO, "HandleResumeRun", "Resume run %d!", run_number);
+      fEq->SetStatus("Stopped", "#00FF00");
+
+      printf("resume_run %d\n", run_number);
+
+      int fail = 0;
+      fEq->fOdbEqSettings->RI("fail_resume_run", &fail, true);
+      
+      if (fail) {
+         printf("fail_resume_run: returning error status %d\n", fail);
+         return TMFeResult(fail, "resume run failed by ODB setting!");
+      }
+      
+      test_run_number = run_number; // tell thread to start running
+
+      return TMFeOk();
+   }
+
+   TMFeResult HandleStartAbortRun(int run_number)
+   {
+      fMfe->Msg(MINFO, "HandleStartAbortRun", "Begin run %d aborted!", run_number);
+      fEq->SetStatus("Stopped", "#00FF00");
+
+      printf("start abort run %d\n", run_number);
+
+      int fail = 0;
+      fEq->fOdbEqSettings->RI("fail_start_abort", &fail, true);
+      
+      if (fail) {
+         printf("fail_start_abort: returning error status %d\n", fail);
+         return TMFeResult(fail, "start abort failed by ODB setting!");
+      }
+      
+      test_run_number = run_number; // tell thread to start running
+
+      return TMFeOk();
+   }
+
+   void HandlePeriodic()
+   {
+      printf("periodic!\n");
+      double t = TMFE::GetTime();
+      double data = 100.0*sin(-M_PI/2.0+M_PI*t/60);
+      SendData(data);
+      fEq->fOdbEqVariables->WD("data", data);
+      fEq->WriteStatistics();
+      char status_buf[256];
+      sprintf(status_buf, "value %.1f", data);
+      fEq->SetStatus(status_buf, "#00FF00");
+   }
+};
+
+static void usage()
+{
+   fprintf(stderr, "Usage: fetest ...\n");
+   exit(1);
+}
+
+int main(int argc, char* argv[])
+{
+   setbuf(stdout, NULL);
+   setbuf(stderr, NULL);
+
+   signal(SIGPIPE, SIG_IGN);
+
+   //std::string name = "";
+   //
+   //if (argc == 2) {
+   //   name = argv[1];
+   //} else {
+   //   usage(); // DOES NOT RETURN
+   //}
+
+   TMFE* mfe = TMFE::Instance();
+
+   TMFeResult result = mfe->Connect("fetest", __FILE__);
+   if (result.error_flag) {
+      fprintf(stderr, "Cannot connect to MIDAS, error \"%s\", bye.\n", result.error_message.c_str());
+      return 1;
+   }
+
+   //mfe->SetWatchdogSec(0);
+
+   TMFeCommon *common = new TMFeCommon();
+   common->Period  = 1000;
+   common->EventID = 1;
+   common->LogHistory = 1;
+   //common->Buffer = "SYSTEM";
+   
+   TMFeEquipment* eq = new TMFeEquipment(mfe, "test", common);
+   eq->Init();
+   eq->SetStatus("Starting...", "white");
+   eq->ZeroStatistics();
+   eq->WriteStatistics();
+
+   mfe->RegisterEquipment(eq);
+
+   Myfe* myfe = new Myfe(mfe, eq);
+
+   TMFeCommon *cor = new TMFeCommon();
+   common->Period  = 1000;
+   common->EventID = 2;
+   common->LogHistory = 0;
+   //common->Buffer = "SYSTEM";
+
+   EqRandom* eqr = new EqRandom(mfe, "random", cor);
+   eqr->Init();
+   eqr->SetStatus("Starting...", "white");
+   eqr->ZeroStatistics();
+   eqr->WriteStatistics();
+
+   mfe->RegisterEquipment(eqr);
+
+   //mfe->SetTransitionSequenceStart(910);
+   //mfe->SetTransitionSequenceStop(90);
+   //mfe->DeregisterTransitionPause();
+   //mfe->DeregisterTransitionResume();
+   mfe->RegisterTransitionStartAbort();
+
+   mfe->RegisterRpcHandler(myfe);
+   //mfe->RegisterRpcHandler(eqr);
+
+   mfe->RegisterPeriodicHandler(eq, myfe);
+   mfe->RegisterPeriodicHandler(eq, eqr);
+
+   eq->SetStatus("Started...", "white");
+
+   while (!mfe->fShutdownRequested) {
+      mfe->PollMidas(10);
+   }
+
+   mfe->Disconnect();
+
+   return 0;
 }
 
 /* emacs
