@@ -25,12 +25,11 @@
 
 #include "midas.h"
 
-/* maximum event size produced by this frontend */
-INT max_event_size      = 4*1024*1024;
-INT max_event_size_frag = 4*1024*1024;
+///* maximum event size produced by this frontend */
+//INT max_event_size      = 4*1024*1024;
 
-/* buffer size to hold events */
-INT event_buffer_size = 10*1024*1024;
+///* buffer size to hold events */
+//INT event_buffer_size = 10*1024*1024;
 
 int read_test_event(char *pevent, int off);
 int read_slow_event(char *pevent, int off);
@@ -322,26 +321,35 @@ public:
    
    void HandlePeriodic()
    {
-      char pevent[4*1024*1024];
+      char event[fMaxEventSize];
+
+      ComposeEvent(event, fMaxEventSize);
       
-      if (drand48() < 0.5)
+      char* pevent = event + sizeof(EVENT_HEADER);
+      
+      double r = drand48();
+      if (r < 0.3)
          bk_init(pevent);
-      else
+      else if (r < 0.6)
          bk_init32(pevent);
+      else
+         bk_init32a(pevent);
       
       int nbank = 1+8*drand48();
       
       for (int i=nbank; i>=0; i--) {
+         int tid = 1+(TID_LAST-1)*drand48();
+         int size = 100*drand48();
+
+         //int total = bk_size(pevent);
+         //printf("total %d, add %d, max %d\n", total, size, (int)fMaxEventSize);
+
          char name[5];
          name[0] = 'R';
          name[1] = 'N';
          name[2] = 'D';
          name[3] = '0' + i;
          name[4] = 0;
-         
-         int tid = 1+(TID_LAST-1)*drand48();
-         
-         int size = 100*drand48();
          
          char* ptr;
          bk_create(pevent, name, tid, (void**)&ptr);
@@ -351,8 +359,10 @@ public:
          
          bk_close(pevent, ptr + size);
       }
-      
-      SendEvent(pevent);
+
+      //printf("sending %d, max %d\n", (int)bk_size(pevent), (int)fMaxEventSize);
+
+      SendEvent(event);
    }
 
 #if 0
