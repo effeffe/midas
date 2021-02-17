@@ -849,12 +849,18 @@ TMFeResult TMFeEquipment::ComposeEvent(char* event, size_t size)
    return TMFeOk();
 }
 
-TMFeResult TMFeEquipment::SendData(const char* buf, size_t size)
+TMFeResult TMFeEquipment::SendEvent(const char* event)
 {
+   fSerial++;
+
    if (fBufferHandle == 0) {
       return TMFeOk();
    }
-   int status = bm_send_event(fBufferHandle, (const EVENT_HEADER*)buf, size, BM_WAIT);
+
+   EVENT_HEADER* pevent = (EVENT_HEADER*)event;
+   pevent->data_size = BkSize(event);
+
+   int status = bm_send_event(fBufferHandle, pevent, sizeof(EVENT_HEADER) + pevent->data_size, BM_WAIT);
    if (status == BM_CORRUPTED) {
       TMFE::Instance()->Msg(MERROR, "TMFeEquipment::SendData", "bm_send_event() returned %d, event buffer is corrupted, shutting down the frontend", status);
       TMFE::Instance()->fShutdownRequested = true;
@@ -862,15 +868,10 @@ TMFeResult TMFeEquipment::SendData(const char* buf, size_t size)
    } else if (status != BM_SUCCESS) {
       return TMFeMidasError(status, "bm_send_event");
    }
-   fStatEvents += 1;
-   fStatBytes  += size;
-   return TMFeOk();
-}
 
-TMFeResult TMFeEquipment::SendEvent(const char* event)
-{
-   fSerial++;
-   return SendData(event, sizeof(EVENT_HEADER) + BkSize(event));
+   fStatEvents += 1;
+   fStatBytes  += sizeof(EVENT_HEADER) + pevent->data_size;
+   return TMFeOk();
 }
 
 int TMFeEquipment::BkSize(const char* event)

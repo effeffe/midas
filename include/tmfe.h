@@ -172,12 +172,11 @@ public:
 public:
    TMFeEquipment(TMFE* mfe, const char* name, TMFeCommon* common); // ctor
    TMFeResult Init(); ///< Initialize equipment
-   TMFeResult SendData(const char* data, size_t size);    ///< ...
    TMFeResult ComposeEvent(char* pevent, size_t size);
    TMFeResult BkInit(char* pevent, size_t size);
    void*      BkOpen(char* pevent, const char* bank_name, int bank_type);
    TMFeResult BkClose(char* pevent, void* ptr);
-   int       BkSize(const char* pevent);
+   int        BkSize(const char* pevent);
    TMFeResult SendEvent(const char* pevent);
    TMFeResult ZeroStatistics();
    TMFeResult WriteStatistics();
