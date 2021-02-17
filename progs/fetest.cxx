@@ -32,10 +32,11 @@
 //INT event_buffer_size = 10*1024*1024;
 
 int read_test_event(char *pevent, int off);
-int read_slow_event(char *pevent, int off);
+//int read_slow_event(char *pevent, int off);
 
 /*-- Equipment list ------------------------------------------------*/
 
+#if 0
 #define EVID_TEST 1
 #define EVID_SLOW 2
 #define EVID_RANDOM 3
@@ -59,25 +60,9 @@ EQUIPMENT equipment[] = {
     },
     read_test_event,/* readout routine */
   },
-  { "slow"   ,         /* equipment name */
-    {
-      EVID_SLOW, (1<<EVID_SLOW),           /* event ID, trigger mask */
-      "SYSTEM",             /* event buffer */
-      EQ_PERIODIC,          /* equipment type */
-      0,                    /* event source */
-      "MIDAS",              /* format */
-      TRUE,                 /* enabled */
-      RO_ALWAYS,            /* Read when running */
-      1000,                 /* poll every so milliseconds */
-      0,                    /* stop run after this event limit */
-      0,                    /* number of sub events */
-      1,                    /* history period */
-      "", "", ""
-    },
-    read_slow_event,/* readout routine */
-  },
   { "" }
 };
+#endif
 
 /********************************************************************\
               Callback routines for system transitions
@@ -273,25 +258,6 @@ int read_test_event(char *pevent, int off)
    return bk_size(pevent);
 }
 
-int read_slow_event(char *pevent, int off)
-{
-   bk_init32(pevent);
-
-   float* pdataf;
-
-   bk_create(pevent, "SLOW", TID_FLOAT, (void**)&pdataf);
-
-   time_t t = time(NULL);
-   
-   pdataf[0] = 100.0*sin(M_PI*t/60);
-   
-   printf("time %d, data %f\n", (int)t, pdataf[0]);
-
-   bk_close(pevent, pdataf + 1);
-
-   return bk_size(pevent);
-}
-
 //
 // tmfe_example.cxx
 //
@@ -325,42 +291,42 @@ public:
 
       ComposeEvent(event, fMaxEventSize);
       
-      char* pevent = event + sizeof(EVENT_HEADER);
+      char* pbh = event + sizeof(EVENT_HEADER);
       
       double r = drand48();
       if (r < 0.3)
-         bk_init(pevent);
+         bk_init(pbh);
       else if (r < 0.6)
-         bk_init32(pevent);
+         bk_init32(pbh);
       else
-         bk_init32a(pevent);
+         bk_init32a(pbh);
       
-      int nbank = 1+8*drand48();
+      int nbank = 0+9*drand48(); // nbank range: 0..9, see how bank names are generated: RND0..RND9
       
-      for (int i=nbank; i>=0; i--) {
+      for (int i=0; i<nbank; i++) {
          int tid = 1+(TID_LAST-1)*drand48();
-         int size = 100*drand48();
+         int size = 0+100*drand48();
 
-         //int total = bk_size(pevent);
+         //int total = bk_size(pbh);
          //printf("total %d, add %d, max %d\n", total, size, (int)fMaxEventSize);
 
          char name[5];
          name[0] = 'R';
          name[1] = 'N';
          name[2] = 'D';
-         name[3] = '0' + i;
+         name[3] = '0' + (nbank-i-1);
          name[4] = 0;
          
          char* ptr;
-         bk_create(pevent, name, tid, (void**)&ptr);
+         bk_create(pbh, name, tid, (void**)&ptr);
          
          for (int j=0; j<size; j++)
-            ptr[j] = i;
+            ptr[j] = (nbank-i-1);
          
-         bk_close(pevent, ptr + size);
+         bk_close(pbh, ptr + size);
       }
 
-      //printf("sending %d, max %d\n", (int)bk_size(pevent), (int)fMaxEventSize);
+      //printf("sending %d, max %d\n", (int)bk_size(pbh), (int)fMaxEventSize);
 
       SendEvent(event);
    }
@@ -387,6 +353,65 @@ public:
 
 };
 
+class EqSlow :
+   public TMFeEquipment,
+   public TMFePeriodicHandlerInterface   
+{
+public:
+   EqSlow(TMFE* mfe, const char* name, TMFeCommon* common)
+      : TMFeEquipment(mfe, name, common)
+   {
+
+
+   }
+   
+   void SendData(double dvalue)
+   {
+      char buf[1024];
+      ComposeEvent(buf, sizeof(buf));
+      BkInit(buf, sizeof(buf));
+         
+      double* ptr = (double*)BkOpen(buf, "test", TID_DOUBLE);
+      *ptr++ = dvalue;
+      BkClose(buf, ptr);
+
+      SendEvent(buf);
+   }
+
+   void HandlePeriodic()
+   {
+      //printf("EqSlow::HandlePeriodic!\n");
+      double t = TMFE::GetTime();
+      double data = 100.0*sin(-M_PI/2.0+M_PI*t/60);
+      SendData(data);
+      fOdbEqVariables->WD("data", data);
+      WriteStatistics();
+      char status_buf[256];
+      sprintf(status_buf, "value %.1f", data);
+      SetStatus(status_buf, "#00FF00");
+   }
+
+#if 0
+  { "slow"   ,         /* equipment name */
+    {
+      EVID_SLOW, (1<<EVID_SLOW),           /* event ID, trigger mask */
+      "SYSTEM",             /* event buffer */
+      EQ_PERIODIC,          /* equipment type */
+      0,                    /* event source */
+      "MIDAS",              /* format */
+      TRUE,                 /* enabled */
+      RO_ALWAYS,            /* Read when running */
+      1000,                 /* poll every so milliseconds */
+      0,                    /* stop run after this event limit */
+      0,                    /* number of sub events */
+      1,                    /* history period */
+      "", "", ""
+    },
+    read_slow_event,/* readout routine */
+  },
+#endif
+};
+
 class Myfe :
    public TMFeRpcHandlerInterface,
    public TMFePeriodicHandlerInterface   
@@ -403,19 +428,6 @@ public:
 
    ~Myfe() // dtor
    {
-   }
-
-   void SendData(double dvalue)
-   {
-      char buf[1024];
-      fEq->ComposeEvent(buf, sizeof(buf));
-      fEq->BkInit(buf, sizeof(buf));
-         
-      double* ptr = (double*)fEq->BkOpen(buf, "test", TID_DOUBLE);
-      *ptr++ = dvalue;
-      fEq->BkClose(buf, ptr);
-
-      fEq->SendEvent(buf);
    }
 
    TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response)
@@ -561,15 +573,6 @@ public:
 
    void HandlePeriodic()
    {
-      printf("periodic!\n");
-      double t = TMFE::GetTime();
-      double data = 100.0*sin(-M_PI/2.0+M_PI*t/60);
-      SendData(data);
-      fEq->fOdbEqVariables->WD("data", data);
-      fEq->WriteStatistics();
-      char status_buf[256];
-      sprintf(status_buf, "value %.1f", data);
-      fEq->SetStatus(status_buf, "#00FF00");
    }
 };
 
@@ -626,13 +629,27 @@ int main(int argc, char* argv[])
    common->LogHistory = 0;
    //common->Buffer = "SYSTEM";
 
-   EqRandom* eqr = new EqRandom(mfe, "random", cor);
+   EqRandom* eqr = new EqRandom(mfe, "test_random", cor);
    eqr->Init();
    eqr->SetStatus("Starting...", "white");
    eqr->ZeroStatistics();
    eqr->WriteStatistics();
 
    mfe->RegisterEquipment(eqr);
+
+   TMFeCommon *cos = new TMFeCommon();
+   common->Period  = 1000;
+   common->EventID = 3;
+   common->LogHistory = 1;
+   //common->Buffer = "SYSTEM";
+
+   EqSlow* eqs = new EqSlow(mfe, "test_slow", cos);
+   eqs->Init();
+   eqs->SetStatus("Starting...", "white");
+   eqs->ZeroStatistics();
+   eqs->WriteStatistics();
+
+   mfe->RegisterEquipment(eqs);
 
    //mfe->SetTransitionSequenceStart(910);
    //mfe->SetTransitionSequenceStop(90);
@@ -645,6 +662,7 @@ int main(int argc, char* argv[])
 
    mfe->RegisterPeriodicHandler(eq, myfe);
    mfe->RegisterPeriodicHandler(eq, eqr);
+   mfe->RegisterPeriodicHandler(eq, eqs);
 
    eq->SetStatus("Started...", "white");
 
