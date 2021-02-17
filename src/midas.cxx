@@ -15532,33 +15532,24 @@ bank. It is then passed to bk_close() to finish the bank creation
 */
 INT bk_close(void *event, void *pdata) {
    if (bk_is32a((BANK_HEADER *) event)) {
-      BANK32A *pbk32a;
-
-      pbk32a = (BANK32A *) ((char *) (((BANK_HEADER *) event) + 1) + ((BANK_HEADER *) event)->data_size);
+      BANK32A *pbk32a = (BANK32A *) ((char *) (((BANK_HEADER *) event) + 1) + ((BANK_HEADER *) event)->data_size);
       pbk32a->data_size = (DWORD) ((char *) pdata - (char *) (pbk32a + 1));
       if (pbk32a->type == TID_STRUCT && pbk32a->data_size == 0)
-         printf("Warning: bank %c%c%c%c has zero size\n",
-                pbk32a->name[0], pbk32a->name[1], pbk32a->name[2], pbk32a->name[3]);
+         printf("Warning: TID_STRUCT bank %c%c%c%c has zero size\n", pbk32a->name[0], pbk32a->name[1], pbk32a->name[2], pbk32a->name[3]);
       ((BANK_HEADER *) event)->data_size += sizeof(BANK32A) + ALIGN8(pbk32a->data_size);
       return pbk32a->data_size;
    } else if (bk_is32((BANK_HEADER *) event)) {
-      BANK32 *pbk32;
-
-      pbk32 = (BANK32 *) ((char *) (((BANK_HEADER *) event) + 1) + ((BANK_HEADER *) event)->data_size);
+      BANK32 *pbk32 = (BANK32 *) ((char *) (((BANK_HEADER *) event) + 1) + ((BANK_HEADER *) event)->data_size);
       pbk32->data_size = (DWORD) ((char *) pdata - (char *) (pbk32 + 1));
       if (pbk32->type == TID_STRUCT && pbk32->data_size == 0)
-         printf("Warning: bank %c%c%c%c has zero size\n",
-                pbk32->name[0], pbk32->name[1], pbk32->name[2], pbk32->name[3]);
+         printf("Warning: TID_STRUCT bank %c%c%c%c has zero size\n", pbk32->name[0], pbk32->name[1], pbk32->name[2], pbk32->name[3]);
       ((BANK_HEADER *) event)->data_size += sizeof(BANK32) + ALIGN8(pbk32->data_size);
       return pbk32->data_size;
    } else {
-      BANK *pbk;
-
-      pbk = (BANK *) ((char *) (((BANK_HEADER *) event) + 1) + ((BANK_HEADER *) event)->data_size);
+      BANK *pbk = (BANK *) ((char *) (((BANK_HEADER *) event) + 1) + ((BANK_HEADER *) event)->data_size);
       pbk->data_size = (WORD) ((char *) pdata - (char *) (pbk + 1));
       if (pbk->type == TID_STRUCT && pbk->data_size == 0)
-         printf("Warning: bank %c%c%c%c has zero size\n", pbk->name[0], pbk->name[1], pbk->name[2],
-                pbk->name[3]);
+         printf("Warning: TID_STRUCT bank %c%c%c%c has zero size\n", pbk->name[0], pbk->name[1], pbk->name[2], pbk->name[3]);
       ((BANK_HEADER *) event)->data_size += sizeof(BANK) + ALIGN8(pbk->data_size);
       return pbk->data_size;
    }
