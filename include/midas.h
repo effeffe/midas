@@ -597,6 +597,7 @@ System message types */
 #define BM_INVALID_MIXING           217   /**< - */
 #define BM_NO_SHM                   218   /**< - */
 #define BM_CORRUPTED                219   /**< - */
+#define BM_INVALID_SIZE             220   /**< - */
 /**dox***************************************************************/
           /** @} *//* end of group 22 */
 
