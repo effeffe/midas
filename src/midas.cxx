@@ -8953,9 +8953,23 @@ One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
 and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
 INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, INT unused, INT async_flag) {
-   const int event_size = sizeof(EVENT_HEADER) + pevent->data_size;
 
-   //printf("bm_send_event: pevent %p, data_size %d, event_size %d, buf_size %d\n", pevent, pevent->data_size, event_size, xbuf_size);
+   const DWORD MAX_DATA_SIZE = (0x7FFFFFF0 - 16); // event size computations are not 32-bit clean, limit event size to 2GB. K.O.
+   const DWORD data_size = pevent->data_size; // 32-bit unsigned value
+
+   if (data_size == 0) {
+      cm_msg(MERROR, "bm_send_event", "invalid event data size zero");
+      return BM_INVALID_SIZE;
+   }
+
+   if (data_size > MAX_DATA_SIZE) {
+      cm_msg(MERROR, "bm_send_event", "invalid event data size %d (0x%x) maximum is %d (0x%x)", data_size, data_size, MAX_DATA_SIZE, MAX_DATA_SIZE);
+      return BM_INVALID_SIZE;
+   }
+
+   const int event_size = sizeof(EVENT_HEADER) + data_size;
+
+   //printf("bm_send_event: pevent %p, data_size %d, event_size %d, buf_size %d\n", pevent, data_size, event_size, unused);
 
    if (rpc_is_remote())
       return rpc_call(RPC_BM_SEND_EVENT, buffer_handle, pevent, event_size, async_flag);
