@@ -16469,6 +16469,157 @@ int rb_get_buffer_level(int handle, int *n_bytes)
 
 /** @} *//* end of rbfunctionc */
 
+
+int cm_write_event_to_odb(HNDLE hDB, HNDLE hKey, const EVENT_HEADER* pevent, INT format)
+{
+   if (format == FORMAT_FIXED) {
+      int status;
+      status = db_set_record(hDB, hKey, (char *) (pevent + 1), pevent->data_size, 0);
+      if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "cm_write_event_to_odb", "event %d ODB record size mismatch, db_set_record() status %d", pevent->event_id, status);
+         return status;
+      }
+      return SUCCESS;
+   } else if (format == FORMAT_MIDAS) {
+      INT size, i, status, n_data;
+      int n;
+      char *pdata, *pdata0;
+
+      char name[5];
+      BANK_HEADER *pbh;
+      BANK *pbk;
+      BANK32 *pbk32;
+      BANK32A *pbk32a;
+      DWORD bkname;
+      WORD bktype;
+      HNDLE hKeyRoot, hKeyl, *hKeys;
+      KEY key;
+
+      pbh = (BANK_HEADER *) (pevent + 1);
+      pbk = NULL;
+      pbk32 = NULL;
+      pbk32a = NULL;
+
+      /* count number of banks */
+      for (n=0 ; ; n++) {
+         if (bk_is32a(pbh)) {
+            bk_iterate32a(pbh, &pbk32a, &pdata);
+            if (pbk32a == NULL)
+               break;
+         } else if (bk_is32(pbh)) {
+            bk_iterate32(pbh, &pbk32, &pdata);
+            if (pbk32 == NULL)
+               break;
+         } else {
+            bk_iterate(pbh, &pbk, &pdata);
+            if (pbk == NULL)
+               break;
+         }
+      }
+
+      /* build array of keys */
+      hKeys = (HNDLE *)malloc(sizeof(HNDLE) * n);
+
+      pbk = NULL;
+      pbk32 = NULL;
+      n = 0;
+      do {
+         /* scan all banks */
+         if (bk_is32a(pbh)) {
+            size = bk_iterate32a(pbh, &pbk32a, &pdata);
+            if (pbk32a == NULL)
+               break;
+            bkname = *((DWORD *) pbk32a->name);
+            bktype = (WORD) pbk32a->type;
+         } else if (bk_is32(pbh)) {
+            size = bk_iterate32(pbh, &pbk32, &pdata);
+            if (pbk32 == NULL)
+               break;
+            bkname = *((DWORD *) pbk32->name);
+            bktype = (WORD) pbk32->type;
+         } else {
+            size = bk_iterate(pbh, &pbk, &pdata);
+            if (pbk == NULL)
+               break;
+            bkname = *((DWORD *) pbk->name);
+            bktype = (WORD) pbk->type;
+         }
+
+         n_data = size;
+         if (rpc_tid_size(bktype & 0xFF))
+            n_data /= rpc_tid_size(bktype & 0xFF);
+
+         /* get bank key */
+         *((DWORD *) name) = bkname;
+         name[4] = 0;
+         /* record the start of the data in case it is struct */
+         pdata0 = pdata;
+         if (bktype == TID_STRUCT) {
+            status = db_find_key(hDB, hKey, name, &hKeyRoot);
+            if (status != DB_SUCCESS) {
+               cm_msg(MERROR, "cm_write_event_to_odb", "please define bank \"%s\" in BANK_LIST in frontend", name);
+               continue;
+            }
+
+            /* write structured bank */
+            for (i = 0;; i++) {
+               status = db_enum_key(hDB, hKeyRoot, i, &hKeyl);
+               if (status == DB_NO_MORE_SUBKEYS)
+                  break;
+
+               db_get_key(hDB, hKeyl, &key);
+
+               /* adjust for alignment */
+               if (key.type != TID_STRING && key.type != TID_LINK)
+                  pdata = (pdata0 + VALIGN(pdata-pdata0, MIN(ss_get_struct_align(), key.item_size)));
+
+               status = db_set_data1(hDB, hKeyl, pdata, key.item_size * key.num_values, key.num_values, key.type);
+               if (status != DB_SUCCESS) {
+                  cm_msg(MERROR, "cm_write_event_to_odb", "cannot write bank \"%s\" to ODB, db_set_data1() status %d", name, status);
+                  continue;
+               }
+               hKeys[n++] = hKeyl;
+
+               /* shift data pointer to next item */
+               pdata += key.item_size * key.num_values;
+            }
+         } else {
+            /* write variable length bank  */
+            status = db_find_key(hDB, hKey, name, &hKeyRoot);
+            if (status != DB_SUCCESS) {
+               status = db_create_key(hDB, hKey, name, bktype);
+               if (status != DB_SUCCESS) {
+                  cm_msg(MERROR, "cm_write_event_to_odb", "cannot create key for bank \"%s\" with tid %d in ODB, db_create_key() status %d", name, bktype, status);
+                  continue;
+               }
+               status = db_find_key(hDB, hKey, name, &hKeyRoot);
+               if (status != DB_SUCCESS) {
+                  cm_msg(MERROR, "cm_write_event_to_odb", "cannot find key for bank \"%s\" in ODB, after db_create_key(), db_find_key() status %d", name, status);
+                  continue;
+               }
+            }
+            if (n_data > 0) {
+               status = db_set_data1(hDB, hKeyRoot, pdata, size, n_data, bktype & 0xFF);
+               if (status != DB_SUCCESS) {
+                  cm_msg(MERROR, "cm_write_event_to_odb", "cannot write bank \"%s\" to ODB, db_set_data1() status %d", name, status);
+               }
+               hKeys[n++] = hKeyRoot;
+            }
+         }
+      } while (1);
+
+      /* notify all hot-lined clients in one go */
+      db_notify_clients_array(hDB, hKeys, n*sizeof(INT));
+
+      free(hKeys);
+
+      return SUCCESS;
+   } else {
+      cm_msg(MERROR, "cm_write_event_to_odb", "event format %d is not supported (see midas.h definitions of FORMAT_xxx)", format);
+      return CM_DB_ERROR;
+   }
+}
+
 /* emacs
  * Local Variables:
  * tab-width: 8
