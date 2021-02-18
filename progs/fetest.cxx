@@ -329,6 +329,7 @@ public:
       //printf("sending %d, max %d\n", (int)bk_size(pbh), (int)fMaxEventSize);
 
       SendEvent(event);
+      WriteEventToOdb(event);
    }
 
 #if 0

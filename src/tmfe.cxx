@@ -874,6 +874,35 @@ TMFeResult TMFeEquipment::SendEvent(const char* event)
    return TMFeOk();
 }
 
+TMFeResult TMFeEquipment::WriteEventToOdb(const char* event)
+{
+   int status;
+   HNDLE hDB;
+
+   status = cm_get_experiment_database(&hDB, NULL);
+   if (status != CM_SUCCESS) {
+      return TMFeMidasError(status, "cm_get_experiment_database");
+   }
+
+   std::string path = "";
+   path += "/Equipment/";
+   path += fName;
+   path += "/Variables";
+
+   HNDLE hKeyVar = 0;
+
+   status = db_find_key(hDB, 0, path.c_str(), &hKeyVar);
+   if (status != DB_SUCCESS) {
+      return TMFeMidasError(status, "db_find_key");
+   }
+
+   status = cm_write_event_to_odb(hDB, hKeyVar, (const EVENT_HEADER*) event, FORMAT_MIDAS);
+   if (status != SUCCESS) {
+      return TMFeMidasError(status, "cm_write_event_to_odb");
+   }
+   return TMFeOk();
+}
+
 int TMFeEquipment::BkSize(const char* event)
 {
    return bk_size(event + sizeof(EVENT_HEADER));
@@ -901,14 +930,6 @@ TMFeResult TMFeEquipment::BkClose(char* event, void* ptr)
 
 TMFeResult TMFeEquipment::SetStatus(char const* eq_status, char const* eq_color)
 {
-   HNDLE hDB;
-   int status;
-
-   status = cm_get_experiment_database(&hDB, NULL);
-   if (status != CM_SUCCESS) {
-      return TMFeMidasError(status, "cm_get_experiment_database");
-   }
-
    if (eq_status) {
       fOdbEqCommon->WS("Status", eq_status, 256);
    }

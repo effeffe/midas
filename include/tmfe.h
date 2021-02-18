@@ -178,6 +178,7 @@ public:
    TMFeResult BkClose(char* pevent, void* ptr);
    int        BkSize(const char* pevent);
    TMFeResult SendEvent(const char* pevent);
+   TMFeResult WriteEventToOdb(const char* pevent);
    TMFeResult ZeroStatistics();
    TMFeResult WriteStatistics();
    TMFeResult SetStatus(const char* status, const char* color);
