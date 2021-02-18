@@ -69,7 +69,11 @@
     the callback function is called with an optional parameter passed to
     dlgMessage. If modal equals true, the whole screen is greyed out and all
     mouse events are captured until the 'Ok' button is pressed.
- 
+
+ dlgWait(time, string)
+    Shows a model dialog with a progress bar for 'time' seconds and 'string'
+    in the first line. After 'time' seconds the dialog closes automatically.
+
  Sliders
  -------
 
@@ -804,8 +808,8 @@ function dlgMessage(title, string, modal, error, callback, param) {
    return d;
 }
 
-function dlgAlert(s) {
-   dlgMessage('Message', s, true, false);
+function dlgAlert(s, callback) {
+   dlgMessage('Message', s, true, false, callback);
 }
 
 function dlgConfirm(string, confirmCallback, param) {
@@ -854,4 +858,59 @@ function dlgQuery(string, value, queryCallback, param) {
 
    dlgShow(d, true);
    return d;
+}
+
+let dlgWaitDialog;
+let dlgWaitProgress;
+let dlgWaitTime;
+
+function dlgWait(time, string) {
+
+   let d = document.createElement("div");
+   d.className = "dlgFrame";
+   d.style.zIndex = "21";
+   d.shouldDestroy = true;
+
+   <!-- wait dialog -->
+   d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Please wait...</div>" +
+      "<div class=\"dlgPanel\" style=\"padding: 20px;\">" +
+      "<div id=\"dlgMessageString\">" + string + "</div>" +
+      "<br />" +
+      "<div name=\"ctrlProgress\" style=\"width:250px;\" id=\"dlgWaitProgress\"></div>" +
+      "</div>";
+
+   document.body.appendChild(d);
+
+   // init progress bar
+   let p = document.getElementById('dlgWaitProgress');
+   p.className = "ctrlProgress";
+   let ind = document.createElement("div");
+   ind.className = "ctrlProgressInd";
+   ind.style.height = p.style.height;
+   ind.style.backgroundColor = p.style.color;
+   p.appendChild(ind);
+   p.set = function (value) {
+      this.firstChild.style.width = Math.round(parseInt(this.style.width) * value) + "px";
+   };
+
+   dlgShow(d, true);
+   dlgWaitDialog = d;
+
+   dlgWaitProgress = 0;
+   dlgWaitTime = time;
+   window.setTimeout(updateDlgWaitProgress, 100);
+}
+
+function updateDlgWaitProgress() {
+   dlgWaitProgress += 0.1;
+   let d = document.getElementById("dlgWaitProgress");
+   d.set(dlgWaitProgress / dlgWaitTime);
+   if (dlgWaitProgress >= dlgWaitTime) {
+      dlgWaitDialog.style.display = "none";
+      document.body.removeChild(dlgWaitDialog);
+      let d = document.getElementById("dlgBlackout");
+      if (d !== undefined && d !== null)
+         d.style.display = "none";
+   } else
+      window.setTimeout(updateDlgWaitProgress, 100);
 }
