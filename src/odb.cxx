@@ -6983,7 +6983,7 @@ static INT db_check_set_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, c
    }
    
    if (pkey->type != type) {
-      db_msg(msg, MERROR, caller, "\"%s\" is of type %s, not %s", db_get_path_locked(pheader, pkey).c_str(), rpc_tid_name(pkey->type), rpc_tid_name(pkey->type));
+      db_msg(msg, MERROR, caller, "\"%s\" is of type %s, not %s", db_get_path_locked(pheader, pkey).c_str(), rpc_tid_name(pkey->type), rpc_tid_name(type));
       return DB_TYPE_MISMATCH;
    }
    
