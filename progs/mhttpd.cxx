@@ -12280,7 +12280,27 @@ struct hist_plot_t
          xdb_find_key(hDB, hDir, "Variables", &hKey, TID_STRING, 2*NAME_LENGTH);
          db_set_data_index(hDB, hKey, str, 2 * NAME_LENGTH, index, TID_STRING);
 
-         xdb_find_key(hDB, hDir, "Formula", &hKey, TID_STRING, NAME_LENGTH);
+         xdb_find_key(hDB, hDir, "Formula", &hKey, TID_STRING, 256);
+
+         // resize formula ODB entry if necessary
+         KEY key;
+         db_get_key(hDB, hKey, &key);
+         if (key.item_size != 256) {
+            std::vector<std::string> list;
+            char str[256];
+            int size = sizeof(str);
+            for (int i=0 ; i<key.num_values ; i++) {
+               db_get_data_index(hDB, hKey, str, &size, i, TID_STRING);
+               list.push_back(str);
+            }
+            db_delete_key(hDB, hKey, false);
+            db_create_key(hDB, hDir, "Formula", TID_STRING);
+            db_find_key(hDB, hDir, "Formula", &hKey);
+            for (int i=0 ; i<key.num_values ; i++) {
+               db_set_data_index(hDB, hKey, list[i].c_str(), 256, i, TID_STRING);
+            }
+         }
+
          db_set_data_index(hDB, hKey, vars[index].hist_formula.c_str(), 256, index, TID_STRING);
 
          xdb_find_key(hDB, hDir, "Colour", &hKey, TID_STRING, NAME_LENGTH);
