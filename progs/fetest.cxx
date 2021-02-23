@@ -85,7 +85,6 @@ public:
       //printf("sending %d, max %d\n", (int)bk_size(pbh), (int)fMaxEventSize);
 
       SendEvent(event);
-      WriteEventToOdb(event);
    }
 
 #if 0
@@ -128,7 +127,7 @@ public:
       ComposeEvent(buf, sizeof(buf));
       BkInit(buf, sizeof(buf));
          
-      double* ptr = (double*)BkOpen(buf, "test", TID_DOUBLE);
+      double* ptr = (double*)BkOpen(buf, "data", TID_DOUBLE);
       *ptr++ = dvalue;
       BkClose(buf, ptr);
 
@@ -141,7 +140,6 @@ public:
       double t = TMFE::GetTime();
       double data = 100.0*sin(-M_PI/2.0+M_PI*t/60);
       SendData(data);
-      fOdbEqVariables->WD("data", data);
       WriteStatistics();
       char status_buf[256];
       sprintf(status_buf, "value %.1f", data);
@@ -508,6 +506,8 @@ int main(int argc, char* argv[])
    cor->Period  = 1000;
    cor->EventID = 2;
    cor->LogHistory = 0;
+   cor->ReadOnlyWhenRunning = true;
+   cor->WriteEventsToOdb = true;
    //common->Buffer = "SYSTEM";
 
    EqRandom* eqr = new EqRandom(mfe, "test_random", cor);
@@ -522,6 +522,7 @@ int main(int argc, char* argv[])
    cos->Period  = 1000;
    cos->EventID = 3;
    cos->LogHistory = 1;
+   cos->WriteEventsToOdb = true;
    //common->Buffer = "SYSTEM";
 
    EqSlow* eqs = new EqSlow(mfe, "test_slow", cos);
@@ -536,6 +537,7 @@ int main(int argc, char* argv[])
    cob->Period  = 1000;
    cob->EventID = 3;
    cob->LogHistory = 1;
+   cob->ReadOnlyWhenRunning = true;
    //common->Buffer = "SYSTEM";
 
    EqBulk* eqb = new EqBulk("test_bulk", cos);
@@ -555,9 +557,9 @@ int main(int argc, char* argv[])
    mfe->RegisterRpcHandler(myfe);
    //mfe->RegisterRpcHandler(eqr);
 
-   mfe->RegisterPeriodicHandler(eq, myfe);
-   mfe->RegisterPeriodicHandler(eq, eqr);
-   mfe->RegisterPeriodicHandler(eq, eqs);
+   mfe->RegisterPeriodicHandler(myfe->fEq, myfe);
+   mfe->RegisterPeriodicHandler(eqr, eqr);
+   mfe->RegisterPeriodicHandler(eqs, eqs);
 
    eq->SetStatus("Started...", "white");
 

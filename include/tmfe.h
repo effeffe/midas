@@ -130,6 +130,10 @@ class TMFeCommon
    bool Hidden;
    int WriteCacheSize;
 
+public:
+   bool ReadOnlyWhenRunning = false; // RO_RUNNING
+   bool WriteEventsToOdb = false; // RO_ODB
+
  public:
    TMFeCommon(); // ctor
 };
@@ -225,12 +229,16 @@ class TMFE
    std::string fFrontendHostname; ///< frontend hostname
    std::string fFrontendFilename; ///< frontend program file name
 
- public:
-   int  fDB; ///< ODB database handle
-   MVOdb* fOdbRoot; ///< ODB root
+public:
+   int    fDB = 0;         ///< ODB database handle
+   MVOdb* fOdbRoot = NULL; ///< ODB root
 
- public:
-   bool fShutdownRequested; ///< shutdown was requested by Ctrl-C or by RPC command
+public:
+   bool fShutdownRequested = false; ///< shutdown was requested by Ctrl-C or by RPC command
+
+public:
+   int  fRunNumber = 0; ///< current run number
+   bool fStateRunning = false; ///< run state is running or paused
 
  public:   
    std::vector<TMFeEquipment*> fEquipments;

@@ -172,7 +172,10 @@ void TMFE::EquipmentPeriodicTasks()
             else if (h->fNextCallTime < fNextPeriodic)
                fNextPeriodic = h->fNextCallTime;
 
-            h->fHandler->HandlePeriodic();
+            if (fStateRunning || !h->fEq->fCommon->ReadOnlyWhenRunning) {
+               //printf("handler %d eq [%s] call HandlePeriodic()\n", i, h->fEq->fName.c_str());                     
+               h->fHandler->HandlePeriodic();
+            }
 
             now = GetTime();
          }
@@ -439,6 +442,9 @@ static INT tr_start(INT run_number, char *errstr)
    cm_msg(MINFO, "tr_start", "tr_start");
 
    TMFE* mfe = TMFE::Instance();
+
+   mfe->fRunNumber = run_number;
+   mfe->fStateRunning = true;
    
    for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
       mfe->fEquipments[i]->ZeroStatistics();
@@ -492,6 +498,8 @@ static INT tr_stop(INT run_number, char *errstr)
       mfe->fEquipments[i]->WriteStatistics();
    }
 
+   mfe->fStateRunning = false;
+   
    if (result.error_flag) {
       strlcpy(errstr, result.error_message.c_str(), TRANSITION_ERROR_STRING_LENGTH);
       return FE_ERR_DRIVER;
@@ -564,6 +572,8 @@ static INT tr_startabort(INT run_number, char *errstr)
       }
    }
 
+   mfe->fStateRunning = false;
+
    if (result.error_flag) {
       strlcpy(errstr, result.error_message.c_str(), TRANSITION_ERROR_STRING_LENGTH);
       return FE_ERR_DRIVER;
@@ -581,7 +591,7 @@ void TMFE::RegisterRpcHandler(TMFeRpcHandlerInterface* h)
       cm_register_transition(TR_STOP, tr_stop, 500);
       cm_register_transition(TR_PAUSE, tr_pause, 500);
       cm_register_transition(TR_RESUME, tr_resume, 500);
-      //cm_register_transition(TR_STARTABORT, tr_startabort, 500);
+      cm_register_transition(TR_STARTABORT, tr_startabort, 500);
    }
 
    fRpcHandlers.push_back(h);
@@ -871,6 +881,13 @@ TMFeResult TMFeEquipment::SendEvent(const char* event)
 
    fStatEvents += 1;
    fStatBytes  += sizeof(EVENT_HEADER) + pevent->data_size;
+
+   if (fCommon->WriteEventsToOdb) {
+      TMFeResult r = WriteEventToOdb(event);
+      if (r.error_flag)
+         return r;
+   }
+
    return TMFeOk();
 }
 
