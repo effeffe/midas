@@ -10,261 +10,6 @@
 #undef NDEBUG // midas required assert() to be always enabled
 
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <stdint.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <math.h>
-#include <ctype.h>
-#include <assert.h>
-#include <string.h>
-
-#include "midas.h"
-
-///* maximum event size produced by this frontend */
-//INT max_event_size      = 4*1024*1024;
-
-///* buffer size to hold events */
-//INT event_buffer_size = 10*1024*1024;
-
-int read_test_event(char *pevent, int off);
-//int read_slow_event(char *pevent, int off);
-
-/*-- Equipment list ------------------------------------------------*/
-
-#if 0
-#define EVID_TEST 1
-#define EVID_SLOW 2
-#define EVID_RANDOM 3
-
-EQUIPMENT equipment[] = {
-
-  { "test"   ,         /* equipment name */
-    {
-      EVID_TEST, (1<<EVID_TEST),           /* event ID, trigger mask */
-      "SYSTEM",             /* event buffer */
-      EQ_USER,              /* equipment type */
-      0,                    /* event source */
-      "MIDAS",              /* format */
-      TRUE,                 /* enabled */
-      RO_RUNNING,           /* Read when running */
-      100,                  /* poll every so milliseconds */
-      0,                    /* stop run after this event limit */
-      0,                    /* number of sub events */
-      0,                    /* no history */
-      "", "", ""
-    },
-    read_test_event,/* readout routine */
-  },
-  { "" }
-};
-#endif
-
-/********************************************************************\
-              Callback routines for system transitions
-
-  These routines are called whenever a system transition like start/
-  stop of a run occurs. The routines are called on the following
-  occations:
-
-  frontend_init:  When the frontend program is started. This routine
-                  should initialize the hardware.
-  
-  frontend_exit:  When the frontend program is shut down. Can be used
-                  to releas any locked resources like memory, commu-
-                  nications ports etc.
-
-  begin_of_run:   When a new run is started. Clear scalers, open
-                  rungates, etc.
-
-  end_of_run:     Called on a request to stop a run. Can send 
-                  end-of-run event and close run gates.
-
-  pause_run:      When a run is paused. Should disable trigger events.
-
-  resume_run:     When a run is resumed. Should enable trigger events.
-
-\********************************************************************/
-
-int event_size = 10*1024;
-
-/*-- Frontend Init -------------------------------------------------*/
-
-//HNDLE hSet;
-//int test_rb_wait_sleep = 1;
-
-void configure()
-{
-#if 0
-   int size, status;
-
-   size = sizeof(event_size);
-   status = db_get_value(hDB, hSet, "event_size", &event_size, &size, TID_DWORD, TRUE);
-   assert(status == DB_SUCCESS);
-
-   printf("Event size set to %d bytes\n", event_size);
-
-   size = sizeof(test_rb_wait_sleep);
-   status = db_get_value(hDB, hSet, "rb_wait_sleep", &test_rb_wait_sleep, &size, TID_DWORD, TRUE);
-   assert(status == DB_SUCCESS);
-
-   printf("Ring buffer wait sleep %d ms\n", test_rb_wait_sleep);
-#endif
-}
-
-#include "msystem.h"
-
-int test_run_number = 0;
-int test_rb_wait_count = 0;
-int test_event_count = 0;
-int test_rbh = 0;
-
-#if 0
-int test_thread(void *param)
-{
-   int status;
-   EVENT_HEADER *pevent;
-   void *p;
-   EQUIPMENT* eq = &equipment[0];
-
-   /* indicate activity to framework */
-   signal_readout_thread_active(test_rbh, 1);
-
-   while (!stop_all_threads) {
-      if (test_run_number == 0) {
-         // no run, wait
-         ss_sleep(10);
-         continue;
-      }
-
-      /* obtain buffer space */
-      status = rb_get_wp(get_event_rbh(test_rbh), &p, 0);
-      if (stop_all_threads)
-         break;
-      if (status == DB_TIMEOUT) {
-         test_rb_wait_count ++;
-         //printf("readout_thread: Ring buffer is full, waiting for space!\n");
-         if (test_rb_wait_sleep)
-            ss_sleep(test_rb_wait_sleep);
-         continue;
-      }
-      if (status != DB_SUCCESS) {
-         // catastrophic failure of ring buffer?
-         break;
-      }
-
-      if (eq->info.period) {
-         ss_sleep(eq->info.period);
-      }
-
-      if (1 /*readout_enabled()*/) {
-        
-         /* check for new event */
-         //source = poll_event(multithread_eq->info.source, multithread_eq->poll_count, FALSE);
-
-         if (1 /*source > 0*/) {
-
-            if (stop_all_threads)
-               break;
-
-            pevent = (EVENT_HEADER *)p;
-            
-            /* compose MIDAS event header */
-            pevent->event_id = eq->info.event_id;
-            pevent->trigger_mask = eq->info.trigger_mask;
-            pevent->data_size = 0;
-            pevent->time_stamp = ss_time();
-            pevent->serial_number = eq->serial_number++;
-
-            /* call user readout routine */
-            pevent->data_size = eq->readout((char *) (pevent + 1), 0);
-
-            /* check event size */
-            if (pevent->data_size + sizeof(EVENT_HEADER) > (DWORD) max_event_size) {
-               cm_msg(MERROR, "readout_thread",
-                        "Event size %ld larger than maximum size %d",
-                        (long) (pevent->data_size + sizeof(EVENT_HEADER)),
-                        max_event_size);
-               assert(FALSE);
-            }
-
-            if (pevent->data_size > 0) {
-               /* put event into ring buffer */
-               rb_increment_wp(get_event_rbh(test_rbh), sizeof(EVENT_HEADER) + pevent->data_size);
-            } else
-               eq->serial_number--;
-         }
-
-      } else // readout_enabled
-        ss_sleep(10);
-   }
-
-   signal_readout_thread_active(test_rbh, 0);
-
-   return 0;
-}
-#endif
-
-#if 0
-INT frontend_init()
-{
-   int status, size;
-   char str[256];
-   printf("frontend_init!\n");
-
-   // create settings tree
-   size = sizeof(str);
-   strlcpy(str, "some value", size);
-   status = db_get_value(hDB, 0, "/equipment/test/Settings/some_setting", str, &size, TID_STRING, TRUE);
-   assert(status == DB_SUCCESS);
-
-   // save reference to settings tree
-   status = db_find_key(hDB, 0, "/equipment/test/Settings", &hSet);
-   assert(status == DB_SUCCESS);
-
-   create_event_rb(test_rbh);
-   ss_thread_create(test_thread, 0);
-
-   //cm_set_watchdog_params (FALSE, 0);
-
-   //set_rate_period(1000);
-
-   configure();
-   
-   return SUCCESS;
-}
-#endif
-
-/*-- Event readout -------------------------------------------------*/
-
-int read_test_event(char *pevent, int off)
-{
-   bk_init32(pevent);
-
-   char* pdata8;
-   
-   bk_create(pevent, "TEST", TID_BYTE, (void**)&pdata8);
-   
-   pdata8 += event_size;
-   
-   bk_close(pevent, pdata8);
-   
-   test_event_count ++;
-  
-   return bk_size(pevent);
-}
-
-//
-// tmfe_example.cxx
-//
-// Example tmfe c++ frontend with a periodic equipment
-//
-
-#include <stdio.h>
 #include <signal.h> // SIGPIPE
 #include <assert.h> // assert()
 #include <stdlib.h> // malloc()
@@ -272,6 +17,17 @@ int read_test_event(char *pevent, int off)
 
 #include "midas.h"
 #include "tmfe.h"
+
+#include <string> // std::string
+#include <thread> // std::thread
+
+/*-- Equipment list ------------------------------------------------*/
+
+#if 0
+#define EVID_TEST 1
+#define EVID_SLOW 2
+#define EVID_RANDOM 3
+#endif
 
 class EqRandom :
    public TMFeEquipment,
@@ -413,6 +169,144 @@ public:
 #endif
 };
 
+class TMFeEquipmentBase
+{
+public:
+   TMFE* fMfe = NULL;
+   TMFeEquipment* fEq = NULL;
+
+public:
+   TMFeEquipmentBase(const char* name, TMFeCommon* common) // ctor
+   {
+      fMfe = TMFE::Instance();
+      fEq  = new TMFeEquipment(fMfe, name, common);
+   }
+
+   virtual ~TMFeEquipmentBase() // dtor
+   {
+      if (fMfe)
+         fMfe = NULL;
+      if (fEq) {
+         delete fEq;
+         fEq = NULL;
+      }
+   }
+
+   virtual TMFeResult Init(const std::vector<std::string>& args) = 0;
+   virtual void Usage() { };
+
+private:
+   TMFeEquipmentBase() // default ctor
+   {
+      assert(!"TMFeEquipmentBase: default constructor is not permitted!");
+   }
+};
+
+class EqBulk :
+   public TMFeEquipmentBase,
+   public TMFeRpcHandlerInterface
+{
+public: // configuration
+   int fEventSize = 0;
+   double fEventSleep = 1.0;
+   std::vector<char> fEventBuffer;
+
+public: // internal state
+   bool fThreadRunning = false;
+   
+public:
+   EqBulk(const char* name, TMFeCommon* common) // ctor
+      : TMFeEquipmentBase(name, common)
+   {
+
+
+   }
+
+   ~EqBulk() // dtor
+   {
+      // wait for thread to finish
+      while (fThreadRunning) {
+         fMfe->Sleep(0.1);
+      }
+   }
+
+   TMFeResult Init(const std::vector<std::string>& args)
+   {
+      fEq->SetStatus("Starting...", "white");
+
+      fEq->fOdbEqSettings->RI("event_size", &fEventSize, true);
+      fEq->fOdbEqSettings->RD("event_sleep_sec", &fEventSleep, true);
+
+      printf("Event size set to %d bytes\n", fEventSize);
+
+      fEventBuffer.resize(16+8+16+fEventSize+100);
+
+      //size = sizeof(test_rb_wait_sleep);
+      //status = db_get_value(hDB, hSet, "rb_wait_sleep", &test_rb_wait_sleep, &size, TID_DWORD, TRUE);
+      //assert(status == DB_SUCCESS);
+      //printf("Ring buffer wait sleep %d ms\n", test_rb_wait_sleep);
+
+      new std::thread(&EqBulk::Thread, this);
+      
+      return TMFeOk();
+   }
+
+   void SendEvent()
+   {
+      char* buf = fEventBuffer.data();
+      size_t bufsize = fEventBuffer.size();
+      fEq->ComposeEvent(buf, bufsize);
+      fEq->BkInit(buf, bufsize);
+         
+      char* ptr = (char*)fEq->BkOpen(buf, "bulk", TID_BYTE);
+      ptr += fEventSize;
+      fEq->BkClose(buf, ptr);
+
+      fEq->SendEvent(buf);
+      fEq->WriteStatistics();
+   }
+
+   void Thread()
+   {
+      printf("FeBulk::Thread: thread started\n");
+
+      fEq->SetStatus("Thread running", "#00FF00");
+
+      fThreadRunning = true;
+      while (!fMfe->fShutdownRequested) {
+         fMfe->Sleep(fEventSleep);
+         SendEvent();
+      }
+      
+      printf("FeBulk::Thread: thread finished\n");
+      fThreadRunning = false;
+   }
+
+#if 0
+   EQUIPMENT equipment[] = {
+
+  { "test"   ,         /* equipment name */
+    {
+      EVID_TEST, (1<<EVID_TEST),           /* event ID, trigger mask */
+      "SYSTEM",             /* event buffer */
+      EQ_USER,              /* equipment type */
+      0,                    /* event source */
+      "MIDAS",              /* format */
+      TRUE,                 /* enabled */
+      RO_RUNNING,           /* Read when running */
+      100,                  /* poll every so milliseconds */
+      0,                    /* stop run after this event limit */
+      0,                    /* number of sub events */
+      0,                    /* no history */
+      "", "", ""
+    },
+    read_test_event,/* readout routine */
+  },
+  { "" }
+};
+#endif
+};
+   
 class Myfe :
    public TMFeRpcHandlerInterface,
    public TMFePeriodicHandlerInterface   
@@ -465,8 +359,6 @@ public:
          return TMFeErrorMessage("begin of run failed by ODB setting!");
       }
       
-      configure();
-      
       int s = 0;
       fEq->fOdbEqSettings->RI("sleep_begin_of_run", &s, true);
       
@@ -474,10 +366,6 @@ public:
          printf("sleep_begin_of_run: calling ss_sleep(%d)\n", s);
          ss_sleep(s);
       }
-      
-      test_event_count = 0;
-      test_rb_wait_count = 0;
-      test_run_number = run_number; // tell thread to start running
       
       return TMFeOk();
    }
@@ -497,8 +385,6 @@ public:
          return TMFeResult(fail, "end of run failed by ODB setting!");
       }
       
-      test_run_number = 0; // tell thread to stop running
-      
       int s = 0;
       fEq->fOdbEqSettings->RI("sleep_end_of_run", &s, true);
       
@@ -506,8 +392,6 @@ public:
          printf("sleep_end_of_run: calling ss_sleep(%d)\n", s);
          ss_sleep(s);
       }
-      
-      printf("test_event_count: %d events sent, ring buffer wait count %d\n", test_event_count, test_rb_wait_count);
       
       return TMFeOk();
    }
@@ -527,8 +411,6 @@ public:
          return TMFeResult(fail, "pause run failed by ODB setting!");
       }
       
-      test_run_number = 0; // tell thread to stop running
-
       return TMFeOk();
    }
 
@@ -547,8 +429,6 @@ public:
          return TMFeResult(fail, "resume run failed by ODB setting!");
       }
       
-      test_run_number = run_number; // tell thread to start running
-
       return TMFeOk();
    }
 
@@ -567,8 +447,6 @@ public:
          return TMFeResult(fail, "start abort failed by ODB setting!");
       }
       
-      test_run_number = run_number; // tell thread to start running
-
       return TMFeOk();
    }
 
@@ -589,6 +467,8 @@ int main(int argc, char* argv[])
    setbuf(stderr, NULL);
 
    signal(SIGPIPE, SIG_IGN);
+
+   std::vector<std::string> eq_args;
 
    //std::string name = "";
    //
@@ -614,7 +494,7 @@ int main(int argc, char* argv[])
    common->LogHistory = 1;
    //common->Buffer = "SYSTEM";
    
-   TMFeEquipment* eq = new TMFeEquipment(mfe, "test", common);
+   TMFeEquipment* eq = new TMFeEquipment(mfe, "test_rpc", common);
    eq->Init();
    eq->SetStatus("Starting...", "white");
    eq->ZeroStatistics();
@@ -625,9 +505,9 @@ int main(int argc, char* argv[])
    Myfe* myfe = new Myfe(mfe, eq);
 
    TMFeCommon *cor = new TMFeCommon();
-   common->Period  = 1000;
-   common->EventID = 2;
-   common->LogHistory = 0;
+   cor->Period  = 1000;
+   cor->EventID = 2;
+   cor->LogHistory = 0;
    //common->Buffer = "SYSTEM";
 
    EqRandom* eqr = new EqRandom(mfe, "test_random", cor);
@@ -639,9 +519,9 @@ int main(int argc, char* argv[])
    mfe->RegisterEquipment(eqr);
 
    TMFeCommon *cos = new TMFeCommon();
-   common->Period  = 1000;
-   common->EventID = 3;
-   common->LogHistory = 1;
+   cos->Period  = 1000;
+   cos->EventID = 3;
+   cos->LogHistory = 1;
    //common->Buffer = "SYSTEM";
 
    EqSlow* eqs = new EqSlow(mfe, "test_slow", cos);
@@ -651,6 +531,20 @@ int main(int argc, char* argv[])
    eqs->WriteStatistics();
 
    mfe->RegisterEquipment(eqs);
+
+   TMFeCommon *cob = new TMFeCommon();
+   cob->Period  = 1000;
+   cob->EventID = 3;
+   cob->LogHistory = 1;
+   //common->Buffer = "SYSTEM";
+
+   EqBulk* eqb = new EqBulk("test_bulk", cos);
+   eqb->fEq->Init();
+   eqb->fEq->ZeroStatistics();
+   eqb->fEq->WriteStatistics();
+   eqb->Init(eq_args);
+
+   mfe->RegisterEquipment(eqb->fEq);
 
    //mfe->SetTransitionSequenceStart(910);
    //mfe->SetTransitionSequenceStop(90);
@@ -670,6 +564,9 @@ int main(int argc, char* argv[])
    while (!mfe->fShutdownRequested) {
       mfe->PollMidas(10);
    }
+
+   delete eqb;
+   eqb = NULL;
 
    mfe->Disconnect();
 
