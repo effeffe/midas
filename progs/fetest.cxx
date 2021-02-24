@@ -30,22 +30,25 @@
 #endif
 
 class EqRandom :
-   public TMFeEquipment,
+   public TMFeEquipmentBase,
    public TMFePeriodicHandlerInterface   
 {
 public:
-   EqRandom(TMFE* mfe, const char* name, TMFeCommon* common)
-      : TMFeEquipment(mfe, name, common)
+   EqRandom()
    {
-
-
+   }
+   
+   TMFeResult Init(const std::vector<std::string>& args)
+   {
+      fMfe->RegisterPeriodicHandler(fEq, this);
+      return TMFeOk();
    }
    
    void HandlePeriodic()
    {
-      char event[fMaxEventSize];
+      char event[fEq->fMaxEventSize];
 
-      ComposeEvent(event, fMaxEventSize);
+      fEq->ComposeEvent(event, fEq->fMaxEventSize);
       
       char* pbh = event + sizeof(EVENT_HEADER);
       
@@ -84,7 +87,7 @@ public:
 
       //printf("sending %d, max %d\n", (int)bk_size(pbh), (int)fMaxEventSize);
 
-      SendEvent(event);
+      fEq->SendEvent(event);
    }
 
 #if 0
@@ -109,29 +112,42 @@ public:
 
 };
 
+struct EqRandomCommon: TMFeCommon { EqRandomCommon() {
+   EventID = 2;
+   Period = 1000;
+   LogHistory = 0;
+   WriteEventsToOdb = true;
+   ReadOnlyWhenRunning = true;
+} };
+
+static TMFeRegister eq_random_register("fetest", "test_random", __FILE__, new EqRandom(), new EqRandomCommon);
+
 class EqSlow :
-   public TMFeEquipment,
+   public TMFeEquipmentBase,
    public TMFePeriodicHandlerInterface   
 {
 public:
-   EqSlow(TMFE* mfe, const char* name, TMFeCommon* common)
-      : TMFeEquipment(mfe, name, common)
+   EqSlow()
    {
+   }
 
-
+   TMFeResult Init(const std::vector<std::string>& args)
+   {
+      fMfe->RegisterPeriodicHandler(fEq, this);
+      return TMFeOk();
    }
    
    void SendData(double dvalue)
    {
       char buf[1024];
-      ComposeEvent(buf, sizeof(buf));
-      BkInit(buf, sizeof(buf));
+      fEq->ComposeEvent(buf, sizeof(buf));
+      fEq->BkInit(buf, sizeof(buf));
          
-      double* ptr = (double*)BkOpen(buf, "data", TID_DOUBLE);
+      double* ptr = (double*)fEq->BkOpen(buf, "data", TID_DOUBLE);
       *ptr++ = dvalue;
-      BkClose(buf, ptr);
+      fEq->BkClose(buf, ptr);
 
-      SendEvent(buf);
+      fEq->SendEvent(buf);
    }
 
    void HandlePeriodic()
@@ -140,10 +156,10 @@ public:
       double t = TMFE::GetTime();
       double data = 100.0*sin(-M_PI/2.0+M_PI*t/60);
       SendData(data);
-      WriteStatistics();
+      fEq->WriteStatistics();
       char status_buf[256];
       sprintf(status_buf, "value %.1f", data);
-      SetStatus(status_buf, "#00FF00");
+      fEq->SetStatus(status_buf, "#00FF00");
    }
 
 #if 0
@@ -167,38 +183,14 @@ public:
 #endif
 };
 
-class TMFeEquipmentBase
-{
-public:
-   TMFE* fMfe = NULL;
-   TMFeEquipment* fEq = NULL;
+struct EqSlowCommon: TMFeCommon { EqSlowCommon() {
+   EventID = 3;
+   Period = 1000;
+   LogHistory = 1;
+   WriteEventsToOdb = true;
+} };
 
-public:
-   TMFeEquipmentBase(const char* name, TMFeCommon* common) // ctor
-   {
-      fMfe = TMFE::Instance();
-      fEq  = new TMFeEquipment(fMfe, name, common);
-   }
-
-   virtual ~TMFeEquipmentBase() // dtor
-   {
-      if (fMfe)
-         fMfe = NULL;
-      if (fEq) {
-         delete fEq;
-         fEq = NULL;
-      }
-   }
-
-   virtual TMFeResult Init(const std::vector<std::string>& args) = 0;
-   virtual void Usage() { };
-
-private:
-   TMFeEquipmentBase() // default ctor
-   {
-      assert(!"TMFeEquipmentBase: default constructor is not permitted!");
-   }
-};
+static TMFeRegister eq_slow_register("fetest", "test_slow", __FILE__, new EqSlow(), new EqSlowCommon);
 
 class EqBulk :
    public TMFeEquipmentBase,
@@ -213,11 +205,8 @@ public: // internal state
    bool fThreadRunning = false;
    
 public:
-   EqBulk(const char* name, TMFeCommon* common) // ctor
-      : TMFeEquipmentBase(name, common)
+   EqBulk() // ctor
    {
-
-
    }
 
    ~EqBulk() // dtor
@@ -304,23 +293,35 @@ public:
 };
 #endif
 };
+
+struct EqBulkCommon: TMFeCommon { EqBulkCommon() {
+   Period = 1000;
+   EventID = 3;
+   ReadOnlyWhenRunning = true;
+} };
+
+static TMFeRegister eq_bulk_register("fetest", "test_bulk", __FILE__, new EqBulk(), new EqBulkCommon);
    
-class Myfe :
+class EqRpc :
+   public TMFeEquipmentBase,
    public TMFeRpcHandlerInterface,
    public TMFePeriodicHandlerInterface   
 {
 public:
-   TMFE* fMfe = NULL;
-   TMFeEquipment* fEq = NULL;
-
-   Myfe(TMFE* mfe, TMFeEquipment* eq) // ctor
+   EqRpc() // ctor
    {
-      fMfe = mfe;
-      fEq  = eq;
    }
 
-   ~Myfe() // dtor
+   ~EqRpc() // dtor
    {
+   }
+
+   TMFeResult Init(const std::vector<std::string>& args)
+   {
+      fMfe->RegisterRpcHandler(this);
+      fMfe->RegisterPeriodicHandler(fEq, this);
+      fEq->SetStatus("Started...", "white");
+      return TMFeOk();
    }
 
    TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response)
@@ -328,10 +329,6 @@ public:
       fMfe->Msg(MINFO, "HandleRpc", "RPC cmd [%s], args [%s]", cmd, args);
 
       // RPC handler
-      
-      //int example_int = strtol(args, NULL, 0);
-      //int size = sizeof(int);
-      //int status = db_set_value(hDB, 0, "/Equipment/" EQ_NAME "/Settings/example_int", &example_int, size, 1, TID_INT);
       
       char tmp[256];
       time_t now = time(NULL);
@@ -453,6 +450,12 @@ public:
    }
 };
 
+struct EqRpcCommon: TMFeCommon { EqRpcCommon() {
+   EventID = 1;
+} };
+
+static TMFeRegister eq_rpc_register("fetest", "test_rpc", __FILE__, new EqRpc(), new EqRpcCommon);
+
 static void usage()
 {
    fprintf(stderr, "Usage: fetest ...\n");
@@ -478,6 +481,10 @@ int main(int argc, char* argv[])
 
    TMFE* mfe = TMFE::Instance();
 
+   if (0) {
+      mfe->Usage();
+   }
+
    TMFeResult result = mfe->Connect("fetest", __FILE__);
    if (result.error_flag) {
       fprintf(stderr, "Cannot connect to MIDAS, error \"%s\", bye.\n", result.error_message.c_str());
@@ -486,89 +493,19 @@ int main(int argc, char* argv[])
 
    //mfe->SetWatchdogSec(0);
 
-   TMFeCommon *common = new TMFeCommon();
-   common->Period  = 1000;
-   common->EventID = 1;
-   common->LogHistory = 1;
-   //common->Buffer = "SYSTEM";
-   
-   TMFeEquipment* eq = new TMFeEquipment(mfe, "test_rpc", common);
-   eq->Init();
-   eq->SetStatus("Starting...", "white");
-   eq->ZeroStatistics();
-   eq->WriteStatistics();
-
-   mfe->RegisterEquipment(eq);
-
-   Myfe* myfe = new Myfe(mfe, eq);
-
-   TMFeCommon *cor = new TMFeCommon();
-   cor->Period  = 1000;
-   cor->EventID = 2;
-   cor->LogHistory = 0;
-   cor->ReadOnlyWhenRunning = true;
-   cor->WriteEventsToOdb = true;
-   //common->Buffer = "SYSTEM";
-
-   EqRandom* eqr = new EqRandom(mfe, "test_random", cor);
-   eqr->Init();
-   eqr->SetStatus("Starting...", "white");
-   eqr->ZeroStatistics();
-   eqr->WriteStatistics();
-
-   mfe->RegisterEquipment(eqr);
-
-   TMFeCommon *cos = new TMFeCommon();
-   cos->Period  = 1000;
-   cos->EventID = 3;
-   cos->LogHistory = 1;
-   cos->WriteEventsToOdb = true;
-   //common->Buffer = "SYSTEM";
-
-   EqSlow* eqs = new EqSlow(mfe, "test_slow", cos);
-   eqs->Init();
-   eqs->SetStatus("Starting...", "white");
-   eqs->ZeroStatistics();
-   eqs->WriteStatistics();
-
-   mfe->RegisterEquipment(eqs);
-
-   TMFeCommon *cob = new TMFeCommon();
-   cob->Period  = 1000;
-   cob->EventID = 3;
-   cob->LogHistory = 1;
-   cob->ReadOnlyWhenRunning = true;
-   //common->Buffer = "SYSTEM";
-
-   EqBulk* eqb = new EqBulk("test_bulk", cos);
-   eqb->fEq->Init();
-   eqb->fEq->ZeroStatistics();
-   eqb->fEq->WriteStatistics();
-   eqb->Init(eq_args);
-
-   mfe->RegisterEquipment(eqb->fEq);
-
    //mfe->SetTransitionSequenceStart(910);
    //mfe->SetTransitionSequenceStop(90);
    //mfe->DeregisterTransitionPause();
    //mfe->DeregisterTransitionResume();
    mfe->RegisterTransitionStartAbort();
 
-   mfe->RegisterRpcHandler(myfe);
-   //mfe->RegisterRpcHandler(eqr);
-
-   mfe->RegisterPeriodicHandler(myfe->fEq, myfe);
-   mfe->RegisterPeriodicHandler(eqr, eqr);
-   mfe->RegisterPeriodicHandler(eqs, eqs);
-
-   eq->SetStatus("Started...", "white");
+   mfe->InitEquipments(eq_args);
 
    while (!mfe->fShutdownRequested) {
       mfe->PollMidas(10);
    }
 
-   delete eqb;
-   eqb = NULL;
+   mfe->DeleteEquipments();
 
    mfe->Disconnect();
 

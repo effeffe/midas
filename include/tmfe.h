@@ -107,35 +107,30 @@ TMFeResult TMFeMidasError(int midas_status, const std::string& str);
 
 // Equipment Common
 
-class TMFeCommon
+struct TMFeCommon
 {
- public:
-   uint16_t EventID;
-   uint16_t TriggerMask;
-   std::string Buffer;
-   int Type;
-   int Source;
-   std::string Format;
-   bool Enabled;
-   int ReadOn;
-   int Period;
-   double EventLimit;
-   uint32_t NumSubEvents;
-   int LogHistory;
+   uint16_t EventID = 1;
+   uint16_t TriggerMask = 0;
+   std::string Buffer = "SYSTEM";
+   int Type = 0;
+   int Source = 0;
+   std::string Format = "MIDAS";
+   bool Enabled = true;
+   int ReadOn = 0;
+   int Period = 1000;
+   double EventLimit = 0;
+   uint32_t NumSubEvents = 0;
+   int LogHistory = 0;
    std::string FrontendHost;
    std::string FrontendName;
    std::string FrontendFileName;
    std::string Status;
    std::string StatusColor;
-   bool Hidden;
-   int WriteCacheSize;
+   bool Hidden = false;
+   int WriteCacheSize = 100000;
 
-public:
    bool ReadOnlyWhenRunning = false; // RO_RUNNING
    bool WriteEventsToOdb = false; // RO_ODB
-
- public:
-   TMFeCommon(); // ctor
 };
 
 class TMFE;
@@ -175,7 +170,10 @@ public:
 
 public:
    TMFeEquipment(TMFE* mfe, const char* name, TMFeCommon* common); // ctor
+   ~TMFeEquipment(); // dtor
    TMFeResult Init(); ///< Initialize equipment
+   TMFeResult Init1(); ///< Initialize equipment, before EquipmentBase::Init()
+   TMFeResult Init2(); ///< Initialize equipment, after EquipmentBase::Init()
    TMFeResult ComposeEvent(char* pevent, size_t size);
    TMFeResult BkInit(char* pevent, size_t size);
    void*      BkOpen(char* pevent, const char* bank_name, int bank_type);
@@ -203,6 +201,23 @@ class TMFePeriodicHandlerInterface
 {
  public:
    virtual void HandlePeriodic() = 0;
+};
+
+class TMFePollHandlerInterface
+{
+ public:
+   virtual bool HandlePoll() = 0;
+   virtual void HandleRead() = 0;
+};
+
+class TMFeEquipmentBase
+{
+public:
+   TMFE* fMfe = NULL;
+   TMFeEquipment* fEq = NULL;
+   virtual ~TMFeEquipmentBase();
+   virtual TMFeResult Init(const std::vector<std::string>& args) = 0;
+   virtual void Usage();
 };
 
 class TMFePeriodicHandler
@@ -242,6 +257,7 @@ public:
 
  public:   
    std::vector<TMFeEquipment*> fEquipments;
+   std::vector<TMFeEquipmentBase*> fEquipmentBases;
    std::vector<TMFeRpcHandlerInterface*> fRpcHandlers;
    std::vector<TMFePeriodicHandler*> fPeriodicHandlers;
    double fNextPeriodic;
@@ -268,13 +284,23 @@ public:
    /// TMFE is a singleton class. Call instance() to get a reference
    /// to the one instance of this class.
    static TMFE* Instance();
-   
+
    TMFeResult Connect(const char* progname, const char* filename = NULL, const char*hostname = NULL, const char*exptname = NULL);
    TMFeResult Disconnect();
 
-   TMFeResult RegisterEquipment(TMFeEquipment* eq);
+   TMFeResult CreateEquipment(const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeCommon* eqcommon);
+
+   void       Usage();
+   TMFeResult InitEquipments(const std::vector<std::string>& args);
+   void       DeleteEquipments();
+
+
+   void RegisterEquipment(TMFeEquipment* eq);
    void RegisterRpcHandler(TMFeRpcHandlerInterface* handler); ///< RPC handlers are executed from the RPC thread, if started
    void RegisterPeriodicHandler(TMFeEquipment* eq, TMFePeriodicHandlerInterface* handler); ///< periodic handlers are executed from the periodic thread, if started
+   void RegisterPollHandler(TMFeEquipment* eq, TMFePollHandlerInterface* handler); ///< poll handlers are executed from the per-equipment poll threads, if started
+
+   void UnregisterEquipment(TMFeEquipment* eq);
 
    void StartRpcThread();
    void StartPeriodicThread();
@@ -309,6 +335,12 @@ public:
    static double GetTime(); ///< return current time in seconds, with micro-second precision
    static void Sleep(double sleep_time_sec); ///< sleep, with micro-second precision
    static std::string GetThreadId(); ///< return identification of this thread
+};
+
+class TMFeRegister
+{
+ public:
+   TMFeRegister(const char* fename, const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeCommon* eqcommon);
 };
 
 #endif

@@ -137,10 +137,23 @@ TMFeResult TMFE::Disconnect()
    return TMFeOk();
 }
 
-TMFeResult TMFE::RegisterEquipment(TMFeEquipment* eq)
+void TMFE::RegisterEquipment(TMFeEquipment* eq)
 {
+   for (unsigned i=0; i<fEquipments.size(); i++) {
+      if (fEquipments[i] == eq)
+         return;
+   }
    fEquipments.push_back(eq);
-   return TMFeOk();
+}
+
+void TMFE::UnregisterEquipment(TMFeEquipment* eq)
+{
+   for (unsigned i=0; i<fEquipments.size(); i++) {
+      if (fEquipments[i] == eq) {
+         fEquipments[i] = NULL;
+         return;
+      }
+   }
 }
 
 void TMFE::EquipmentPeriodicTasks()
@@ -447,6 +460,8 @@ static INT tr_start(INT run_number, char *errstr)
    mfe->fStateRunning = true;
    
    for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
+      if (mfe->fEquipments[i] == NULL)
+         continue;
       mfe->fEquipments[i]->ZeroStatistics();
       mfe->fEquipments[i]->WriteStatistics();
    }
@@ -495,6 +510,8 @@ static INT tr_stop(INT run_number, char *errstr)
    }
 
    for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
+      if (mfe->fEquipments[i] == NULL)
+         continue;
       mfe->fEquipments[i]->WriteStatistics();
    }
 
@@ -686,31 +703,80 @@ void TMFE::RegisterPeriodicHandler(TMFeEquipment* eq, TMFePeriodicHandlerInterfa
    fNextPeriodic = 0;
 }
 
-TMFeCommon::TMFeCommon() // ctor
+void TMFE::Usage()
 {
-   EventID = 1;
-   TriggerMask = 0;
-   Buffer = "SYSTEM";
-   Type = 0;
-   Source = 0;
-   Format = "MIDAS";
-   Enabled = true;
-   ReadOn = 0;
-   Period = 1000;
-   EventLimit = 0;
-   NumSubEvents = 0;
-   LogHistory = 1;
-   //FrontendHost;
-   //FrontendName;
-   //FrontendFileName;
-   //Status;
-   //StatusColor;
-   Hidden = false;
-   WriteCacheSize = 100000;
-};
+   for (unsigned i=0; i<fEquipmentBases.size(); i++) {
+      fEquipmentBases[i]->Usage();
+   }
+}
+
+TMFeResult TMFE::InitEquipments(const std::vector<std::string>& args)
+{
+   for (unsigned i=0; i<fEquipmentBases.size(); i++) {
+      TMFeResult r;
+      r = fEquipmentBases[i]->fEq->Init1();
+      if (r.error_flag)
+         return r;
+      r = fEquipmentBases[i]->Init(args);
+      if (r.error_flag)
+         return r;
+      r = fEquipmentBases[i]->fEq->Init2();
+      if (r.error_flag)
+         return r;
+   }
+   return TMFeOk();
+}
+
+void TMFE::DeleteEquipments()
+{
+   for (unsigned i=0; i<fEquipmentBases.size(); i++) {
+      UnregisterEquipment(fEquipmentBases[i]->fEq);
+      delete fEquipmentBases[i];
+      fEquipmentBases[i] = NULL;
+   }
+
+   for (unsigned i=0; i<fEquipments.size(); i++) {
+      if (fEquipments[i] == NULL)
+         continue;
+      printf("delete equipment [%s]\n", fEquipments[i]->fName.c_str());
+      delete fEquipments[i];
+      fEquipments[i] = NULL;
+   }
+}
+
+TMFeResult TMFE::CreateEquipment(const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeCommon* eqcommon)
+{
+   assert(eqname != NULL);
+   
+   for (unsigned i=0; i<fEquipments.size(); i++) {
+      if (fEquipments[i] == NULL)
+         continue;
+      if (fEquipments[i]->fName == eqname) {
+         return TMFeErrorMessage(std::string("Duplicate equipment name \"") + eqname + "\"");
+      }
+   }
+
+   if (eqfile)
+      eqcommon->FrontendFileName = eqfile;
+
+   TMFeEquipment* eq = new TMFeEquipment(this, eqname, eqcommon);
+   eqbase->fMfe = this;
+   eqbase->fEq = eq;
+   fEquipmentBases.push_back(eqbase);
+   RegisterEquipment(eq);
+   return TMFeOk();
+}
+
+TMFeRegister::TMFeRegister(const char* fename, const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeCommon* eqcommon)
+{
+   printf("TMFeRegister: fename [%s] eqname [%s] file [%s]\n", fename, eqname, eqfile);
+   TMFE* mfe = TMFE::Instance();
+   mfe->CreateEquipment(eqname, eqfile, eqbase, eqcommon);
+}
 
 TMFeEquipment::TMFeEquipment(TMFE* mfe, const char* name, TMFeCommon* common) // ctor
 {
+   printf("TMFeEquipment: ctor for [%s]\n", name);
    fMfe  = mfe;
    fName = name;
    fCommon = common;
@@ -729,7 +795,32 @@ TMFeEquipment::TMFeEquipment(TMFE* mfe, const char* name, TMFeCommon* common) //
    fOdbEqVariables = NULL;
 }
 
+TMFeEquipment::~TMFeEquipment() // dtor
+{
+   printf("TMFeEquipment: dtor for [%s]\n", fName.c_str());
+   fMfe = NULL;
+   if (fCommon) {
+      delete fCommon;
+      fCommon = NULL;
+   }
+}
+
 TMFeResult TMFeEquipment::Init()
+{
+   TMFeResult r;
+
+   r = Init1();
+   if (r.error_flag)
+      return r;
+
+   r = Init2();
+   if (r.error_flag)
+      return r;
+
+   return TMFeOk();
+}
+
+TMFeResult TMFeEquipment::Init1()
 {
    //
    // create ODB /eq/name/common
@@ -771,6 +862,16 @@ TMFeResult TMFeEquipment::Init()
    fCommon->Status += fMfe->fFrontendHostname;
    fCommon->StatusColor = "greenLight";
 
+   ZeroStatistics();
+   WriteStatistics();
+
+   return TMFeOk();
+}
+
+TMFeResult TMFeEquipment::Init2()
+{
+   // open event buffer
+   
    uint32_t odb_max_event_size = DEFAULT_MAX_EVENT_SIZE;
    fMfe->fOdbRoot->RU32("Experiment/MAX_EVENT_SIZE", &odb_max_event_size, true);
 
@@ -801,14 +902,13 @@ TMFeResult TMFeEquipment::Init()
 
    printf("Equipment \"%s\": max event size: %d, max event size in ODB: %d, buffer \"%s\" size: %d\n", fName.c_str(), (int)fMaxEventSize, (int)odb_max_event_size, fCommon->Buffer.c_str(), (int)fBufferSize);
 
+   // update ODB common
+
    fOdbEqCommon->WS("Frontend host", fCommon->FrontendHost.c_str(), NAME_LENGTH);
    fOdbEqCommon->WS("Frontend name", fCommon->FrontendName.c_str(), NAME_LENGTH);
    fOdbEqCommon->WS("Frontend file name", fCommon->FrontendFileName.c_str(), 256);
    fOdbEqCommon->WS("Status", fCommon->Status.c_str(), 256);
    fOdbEqCommon->WS("Status color", fCommon->StatusColor.c_str(), NAME_LENGTH);
-
-   ZeroStatistics();
-   WriteStatistics();
 
    return TMFeOk();
 };
@@ -957,6 +1057,25 @@ TMFeResult TMFeEquipment::SetStatus(char const* eq_status, char const* eq_color)
 
    return TMFeOk();
 }
+
+//TMFeEquipmentBase::TMFeEquipmentBase(const char* name, TMFeCommon* common) // ctor
+//   {
+//      fMfe = TMFE::Instance();
+//      fEq  = new TMFeEquipment(fMfe, name, common);
+//   }
+
+TMFeEquipmentBase::~TMFeEquipmentBase() // dtor
+{
+   if (fMfe)
+      fMfe = NULL;
+   if (fEq) {
+      delete fEq;
+      fEq = NULL;
+   }
+}
+
+//virtual TMFeResult Init(const std::vector<std::string>& args) = 0;
+void TMFeEquipmentBase::Usage() { };
 
 TMFeResult TMFE::TriggerAlarm(const char* name, const char* message, const char* aclass)
 {
