@@ -41,6 +41,12 @@ set(MFEPROGS
    msysmon
 )
 
+set(TMFEPROGS
+   tmfe_example_everything
+   #tmfe_example_periodic
+   #tmfe_example_poll
+)
+
 foreach(PROG ${PROGS} ${TESTPROGS})
    add_executable(${PROG} ${PROG})
    target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/mscb/include)
@@ -55,6 +61,13 @@ foreach(PROG ${MFEPROGS})
    target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/mscb/include)
    target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
    target_link_libraries(${PROG} mfe midas ${LIBS} ${DB_LIBS})
+endforeach()
+
+foreach(PROG ${TMFEPROGS})
+   add_executable(${PROG} ${PROG})
+   target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb)
+   #target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
+   target_link_libraries(${PROG} tmfe_main midas ${LIBS} ${DB_LIBS})
 endforeach()
 
 if (HAVE_NVIDIA)
@@ -138,7 +151,7 @@ endif(HAVE_ROOT)
 #
 # Installation
 #
-install(TARGETS ${PROGS} ${MFEPROGS} mhttpd mhttpd6 odbedit DESTINATION bin)
+install(TARGETS ${PROGS} ${TMFEPROGS} ${MFEPROGS} mhttpd mhttpd6 odbedit DESTINATION bin)
 if (HAVE_NVIDIA)
    install(TARGETS msysmon-nvidia DESTINATION bin)
 endif(HAVE_NVIDIA)

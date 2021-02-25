@@ -443,6 +443,10 @@ ifdef NEED_RANLIB
 	ranlib $@
 endif
 
+MINI_OBJS  :=
+MINI_OBJS  += $(LIB_DIR)/mfe.o
+MINI_OBJS  += $(LIB_DIR)/tmfe_main.o
+
 MINI_PROGS :=
 MINI_PROGS += $(BIN_DIR)/odbinit
 MINI_PROGS += $(BIN_DIR)/odbedit
@@ -455,7 +459,7 @@ SUBMODULES += mxml/mxml.cxx
 SUBMODULES += mjson/mjson.cxx
 SUBMODULES += mvodb/mvodb.cxx
 
-$(LIB_DIR)/mfe.o $(LIB) $(OBJS): $(OS_DIR) $(GIT_REVISION) $(SUBMODULES)
+$(LIB_DIR)/mfe.o $(LIB_DIR)/tmfe_main.o $(LIB) $(OBJS): $(OS_DIR) $(GIT_REVISION) $(SUBMODULES)
 
 $(OS_DIR):
 	mkdir -p $(BIN_DIR)
@@ -504,7 +508,7 @@ $(BIN_DIR)/odbedit: progs/odbedit.cxx progs/cmdedit.cxx $(LIB)
 # Main target
 #
 
-mini: $(GIT_REVISION) $(LIB) $(MINI_PROGS)
+mini: $(GIT_REVISION) $(LIB) $(MINI_OBJS) $(MINI_PROGS)
 
 clean:: cleanmini
 

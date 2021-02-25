@@ -415,6 +415,11 @@ endif ()
 # midas include is public so all programs linking to libmidas will inherit this
 target_include_directories(midas PUBLIC ${SYSINC_DIR})
 
+# library for tmfe_main
+add_library(tmfe_main src/tmfe_main)
+target_include_directories(tmfe_main PUBLIC ${SYSINC_DIR})
+target_include_directories(tmfe_main PRIVATE ${PROJECT_SOURCE_DIR}/mvodb)
+
 # library for mfe
 add_library(mfe src/mfe)
 target_include_directories(mfe PUBLIC ${SYSINC_DIR})

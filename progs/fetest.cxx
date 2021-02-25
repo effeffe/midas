@@ -485,11 +485,15 @@ int main(int argc, char* argv[])
       mfe->Usage();
    }
 
+   mfe->CallPreConnectHooks(eq_args);
+
    TMFeResult result = mfe->Connect("fetest", __FILE__);
    if (result.error_flag) {
       fprintf(stderr, "Cannot connect to MIDAS, error \"%s\", bye.\n", result.error_message.c_str());
       return 1;
    }
+
+   mfe->CallPostConnectHooks(eq_args);
 
    //mfe->SetWatchdogSec(0);
 
@@ -505,9 +509,13 @@ int main(int argc, char* argv[])
       mfe->PollMidas(10);
    }
 
+   mfe->CallPreDisconnectHooks();
+
    mfe->DeleteEquipments();
 
    mfe->Disconnect();
+
+   mfe->CallPostDisconnectHooks();
 
    return 0;
 }
