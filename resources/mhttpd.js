@@ -771,9 +771,12 @@ function mhttpd_init(current_page, interval, callback) {
                let l = custom[b + "/name"];
                if (l.substr(-1) === '!')
                   continue;
-               if (l.substr(-1) === '&')
+               if (l.substr(-1) === '&') {
                   l = l.slice(0, -1);
-               html += "<div class='" + cc + "'><a href='?cmd=custom&page=" + custom[b + "/name"] + "' class='mmenulink'>" + l + "</a></div>\n";
+                  html += "<div class='" + cc + "'><a target='_blank' href='?cmd=custom&page=" + l + "' class='mmenulink'>" + l + "</a></div>\n";
+               } else {
+                  html += "<div class='" + cc + "'><a href='?cmd=custom&page=" + l + "' class='mmenulink'>" + l + "</a></div>\n";
+               }
             }
          }
 

@@ -111,13 +111,13 @@ function MhistoryGraph(divElement) { // Constructor
    // overwrite scale from URL if present
    let tMin = decodeURI(getUrlVars()["A"]);
    if (tMin !== "undefined") {
-      this.initTMin = tMin;
-      this.tMin = tMin;
+      this.initTMin = parseInt(tMin);
+      this.tMin = parseInt(tMin);
    }
    let tMax = decodeURI(getUrlVars()["B"]);
    if (tMax !== "undefined") {
-      this.initTMax = tMax;
-      this.tMax = tMax;
+      this.initTMax = parseInt(tMax);
+      this.tMax = parseInt(tMax);
    }
 
    // data arrays
