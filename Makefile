@@ -510,6 +510,9 @@ $(LIB_DIR)/%.o: mvodb/%.cxx
 $(BIN_DIR)/%: progs/%.cxx $(LIB)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
 
+$(BIN_DIR)/odbedit: progs/odbedit.cxx progs/cmdedit.cxx $(LIB)
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
+
 $(TMFE_PROGS): $(BIN_DIR)/%: progs/%.cxx $(LIB) $(TMFE_MAIN)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
 
