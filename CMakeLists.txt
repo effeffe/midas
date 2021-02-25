@@ -439,9 +439,20 @@ if (HAVE_ROOT)
    target_compile_options(rmana PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
 endif(HAVE_ROOT)
 
-install(TARGETS midas midas-shared midas-c-compat mfe mana rmana
+install(TARGETS midas midas-shared midas-c-compat tmfe_main mfe mana rmana
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
+
+# library for tmfe_main.o
+add_library(tmfeo OBJECT src/tmfe_main)
+target_include_directories(tmfeo PUBLIC ${SYSINC_DIR})
+target_include_directories(tmfeo PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
+target_include_directories(tmfeo PRIVATE ${PROJECT_SOURCE_DIR}/mvodb)
+
+# this is somewhat dirty, as the path to the object dir is hardcoded and
+# might change in future CMake versions. The only other option however
+# would be to pack and then unpack again a library (NB, 12.6.2019)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/tmfeo.dir/src/tmfe_main.cxx.o DESTINATION lib RENAME tmfe_main.o)
 
 # library for mfe.o
 add_library(mfeo OBJECT src/mfe)
@@ -477,6 +488,7 @@ set(MIDAS_LIBRARIES
    midas-shared
    midas-c-compat
    mfe
+   tmfe_main
 #   mana
 #   rmana
 #   mfeo
