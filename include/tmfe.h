@@ -103,7 +103,7 @@ class TMFeResult
 
 inline TMFeResult TMFeOk() { return TMFeResult(); }
 TMFeResult TMFeErrorMessage(const std::string& message);
-TMFeResult TMFeMidasError(int midas_status, const std::string& str);
+TMFeResult TMFeMidasError(const std::string& message, const char* midas_function_name, int midas_status);
 
 // Equipment Common
 
@@ -294,6 +294,8 @@ public:
    /// TMFE is a singleton class. Call instance() to get a reference
    /// to the one instance of this class.
    static TMFE* Instance();
+   
+   static bool gfVerbose;
 
    TMFeResult Connect(const char* progname, const char* filename = NULL, const char*hostname = NULL, const char*exptname = NULL);
    TMFeResult Disconnect();

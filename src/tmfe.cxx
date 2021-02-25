@@ -27,9 +27,9 @@ TMFeResult TMFeErrorMessage(const std::string& message)
    return TMFeResult(0, message);
 }
 
-TMFeResult TMFeMidasError(int midas_status, const std::string& str)
+TMFeResult TMFeMidasError(const std::string& message, const char* midas_function_name, int midas_status)
 {
-   return TMFeResult(midas_status, str);
+   return TMFeResult(midas_status, message + msprintf(", %s() status %d", midas_function_name, midas_status));
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -39,6 +39,8 @@ TMFeResult TMFeMidasError(int midas_status, const std::string& str)
 
 TMFE::TMFE() // ctor
 {
+   if (gfVerbose)
+      printf("TMFE::ctor!\n");
    fDB = 0;
    fOdbRoot = NULL;
    fShutdownRequested = false;
@@ -55,6 +57,8 @@ TMFE::TMFE() // ctor
 
 TMFE::~TMFE() // dtor
 {
+   if (gfVerbose)
+      printf("TMFE::dtor!\n");
    assert(!"TMFE::~TMFE(): destruction of the TMFE singleton is not permitted!");
 }
 
@@ -81,23 +85,31 @@ TMFeResult TMFE::Connect(const char* xprogname, const char* filename, const char
 
    int status;
   
-   char xhostname[HOST_NAME_LENGTH];
-   char xexptname[NAME_LENGTH];
+   std::string env_hostname;
+   std::string env_exptname;
    
    /* get default from environment */
-   status = cm_get_environment(xhostname, sizeof(xhostname), xexptname, sizeof(xexptname));
-   assert(status == CM_SUCCESS);
+   status = cm_get_environment(&env_hostname, &env_exptname);
+
+   if (status != CM_SUCCESS) {
+      return TMFeMidasError("Cannot connect to MIDAS", "cm_get_environment", status);
+   }
+
+   if (hostname && hostname[0]) {
+      fHostname = hostname;
+   } else {
+      fHostname = env_hostname;
+   }
    
-   if (hostname)
-      strlcpy(xhostname, hostname, sizeof(xhostname));
-   
-   if (exptname)
-      strlcpy(xexptname, exptname, sizeof(xexptname));
-   
-   fHostname = xhostname;
-   fExptname = xexptname;
-   
-   fprintf(stderr, "TMFE::Connect: Program \"%s\" connecting to experiment \"%s\" on host \"%s\"\n", fFrontendName.c_str(), fExptname.c_str(), fHostname.c_str());
+   if (exptname && exptname[0]) {
+      fExptname = exptname;
+   } else {
+      fExptname = env_exptname;
+   }
+
+   if (gfVerbose) {
+      printf("TMFE::Connect: Program \"%s\" connecting to experiment \"%s\" on host \"%s\"\n", fFrontendName.c_str(), fExptname.c_str(), fHostname.c_str());
+   }
    
    int watchdog = DEFAULT_WATCHDOG_TIMEOUT;
    //int watchdog = 60*1000;
@@ -105,20 +117,22 @@ TMFeResult TMFE::Connect(const char* xprogname, const char* filename, const char
    status = cm_connect_experiment1(fHostname.c_str(), fExptname.c_str(), fFrontendName.c_str(), NULL, DEFAULT_ODB_SIZE, watchdog);
    
    if (status == CM_UNDEF_EXP) {
-      fprintf(stderr, "TMidasOnline::connect: Error: experiment \"%s\" not defined.\n", fExptname.c_str());
-      return TMFeMidasError(status, "experiment is not defined");
+      return TMFeMidasError(msprintf("Cannot connect to MIDAS, experiment \"%s\" is not defined", fExptname.c_str()), "cm_connect_experiment1", status);
    } else if (status != CM_SUCCESS) {
-      fprintf(stderr, "TMidasOnline::connect: Cannot connect to MIDAS, status %d.\n", status);
-      return TMFeMidasError(status, "cannot connect");
+      return TMFeMidasError("Cannot connect to MIDAS", "cm_connect_experiment1", status);
    }
 
    status = cm_get_experiment_database(&fDB, NULL);
    if (status != CM_SUCCESS) {
-      return TMFeMidasError(status, "cm_get_experiment_database");
+      return TMFeMidasError("Cannot connect to MIDAS", "cm_get_experiment_database", status);
    }
 
    fOdbRoot = MakeMidasOdb(fDB);
-  
+
+   if (gfVerbose) {
+      printf("TMFE::Connect: Program \"%s\" connected to experiment \"%s\" on host \"%s\"\n", fFrontendName.c_str(), fExptname.c_str(), fHostname.c_str());
+   }
+
    return TMFeOk();
 }
 
@@ -134,10 +148,13 @@ TMFeResult TMFE::SetWatchdogSec(int sec)
 
 TMFeResult TMFE::Disconnect()
 {
-   fprintf(stderr, "TMFE::Disconnect: Disconnecting from experiment \"%s\" on host \"%s\"\n", fExptname.c_str(), fHostname.c_str());
+   if (gfVerbose)
+      printf("TMFE::Disconnect: Disconnecting from experiment \"%s\" on host \"%s\"\n", fExptname.c_str(), fHostname.c_str());
    StopRpcThread();
    StopPeriodicThread();
    cm_disconnect_experiment();
+   if (gfVerbose)
+      printf("TMFE::Disconnect: Disconnected from experiment \"%s\" on host \"%s\"\n", fExptname.c_str(), fHostname.c_str());
    return TMFeOk();
 }
 
@@ -178,7 +195,8 @@ void TMFE::EquipmentPeriodicTasks()
             h->fNextCallTime = h->fLastCallTime + period;
 
             if (h->fNextCallTime < now) {
-               fprintf(stderr, "TMFE::EquipmentPeriodicTasks: periodic equipment does not keep up!\n"); // FIXME
+               if (gfVerbose)
+                  printf("TMFE::EquipmentPeriodicTasks: periodic equipment does not keep up!\n");
                while (h->fNextCallTime < now) {
                   h->fNextCallTime += period;
                }
@@ -228,7 +246,8 @@ void TMFE::PollMidas(int msec)
       
       if (status == RPC_SHUTDOWN || status == SS_ABORT) {
          fShutdownRequested = true;
-         fprintf(stderr, "TMFE::PollMidas: cm_yield(%d) status %d, shutdown requested...\n", msec, status);
+         if (gfVerbose)
+            printf("TMFE::PollMidas: cm_yield(%d) status %d, shutdown requested...\n", msec, status);
       }
 
       now = GetTime();
@@ -246,7 +265,8 @@ void TMFE::MidasPeriodicTasks()
 
 static int tmfe_rpc_thread(void* param)
 {
-   fprintf(stderr, "tmfe_rpc_thread: RPC thread started\n");
+   if (TMFE::gfVerbose)
+      printf("tmfe_rpc_thread: RPC thread started\n");
 
    int msec = 1000;
    TMFE* mfe = TMFE::Instance();
@@ -258,18 +278,22 @@ static int tmfe_rpc_thread(void* param)
 
       if (status == RPC_SHUTDOWN || status == SS_ABORT) {
          mfe->fShutdownRequested = true;
-         fprintf(stderr, "tmfe_rpc_thread: cm_yield(%d) status %d, shutdown requested...\n", msec, status);
+         if (TMFE::gfVerbose)
+            printf("tmfe_rpc_thread: cm_yield(%d) status %d, shutdown requested...\n", msec, status);
       }
    }
    ss_suspend_exit();
-   fprintf(stderr, "tmfe_rpc_thread: RPC thread stopped\n");
+   if (TMFE::gfVerbose)
+      printf("tmfe_rpc_thread: RPC thread stopped\n");
    mfe->fRpcThreadRunning = false;
    return SUCCESS;
 }
 
 static int tmfe_periodic_thread(void* param)
 {
-   fprintf(stderr, "tmfe_periodic_thread: periodic thread started\n");
+   if (TMFE::gfVerbose)
+      printf("tmfe_periodic_thread: periodic thread started\n");
+   
    TMFE* mfe = TMFE::Instance();
    mfe->fPeriodicThreadRunning = true;
    while (!mfe->fShutdownRequested && !mfe->fPeriodicThreadShutdownRequested) {
@@ -277,11 +301,13 @@ static int tmfe_periodic_thread(void* param)
       int status = ss_suspend(1000, 0);
       if (status == RPC_SHUTDOWN || status == SS_ABORT || status == SS_EXIT) {
          mfe->fShutdownRequested = true;
-         fprintf(stderr, "tmfe_periodic_thread: ss_susend() status %d, shutdown requested...\n", status);
+         if (TMFE::gfVerbose)
+            printf("tmfe_periodic_thread: ss_susend() status %d, shutdown requested...\n", status);
       }
    }
    ss_suspend_exit();
-   fprintf(stderr, "tmfe_periodic_thread: periodic thread stopped\n");
+   if (TMFE::gfVerbose)
+      printf("tmfe_periodic_thread: periodic thread stopped\n");
    mfe->fPeriodicThreadRunning = false;
    return SUCCESS;
 }
@@ -289,7 +315,8 @@ static int tmfe_periodic_thread(void* param)
 void TMFE::StartRpcThread()
 {
    if (fRpcThreadRunning || fRpcThreadStarting) {
-      fprintf(stderr, "TMFE::StartRpcThread: RPC thread already running\n");
+      if (gfVerbose)
+         printf("TMFE::StartRpcThread: RPC thread already running\n");
       return;
    }
    
@@ -300,7 +327,8 @@ void TMFE::StartRpcThread()
 void TMFE::StartPeriodicThread()
 {
    if (fPeriodicThreadRunning || fPeriodicThreadStarting) {
-      fprintf(stderr, "TMFE::StartPeriodicThread: periodic thread already running\n");
+      if (gfVerbose)
+         printf("TMFE::StartPeriodicThread: periodic thread already running\n");
       return;
    }
 
@@ -436,7 +464,8 @@ static INT rpc_callback(INT index, void *prpc_param[])
    char* return_buf = CSTRING(2);
    int   return_max_length = CINT(3);
 
-   cm_msg(MINFO, "rpc_callback", "--------> rpc_callback: index %d, max_length %d, cmd [%s], args [%s]", index, return_max_length, cmd, args);
+   if (TMFE::gfVerbose)
+      printf("TMFE::rpc_callback: index %d, max_length %d, cmd [%s], args [%s]\n", index, return_max_length, cmd, args);
 
    TMFE* mfe = TMFE::Instance();
 
@@ -456,7 +485,8 @@ static INT rpc_callback(INT index, void *prpc_param[])
 
 static INT tr_start(INT run_number, char *errstr)
 {
-   cm_msg(MINFO, "tr_start", "tr_start");
+   if (TMFE::gfVerbose)
+      printf("TMFE::tr_start!\n");
 
    TMFE* mfe = TMFE::Instance();
 
@@ -497,7 +527,8 @@ static INT tr_start(INT run_number, char *errstr)
 
 static INT tr_stop(INT run_number, char *errstr)
 {
-   cm_msg(MINFO, "tr_stop", "tr_stop");
+   if (TMFE::gfVerbose)
+      printf("TMFE::tr_stop!\n");
 
    TMFeResult result;
 
@@ -555,7 +586,8 @@ static INT tr_pause(INT run_number, char *errstr)
 
 static INT tr_resume(INT run_number, char *errstr)
 {
-   cm_msg(MINFO, "tr_resume", "tr_resume");
+   if (TMFE::gfVerbose)
+      printf("TMFE::tr_resume!\n");
 
    TMFeResult result;
 
@@ -579,7 +611,8 @@ static INT tr_resume(INT run_number, char *errstr)
 
 static INT tr_startabort(INT run_number, char *errstr)
 {
-   cm_msg(MINFO, "tr_startabort", "tr_startabort");
+   if (TMFE::gfVerbose)
+      printf("TMFE::tr_startabort!\n");
 
    TMFeResult result;
 
@@ -742,7 +775,7 @@ void TMFE::DeleteEquipments()
    for (unsigned i=0; i<fEquipments.size(); i++) {
       if (fEquipments[i] == NULL)
          continue;
-      printf("delete equipment [%s]\n", fEquipments[i]->fName.c_str());
+      //printf("delete equipment [%s]\n", fEquipments[i]->fName.c_str());
       delete fEquipments[i];
       fEquipments[i] = NULL;
    }
@@ -773,7 +806,8 @@ TMFeResult TMFE::CreateEquipment(const char* eqname, const char* eqfile, TMFeEqu
 
 TMFeRegister::TMFeRegister(const char* fename, const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeCommon* eqcommon)
 {
-   printf("TMFeRegister: fename [%s] eqname [%s] file [%s]\n", fename, eqname, eqfile);
+   if (TMFE::gfVerbose)
+      printf("TMFeRegister::ctor: Register equipment with fename [%s] eqname [%s] filename [%s]\n", fename, eqname, eqfile);
    TMFE* mfe = TMFE::Instance();
    if (fename) {
       if (mfe->fFrontendName.empty())
@@ -789,7 +823,8 @@ TMFeRegister::TMFeRegister(const char* fename, const char* eqname, const char* e
 
 TMFeEquipment::TMFeEquipment(TMFE* mfe, const char* name, const char* filename, TMFeCommon* common) // ctor
 {
-   printf("TMFeEquipment: ctor for [%s]\n", name);
+   if (TMFE::gfVerbose)
+      printf("TMFeEquipment::ctor: equipment name [%s] file [%s]\n", name, filename);
    fMfe  = mfe;
    fName = name;
    fFilename = filename;
@@ -811,7 +846,8 @@ TMFeEquipment::TMFeEquipment(TMFE* mfe, const char* name, const char* filename, 
 
 TMFeEquipment::~TMFeEquipment() // dtor
 {
-   printf("TMFeEquipment: dtor for [%s]\n", fName.c_str());
+   if (TMFE::gfVerbose)
+      printf("TMFeEquipment::dtor: equipment name [%s]\n", fName.c_str());
    fMfe = NULL;
    if (fCommon) {
       delete fCommon;
@@ -898,7 +934,7 @@ TMFeResult TMFeEquipment::Init2()
    if (fCommon->Buffer.length() > 0) {
       int status = bm_open_buffer(fCommon->Buffer.c_str(), DEFAULT_BUFFER_SIZE, &fBufferHandle);
       if (status != BM_SUCCESS) {
-         return TMFeMidasError(status, "bm_open_buffer");
+         return TMFeMidasError(msprintf("Cannot open event buffer \"%s\"", fCommon->Buffer.c_str()), "bm_open_buffer", status);
       }
 
       uint32_t buffer_size = 0;
@@ -918,7 +954,8 @@ TMFeResult TMFeEquipment::Init2()
       }
    }
 
-   printf("Equipment \"%s\": max event size: %d, max event size in ODB: %d, buffer \"%s\" size: %d\n", fName.c_str(), (int)fMaxEventSize, (int)odb_max_event_size, fCommon->Buffer.c_str(), (int)fBufferSize);
+   if (TMFE::gfVerbose)
+      printf("TMFeEquipment::Init: Equipment \"%s\", max event size: %d, max event size in ODB: %d, event buffer \"%s\" size: %d\n", fName.c_str(), (int)fMaxEventSize, (int)odb_max_event_size, fCommon->Buffer.c_str(), (int)fBufferSize);
 
    // update ODB common
 
@@ -992,9 +1029,9 @@ TMFeResult TMFeEquipment::SendEvent(const char* event)
    if (status == BM_CORRUPTED) {
       TMFE::Instance()->Msg(MERROR, "TMFeEquipment::SendData", "bm_send_event() returned %d, event buffer is corrupted, shutting down the frontend", status);
       TMFE::Instance()->fShutdownRequested = true;
-      return TMFeMidasError(status, "bm_send_event: event buffer is corrupted, shutting down the frontend");
+      return TMFeMidasError("Cannot send event, event buffer is corrupted, shutting down the frontend", "bm_send_event", status);
    } else if (status != BM_SUCCESS) {
-      return TMFeMidasError(status, "bm_send_event");
+      return TMFeMidasError("Cannot send event", "bm_send_event", status);
    }
 
    fStatEvents += 1;
@@ -1011,14 +1048,6 @@ TMFeResult TMFeEquipment::SendEvent(const char* event)
 
 TMFeResult TMFeEquipment::WriteEventToOdb(const char* event)
 {
-   int status;
-   HNDLE hDB;
-
-   status = cm_get_experiment_database(&hDB, NULL);
-   if (status != CM_SUCCESS) {
-      return TMFeMidasError(status, "cm_get_experiment_database");
-   }
-
    std::string path = "";
    path += "/Equipment/";
    path += fName;
@@ -1026,14 +1055,14 @@ TMFeResult TMFeEquipment::WriteEventToOdb(const char* event)
 
    HNDLE hKeyVar = 0;
 
-   status = db_find_key(hDB, 0, path.c_str(), &hKeyVar);
+   int status = db_find_key(fMfe->fDB, 0, path.c_str(), &hKeyVar);
    if (status != DB_SUCCESS) {
-      return TMFeMidasError(status, "db_find_key");
+      return TMFeMidasError(msprintf("Cannot find \"%s\" in ODB", path.c_str()), "db_find_key", status);
    }
 
-   status = cm_write_event_to_odb(hDB, hKeyVar, (const EVENT_HEADER*) event, FORMAT_MIDAS);
+   status = cm_write_event_to_odb(fMfe->fDB, hKeyVar, (const EVENT_HEADER*) event, FORMAT_MIDAS);
    if (status != SUCCESS) {
-      return TMFeMidasError(status, "cm_write_event_to_odb");
+      return TMFeMidasError("Cannot write event to ODB", "cm_write_event_to_odb", status);
    }
    return TMFeOk();
 }
@@ -1076,12 +1105,6 @@ TMFeResult TMFeEquipment::SetStatus(char const* eq_status, char const* eq_color)
    return TMFeOk();
 }
 
-//TMFeEquipmentBase::TMFeEquipmentBase(const char* name, TMFeCommon* common) // ctor
-//   {
-//      fMfe = TMFE::Instance();
-//      fEq  = new TMFeEquipment(fMfe, name, common);
-//   }
-
 TMFeEquipmentBase::~TMFeEquipmentBase() // dtor
 {
    if (fMfe)
@@ -1092,15 +1115,17 @@ TMFeEquipmentBase::~TMFeEquipmentBase() // dtor
    }
 }
 
-//virtual TMFeResult Init(const std::vector<std::string>& args) = 0;
-void TMFeEquipmentBase::Usage() { };
+void TMFeEquipmentBase::Usage()
+{
+   // empty, to be overwritten by user handler
+};
 
 TMFeResult TMFE::TriggerAlarm(const char* name, const char* message, const char* aclass)
 {
    int status = al_trigger_alarm(name, message, aclass, message, AT_INTERNAL);
 
    if (status) {
-      return TMFeMidasError(status, "al_trigger_alarm");
+      return TMFeMidasError("Cannot trigger alarm", "al_trigger_alarm", status);
    }
 
    return TMFeOk();
@@ -1111,7 +1136,7 @@ TMFeResult TMFE::ResetAlarm(const char* name)
    int status = al_reset_alarm(name);
 
    if (status) {
-      return TMFeMidasError(status, "al_reset_alarm");
+      return TMFeMidasError("Cannot reset alarm", "al_reset_alarm", status);
    }
 
    return TMFeOk();
@@ -1156,6 +1181,9 @@ void TMFE::CallPostDisconnectHooks()
 
 // singleton instance
 TMFE* TMFE::gfMFE = NULL;
+
+// static data members
+bool TMFE::gfVerbose = false;
 
 /* emacs
  * Local Variables:
