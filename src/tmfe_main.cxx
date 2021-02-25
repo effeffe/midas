@@ -59,7 +59,7 @@ int main(int argc, char* argv[])
       mfe->Usage();
    }
 
-   TMFeResult result = mfe->Connect("tmfe_main", __FILE__);
+   TMFeResult result = mfe->Connect(NULL, __FILE__);
    if (result.error_flag) {
       fprintf(stderr, "Cannot connect to MIDAS, error \"%s\", bye.\n", result.error_message.c_str());
       return 1;

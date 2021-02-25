@@ -142,6 +142,7 @@ public:
    std::string fName;
    TMFeCommon *fCommon = NULL;
    TMFE* fMfe = NULL;
+   std::string fFilename;
 
 public:
    size_t fBufferSize = 0;
@@ -169,7 +170,7 @@ public:
    double fStatLastBytes;
 
 public:
-   TMFeEquipment(TMFE* mfe, const char* name, TMFeCommon* common); // ctor
+   TMFeEquipment(TMFE* mfe, const char* eqname, const char* eqfilename, TMFeCommon* common); // ctor
    ~TMFeEquipment(); // dtor
    TMFeResult Init(); ///< Initialize equipment
    TMFeResult Init1(); ///< Initialize equipment, before EquipmentBase::Init()

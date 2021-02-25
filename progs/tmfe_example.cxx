@@ -122,7 +122,7 @@ int main(int argc, char* argv[])
    common->LogHistory = 1;
    //common->Buffer = "SYSTEM";
    
-   TMFeEquipment* eq = new TMFeEquipment(mfe, "tmfe_example", common);
+   TMFeEquipment* eq = new TMFeEquipment(mfe, "tmfe_example", __FILE__, common);
    eq->Init();
    eq->SetStatus("Starting...", "white");
    eq->ZeroStatistics();

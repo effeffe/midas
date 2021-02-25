@@ -123,7 +123,7 @@ int main(int argc, char* argv[])
    common->Period = 1000; // milliseconds
    //common->Buffer = "SYSTEM";
    
-   TMFeEquipment* eq = new TMFeEquipment(mfe, "tmfe_example_mt", common);
+   TMFeEquipment* eq = new TMFeEquipment(mfe, "tmfe_example_mt", __FILE__, common);
    eq->Init();
    eq->SetStatus("Starting...", "white");
    eq->ZeroStatistics();

@@ -66,14 +66,18 @@ TMFE* TMFE::Instance()
    return gfMFE;
 }
 
-TMFeResult TMFE::Connect(const char* progname, const char* filename, const char* hostname, const char* exptname)
+TMFeResult TMFE::Connect(const char* xprogname, const char* filename, const char* hostname, const char* exptname)
 {
-   if (progname)
-      fFrontendName     = progname;
+   if (xprogname)
+      fFrontendName     = xprogname;
    if (filename)
       fFrontendFilename = filename;
 
    fFrontendHostname = ss_gethostname();
+
+   if (fFrontendName.empty()) {
+      return TMFeErrorMessage("TMFE::Connect: frontend name is not set");
+   }
 
    int status;
   
@@ -93,12 +97,12 @@ TMFeResult TMFE::Connect(const char* progname, const char* filename, const char*
    fHostname = xhostname;
    fExptname = xexptname;
    
-   fprintf(stderr, "TMFE::Connect: Program \"%s\" connecting to experiment \"%s\" on host \"%s\"\n", progname, fExptname.c_str(), fHostname.c_str());
+   fprintf(stderr, "TMFE::Connect: Program \"%s\" connecting to experiment \"%s\" on host \"%s\"\n", fFrontendName.c_str(), fExptname.c_str(), fHostname.c_str());
    
    int watchdog = DEFAULT_WATCHDOG_TIMEOUT;
    //int watchdog = 60*1000;
    
-   status = cm_connect_experiment1(fHostname.c_str(), fExptname.c_str(), progname, NULL, DEFAULT_ODB_SIZE, watchdog);
+   status = cm_connect_experiment1(fHostname.c_str(), fExptname.c_str(), fFrontendName.c_str(), NULL, DEFAULT_ODB_SIZE, watchdog);
    
    if (status == CM_UNDEF_EXP) {
       fprintf(stderr, "TMidasOnline::connect: Error: experiment \"%s\" not defined.\n", fExptname.c_str());
@@ -759,7 +763,7 @@ TMFeResult TMFE::CreateEquipment(const char* eqname, const char* eqfile, TMFeEqu
    if (eqfile)
       eqcommon->FrontendFileName = eqfile;
 
-   TMFeEquipment* eq = new TMFeEquipment(this, eqname, eqcommon);
+   TMFeEquipment* eq = new TMFeEquipment(this, eqname, eqfile, eqcommon);
    eqbase->fMfe = this;
    eqbase->fEq = eq;
    fEquipmentBases.push_back(eqbase);
@@ -771,14 +775,24 @@ TMFeRegister::TMFeRegister(const char* fename, const char* eqname, const char* e
 {
    printf("TMFeRegister: fename [%s] eqname [%s] file [%s]\n", fename, eqname, eqfile);
    TMFE* mfe = TMFE::Instance();
+   if (fename) {
+      if (mfe->fFrontendName.empty())
+         mfe->fFrontendName = fename;
+      else if (mfe->fFrontendName != fename) {
+         fprintf(stderr, "TMFeRegister: Cannot register equipment \"%s\" with frontend name \"%s\" because TMFE frontend name is already set to \"%s\", sorry, bye!\n",
+                 eqname, fename, mfe->fFrontendName.c_str());
+         exit(1);
+      }
+   }
    mfe->CreateEquipment(eqname, eqfile, eqbase, eqcommon);
 }
 
-TMFeEquipment::TMFeEquipment(TMFE* mfe, const char* name, TMFeCommon* common) // ctor
+TMFeEquipment::TMFeEquipment(TMFE* mfe, const char* name, const char* filename, TMFeCommon* common) // ctor
 {
    printf("TMFeEquipment: ctor for [%s]\n", name);
    fMfe  = mfe;
    fName = name;
+   fFilename = filename;
    fCommon = common;
    fBufferHandle = 0;
    fSerial = 0;
@@ -854,7 +868,11 @@ TMFeResult TMFeEquipment::Init1()
 
    fCommon->FrontendHost = fMfe->fFrontendHostname;
    fCommon->FrontendName = fMfe->fFrontendName;
-   fCommon->FrontendFileName = fMfe->fFrontendFilename;
+   if (!fFilename.empty()) {
+      fCommon->FrontendFileName = fFilename;
+   } else {
+      fCommon->FrontendFileName = fMfe->fFrontendFilename;
+   }
 
    fCommon->Status = "";
    fCommon->Status += fMfe->fFrontendName;
