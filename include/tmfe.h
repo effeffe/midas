@@ -233,6 +233,15 @@ class TMFePeriodicHandler
    ~TMFePeriodicHandler();
 };
 
+class TMFeHooksInterface
+{
+public:
+   virtual void HandlePreConnect(const std::vector<std::string>& args) {};
+   virtual void HandlePostConnect(const std::vector<std::string>& args) {};
+   virtual void HandlePreDisconnect() {};
+   virtual void HandlePostDisconnect() {};
+};
+
 class TMFE
 {
  public:
@@ -332,6 +341,19 @@ public:
    void DeregisterTransitionStartAbort();
    void RegisterTransitionStartAbort();
 
+public:
+   std::vector<TMFeHooksInterface*> fHooks;
+
+public:
+   void AddHooks(TMFeHooksInterface*);
+
+public:
+   void CallPreConnectHooks(const std::vector<std::string>& args);
+   void CallPostConnectHooks(const std::vector<std::string>& args);
+   void CallPreDisconnectHooks();
+   void CallPostDisconnectHooks();
+
+public:
    static double GetTime(); ///< return current time in seconds, with micro-second precision
    static void Sleep(double sleep_time_sec); ///< sleep, with micro-second precision
    static std::string GetThreadId(); ///< return identification of this thread

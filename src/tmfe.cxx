@@ -1099,6 +1099,43 @@ TMFeResult TMFE::ResetAlarm(const char* name)
    return TMFeOk();
 }
 
+void TMFE::AddHooks(TMFeHooksInterface* hooks)
+{
+   fHooks.push_back(hooks);
+}
+
+void TMFE::CallPreConnectHooks(const std::vector<std::string>& args)
+{
+   for (auto h : fHooks) {
+      if (h)
+         h->HandlePreConnect(args);
+   }
+}
+
+void TMFE::CallPostConnectHooks(const std::vector<std::string>& args)
+{
+   for (auto h : fHooks) {
+      if (h)
+         h->HandlePostConnect(args);
+   }
+}
+
+void TMFE::CallPreDisconnectHooks()
+{
+   for (auto h : fHooks) {
+      if (h)
+         h->HandlePreDisconnect();
+   }
+}
+
+void TMFE::CallPostDisconnectHooks()
+{
+   for (auto h : fHooks) {
+      if (h)
+         h->HandlePostDisconnect();
+   }
+}
+
 // singleton instance
 TMFE* TMFE::gfMFE = NULL;
 
