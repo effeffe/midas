@@ -443,16 +443,25 @@ ifdef NEED_RANLIB
 	ranlib $@
 endif
 
+MFE_MAIN   := $(LIB_DIR)/mfe.o
+TMFE_MAIN  := $(LIB_DIR)/tmfe_main.o
+
+TMFE_PROGS :=
+TMFE_PROGS += $(BIN_DIR)/fetest
+TMFE_PROGS += $(BIN_DIR)/tmfe_example_everything
+#TMFE_PROGS += $(BIN_DIR)/tmfe_example_periodic
+#TMFE_PROGS += $(BIN_DIR)/tmfe_example_polled
+
 MINI_OBJS  :=
-MINI_OBJS  += $(LIB_DIR)/mfe.o
-MINI_OBJS  += $(LIB_DIR)/tmfe_main.o
+MINI_OBJS  += $(MFE_MAIN)
+MINI_OBJS  += $(TMFE_MAIN)
 
 MINI_PROGS :=
 MINI_PROGS += $(BIN_DIR)/odbinit
 MINI_PROGS += $(BIN_DIR)/odbedit
-MINI_PROGS += $(BIN_DIR)/fetest
 MINI_PROGS += $(BIN_DIR)/tmfe_example
 MINI_PROGS += $(BIN_DIR)/tmfe_example_multithread
+MINI_PROGS += $(TMFE_PROGS)
 
 SUBMODULES :=
 SUBMODULES += mxml/mxml.cxx
@@ -501,7 +510,7 @@ $(LIB_DIR)/%.o: mvodb/%.cxx
 $(BIN_DIR)/%: progs/%.cxx $(LIB)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
 
-$(BIN_DIR)/odbedit: progs/odbedit.cxx progs/cmdedit.cxx $(LIB)
+$(TMFE_PROGS): $(BIN_DIR)/%: progs/%.cxx $(LIB) $(TMFE_MAIN)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
 
 #
