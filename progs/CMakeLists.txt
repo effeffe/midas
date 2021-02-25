@@ -16,7 +16,6 @@ set(PROGS
    hwtest
    tmfe_example
    tmfe_example_multithread
-   fetest
    crc32c_sum
    lazylogger
 )
@@ -45,6 +44,7 @@ set(TMFEPROGS
    tmfe_example_everything
    #tmfe_example_periodic
    #tmfe_example_poll
+   fetest
 )
 
 foreach(PROG ${PROGS} ${TESTPROGS})
