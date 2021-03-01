@@ -13,7 +13,7 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
-//#include <mutex>
+#include <mutex>
 //#include "midas.h"
 #include "mvodb.h"
 
@@ -143,6 +143,7 @@ public:
    TMFeCommon *fCommon = NULL;
    TMFE* fMfe = NULL;
    std::string fFilename;
+   std::mutex  fMutex;
 
 public:
    size_t fBufferSize = 0;
@@ -169,22 +170,29 @@ public:
    double fStatLastEvents;
    double fStatLastBytes;
 
-public:
+public: // contructors and initialization. not thread-safe.
    TMFeEquipment(TMFE* mfe, const char* eqname, const char* eqfilename, TMFeCommon* common); // ctor
    ~TMFeEquipment(); // dtor
    TMFeResult Init(); ///< Initialize equipment
    TMFeResult Init1(); ///< Initialize equipment, before EquipmentBase::Init()
    TMFeResult Init2(); ///< Initialize equipment, after EquipmentBase::Init()
-   TMFeResult ComposeEvent(char* pevent, size_t size);
-   TMFeResult BkInit(char* pevent, size_t size);
-   void*      BkOpen(char* pevent, const char* bank_name, int bank_type);
-   TMFeResult BkClose(char* pevent, void* ptr);
-   int        BkSize(const char* pevent);
+
+public: // event composition methods
+   TMFeResult ComposeEvent(char* pevent, size_t size) const;
+   TMFeResult BkInit(char* pevent, size_t size) const;
+   void*      BkOpen(char* pevent, const char* bank_name, int bank_type) const;
+   TMFeResult BkClose(char* pevent, void* ptr) const;
+   int        BkSize(const char* pevent) const;
+
+public: // thread-safe methods
    TMFeResult SendEvent(const char* pevent);
    TMFeResult WriteEventToOdb(const char* pevent);
    TMFeResult ZeroStatistics();
    TMFeResult WriteStatistics();
    TMFeResult SetStatus(const char* status, const char* color);
+
+private: // non-thread-safe methods
+   TMFeResult WriteEventToOdb_locked(const char* pevent);
 };
 
 class TMFeRpcHandlerInterface

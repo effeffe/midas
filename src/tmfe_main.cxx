@@ -99,9 +99,9 @@ int main(int argc, char* argv[])
       mfe->Usage();
    }
 
-   TMFeResult result = mfe->Connect(NULL, __FILE__, hostname.c_str(), exptname.c_str());
-   if (result.error_flag) {
-      fprintf(stderr, "Cannot connect to MIDAS, error message: %s, bye.\n", result.error_message.c_str());
+   TMFeResult r = mfe->Connect(NULL, __FILE__, hostname.c_str(), exptname.c_str());
+   if (r.error_flag) {
+      fprintf(stderr, "Cannot connect to MIDAS, error message: %s, bye.\n", r.error_message.c_str());
       return 1;
    }
 
@@ -114,7 +114,12 @@ int main(int argc, char* argv[])
    //mfe->DeregisterTransitionResume();
    //mfe->RegisterTransitionStartAbort();
 
-   mfe->InitEquipments(eq_args);
+   r = mfe->InitEquipments(eq_args);
+
+   if (r.error_flag) {
+      fprintf(stderr, "Cannot initialize equipments, error message: %s, bye.\n", r.error_message.c_str());
+      return 1;
+   }
 
    while (!mfe->fShutdownRequested) {
       mfe->PollMidas(10);

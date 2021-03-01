@@ -872,6 +872,9 @@ TMFeResult TMFeEquipment::Init()
 
 TMFeResult TMFeEquipment::Init1()
 {
+   if (TMFE::gfVerbose)
+      printf("TMFeEquipment::Init1: for [%s]\n", fName.c_str());
+
    //
    // create ODB /eq/name/common
    //
@@ -924,6 +927,9 @@ TMFeResult TMFeEquipment::Init1()
 
 TMFeResult TMFeEquipment::Init2()
 {
+   if (TMFE::gfVerbose)
+      printf("TMFeEquipment::Init2: for [%s]\n", fName.c_str());
+
    // open event buffer
    
    uint32_t odb_max_event_size = DEFAULT_MAX_EVENT_SIZE;
@@ -933,7 +939,8 @@ TMFeResult TMFeEquipment::Init2()
 
    if (fCommon->Buffer.length() > 0) {
       int status = bm_open_buffer(fCommon->Buffer.c_str(), DEFAULT_BUFFER_SIZE, &fBufferHandle);
-      if (status != BM_SUCCESS) {
+
+      if (status != BM_SUCCESS && status != BM_CREATED) {
          return TMFeMidasError(msprintf("Cannot open event buffer \"%s\"", fCommon->Buffer.c_str()), "bm_open_buffer", status);
       }
 
@@ -970,6 +977,11 @@ TMFeResult TMFeEquipment::Init2()
 
 TMFeResult TMFeEquipment::ZeroStatistics()
 {
+   fMutex.lock();
+
+   if (TMFE::gfVerbose)
+      printf("TMFeEquipment::ZeroStatistics: zero statistics for [%s]\n", fName.c_str());
+   
    fStatEvents = 0;
    fStatBytes = 0;
    fStatEpS = 0;
@@ -979,11 +991,18 @@ TMFeResult TMFeEquipment::ZeroStatistics()
    fStatLastEvents = 0;
    fStatLastBytes = 0;
 
+   fMutex.unlock();
+
    return TMFeOk();
 }
 
 TMFeResult TMFeEquipment::WriteStatistics()
 {
+   fMutex.lock();
+
+   if (TMFE::gfVerbose)
+      printf("TMFeEquipment::WriteStatistics: write statistics for [%s]\n", fName.c_str());
+
    double now = TMFE::GetTime();
    double elapsed = now - fStatLastTime;
 
@@ -995,15 +1014,17 @@ TMFeResult TMFeEquipment::WriteStatistics()
       fStatLastEvents = fStatEvents;
       fStatLastBytes = fStatBytes;
    }
-   
+
    fOdbEqStatistics->WD("Events sent", fStatEvents);
    fOdbEqStatistics->WD("Events per sec.", fStatEpS);
    fOdbEqStatistics->WD("kBytes per sec.", fStatKBpS);
 
+   fMutex.unlock();
+   
    return TMFeOk();
 }
 
-TMFeResult TMFeEquipment::ComposeEvent(char* event, size_t size)
+TMFeResult TMFeEquipment::ComposeEvent(char* event, size_t size) const
 {
    EVENT_HEADER* pevent = (EVENT_HEADER*)event;
    pevent->event_id = fCommon->EventID;
@@ -1016,6 +1037,8 @@ TMFeResult TMFeEquipment::ComposeEvent(char* event, size_t size)
 
 TMFeResult TMFeEquipment::SendEvent(const char* event)
 {
+   std::lock_guard<std::mutex> guard(fMutex);
+   
    fSerial++;
 
    if (fBufferHandle == 0) {
@@ -1038,7 +1061,7 @@ TMFeResult TMFeEquipment::SendEvent(const char* event)
    fStatBytes  += sizeof(EVENT_HEADER) + pevent->data_size;
 
    if (fCommon->WriteEventsToOdb) {
-      TMFeResult r = WriteEventToOdb(event);
+      TMFeResult r = WriteEventToOdb_locked(event);
       if (r.error_flag)
          return r;
    }
@@ -1047,6 +1070,12 @@ TMFeResult TMFeEquipment::SendEvent(const char* event)
 }
 
 TMFeResult TMFeEquipment::WriteEventToOdb(const char* event)
+{
+   std::lock_guard<std::mutex> guard(fMutex);
+   return WriteEventToOdb_locked(event);
+}
+
+TMFeResult TMFeEquipment::WriteEventToOdb_locked(const char* event)
 {
    std::string path = "";
    path += "/Equipment/";
@@ -1067,25 +1096,25 @@ TMFeResult TMFeEquipment::WriteEventToOdb(const char* event)
    return TMFeOk();
 }
 
-int TMFeEquipment::BkSize(const char* event)
+int TMFeEquipment::BkSize(const char* event) const
 {
    return bk_size(event + sizeof(EVENT_HEADER));
 }
 
-TMFeResult TMFeEquipment::BkInit(char* event, size_t size)
+TMFeResult TMFeEquipment::BkInit(char* event, size_t size) const
 {
    bk_init32(event + sizeof(EVENT_HEADER));
    return TMFeOk();
 }
 
-void* TMFeEquipment::BkOpen(char* event, const char* name, int tid)
+void* TMFeEquipment::BkOpen(char* event, const char* name, int tid) const
 {
    void* ptr;
    bk_create(event + sizeof(EVENT_HEADER), name, tid, &ptr);
    return ptr;
 }
 
-TMFeResult TMFeEquipment::BkClose(char* event, void* ptr)
+TMFeResult TMFeEquipment::BkClose(char* event, void* ptr) const
 {
    bk_close(event + sizeof(EVENT_HEADER), ptr);
    ((EVENT_HEADER*)event)->data_size = BkSize(event);
