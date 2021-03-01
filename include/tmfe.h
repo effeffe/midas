@@ -235,18 +235,8 @@ public:
    virtual void Usage();
 };
 
-class TMFePeriodicHandler
-{
- public:
-   TMFeEquipment *fEq;
-   TMFePeriodicHandlerInterface *fHandler;
-   double fLastCallTime;
-   double fNextCallTime;
-
- public:
-   TMFePeriodicHandler();
-   ~TMFePeriodicHandler();
-};
+class TMFePeriodicHandlerData;
+class TMFePollHandlerData;
 
 class TMFeHooksInterface
 {
@@ -279,21 +269,26 @@ public:
    int  fRunNumber = 0; ///< current run number
    bool fStateRunning = false; ///< run state is running or paused
 
- public:   
+public:   
    std::vector<TMFeEquipment*> fEquipments;
    std::vector<TMFeEquipmentBase*> fEquipmentBases;
+
+public:   
    std::vector<TMFeRpcHandlerInterface*> fRpcHandlers;
-   std::vector<TMFePeriodicHandler*> fPeriodicHandlers;
-   double fNextPeriodic;
+   std::vector<TMFePeriodicHandlerData*> fPeriodicHandlers;
+   std::vector<TMFePollHandlerData*>     fPollHandlers;
+
+   double fNextPeriodic = 0;
+   double fNextPoll = 0;
 
  public:
-   bool fRpcThreadStarting;
-   bool fRpcThreadRunning;
-   bool fRpcThreadShutdownRequested;
+   bool fRpcThreadStarting = false;
+   bool fRpcThreadRunning  = false;
+   bool fRpcThreadShutdownRequested = false;
 
-   bool fPeriodicThreadStarting;
-   bool fPeriodicThreadRunning;
-   bool fPeriodicThreadShutdownRequested;
+   bool fPeriodicThreadStarting = false;
+   bool fPeriodicThreadRunning  = false;
+   bool fPeriodicThreadShutdownRequested = false;
    
  private:
    /// TMFE is a singleton class: only one
@@ -339,6 +334,7 @@ public:
    void PollMidas(int millisec);
    void MidasPeriodicTasks();
    void EquipmentPeriodicTasks();
+   void EquipmentPollTasks();
 
    TMFeResult TriggerAlarm(const char* name, const char* message, const char* aclass);
    TMFeResult ResetAlarm(const char* name);

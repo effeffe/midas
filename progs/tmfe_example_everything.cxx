@@ -41,6 +41,7 @@ public:
       printf("EqEverything::Init!\n");
       fMfe->RegisterRpcHandler(this);
       fMfe->RegisterPeriodicHandler(fEq, this);
+      fMfe->RegisterPollHandler(fEq, this);
       fMfe->RegisterTransitionStartAbort();
       fEq->SetStatus("Started...", "white");
       return TMFeOk();
@@ -123,6 +124,11 @@ public:
    bool HandlePoll()
    {
       printf("EqEverything::HandlePoll!\n");
+      double r = drand48();
+      if (r > 0.90) {
+         // return successful poll rarely
+         return true;
+      }
       return false;
    }
 

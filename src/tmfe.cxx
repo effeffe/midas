@@ -177,6 +177,29 @@ void TMFE::UnregisterEquipment(TMFeEquipment* eq)
    }
 }
 
+class TMFePeriodicHandlerData
+{
+ public:
+   TMFeEquipment *fEq = NULL;
+   TMFePeriodicHandlerInterface *fHandler = NULL;
+   double fLastCallTime = 0;
+   double fNextCallTime = 0;
+
+ public:
+   TMFePeriodicHandlerData()
+   {
+      // empty
+   }
+   
+   ~TMFePeriodicHandlerData()
+   {
+      fEq = NULL; // no delete, we do not own this object
+      fHandler = NULL; // no delete, we do not own this object
+      fLastCallTime = 0;
+      fNextCallTime = 0;
+   }
+};
+
 void TMFE::EquipmentPeriodicTasks()
 {
    double now = GetTime();
@@ -187,7 +210,7 @@ void TMFE::EquipmentPeriodicTasks()
       int n = fPeriodicHandlers.size();
       fNextPeriodic = 0;
       for (int i=0; i<n; i++) {
-         TMFePeriodicHandler* h = fPeriodicHandlers[i];
+         TMFePeriodicHandlerData* h = fPeriodicHandlers[i];
          double period = h->fEq->fCommon->Period/1000.0;
          //printf("periodic[%d] period %f, last call %f, next call %f (+%f)\n", i, period, h->fLastCallTime, h->fNextCallTime, now - h->fNextCallTime);
          if (period <= 0)
@@ -236,6 +259,41 @@ void TMFE::EquipmentPeriodicTasks()
 
 }
 
+class TMFePollHandlerData
+{
+ public:
+   TMFeEquipment *fEq = NULL;
+   TMFePollHandlerInterface *fHandler = NULL;
+   double fLastCallTime = 0;
+   double fNextCallTime = 0;
+
+ public:
+   TMFePollHandlerData()
+   {
+      // empty
+   }
+   
+   ~TMFePollHandlerData()
+   {
+      fEq = NULL; // no delete, we do not own this object
+      fHandler = NULL; // no delete, we do not own this object
+      fLastCallTime = 0;
+      fNextCallTime = 0;
+   }
+};
+
+void TMFE::EquipmentPollTasks()
+{
+   for (auto hd : fPollHandlers) {
+      if (hd && hd->fEq) {
+         bool poll = hd->fHandler->HandlePoll();
+         if (poll) {
+            hd->fHandler->HandleRead();
+         }
+      }
+   }
+}
+
 void TMFE::PollMidas(int msec)
 {
    double now = GetTime();
@@ -246,6 +304,8 @@ void TMFE::PollMidas(int msec)
       if (!fPeriodicThreadRunning) {
          EquipmentPeriodicTasks();
       }
+
+      EquipmentPollTasks();
 
       now = GetTime();
 
@@ -729,29 +789,22 @@ void TMFE::RegisterTransitionStartAbort()
    cm_register_transition(TR_STARTABORT, tr_startabort, 500);
 }
 
-TMFePeriodicHandler::TMFePeriodicHandler()
-{
-   fEq = NULL;
-   fHandler = NULL;
-   fLastCallTime = 0;
-   fNextCallTime = 0;
-}
-
-TMFePeriodicHandler::~TMFePeriodicHandler()
-{
-   fEq = NULL; // no delete, we do not own this object
-   fHandler = NULL; // no delete, we do not own this object
-   fLastCallTime = 0;
-   fNextCallTime = 0;
-}
-
 void TMFE::RegisterPeriodicHandler(TMFeEquipment* eq, TMFePeriodicHandlerInterface* h)
 {
-   TMFePeriodicHandler *p = new TMFePeriodicHandler();
+   TMFePeriodicHandlerData *p = new TMFePeriodicHandlerData();
    p->fEq = eq;
    p->fHandler = h;
    fPeriodicHandlers.push_back(p);
    fNextPeriodic = 0;
+}
+
+void TMFE::RegisterPollHandler(TMFeEquipment* eq, TMFePollHandlerInterface* h)
+{
+   TMFePollHandlerData *p = new TMFePollHandlerData();
+   p->fEq = eq;
+   p->fHandler = h;
+   fPollHandlers.push_back(p);
+   fNextPoll = 0;
 }
 
 void TMFE::Usage()
