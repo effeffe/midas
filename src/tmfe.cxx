@@ -181,6 +181,8 @@ void TMFE::EquipmentPeriodicTasks()
 {
    double now = GetTime();
 
+   // run periodic equipments
+
    if (fNextPeriodic == 0 || now >= fNextPeriodic) {
       int n = fPeriodicHandlers.size();
       fNextPeriodic = 0;
@@ -220,6 +222,18 @@ void TMFE::EquipmentPeriodicTasks()
    } else {
       //printf("next periodic %f (+%f), waiting\n", fNextPeriodic, fNextPeriodic - now);
    }
+
+   now = GetTime();
+
+   // update statistics
+   for (auto e : fEquipments) {
+      if (e) {
+         if (now > e->fStatNextWrite) {
+            e->WriteStatistics();
+         }
+      }
+   }
+
 }
 
 void TMFE::PollMidas(int msec)
@@ -842,6 +856,8 @@ TMFeEquipment::TMFeEquipment(TMFE* mfe, const char* name, const char* filename, 
    fOdbEqCommon = NULL;
    fOdbEqSettings = NULL;
    fOdbEqVariables = NULL;
+
+   fStatNextWrite = TMFE::GetTime();
 }
 
 TMFeEquipment::~TMFeEquipment() // dtor
@@ -991,6 +1007,8 @@ TMFeResult TMFeEquipment::ZeroStatistics()
    fStatLastEvents = 0;
    fStatLastBytes = 0;
 
+   fStatNextWrite = TMFE::GetTime(); // force immediate update
+
    fMutex.unlock();
 
    return TMFeOk();
@@ -1018,6 +1036,21 @@ TMFeResult TMFeEquipment::WriteStatistics()
    fOdbEqStatistics->WD("Events sent", fStatEvents);
    fOdbEqStatistics->WD("Events per sec.", fStatEpS);
    fOdbEqStatistics->WD("kBytes per sec.", fStatKBpS);
+
+   fStatLastWrite = now;
+
+   if (fCommon->PeriodStatisticsSec > 0) {
+      // avoid creap of NextWrite: we start it at
+      // time of initialization, then increment it strictly
+      // by the period value, regardless of when it is actually
+      // written to ODB (actual period is longer than requested
+      // period because we only over-sleep, never under-sleep). K.O.
+      while (fStatNextWrite <= now) {
+         fStatNextWrite += fCommon->PeriodStatisticsSec;
+      }
+   } else {
+      fStatNextWrite = now;
+   }
 
    fMutex.unlock();
    

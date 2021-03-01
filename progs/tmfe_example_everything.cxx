@@ -115,7 +115,6 @@ public:
       double t = TMFE::GetTime();
       double data = 100.0*sin(0*M_PI/2.0+M_PI*t/40);
       SendData(data);
-      fEq->WriteStatistics();
       char status_buf[256];
       sprintf(status_buf, "value %.1f", data);
       fEq->SetStatus(status_buf, "#00FF00");

@@ -78,7 +78,6 @@ public:
       double data = 100.0*sin(M_PI*t/60);
       SendData(data);
       fEq->fOdbEqVariables->WD("data", data);
-      fEq->WriteStatistics();
       char status_buf[256];
       sprintf(status_buf, "value %.1f", data);
       fEq->SetStatus(status_buf, "#00FF00");
@@ -125,8 +124,6 @@ int main(int argc, char* argv[])
    TMFeEquipment* eq = new TMFeEquipment(mfe, "tmfe_example", __FILE__, common);
    eq->Init();
    eq->SetStatus("Starting...", "white");
-   eq->ZeroStatistics();
-   eq->WriteStatistics();
 
    mfe->RegisterEquipment(eq);
 

@@ -131,6 +131,7 @@ struct TMFeCommon
 
    bool ReadOnlyWhenRunning = false; // RO_RUNNING
    bool WriteEventsToOdb = false; // RO_ODB
+   double PeriodStatisticsSec = 1.0; // statistics update period
 };
 
 class TMFE;
@@ -154,21 +155,26 @@ public:
    int fSerial = 0;
 
 public:
-   MVOdb* fOdbEq;           ///< ODB Equipment/EQNAME
-   MVOdb* fOdbEqCommon;     ///< ODB Equipment/EQNAME/Common
-   MVOdb* fOdbEqSettings;   ///< ODB Equipment/EQNAME/Settings
-   MVOdb* fOdbEqVariables;  ///< ODB Equipment/EQNAME/Variables
-   MVOdb* fOdbEqStatistics; ///< ODB Equipment/EQNAME/Statistics
+   MVOdb* fOdbEq = NULL;           ///< ODB Equipment/EQNAME
+   MVOdb* fOdbEqCommon = NULL;     ///< ODB Equipment/EQNAME/Common
+   MVOdb* fOdbEqSettings = NULL;   ///< ODB Equipment/EQNAME/Settings
+   MVOdb* fOdbEqVariables = NULL;  ///< ODB Equipment/EQNAME/Variables
+   MVOdb* fOdbEqStatistics = NULL; ///< ODB Equipment/EQNAME/Statistics
 
-public:
-   double fStatEvents;
-   double fStatBytes;
-   double fStatEpS; // events/sec
-   double fStatKBpS; // kbytes/sec (factor 1000, not 1024)
+public: // statistics
+   double fStatEvents = 0;
+   double fStatBytes  = 0;
+   double fStatEpS    = 0; // events/sec
+   double fStatKBpS   = 0; // kbytes/sec (factor 1000, not 1024)
 
-   double fStatLastTime;
-   double fStatLastEvents;
-   double fStatLastBytes;
+   // statistics rate computations
+   double fStatLastTime   = 0;
+   double fStatLastEvents = 0;
+   double fStatLastBytes  = 0;
+
+   // statistics write to odb timer
+   double fStatLastWrite = 0;
+   double fStatNextWrite = 0;
 
 public: // contructors and initialization. not thread-safe.
    TMFeEquipment(TMFE* mfe, const char* eqname, const char* eqfilename, TMFeCommon* common); // ctor
