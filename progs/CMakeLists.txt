@@ -45,6 +45,7 @@ set(TMFEPROGS
    #tmfe_example_periodic
    #tmfe_example_poll
    fetest
+   test_sleep
 )
 
 foreach(PROG ${PROGS} ${TESTPROGS})
