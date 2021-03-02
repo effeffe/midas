@@ -521,6 +521,30 @@ void TMFE::Sleep(double time)
 }
 #endif
 
+#if 0
+void TMFE::Sleep(double time)
+{
+   struct timespec rqtp;
+   struct timespec rmtp;
+      
+   rqtp.tv_sec = time;
+   rqtp.tv_nsec = (time-rqtp.tv_sec)*1000000000.0;
+
+   //int status = clock_nanosleep(CLOCK_REALTIME, 0, &rqtp, &rmtp);
+   int status = clock_nanosleep(CLOCK_MONOTONIC, 0, &rqtp, &rmtp);
+   
+   //#ifdef EINTR
+   //if (status < 0 && errno == EINTR) {
+   //   return 0; // watchdog interrupt, try again
+   //}
+   //#endif
+      
+   if (status < 0) {
+      TMFE::Instance()->Msg(MERROR, "TMFE::Sleep", "nanosleep() returned %d, errno %d (%s)", status, errno, strerror(errno));
+   }
+}
+#endif
+
 std::string TMFE::GetThreadId() ///< return identification of this thread
 {
    return ss_tid_to_string(ss_gettid());
