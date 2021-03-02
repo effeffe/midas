@@ -5,7 +5,7 @@
 //
 
 #include <stdio.h>
-//#include <signal.h> // SIGPIPE
+#include <signal.h> // SIGPIPE
 //#include <assert.h> // assert()
 //#include <stdlib.h> // malloc()
 //#include <math.h> // M_PI
