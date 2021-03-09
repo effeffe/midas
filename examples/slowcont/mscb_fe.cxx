@@ -133,7 +133,7 @@ void mscb_define(const char *submaster, const char *equipment, const char *devna
    }
 
    if (name && name[0]) {
-      sprintf(str, "/Equipment/%s/Settings/Names Input", equipment);
+      sprintf(str, "/Equipment/%s/Settings/Names %s", equipment, devname);
       db_set_value_index(hDB, 0, str, name, 32, chn_total, TID_STRING, TRUE);
    }
 
