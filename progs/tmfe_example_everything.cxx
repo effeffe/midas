@@ -138,15 +138,15 @@ public:
    }
 };
 
-struct EqEverythingCommon: TMFeCommon { EqEverythingCommon() {
-   printf("EqEverythingCommon::ctor!\n");
+struct EqInfoEverything: TMFeEqInfo { EqInfoEverything() {
+   printf("EqInfoEverything::ctor!\n");
    EventID = 1;
    Period = 1000;
    LogHistory = 1;
    WriteEventsToOdb = true;
 } };
 
-static TMFeRegister eq_everything_register("tmfe_example_everything", "test_everything", __FILE__, new EqEverything(), new EqEverythingCommon);
+static TMFeRegister eq_everything_register("tmfe_example_everything", "test_everything", __FILE__, new EqEverything(), new EqInfoEverything);
 
 // example frontend hooks
 

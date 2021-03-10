@@ -105,9 +105,9 @@ inline TMFeResult TMFeOk() { return TMFeResult(); }
 TMFeResult TMFeErrorMessage(const std::string& message);
 TMFeResult TMFeMidasError(const std::string& message, const char* midas_function_name, int midas_status);
 
-// Equipment Common
+// Equipment configuration, corresponds to EQUIPMENT_INFO and ODB /Equipement/NAME/Common
 
-struct TMFeCommon
+struct TMFeEqInfo
 {
    uint16_t EventID = 1;
    uint16_t TriggerMask = 0;
@@ -141,7 +141,7 @@ class TMFeEquipment
 {
 public:
    std::string fName;
-   TMFeCommon *fCommon = NULL;
+   TMFeEqInfo *fInfo = NULL;
    TMFE* fMfe = NULL;
    std::string fFilename;
    std::mutex  fMutex;
@@ -177,7 +177,7 @@ public: // statistics
    double fStatNextWrite = 0;
 
 public: // contructors and initialization. not thread-safe.
-   TMFeEquipment(TMFE* mfe, const char* eqname, const char* eqfilename, TMFeCommon* common); // ctor
+   TMFeEquipment(TMFE* mfe, const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo); // ctor
    ~TMFeEquipment(); // dtor
    TMFeResult Init(); ///< Initialize equipment
    TMFeResult Init1(); ///< Initialize equipment, before EquipmentBase::Init()
@@ -309,7 +309,7 @@ public:
    TMFeResult Connect(const char* progname, const char* filename = NULL, const char*hostname = NULL, const char*exptname = NULL);
    TMFeResult Disconnect();
 
-   TMFeResult CreateEquipment(const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeCommon* eqcommon);
+   TMFeResult CreateEquipment(const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeEqInfo* eqinfo);
 
    void       Usage();
    TMFeResult InitEquipments(const std::vector<std::string>& args);
@@ -375,7 +375,7 @@ public:
 class TMFeRegister
 {
  public:
-   TMFeRegister(const char* fename, const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeCommon* eqcommon);
+   TMFeRegister(const char* fename, const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeEqInfo* eqinfo);
 };
 
 #endif

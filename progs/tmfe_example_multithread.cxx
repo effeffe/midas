@@ -116,13 +116,13 @@ int main(int argc, char* argv[])
 
    //mfe->SetWatchdogSec(0);
 
-   TMFeCommon *common = new TMFeCommon();
-   common->EventID = 1;
-   common->LogHistory = 1;
-   common->Period = 1000; // milliseconds
-   //common->Buffer = "SYSTEM";
+   TMFeEqInfo *info = new TMFeEqInfo();
+   info->EventID = 1;
+   info->LogHistory = 1;
+   info->Period = 1000; // milliseconds
+   //info->Buffer = "SYSTEM";
    
-   TMFeEquipment* eq = new TMFeEquipment(mfe, "tmfe_example_mt", __FILE__, common);
+   TMFeEquipment* eq = new TMFeEquipment(mfe, "tmfe_example_mt", __FILE__, info);
    eq->Init();
    eq->SetStatus("Starting...", "white");
 

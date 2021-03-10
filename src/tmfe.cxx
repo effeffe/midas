@@ -211,7 +211,7 @@ void TMFE::EquipmentPeriodicTasks()
       fNextPeriodic = 0;
       for (int i=0; i<n; i++) {
          TMFePeriodicHandlerData* h = fPeriodicHandlers[i];
-         double period = h->fEq->fCommon->Period/1000.0;
+         double period = h->fEq->fInfo->Period/1000.0;
          //printf("periodic[%d] period %f, last call %f, next call %f (+%f)\n", i, period, h->fLastCallTime, h->fNextCallTime, now - h->fNextCallTime);
          if (period <= 0)
             continue;
@@ -232,7 +232,7 @@ void TMFE::EquipmentPeriodicTasks()
             else if (h->fNextCallTime < fNextPeriodic)
                fNextPeriodic = h->fNextCallTime;
 
-            if (fStateRunning || !h->fEq->fCommon->ReadOnlyWhenRunning) {
+            if (fStateRunning || !h->fEq->fInfo->ReadOnlyWhenRunning) {
                //printf("handler %d eq [%s] call HandlePeriodic()\n", i, h->fEq->fName.c_str());                     
                h->fHandler->HandlePeriodic();
             }
@@ -897,7 +897,7 @@ void TMFE::DeleteEquipments()
    }
 }
 
-TMFeResult TMFE::CreateEquipment(const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeCommon* eqcommon)
+TMFeResult TMFE::CreateEquipment(const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeEqInfo* eqinfo)
 {
    assert(eqname != NULL);
    
@@ -910,9 +910,9 @@ TMFeResult TMFE::CreateEquipment(const char* eqname, const char* eqfile, TMFeEqu
    }
 
    if (eqfile)
-      eqcommon->FrontendFileName = eqfile;
+      eqinfo->FrontendFileName = eqfile;
 
-   TMFeEquipment* eq = new TMFeEquipment(this, eqname, eqfile, eqcommon);
+   TMFeEquipment* eq = new TMFeEquipment(this, eqname, eqfile, eqinfo);
    eqbase->fMfe = this;
    eqbase->fEq = eq;
    fEquipmentBases.push_back(eqbase);
@@ -920,7 +920,7 @@ TMFeResult TMFE::CreateEquipment(const char* eqname, const char* eqfile, TMFeEqu
    return TMFeOk();
 }
 
-TMFeRegister::TMFeRegister(const char* fename, const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeCommon* eqcommon)
+TMFeRegister::TMFeRegister(const char* fename, const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeEqInfo* eqinfo)
 {
    if (TMFE::gfVerbose)
       printf("TMFeRegister::ctor: Register equipment with fename [%s] eqname [%s] filename [%s]\n", fename, eqname, eqfile);
@@ -934,17 +934,17 @@ TMFeRegister::TMFeRegister(const char* fename, const char* eqname, const char* e
          exit(1);
       }
    }
-   mfe->CreateEquipment(eqname, eqfile, eqbase, eqcommon);
+   mfe->CreateEquipment(eqname, eqfile, eqbase, eqinfo);
 }
 
-TMFeEquipment::TMFeEquipment(TMFE* mfe, const char* name, const char* filename, TMFeCommon* common) // ctor
+TMFeEquipment::TMFeEquipment(TMFE* mfe, const char* name, const char* filename, TMFeEqInfo* info) // ctor
 {
    if (TMFE::gfVerbose)
       printf("TMFeEquipment::ctor: equipment name [%s] file [%s]\n", name, filename);
    fMfe  = mfe;
    fName = name;
    fFilename = filename;
-   fCommon = common;
+   fInfo = info;
    fBufferHandle = 0;
    fSerial = 0;
    fStatEvents = 0;
@@ -967,9 +967,9 @@ TMFeEquipment::~TMFeEquipment() // dtor
    if (TMFE::gfVerbose)
       printf("TMFeEquipment::dtor: equipment name [%s]\n", fName.c_str());
    fMfe = NULL;
-   if (fCommon) {
-      delete fCommon;
-      fCommon = NULL;
+   if (fInfo) {
+      delete fInfo;
+      fInfo = NULL;
    }
 }
 
@@ -1003,39 +1003,39 @@ TMFeResult TMFeEquipment::Init1()
    fOdbEqVariables  = fOdbEq->Chdir("Variables", true);
    fOdbEqStatistics = fOdbEq->Chdir("Statistics", true);
 
-   fOdbEqCommon->RU16("Event ID",     &fCommon->EventID, true);
-   fOdbEqCommon->RU16("Trigger mask", &fCommon->TriggerMask, true);
-   fOdbEqCommon->RS("Buffer",         &fCommon->Buffer, true, NAME_LENGTH);
-   fOdbEqCommon->RI("Type",           &fCommon->Type, true);
-   fOdbEqCommon->RI("Source",         &fCommon->Source, true);
-   fOdbEqCommon->RS("Format",         &fCommon->Format, true, 8);
-   fOdbEqCommon->RB("Enabled",        &fCommon->Enabled, true);
-   fOdbEqCommon->RI("Read on",        &fCommon->ReadOn, true);
-   fOdbEqCommon->RI("Period",         &fCommon->Period, true);
-   fOdbEqCommon->RD("Event limit",    &fCommon->EventLimit, true);
-   fOdbEqCommon->RU32("Num subevents",  &fCommon->NumSubEvents, true);
-   fOdbEqCommon->RI("Log history",    &fCommon->LogHistory, true);
-   fOdbEqCommon->RS("Frontend host",  &fCommon->FrontendHost, true, NAME_LENGTH);
-   fOdbEqCommon->RS("Frontend name",  &fCommon->FrontendName, true, NAME_LENGTH);
-   fOdbEqCommon->RS("Frontend file name",  &fCommon->FrontendFileName, true, 256);
-   fOdbEqCommon->RS("Status",         &fCommon->Status, true, 256);
-   fOdbEqCommon->RS("Status color",   &fCommon->StatusColor, true, NAME_LENGTH);
-   fOdbEqCommon->RB("Hidden",         &fCommon->Hidden, true);
-   fOdbEqCommon->RI("Write cache size", &fCommon->WriteCacheSize, true);
+   fOdbEqCommon->RU16("Event ID",     &fInfo->EventID, true);
+   fOdbEqCommon->RU16("Trigger mask", &fInfo->TriggerMask, true);
+   fOdbEqCommon->RS("Buffer",         &fInfo->Buffer, true, NAME_LENGTH);
+   fOdbEqCommon->RI("Type",           &fInfo->Type, true);
+   fOdbEqCommon->RI("Source",         &fInfo->Source, true);
+   fOdbEqCommon->RS("Format",         &fInfo->Format, true, 8);
+   fOdbEqCommon->RB("Enabled",        &fInfo->Enabled, true);
+   fOdbEqCommon->RI("Read on",        &fInfo->ReadOn, true);
+   fOdbEqCommon->RI("Period",         &fInfo->Period, true);
+   fOdbEqCommon->RD("Event limit",    &fInfo->EventLimit, true);
+   fOdbEqCommon->RU32("Num subevents",  &fInfo->NumSubEvents, true);
+   fOdbEqCommon->RI("Log history",    &fInfo->LogHistory, true);
+   fOdbEqCommon->RS("Frontend host",  &fInfo->FrontendHost, true, NAME_LENGTH);
+   fOdbEqCommon->RS("Frontend name",  &fInfo->FrontendName, true, NAME_LENGTH);
+   fOdbEqCommon->RS("Frontend file name",  &fInfo->FrontendFileName, true, 256);
+   fOdbEqCommon->RS("Status",         &fInfo->Status, true, 256);
+   fOdbEqCommon->RS("Status color",   &fInfo->StatusColor, true, NAME_LENGTH);
+   fOdbEqCommon->RB("Hidden",         &fInfo->Hidden, true);
+   fOdbEqCommon->RI("Write cache size", &fInfo->WriteCacheSize, true);
 
-   fCommon->FrontendHost = fMfe->fFrontendHostname;
-   fCommon->FrontendName = fMfe->fFrontendName;
+   fInfo->FrontendHost = fMfe->fFrontendHostname;
+   fInfo->FrontendName = fMfe->fFrontendName;
    if (!fFilename.empty()) {
-      fCommon->FrontendFileName = fFilename;
+      fInfo->FrontendFileName = fFilename;
    } else {
-      fCommon->FrontendFileName = fMfe->fFrontendFilename;
+      fInfo->FrontendFileName = fMfe->fFrontendFilename;
    }
 
-   fCommon->Status = "";
-   fCommon->Status += fMfe->fFrontendName;
-   fCommon->Status += "@";
-   fCommon->Status += fMfe->fFrontendHostname;
-   fCommon->StatusColor = "greenLight";
+   fInfo->Status = "";
+   fInfo->Status += fMfe->fFrontendName;
+   fInfo->Status += "@";
+   fInfo->Status += fMfe->fFrontendHostname;
+   fInfo->StatusColor = "greenLight";
 
    ZeroStatistics();
    WriteStatistics();
@@ -1055,15 +1055,15 @@ TMFeResult TMFeEquipment::Init2()
 
    fMaxEventSize = odb_max_event_size;
 
-   if (fCommon->Buffer.length() > 0) {
-      int status = bm_open_buffer(fCommon->Buffer.c_str(), DEFAULT_BUFFER_SIZE, &fBufferHandle);
+   if (fInfo->Buffer.length() > 0) {
+      int status = bm_open_buffer(fInfo->Buffer.c_str(), DEFAULT_BUFFER_SIZE, &fBufferHandle);
 
       if (status != BM_SUCCESS && status != BM_CREATED) {
-         return TMFeMidasError(msprintf("Cannot open event buffer \"%s\"", fCommon->Buffer.c_str()), "bm_open_buffer", status);
+         return TMFeMidasError(msprintf("Cannot open event buffer \"%s\"", fInfo->Buffer.c_str()), "bm_open_buffer", status);
       }
 
       uint32_t buffer_size = 0;
-      fMfe->fOdbRoot->RU32(std::string("Experiment/Buffer Sizes/" + fCommon->Buffer).c_str(), &buffer_size);
+      fMfe->fOdbRoot->RU32(std::string("Experiment/Buffer Sizes/" + fInfo->Buffer).c_str(), &buffer_size);
 
       if (buffer_size > 0) {
          fBufferSize = buffer_size;
@@ -1080,15 +1080,15 @@ TMFeResult TMFeEquipment::Init2()
    }
 
    if (TMFE::gfVerbose)
-      printf("TMFeEquipment::Init: Equipment \"%s\", max event size: %d, max event size in ODB: %d, event buffer \"%s\" size: %d\n", fName.c_str(), (int)fMaxEventSize, (int)odb_max_event_size, fCommon->Buffer.c_str(), (int)fBufferSize);
+      printf("TMFeEquipment::Init: Equipment \"%s\", max event size: %d, max event size in ODB: %d, event buffer \"%s\" size: %d\n", fName.c_str(), (int)fMaxEventSize, (int)odb_max_event_size, fInfo->Buffer.c_str(), (int)fBufferSize);
 
    // update ODB common
 
-   fOdbEqCommon->WS("Frontend host", fCommon->FrontendHost.c_str(), NAME_LENGTH);
-   fOdbEqCommon->WS("Frontend name", fCommon->FrontendName.c_str(), NAME_LENGTH);
-   fOdbEqCommon->WS("Frontend file name", fCommon->FrontendFileName.c_str(), 256);
-   fOdbEqCommon->WS("Status", fCommon->Status.c_str(), 256);
-   fOdbEqCommon->WS("Status color", fCommon->StatusColor.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WS("Frontend host", fInfo->FrontendHost.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WS("Frontend name", fInfo->FrontendName.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WS("Frontend file name", fInfo->FrontendFileName.c_str(), 256);
+   fOdbEqCommon->WS("Status", fInfo->Status.c_str(), 256);
+   fOdbEqCommon->WS("Status color", fInfo->StatusColor.c_str(), NAME_LENGTH);
 
    return TMFeOk();
 };
@@ -1141,14 +1141,14 @@ TMFeResult TMFeEquipment::WriteStatistics()
 
    fStatLastWrite = now;
 
-   if (fCommon->PeriodStatisticsSec > 0) {
+   if (fInfo->PeriodStatisticsSec > 0) {
       // avoid creap of NextWrite: we start it at
       // time of initialization, then increment it strictly
       // by the period value, regardless of when it is actually
       // written to ODB (actual period is longer than requested
       // period because we only over-sleep, never under-sleep). K.O.
       while (fStatNextWrite <= now) {
-         fStatNextWrite += fCommon->PeriodStatisticsSec;
+         fStatNextWrite += fInfo->PeriodStatisticsSec;
       }
    } else {
       fStatNextWrite = now;
@@ -1162,8 +1162,8 @@ TMFeResult TMFeEquipment::WriteStatistics()
 TMFeResult TMFeEquipment::ComposeEvent(char* event, size_t size) const
 {
    EVENT_HEADER* pevent = (EVENT_HEADER*)event;
-   pevent->event_id = fCommon->EventID;
-   pevent->trigger_mask = fCommon->TriggerMask;
+   pevent->event_id = fInfo->EventID;
+   pevent->trigger_mask = fInfo->TriggerMask;
    pevent->serial_number = fSerial;
    pevent->time_stamp = TMFE::GetTime();
    pevent->data_size = 0;
@@ -1195,7 +1195,7 @@ TMFeResult TMFeEquipment::SendEvent(const char* event)
    fStatEvents += 1;
    fStatBytes  += sizeof(EVENT_HEADER) + pevent->data_size;
 
-   if (fCommon->WriteEventsToOdb) {
+   if (fInfo->WriteEventsToOdb) {
       TMFeResult r = WriteEventToOdb_locked(event);
       if (r.error_flag)
          return r;

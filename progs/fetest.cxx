@@ -112,7 +112,7 @@ public:
 
 };
 
-struct EqRandomCommon: TMFeCommon { EqRandomCommon() {
+struct EqInfoRandom: TMFeEqInfo { EqInfoRandom() {
    EventID = 2;
    Period = 1000;
    LogHistory = 0;
@@ -120,7 +120,7 @@ struct EqRandomCommon: TMFeCommon { EqRandomCommon() {
    ReadOnlyWhenRunning = true;
 } };
 
-static TMFeRegister eq_random_register("fetest", "test_random", __FILE__, new EqRandom(), new EqRandomCommon);
+static TMFeRegister eq_random_register("fetest", "test_random", __FILE__, new EqRandom(), new EqInfoRandom);
 
 class EqSlow :
    public TMFeEquipmentBase,
@@ -182,14 +182,14 @@ public:
 #endif
 };
 
-struct EqSlowCommon: TMFeCommon { EqSlowCommon() {
+struct EqInfoSlow: TMFeEqInfo { EqInfoSlow() {
    EventID = 3;
    Period = 1000;
    LogHistory = 1;
    WriteEventsToOdb = true;
 } };
 
-static TMFeRegister eq_slow_register("fetest", "test_slow", __FILE__, new EqSlow(), new EqSlowCommon);
+static TMFeRegister eq_slow_register("fetest", "test_slow", __FILE__, new EqSlow(), new EqInfoSlow);
 
 class EqBulk :
    public TMFeEquipmentBase,
@@ -292,13 +292,13 @@ public:
 #endif
 };
 
-struct EqBulkCommon: TMFeCommon { EqBulkCommon() {
+struct EqInfoBulk: TMFeEqInfo { EqInfoBulk() {
    Period = 1000;
    EventID = 3;
    ReadOnlyWhenRunning = true;
 } };
 
-static TMFeRegister eq_bulk_register("fetest", "test_bulk", __FILE__, new EqBulk(), new EqBulkCommon);
+static TMFeRegister eq_bulk_register("fetest", "test_bulk", __FILE__, new EqBulk(), new EqInfoBulk);
    
 class EqRpc :
    public TMFeEquipmentBase,
@@ -448,11 +448,11 @@ public:
    }
 };
 
-struct EqRpcCommon: TMFeCommon { EqRpcCommon() {
+struct EqInfoRpc: TMFeEqInfo { EqInfoRpc() {
    EventID = 1;
 } };
 
-static TMFeRegister eq_rpc_register("fetest", "test_rpc", __FILE__, new EqRpc(), new EqRpcCommon);
+static TMFeRegister eq_rpc_register("fetest", "test_rpc", __FILE__, new EqRpc(), new EqInfoRpc);
 
 /* emacs
  * Local Variables:
