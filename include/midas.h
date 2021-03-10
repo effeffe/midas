@@ -126,6 +126,18 @@ typedef int INT;
 
 typedef INT HNDLE;
 
+/* define integer types with explicit widths */
+#ifndef NO_INT_TYPES_DEFINE
+typedef unsigned char      UINT8;
+typedef char               INT8;
+typedef unsigned short     UINT16;
+typedef short              INT16;
+typedef unsigned int       UINT32;
+typedef int                INT32;
+typedef unsigned long long UINT64;
+typedef long long          INT64;
+#endif
+
 /* Include vxWorks for BOOL definition */
 #ifdef OS_VXWORKS
 #ifndef __INCvxWorksh
