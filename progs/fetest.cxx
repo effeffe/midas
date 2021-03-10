@@ -316,6 +316,7 @@ public:
 
    TMFeResult Init(const std::vector<std::string>& args)
    {
+      fEq->fInfo->Buffer = "SYSTEM";
       fMfe->RegisterRpcHandler(this);
       fMfe->RegisterPeriodicHandler(fEq, this);
       fEq->SetStatus("Started...", "white");

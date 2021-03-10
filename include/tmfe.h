@@ -182,6 +182,8 @@ public: // contructors and initialization. not thread-safe.
    TMFeResult Init(); ///< Initialize equipment
    TMFeResult Init1(); ///< Initialize equipment, before EquipmentBase::Init()
    TMFeResult Init2(); ///< Initialize equipment, after EquipmentBase::Init()
+   TMFeResult ReadCommon(); ///< Read TMFeEqInfo from ODB /Equipment/NAME/Common
+   TMFeResult WriteCommon() const; ///< Write TMFeEqInfo to ODB /Equipment/NAME/Common
 
 public: // event composition methods
    TMFeResult ComposeEvent(char* pevent, size_t size) const;

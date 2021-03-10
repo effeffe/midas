@@ -939,12 +939,19 @@ TMFeRegister::TMFeRegister(const char* fename, const char* eqname, const char* e
 
 TMFeEquipment::TMFeEquipment(TMFE* mfe, const char* name, const char* filename, TMFeEqInfo* info) // ctor
 {
+   assert(mfe != NULL);
+   assert(name != NULL);
+   assert(filename != NULL);
+   //assert(info != NULL);
    if (TMFE::gfVerbose)
       printf("TMFeEquipment::ctor: equipment name [%s] file [%s]\n", name, filename);
    fMfe  = mfe;
    fName = name;
    fFilename = filename;
-   fInfo = info;
+   if (info)
+      fInfo = info;
+   else
+      fInfo = new TMFeEqInfo;
    fBufferHandle = 0;
    fSerial = 0;
    fStatEvents = 0;
@@ -988,21 +995,10 @@ TMFeResult TMFeEquipment::Init()
    return TMFeOk();
 }
 
-TMFeResult TMFeEquipment::Init1()
+TMFeResult TMFeEquipment::ReadCommon()
 {
    if (TMFE::gfVerbose)
-      printf("TMFeEquipment::Init1: for [%s]\n", fName.c_str());
-
-   //
-   // create ODB /eq/name/common
-   //
-
-   fOdbEq = fMfe->fOdbRoot->Chdir((std::string("Equipment/") + fName).c_str(), true);
-   fOdbEqCommon     = fOdbEq->Chdir("Common", true);
-   fOdbEqSettings   = fOdbEq->Chdir("Settings", true);
-   fOdbEqVariables  = fOdbEq->Chdir("Variables", true);
-   fOdbEqStatistics = fOdbEq->Chdir("Statistics", true);
-
+      printf("TMFeEquipment::ReadCommon: for [%s]\n", fName.c_str());
    fOdbEqCommon->RU16("Event ID",     &fInfo->EventID, true);
    fOdbEqCommon->RU16("Trigger mask", &fInfo->TriggerMask, true);
    fOdbEqCommon->RS("Buffer",         &fInfo->Buffer, true, NAME_LENGTH);
@@ -1022,6 +1018,54 @@ TMFeResult TMFeEquipment::Init1()
    fOdbEqCommon->RS("Status color",   &fInfo->StatusColor, true, NAME_LENGTH);
    fOdbEqCommon->RB("Hidden",         &fInfo->Hidden, true);
    fOdbEqCommon->RI("Write cache size", &fInfo->WriteCacheSize, true);
+   return TMFeOk();
+}
+
+TMFeResult TMFeEquipment::WriteCommon() const
+{
+   if (TMFE::gfVerbose)
+      printf("TMFeEquipment::WriteCommon: for [%s]\n", fName.c_str());
+   fOdbEqCommon->WU16("Event ID",     fInfo->EventID);
+   fOdbEqCommon->WU16("Trigger mask", fInfo->TriggerMask);
+   fOdbEqCommon->WS("Buffer",         fInfo->Buffer.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WI("Type",           fInfo->Type);
+   fOdbEqCommon->WI("Source",         fInfo->Source);
+   fOdbEqCommon->WS("Format",         fInfo->Format.c_str(), 8);
+   fOdbEqCommon->WB("Enabled",        fInfo->Enabled);
+   fOdbEqCommon->WI("Read on",        fInfo->ReadOn);
+   fOdbEqCommon->WI("Period",         fInfo->Period);
+   fOdbEqCommon->WD("Event limit",    fInfo->EventLimit);
+   fOdbEqCommon->WU32("Num subevents",  fInfo->NumSubEvents);
+   fOdbEqCommon->WI("Log history",    fInfo->LogHistory);
+   fOdbEqCommon->WS("Frontend host",  fInfo->FrontendHost.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WS("Frontend name",  fInfo->FrontendName.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WS("Frontend file name",  fInfo->FrontendFileName.c_str(), 256);
+   fOdbEqCommon->WS("Status",         fInfo->Status.c_str(), 256);
+   fOdbEqCommon->WS("Status color",   fInfo->StatusColor.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WB("Hidden",         fInfo->Hidden);
+   fOdbEqCommon->WI("Write cache size", fInfo->WriteCacheSize);
+   return TMFeOk();
+}
+
+TMFeResult TMFeEquipment::Init1()
+{
+   if (TMFE::gfVerbose)
+      printf("TMFeEquipment::Init1: for [%s]\n", fName.c_str());
+
+   //
+   // create ODB /eq/name/common
+   //
+
+   fOdbEq = fMfe->fOdbRoot->Chdir((std::string("Equipment/") + fName).c_str(), true);
+   fOdbEqCommon     = fOdbEq->Chdir("Common", true);
+   fOdbEqSettings   = fOdbEq->Chdir("Settings", true);
+   fOdbEqVariables  = fOdbEq->Chdir("Variables", true);
+   fOdbEqStatistics = fOdbEq->Chdir("Statistics", true);
+
+   TMFeResult r = ReadCommon();
+
+   if (r.error_flag)
+      return r;
 
    fInfo->FrontendHost = fMfe->fFrontendHostname;
    fInfo->FrontendName = fMfe->fFrontendName;
@@ -1084,11 +1128,10 @@ TMFeResult TMFeEquipment::Init2()
 
    // update ODB common
 
-   fOdbEqCommon->WS("Frontend host", fInfo->FrontendHost.c_str(), NAME_LENGTH);
-   fOdbEqCommon->WS("Frontend name", fInfo->FrontendName.c_str(), NAME_LENGTH);
-   fOdbEqCommon->WS("Frontend file name", fInfo->FrontendFileName.c_str(), 256);
-   fOdbEqCommon->WS("Status", fInfo->Status.c_str(), 256);
-   fOdbEqCommon->WS("Status color", fInfo->StatusColor.c_str(), NAME_LENGTH);
+   TMFeResult r = WriteCommon();
+
+   if (r.error_flag)
+      return r;
 
    return TMFeOk();
 };
