@@ -139,20 +139,18 @@ class MVOdb;
 
 class TMFeEquipment
 {
-public:
-   std::string fName;
-   TMFeEqInfo *fInfo = NULL;
+public: // general configuration, should not be changed by user
+   std::string fEqName;
+   TMFeEqInfo *fEqInfo = NULL;
    TMFE* fMfe = NULL;
-   std::string fFilename;
-   std::mutex  fMutex;
+   std::string fEqFilename;
+   std::mutex  fEqMutex;
 
-public:
-   size_t fBufferSize = 0;
-   size_t fMaxEventSize = 0;
-
-public:
-   int fBufferHandle = 0;
-   int fSerial = 0;
+public: // conection to event buffer
+   size_t fEqBufferSize = 0;
+   size_t fEqMaxEventSize = 0;
+   int    fEqBufferHandle = 0;
+   int    fEqSerial = 0;
 
 public:
    MVOdb* fOdbEq = NULL;           ///< ODB Equipment/EQNAME
@@ -162,28 +160,28 @@ public:
    MVOdb* fOdbEqStatistics = NULL; ///< ODB Equipment/EQNAME/Statistics
 
 public: // statistics
-   double fStatEvents = 0;
-   double fStatBytes  = 0;
-   double fStatEpS    = 0; // events/sec
-   double fStatKBpS   = 0; // kbytes/sec (factor 1000, not 1024)
+   double fEqStatEvents = 0;
+   double fEqStatBytes  = 0;
+   double fEqStatEpS    = 0; // events/sec
+   double fEqStatKBpS   = 0; // kbytes/sec (factor 1000, not 1024)
 
    // statistics rate computations
-   double fStatLastTime   = 0;
-   double fStatLastEvents = 0;
-   double fStatLastBytes  = 0;
+   double fEqStatLastTime   = 0;
+   double fEqStatLastEvents = 0;
+   double fEqStatLastBytes  = 0;
 
    // statistics write to odb timer
-   double fStatLastWrite = 0;
-   double fStatNextWrite = 0;
+   double fEqStatLastWrite = 0;
+   double fEqStatNextWrite = 0;
 
 public: // contructors and initialization. not thread-safe.
    TMFeEquipment(TMFE* mfe, const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo); // ctor
    ~TMFeEquipment(); // dtor
-   TMFeResult Init(); ///< Initialize equipment
-   TMFeResult Init1(); ///< Initialize equipment, before EquipmentBase::Init()
-   TMFeResult Init2(); ///< Initialize equipment, after EquipmentBase::Init()
-   TMFeResult ReadCommon(); ///< Read TMFeEqInfo from ODB /Equipment/NAME/Common
-   TMFeResult WriteCommon() const; ///< Write TMFeEqInfo to ODB /Equipment/NAME/Common
+   TMFeResult EqInit(); ///< Initialize equipment
+   TMFeResult EqPreInit(); ///< Initialize equipment, before EquipmentBase::Init()
+   TMFeResult EqPostInit(); ///< Initialize equipment, after EquipmentBase::Init()
+   TMFeResult EqReadCommon(); ///< Read TMFeEqInfo from ODB /Equipment/NAME/Common
+   TMFeResult EqWriteCommon() const; ///< Write TMFeEqInfo to ODB /Equipment/NAME/Common
 
 public: // event composition methods
    TMFeResult ComposeEvent(char* pevent, size_t size) const;
@@ -193,14 +191,14 @@ public: // event composition methods
    int        BkSize(const char* pevent) const;
 
 public: // thread-safe methods
-   TMFeResult SendEvent(const char* pevent);
-   TMFeResult WriteEventToOdb(const char* pevent);
-   TMFeResult ZeroStatistics();
-   TMFeResult WriteStatistics();
-   TMFeResult SetStatus(const char* status, const char* color);
+   TMFeResult EqSendEvent(const char* pevent);
+   TMFeResult EqWriteEventToOdb(const char* pevent);
+   TMFeResult EqZeroStatistics();
+   TMFeResult EqWriteStatistics();
+   TMFeResult EqSetStatus(const char* status, const char* color);
 
 private: // non-thread-safe methods
-   TMFeResult WriteEventToOdb_locked(const char* pevent);
+   TMFeResult EqWriteEventToOdb_locked(const char* pevent);
 };
 
 class TMFeHandlerInterface
@@ -230,8 +228,8 @@ public:
    TMFE* fMfe = NULL;
    TMFeEquipment* fEq = NULL;
    virtual ~TMFeEquipmentBase();
-   virtual TMFeResult Init(const std::vector<std::string>& args) = 0;
-   virtual void Usage();
+   virtual TMFeResult HandleInit(const std::vector<std::string>& args) { return TMFeOk(); };
+   virtual void HandleUsage() {};
 };
 
 class TMFeHooksInterface

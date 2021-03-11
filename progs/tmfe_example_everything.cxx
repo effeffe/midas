@@ -42,7 +42,7 @@ public:
       //fMfe->RegisterPeriodicHandler(fEq, this);
       //fMfe->RegisterPollHandler(fEq, this);
       fMfe->RegisterTransitionStartAbort();
-      fEq->SetStatus("Started...", "white");
+      fEq->EqSetStatus("Started...", "white");
       return TMFeOk();
    }
 
@@ -64,35 +64,35 @@ public:
    TMFeResult HandleBeginRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleBeginRun", "Begin run %d!", run_number);
-      fEq->SetStatus("Running", "#00FF00");
+      fEq->EqSetStatus("Running", "#00FF00");
       return TMFeOk();
    }
 
    TMFeResult HandleEndRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleEndRun", "End run %d!", run_number);
-      fEq->SetStatus("Stopped", "#FFFFFF");
+      fEq->EqSetStatus("Stopped", "#FFFFFF");
       return TMFeOk();
    }
 
    TMFeResult HandlePauseRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandlePauseRun", "Pause run %d!", run_number);
-      fEq->SetStatus("Paused", "#FFFF00");
+      fEq->EqSetStatus("Paused", "#FFFF00");
       return TMFeOk();
    }
 
    TMFeResult HandleResumeRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleResumeRun", "Resume run %d!", run_number);
-      fEq->SetStatus("Running", "#00FF00");
+      fEq->EqSetStatus("Running", "#00FF00");
       return TMFeOk();
    }
 
    TMFeResult HandleStartAbortRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleStartAbortRun", "Begin run %d aborted!", run_number);
-      fEq->SetStatus("Stopped", "#FFFFFF");
+      fEq->EqSetStatus("Stopped", "#FFFFFF");
       return TMFeOk();
    }
 
@@ -106,7 +106,7 @@ public:
       *ptr++ = dvalue;
       fEq->BkClose(buf, ptr);
 
-      fEq->SendEvent(buf);
+      fEq->EqSendEvent(buf);
    }
 
    void HandlePeriodic()
@@ -117,7 +117,7 @@ public:
       SendData(data);
       char status_buf[256];
       sprintf(status_buf, "value %.1f", data);
-      fEq->SetStatus(status_buf, "#00FF00");
+      fEq->EqSetStatus(status_buf, "#00FF00");
    }
 
    bool HandlePoll()

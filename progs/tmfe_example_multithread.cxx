@@ -41,7 +41,7 @@ public:
       *ptr++ = dvalue;
       fEq->BkClose(buf, ptr);
 
-      fEq->SendEvent(buf);
+      fEq->EqSendEvent(buf);
    }
 
    TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response)
@@ -53,21 +53,21 @@ public:
    TMFeResult HandleBeginRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleBeginRun", "Thread %s, Begin run %d!", TMFE::GetThreadId().c_str(), run_number);
-      fEq->SetStatus("Running", "#00FF00");
+      fEq->EqSetStatus("Running", "#00FF00");
       return TMFeOk();
    }
 
    TMFeResult HandleEndRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleEndRun", "Thread %s, End run %d!", TMFE::GetThreadId().c_str(), run_number);
-      fEq->SetStatus("Stopped", "#00FF00");
+      fEq->EqSetStatus("Stopped", "#00FF00");
       return TMFeOk();
    }
 
    //TMFeResult HandleStartAbortRun(int run_number)
    //{
    //   fMfe->Msg(MINFO, "HandleStartAbortRun", "Begin run %d aborted!", run_number);
-   //   fEq->SetStatus("Stopped", "#00FF00");
+   //   fEq->EqSetStatus("Stopped", "#00FF00");
    //   return TMFeOk();
    //}
 
@@ -80,7 +80,7 @@ public:
       fEq->fOdbEqVariables->WD("data", data);
       char status_buf[256];
       sprintf(status_buf, "value %.1f", data);
-      fEq->SetStatus(status_buf, "#00FF00");
+      fEq->EqSetStatus(status_buf, "#00FF00");
    }
 };
 
@@ -122,8 +122,8 @@ int main(int argc, char* argv[])
    //info->Buffer = "SYSTEM";
    
    TMFeEquipment* eq = new TMFeEquipment(mfe, "tmfe_example_mt", __FILE__, info);
-   eq->Init();
-   eq->SetStatus("Starting...", "white");
+   eq->EqInit();
+   eq->EqSetStatus("Starting...", "white");
 
    mfe->RegisterEquipment(eq);
 
@@ -147,7 +147,7 @@ int main(int argc, char* argv[])
    mfe->StartRpcThread();
    mfe->StartPeriodicThread();
 
-   eq->SetStatus("Started...", "white");
+   eq->EqSetStatus("Started...", "white");
 
    while (!mfe->fShutdownRequested) {
       ::sleep(1);

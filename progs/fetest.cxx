@@ -38,7 +38,7 @@ public:
    {
    }
    
-   TMFeResult Init(const std::vector<std::string>& args)
+   TMFeResult HandleInit(const std::vector<std::string>& args)
    {
       //fMfe->RegisterPeriodicHandler(fEq, this);
       fMfe->RegisterHandler(fEq, this, false, true, false);
@@ -47,9 +47,9 @@ public:
    
    void HandlePeriodic()
    {
-      char event[fEq->fMaxEventSize];
+      char event[fEq->fEqMaxEventSize];
 
-      fEq->ComposeEvent(event, fEq->fMaxEventSize);
+      fEq->ComposeEvent(event, fEq->fEqMaxEventSize);
       
       char* pbh = event + sizeof(EVENT_HEADER);
       
@@ -88,7 +88,7 @@ public:
 
       //printf("sending %d, max %d\n", (int)bk_size(pbh), (int)fMaxEventSize);
 
-      fEq->SendEvent(event);
+      fEq->EqSendEvent(event);
    }
 
 #if 0
@@ -149,7 +149,7 @@ public:
       *ptr++ = dvalue;
       fEq->BkClose(buf, ptr);
 
-      fEq->SendEvent(buf);
+      fEq->EqSendEvent(buf);
    }
 
    void HandlePeriodic()
@@ -160,7 +160,7 @@ public:
       SendData(data);
       char status_buf[256];
       sprintf(status_buf, "value %.1f", data);
-      fEq->SetStatus(status_buf, "#00FF00");
+      fEq->EqSetStatus(status_buf, "#00FF00");
    }
 
 #if 0
@@ -220,7 +220,7 @@ public:
 
    TMFeResult Init(const std::vector<std::string>& args)
    {
-      fEq->SetStatus("Starting...", "white");
+      fEq->EqSetStatus("Starting...", "white");
 
       fEq->fOdbEqSettings->RI("event_size", &fEventSize, true);
       fEq->fOdbEqSettings->RD("event_sleep_sec", &fEventSleep, true);
@@ -250,14 +250,14 @@ public:
       ptr += fEventSize;
       fEq->BkClose(buf, ptr);
 
-      fEq->SendEvent(buf);
+      fEq->EqSendEvent(buf);
    }
 
    void Thread()
    {
       printf("FeBulk::Thread: thread started\n");
 
-      fEq->SetStatus("Thread running", "#00FF00");
+      fEq->EqSetStatus("Thread running", "#00FF00");
 
       fThreadRunning = true;
       while (!fMfe->fShutdownRequested) {
@@ -317,11 +317,11 @@ public:
 
    TMFeResult Init(const std::vector<std::string>& args)
    {
-      fEq->fInfo->Buffer = "SYSTEM";
+      fEq->fEqInfo->Buffer = "SYSTEM";
       //fMfe->RegisterRpcHandler(this);
       //fMfe->RegisterPeriodicHandler(fEq, this);
       fMfe->RegisterHandler(fEq, this, true, true, false);
-      fEq->SetStatus("Started...", "white");
+      fEq->EqSetStatus("Started...", "white");
       return TMFeOk();
    }
 
@@ -343,7 +343,7 @@ public:
    TMFeResult HandleBeginRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleBeginRun", "Begin run %d!", run_number);
-      fEq->SetStatus("Running", "#00FF00");
+      fEq->EqSetStatus("Running", "#00FF00");
       
       printf("begin_of_run %d\n", run_number);
       
@@ -369,7 +369,7 @@ public:
    TMFeResult HandleEndRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleEndRun", "End run %d!", run_number);
-      fEq->SetStatus("Stopped", "#00FF00");
+      fEq->EqSetStatus("Stopped", "#00FF00");
 
       printf("end_of_run %d\n", run_number);
       
@@ -395,7 +395,7 @@ public:
    TMFeResult HandlePauseRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandlePauseRun", "Pause run %d!", run_number);
-      fEq->SetStatus("Stopped", "#00FF00");
+      fEq->EqSetStatus("Stopped", "#00FF00");
 
       printf("pause_run %d\n", run_number);
 
@@ -413,7 +413,7 @@ public:
    TMFeResult HandleResumeRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleResumeRun", "Resume run %d!", run_number);
-      fEq->SetStatus("Stopped", "#00FF00");
+      fEq->EqSetStatus("Stopped", "#00FF00");
 
       printf("resume_run %d\n", run_number);
 
@@ -431,7 +431,7 @@ public:
    TMFeResult HandleStartAbortRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleStartAbortRun", "Begin run %d aborted!", run_number);
-      fEq->SetStatus("Stopped", "#00FF00");
+      fEq->EqSetStatus("Stopped", "#00FF00");
 
       printf("start abort run %d\n", run_number);
 
