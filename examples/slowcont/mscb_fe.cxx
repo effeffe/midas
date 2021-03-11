@@ -93,17 +93,17 @@ INT interrupt_configure(INT cmd, INT source, PTYPE adr) {
 void mscb_define(const char *submaster, const char *equipment, const char *devname, DEVICE_DRIVER *driver, int address,
                  unsigned char var_index, const char *name, double threshold) {
    int i, dev_index, chn_index, chn_total;
-   char str[256];
+   std::string str;
    float f_threshold;
    HNDLE hDB;
 
    cm_get_experiment_database(&hDB, NULL);
 
    if (submaster && submaster[0]) {
-      sprintf(str, "/Equipment/%s/Settings/Devices/%s/Device", equipment, devname);
-      db_set_value(hDB, 0, str, submaster, 32, 1, TID_STRING);
-      sprintf(str, "/Equipment/%s/Settings/Devices/%s/Pwd", equipment, devname);
-      db_set_value(hDB, 0, str, "meg", 32, 1, TID_STRING);
+      str = msprintf("/Equipment/%s/Settings/Devices/%s/Device", equipment, devname);
+      db_set_value(hDB, 0, str.c_str(), submaster, 32, 1, TID_STRING);
+      str = msprintf("/Equipment/%s/Settings/Devices/%s/Pwd", equipment, devname);
+      db_set_value(hDB, 0, str.c_str(), "meg", 32, 1, TID_STRING);
    }
 
    /* find device in device driver */
@@ -121,20 +121,20 @@ void mscb_define(const char *submaster, const char *equipment, const char *devna
       chn_total += driver[i].channels;
 
    chn_index = driver[dev_index].channels;
-   sprintf(str, "/Equipment/%s/Settings/Devices/%s/MSCB Address", equipment, devname);
-   db_set_value_index(hDB, 0, str, &address, sizeof(int), chn_index, TID_INT32, TRUE);
-   sprintf(str, "/Equipment/%s/Settings/Devices/%s/MSCB Index", equipment, devname);
-   db_set_value_index(hDB, 0, str, &var_index, sizeof(char), chn_index, TID_UINT8, TRUE);
+   str = msprintf("/Equipment/%s/Settings/Devices/%s/MSCB Address", equipment, devname);
+   db_set_value_index(hDB, 0, str.c_str(), &address, sizeof(int), chn_index, TID_INT32, TRUE);
+   str = msprintf("/Equipment/%s/Settings/Devices/%s/MSCB Index", equipment, devname);
+   db_set_value_index(hDB, 0, str.c_str(), &var_index, sizeof(char), chn_index, TID_UINT8, TRUE);
 
    if (threshold != -1) {
-      sprintf(str, "/Equipment/%s/Settings/Update Threshold", equipment);
+      str = msprintf("/Equipment/%s/Settings/Update Threshold", equipment);
       f_threshold = (float) threshold;
-      db_set_value_index(hDB, 0, str, &f_threshold, sizeof(float), chn_total, TID_FLOAT, TRUE);
+      db_set_value_index(hDB, 0, str.c_str(), &f_threshold, sizeof(float), chn_total, TID_FLOAT, TRUE);
    }
 
    if (name && name[0]) {
-      sprintf(str, "/Equipment/%s/Settings/Names %s", equipment, devname);
-      db_set_value_index(hDB, 0, str, name, 32, chn_total, TID_STRING, TRUE);
+      str = msprintf("/Equipment/%s/Settings/Names %s", equipment, devname);
+      db_set_value_index(hDB, 0, str.c_str(), name, 32, chn_total, TID_STRING, TRUE);
    }
 
    /* increment number of channels for this driver */
