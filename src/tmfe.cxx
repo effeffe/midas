@@ -129,6 +129,8 @@ TMFeResult TMFE::Connect(const char* xprogname, const char* filename, const char
 
    fOdbRoot = MakeMidasOdb(fDB);
 
+   RegisterRPCs();
+
    if (gfVerbose) {
       printf("TMFE::Connect: Program \"%s\" connected to experiment \"%s\" on host \"%s\"\n", fFrontendName.c_str(), fExptname.c_str(), fHostname.c_str());
    }
@@ -158,51 +160,6 @@ TMFeResult TMFE::Disconnect()
    return TMFeOk();
 }
 
-void TMFE::RegisterEquipment(TMFeEquipment* eq)
-{
-   for (unsigned i=0; i<fEquipments.size(); i++) {
-      if (fEquipments[i] == eq)
-         return;
-   }
-   fEquipments.push_back(eq);
-}
-
-void TMFE::UnregisterEquipment(TMFeEquipment* eq)
-{
-   for (unsigned i=0; i<fEquipments.size(); i++) {
-      if (fEquipments[i] == eq) {
-         fEquipments[i] = NULL;
-         return;
-      }
-   }
-}
-
-class TMFeHandlerData
-{
- public:
-   TMFeEquipment *fEq = NULL;
-   TMFeHandlerInterface *fHandler = NULL;
-   bool fEqEnableRpc = false;
-   bool fEqEnablePeriodic = false;
-   bool fEqEnablePoll = false;
-
-public: // periodic
-   double fEqPeriodicLastCallTime = 0;
-   double fEqPeriodicNextCallTime = 0;
-
- public:
-   TMFeHandlerData()
-   {
-      // empty
-   }
-   
-   ~TMFeHandlerData()
-   {
-      fEq = NULL; // no delete, we do not own this object
-      fHandler = NULL; // no delete, we do not own this object
-   }
-};
-
 void TMFE::EquipmentPeriodicTasks()
 {
    double now = GetTime();
@@ -210,36 +167,36 @@ void TMFE::EquipmentPeriodicTasks()
    // run periodic equipments
 
    if (fNextPeriodic == 0 || now >= fNextPeriodic) {
-      int n = fHandlers.size();
+      int n = fEquipments.size();
       fNextPeriodic = 0;
       for (int i=0; i<n; i++) {
-         TMFeHandlerData* h = fHandlers[i];
-         if (!h->fEqEnablePeriodic)
+         TMFeEquipment* e = fEquipments[i];
+         if (!e->fEqEnablePeriodic)
             continue;
-         double period = h->fEq->fEqInfo->Period/1000.0;
+         double period = e->fEqInfo->Period/1000.0;
          //printf("periodic[%d] period %f, last call %f, next call %f (+%f)\n", i, period, h->fLastCallTime, h->fNextCallTime, now - h->fNextCallTime);
          if (period <= 0)
             continue;
-         if (h->fEqPeriodicNextCallTime == 0 || now >= h->fEqPeriodicNextCallTime) {
-            h->fEqPeriodicLastCallTime = now;
-            h->fEqPeriodicNextCallTime = h->fEqPeriodicLastCallTime + period;
+         if (e->fEqPeriodicNextCallTime == 0 || now >= e->fEqPeriodicNextCallTime) {
+            e->fEqPeriodicLastCallTime = now;
+            e->fEqPeriodicNextCallTime = e->fEqPeriodicLastCallTime + period;
 
-            if (h->fEqPeriodicNextCallTime < now) {
+            if (e->fEqPeriodicNextCallTime < now) {
                if (gfVerbose)
                   printf("TMFE::EquipmentPeriodicTasks: periodic equipment does not keep up!\n");
-               while (h->fEqPeriodicNextCallTime < now) {
-                  h->fEqPeriodicNextCallTime += period;
+               while (e->fEqPeriodicNextCallTime < now) {
+                  e->fEqPeriodicNextCallTime += period;
                }
             }
 
             if (fNextPeriodic == 0)
-               fNextPeriodic = h->fEqPeriodicNextCallTime;
-            else if (h->fEqPeriodicNextCallTime < fNextPeriodic)
-               fNextPeriodic = h->fEqPeriodicNextCallTime;
+               fNextPeriodic = e->fEqPeriodicNextCallTime;
+            else if (e->fEqPeriodicNextCallTime < fNextPeriodic)
+               fNextPeriodic = e->fEqPeriodicNextCallTime;
 
-            if (fStateRunning || !h->fEq->fEqInfo->ReadOnlyWhenRunning) {
+            if (fStateRunning || !e->fEqInfo->ReadOnlyWhenRunning) {
                //printf("handler %d eq [%s] call HandlePeriodic()\n", i, h->fEq->fName.c_str());                     
-               h->fHandler->HandlePeriodic();
+               e->HandlePeriodic();
             }
 
             now = GetTime();
@@ -266,12 +223,12 @@ void TMFE::EquipmentPeriodicTasks()
 
 void TMFE::EquipmentPollTasks()
 {
-   // NOTE: ok to use range-based for() loop, there will be a crash if HandlePoll() or HandleRead() modify fHandlers, so they should not do that. K.O.
-   for (auto hd : fHandlers) {
-      if (hd && hd->fEqEnablePoll && hd->fEq) {
-         bool poll = hd->fHandler->HandlePoll();
+   // NOTE: ok to use range-based for() loop, there will be a crash if HandlePoll() or HandleRead() modify fEquipments, so they should not do that. K.O.
+   for (auto e : fEquipments) {
+      if (e && e->fEqEnablePoll) {
+         bool poll = e->HandlePoll();
          if (poll) {
-            hd->fHandler->HandleRead();
+            e->HandleRead();
          }
       }
    }
@@ -545,12 +502,12 @@ static INT rpc_callback(INT index, void *prpc_param[])
 
    TMFE* mfe = TMFE::Instance();
 
-   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleRpc() modifies fHandlers. K.O.
-   for (unsigned i=0; i<mfe->fHandlers.size(); i++) {
-      if (!mfe->fHandlers[i]->fEqEnableRpc)
+   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleRpc() modifies fEquipments. K.O.
+   for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
+      if (!mfe->fEquipments[i]->fEqEnableRpc)
          continue;
       std::string result = "";
-      TMFeResult r = mfe->fHandlers[i]->fHandler->HandleRpc(cmd, args, result);
+      TMFeResult r = mfe->fEquipments[i]->HandleRpc(cmd, args, result);
       if (result.length() > 0) {
          //printf("Handler reply [%s]\n", C(r));
          strlcpy(return_buf, result.c_str(), return_max_length);
@@ -581,11 +538,11 @@ static INT tr_start(INT run_number, char *errstr)
 
    TMFeResult result;
 
-   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleBeginRun() modifies fHandlers. K.O.
-   for (unsigned i=0; i<mfe->fHandlers.size(); i++) {
-      if (!mfe->fHandlers[i]->fEqEnableRpc)
+   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleBeginRun() modifies fEquipments. K.O.
+   for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
+      if (!mfe->fEquipments[i]->fEqEnableRpc)
          continue;
-      result = mfe->fHandlers[i]->fHandler->HandleBeginRun(run_number);
+      result = mfe->fEquipments[i]->HandleBeginRun(run_number);
       if (result.error_flag) {
          // error handling in this function matches general transition error handling:
          // on run start, the first user handler to return an error code
@@ -616,11 +573,11 @@ static INT tr_stop(INT run_number, char *errstr)
 
    TMFE* mfe = TMFE::Instance();
 
-   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleEndRun() modifies fHandlers. K.O.
-   for (unsigned i=0; i<mfe->fHandlers.size(); i++) {
-      if (!mfe->fHandlers[i]->fEqEnableRpc)
+   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleEndRun() modifies fEquipments. K.O.
+   for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
+      if (!mfe->fEquipments[i]->fEqEnableRpc)
          continue;
-      TMFeResult xresult = mfe->fHandlers[i]->fHandler->HandleEndRun(run_number);
+      TMFeResult xresult = mfe->fEquipments[i]->HandleEndRun(run_number);
       if (xresult.error_flag) {
          // error handling in this function matches general transition error handling:
          // the "run stop" transition is always sucessful, the run always stops.
@@ -654,11 +611,11 @@ static INT tr_pause(INT run_number, char *errstr)
 
    TMFE* mfe = TMFE::Instance();
 
-   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandlePauseRun() modifies fHandlers. K.O.
-   for (unsigned i=0; i<mfe->fHandlers.size(); i++) {
-      if (!mfe->fHandlers[i]->fEqEnableRpc)
+   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandlePauseRun() modifies fEquipments. K.O.
+   for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
+      if (!mfe->fEquipments[i]->fEqEnableRpc)
          continue;
-      result = mfe->fHandlers[i]->fHandler->HandlePauseRun(run_number);
+      result = mfe->fEquipments[i]->HandlePauseRun(run_number);
       if (result.error_flag) {
          // error handling in this function matches general transition error handling:
          // logic is same as "start run"
@@ -683,11 +640,11 @@ static INT tr_resume(INT run_number, char *errstr)
 
    TMFE* mfe = TMFE::Instance();
 
-   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleResumeRun() modifies fHandlers. K.O.
-   for (unsigned i=0; i<mfe->fHandlers.size(); i++) {
-      if (!mfe->fHandlers[i]->fEqEnableRpc)
+   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleResumeRun() modifies fEquipments. K.O.
+   for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
+      if (!mfe->fEquipments[i]->fEqEnableRpc)
          continue;
-      result = mfe->fHandlers[i]->fHandler->HandleResumeRun(run_number);
+      result = mfe->fEquipments[i]->HandleResumeRun(run_number);
       if (result.error_flag) {
          // error handling in this function matches general transition error handling:
          // logic is same as "start run"
@@ -712,11 +669,11 @@ static INT tr_startabort(INT run_number, char *errstr)
 
    TMFE* mfe = TMFE::Instance();
 
-   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleStartAbortRun() modifies fHandlers. K.O.
-   for (unsigned i=0; i<mfe->fHandlers.size(); i++) {
-      if (!mfe->fHandlers[i]->fEqEnableRpc)
+   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleStartAbortRun() modifies fEquipments. K.O.
+   for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
+      if (!mfe->fEquipments[i]->fEqEnableRpc)
          continue;
-      result = mfe->fHandlers[i]->fHandler->HandleStartAbortRun(run_number);
+      result = mfe->fEquipments[i]->HandleStartAbortRun(run_number);
       if (result.error_flag) {
          // error handling in this function matches general transition error handling:
          // logic is same as "start run"
@@ -798,51 +755,32 @@ void TMFE::RegisterTransitionStartAbort()
    cm_register_transition(TR_STARTABORT, tr_startabort, 500);
 }
 
-void TMFE::RegisterHandler(TMFeEquipment* eq, TMFeHandlerInterface* h, bool enable_rpc, bool enable_periodic, bool enable_poll)
+void TMFE::RegisterRPCs()
 {
-   TMFeHandlerData *p = new TMFeHandlerData();
-   p->fEq = eq;
-   p->fHandler = h;
-   p->fEqEnableRpc = enable_rpc;
-   p->fEqEnablePeriodic = enable_periodic;
-   p->fEqEnablePoll = enable_poll;
-   // FIXME: fHandlers must be protected against multi-threaded access. K.O.
-   fHandlers.push_back(p);
-   fNextPeriodic = 0;
-   fNextPoll = 0;
-
-   static bool gOnce = true;
-
-   if (enable_rpc && gOnce) {
-      gOnce = false;
-      // for the first handler, register with MIDAS
-      cm_register_function(RPC_JRPC, rpc_callback);
-      cm_register_transition(TR_START, tr_start, 500);
-      cm_register_transition(TR_STOP, tr_stop, 500);
-      cm_register_transition(TR_PAUSE, tr_pause, 500);
-      cm_register_transition(TR_RESUME, tr_resume, 500);
-      cm_register_transition(TR_STARTABORT, tr_startabort, 500);
-   }
+   if (TMFE::gfVerbose)
+      printf("TMFE::RegisterRPCs!\n");
+   
+   cm_register_function(RPC_JRPC, rpc_callback);
+   cm_register_transition(TR_START, tr_start, 500);
+   cm_register_transition(TR_STOP, tr_stop, 500);
+   cm_register_transition(TR_PAUSE, tr_pause, 500);
+   cm_register_transition(TR_RESUME, tr_resume, 500);
+   cm_register_transition(TR_STARTABORT, tr_startabort, 500);
 }
 
 void TMFE::Usage()
 {
-   for (unsigned i=0; i<fEquipmentBases.size(); i++) {
-      fEquipmentBases[i]->HandleUsage();
+   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleUsage() modifies fEquipments. K.O.
+   for (unsigned i=0; i<fEquipments.size(); i++) {
+      fEquipments[i]->HandleUsage();
    }
 }
 
 TMFeResult TMFE::InitEquipments(const std::vector<std::string>& args)
 {
-   for (unsigned i=0; i<fEquipmentBases.size(); i++) {
-      TMFeResult r;
-      r = fEquipmentBases[i]->fEq->EqPreInit();
-      if (r.error_flag)
-         return r;
-      r = fEquipmentBases[i]->HandleInit(args);
-      if (r.error_flag)
-         return r;
-      r = fEquipmentBases[i]->fEq->EqPostInit();
+   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleInit() modifies fEquipments. K.O.
+   for (unsigned i=0; i<fEquipments.size(); i++) {
+      TMFeResult r = fEquipments[i]->EqInit(args);
       if (r.error_flag)
          return r;
    }
@@ -851,12 +789,10 @@ TMFeResult TMFE::InitEquipments(const std::vector<std::string>& args)
 
 void TMFE::DeleteEquipments()
 {
-   for (unsigned i=0; i<fEquipmentBases.size(); i++) {
-      UnregisterEquipment(fEquipmentBases[i]->fEq);
-      delete fEquipmentBases[i];
-      fEquipmentBases[i] = NULL;
-   }
-
+   // NOTE: this is thread-safe: we do not modify the fEquipments object. K.O.
+   // NOTE: this is not thread-safe, we will race against ourselves and do multiple delete of fEquipents[i]. K.O.
+   
+   // NOTE: should not use range-based for() loop, it uses an iterator and it not thread-safe. K.O.
    for (unsigned i=0; i<fEquipments.size(); i++) {
       if (fEquipments[i] == NULL)
          continue;
@@ -866,59 +802,91 @@ void TMFE::DeleteEquipments()
    }
 }
 
-TMFeResult TMFE::CreateEquipment(const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeEqInfo* eqinfo)
+TMFeResult TMFE::RegisterEquipment(TMFeEquipment* eq, bool enable_rpc, bool enable_periodic, bool enable_poll)
 {
-   assert(eqname != NULL);
+   // NOTE: not thread-safe, we modify the fEquipments object. K.O.
    
+   // NOTE: should not use range-based for() loop, it uses an iterator and it not thread-safe. K.O.
    for (unsigned i=0; i<fEquipments.size(); i++) {
-      if (fEquipments[i] == NULL)
+      if (!fEquipments[i])
          continue;
-      if (fEquipments[i]->fEqName == eqname) {
-         return TMFeErrorMessage(std::string("Duplicate equipment name \"") + eqname + "\"");
+      if (fEquipments[i] == eq) {
+         return TMFeErrorMessage(msprintf("TMFE::RegisterEquipment: Equipment \"%s\" is already registered", fEquipments[i]->fEqName.c_str()));
+      }
+      if (fEquipments[i]->fEqName == eq->fEqName) {
+         return TMFeErrorMessage(std::string("TMFE::RegisterEquipment: Duplicate equipment name \"") + eq->fEqName + "\"");
       }
    }
+   
+   eq->fEqEnableRpc = enable_rpc;
+   eq->fEqEnablePeriodic = enable_periodic;
+   eq->fEqEnablePoll = enable_poll;
 
-   if (eqfile)
-      eqinfo->FrontendFileName = eqfile;
+   fNextPeriodic = 0;
+   fNextPoll = 0;
 
-   TMFeEquipment* eq = new TMFeEquipment(this, eqname, eqfile, eqinfo);
-   eqbase->fMfe = this;
-   eqbase->fEq = eq;
-   fEquipmentBases.push_back(eqbase);
-   RegisterEquipment(eq);
+   // NOTE: fEquipments must be protected again multithreaded access here. K.O.
+   fEquipments.push_back(eq);
+
    return TMFeOk();
 }
 
-TMFeRegister::TMFeRegister(const char* fename, const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeEqInfo* eqinfo)
+TMFeResult TMFE::UnregisterEquipment(TMFeEquipment* eq)
+{
+   // NOTE: this is thread-safe, we do not modify the fEquipments object. K.O.
+   
+   // NOTE: should not use range-based for() loop, it uses an iterator and it not thread-safe. K.O.
+   for (unsigned i=0; i<fEquipments.size(); i++) {
+      if (fEquipments[i] == eq) {
+         fEquipments[i] = NULL;
+         return TMFeOk();
+      }
+   }
+
+   return TMFeErrorMessage(msprintf("TMFE::UnregisterEquipment: Cannot find equipment \"%s\"", eq->fEqName.c_str()));
+}
+
+TMFeRegister::TMFeRegister(const char* fename, TMFeEquipment* eq, bool enable_rpc, bool enable_periodic, bool enable_poll)
 {
    if (TMFE::gfVerbose)
-      printf("TMFeRegister::ctor: Register equipment with fename [%s] eqname [%s] filename [%s]\n", fename, eqname, eqfile);
+      printf("TMFeRegister::ctor: Register equipment with fename [%s] eqname [%s] filename [%s]\n", fename, eq->fEqName.c_str(), eq->fEqFilename.c_str());
+
    TMFE* mfe = TMFE::Instance();
+
    if (fename) {
       if (mfe->fFrontendName.empty())
          mfe->fFrontendName = fename;
       else if (mfe->fFrontendName != fename) {
          fprintf(stderr, "TMFeRegister: Cannot register equipment \"%s\" with frontend name \"%s\" because TMFE frontend name is already set to \"%s\", sorry, bye!\n",
-                 eqname, fename, mfe->fFrontendName.c_str());
+                 eq->fEqName.c_str(), fename, mfe->fFrontendName.c_str());
          exit(1);
       }
    }
-   mfe->CreateEquipment(eqname, eqfile, eqbase, eqinfo);
+
+   //if (eqfile)
+   //eqinfo->FrontendFileName = eqfile;
+
+   TMFeResult r = mfe->RegisterEquipment(eq, enable_rpc, enable_periodic, enable_poll);
+   
+   if (r.error_flag) {
+      fprintf(stderr, "TMFeRegister: Cannot register equipment \"%s\", TMFE::RegisterEquipment() error %s, sorry, bye!\n",
+              eq->fEqName.c_str(), r.error_message.c_str());
+      exit(1);
+   }
 }
 
-TMFeEquipment::TMFeEquipment(TMFE* mfe, const char* name, const char* filename, TMFeEqInfo* info) // ctor
+TMFeEquipment::TMFeEquipment(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
 {
-   assert(mfe != NULL);
-   assert(name != NULL);
-   assert(filename != NULL);
-   //assert(info != NULL);
+   assert(eqname != NULL);
+   assert(eqfilename != NULL);
+   //assert(eqinfo != NULL);
    if (TMFE::gfVerbose)
-      printf("TMFeEquipment::ctor: equipment name [%s] file [%s]\n", name, filename);
-   fMfe  = mfe;
-   fEqName = name;
-   fEqFilename = filename;
-   if (info)
-      fEqInfo = info;
+      printf("TMFeEquipment::ctor: equipment name [%s] file [%s]\n", eqname, eqfilename);
+   fMfe = TMFE::Instance();
+   fEqName = eqname;
+   fEqFilename = eqfilename;
+   if (eqinfo)
+      fEqInfo = eqinfo;
    else
       fEqInfo = new TMFeEqInfo;
 
@@ -936,11 +904,15 @@ TMFeEquipment::~TMFeEquipment() // dtor
    }
 }
 
-TMFeResult TMFeEquipment::EqInit()
+TMFeResult TMFeEquipment::EqInit(const std::vector<std::string>& args)
 {
    TMFeResult r;
 
    r = EqPreInit();
+   if (r.error_flag)
+      return r;
+
+   r = HandleInit(args);
    if (r.error_flag)
       return r;
 
@@ -1268,16 +1240,6 @@ TMFeResult TMFeEquipment::EqSetStatus(char const* eq_status, char const* eq_colo
    return TMFeOk();
 }
 
-TMFeEquipmentBase::~TMFeEquipmentBase() // dtor
-{
-   if (fMfe)
-      fMfe = NULL;
-   if (fEq) {
-      delete fEq;
-      fEq = NULL;
-   }
-}
-
 TMFeResult TMFE::TriggerAlarm(const char* name, const char* message, const char* aclass)
 {
    int status = al_trigger_alarm(name, message, aclass, message, AT_INTERNAL);
@@ -1318,6 +1280,14 @@ void TMFE::CallPostConnectHooks(const std::vector<std::string>& args)
    for (auto h : fHooks) {
       if (h)
          h->HandlePostConnect(args);
+   }
+}
+
+void TMFE::CallPostInitHooks(const std::vector<std::string>& args)
+{
+   for (auto h : fHooks) {
+      if (h)
+         h->HandlePostInit(args);
    }
 }
 

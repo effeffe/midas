@@ -14,16 +14,12 @@
 #include "tmfe.h"
 
 class Myfe :
-   public TMFeHandlerInterface   
+   public TMFeEquipment   
 {
 public:
-   TMFE* fMfe = NULL;
-   TMFeEquipment* fEq = NULL;
-
-   Myfe(TMFE* mfe, TMFeEquipment* eq) // ctor
+   Myfe(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
+      : TMFeEquipment(eqname, eqfilename, eqinfo)
    {
-      fMfe = mfe;
-      fEq  = eq;
    }
 
    ~Myfe() // dtor
@@ -33,14 +29,14 @@ public:
    void SendData(double dvalue)
    {
       char buf[1024];
-      fEq->ComposeEvent(buf, sizeof(buf));
-      fEq->BkInit(buf, sizeof(buf));
+      ComposeEvent(buf, sizeof(buf));
+      BkInit(buf, sizeof(buf));
          
-      double* ptr = (double*)fEq->BkOpen(buf, "test", TID_DOUBLE);
+      double* ptr = (double*)BkOpen(buf, "test", TID_DOUBLE);
       *ptr++ = dvalue;
-      fEq->BkClose(buf, ptr);
+      BkClose(buf, ptr);
 
-      fEq->EqSendEvent(buf);
+      EqSendEvent(buf);
    }
 
    TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response)
@@ -52,21 +48,21 @@ public:
    TMFeResult HandleBeginRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleBeginRun", "Begin run %d!", run_number);
-      fEq->EqSetStatus("Running", "#00FF00");
+      EqSetStatus("Running", "#00FF00");
       return TMFeOk();
    }
 
    TMFeResult HandleEndRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleEndRun", "End run %d!", run_number);
-      fEq->EqSetStatus("Stopped", "#00FF00");
+      EqSetStatus("Stopped", "#00FF00");
       return TMFeOk();
    }
 
    //TMFeResult HandleStartAbortRun(int run_number)
    //{
    //   fMfe->Msg(MINFO, "HandleStartAbortRun", "Begin run %d aborted!", run_number);
-   //   fEq->SetStatus("Stopped", "#00FF00");
+   //   EqSetStatus("Stopped", "#00FF00");
    //   return TMFeOk();
    //}
 
@@ -76,10 +72,10 @@ public:
       double t = TMFE::GetTime();
       double data = 100.0*sin(M_PI*t/60);
       SendData(data);
-      fEq->fOdbEqVariables->WD("data", data);
+      fOdbEqVariables->WD("data", data);
       char status_buf[256];
       sprintf(status_buf, "value %.1f", data);
-      fEq->EqSetStatus(status_buf, "#00FF00");
+      EqSetStatus(status_buf, "#00FF00");
    }
 };
 
@@ -95,6 +91,8 @@ int main(int argc, char* argv[])
    setbuf(stderr, NULL);
 
    signal(SIGPIPE, SIG_IGN);
+
+   std::vector<std::string> eq_args;
 
    //std::string name = "";
    //
@@ -120,15 +118,12 @@ int main(int argc, char* argv[])
    info->LogHistory = 1;
    //info->Buffer = "SYSTEM";
    
-   TMFeEquipment* eq = new TMFeEquipment(mfe, "tmfe_example", __FILE__, info);
-   eq->EqInit();
+   TMFeEquipment* eq = new Myfe("tmfe_example", __FILE__, info);
+   eq->EqInit(eq_args);
    eq->EqSetStatus("Starting...", "white");
 
-   mfe->RegisterEquipment(eq);
-
-   Myfe* myfe = new Myfe(mfe, eq);
-
-   mfe->RegisterHandler(eq, myfe, true, true, false);
+   mfe->RegisterEquipment(eq, true, true, false);
+   mfe->RegisterRPCs();
 
    //mfe->SetTransitionSequenceStart(910);
    //mfe->SetTransitionSequenceStop(90);
@@ -137,8 +132,6 @@ int main(int argc, char* argv[])
    //mfe->DeregisterTransitionResume();
 
    //mfe->RegisterTransitionStartAbort();
-
-   //mfe->RegisterPeriodicHandler(eq, myfe);
 
    eq->EqSetStatus("Started...", "white");
 

@@ -30,26 +30,24 @@
 #endif
 
 class EqRandom :
-   public TMFeEquipmentBase,
-   public TMFeHandlerInterface   
+   public TMFeEquipment
 {
 public:
-   EqRandom()
+   EqRandom(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
+      : TMFeEquipment(eqname, eqfilename, eqinfo)
    {
    }
    
    TMFeResult HandleInit(const std::vector<std::string>& args)
    {
-      //fMfe->RegisterPeriodicHandler(fEq, this);
-      fMfe->RegisterHandler(fEq, this, false, true, false);
       return TMFeOk();
    }
    
    void HandlePeriodic()
    {
-      char event[fEq->fEqMaxEventSize];
+      char event[fEqMaxEventSize];
 
-      fEq->ComposeEvent(event, fEq->fEqMaxEventSize);
+      ComposeEvent(event, fEqMaxEventSize);
       
       char* pbh = event + sizeof(EVENT_HEADER);
       
@@ -88,7 +86,7 @@ public:
 
       //printf("sending %d, max %d\n", (int)bk_size(pbh), (int)fMaxEventSize);
 
-      fEq->EqSendEvent(event);
+      EqSendEvent(event);
    }
 
 #if 0
@@ -121,35 +119,33 @@ struct EqInfoRandom: TMFeEqInfo { EqInfoRandom() {
    ReadOnlyWhenRunning = true;
 } };
 
-static TMFeRegister eq_random_register("fetest", "test_random", __FILE__, new EqRandom(), new EqInfoRandom);
+static TMFeRegister eq_random_register("fetest", new EqRandom("test_random", __FILE__, new EqInfoRandom), false, true, false);
 
 class EqSlow :
-   public TMFeEquipmentBase,
-   public TMFeHandlerInterface   
+   public TMFeEquipment
 {
 public:
-   EqSlow()
+   EqSlow(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
+      : TMFeEquipment(eqname, eqfilename, eqinfo)
    {
    }
 
-   TMFeResult Init(const std::vector<std::string>& args)
+   TMFeResult HandleInit(const std::vector<std::string>& args)
    {
-      //fMfe->RegisterPeriodicHandler(fEq, this);
-      fMfe->RegisterHandler(fEq, this, false, true, false);
       return TMFeOk();
    }
    
    void SendData(double dvalue)
    {
       char buf[1024];
-      fEq->ComposeEvent(buf, sizeof(buf));
-      fEq->BkInit(buf, sizeof(buf));
+      ComposeEvent(buf, sizeof(buf));
+      BkInit(buf, sizeof(buf));
          
-      double* ptr = (double*)fEq->BkOpen(buf, "data", TID_DOUBLE);
+      double* ptr = (double*)BkOpen(buf, "data", TID_DOUBLE);
       *ptr++ = dvalue;
-      fEq->BkClose(buf, ptr);
+      BkClose(buf, ptr);
 
-      fEq->EqSendEvent(buf);
+      EqSendEvent(buf);
    }
 
    void HandlePeriodic()
@@ -160,7 +156,7 @@ public:
       SendData(data);
       char status_buf[256];
       sprintf(status_buf, "value %.1f", data);
-      fEq->EqSetStatus(status_buf, "#00FF00");
+      EqSetStatus(status_buf, "#00FF00");
    }
 
 #if 0
@@ -191,11 +187,10 @@ struct EqInfoSlow: TMFeEqInfo { EqInfoSlow() {
    WriteEventsToOdb = true;
 } };
 
-static TMFeRegister eq_slow_register("fetest", "test_slow", __FILE__, new EqSlow(), new EqInfoSlow);
+static TMFeRegister eq_slow_register("fetest", new EqSlow("test_slow", __FILE__, new EqInfoSlow), false, true, false);
 
 class EqBulk :
-   public TMFeEquipmentBase,
-   public TMFeHandlerInterface
+   public TMFeEquipment
 {
 public: // configuration
    int fEventSize = 0;
@@ -206,7 +201,8 @@ public: // internal state
    bool fThreadRunning = false;
    
 public:
-   EqBulk() // ctor
+   EqBulk(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
+      : TMFeEquipment(eqname, eqfilename, eqinfo)
    {
    }
 
@@ -218,12 +214,12 @@ public:
       }
    }
 
-   TMFeResult Init(const std::vector<std::string>& args)
+   TMFeResult HandleInit(const std::vector<std::string>& args)
    {
-      fEq->EqSetStatus("Starting...", "white");
+      EqSetStatus("Starting...", "white");
 
-      fEq->fOdbEqSettings->RI("event_size", &fEventSize, true);
-      fEq->fOdbEqSettings->RD("event_sleep_sec", &fEventSleep, true);
+      fOdbEqSettings->RI("event_size", &fEventSize, true);
+      fOdbEqSettings->RD("event_sleep_sec", &fEventSleep, true);
 
       printf("Event size set to %d bytes\n", fEventSize);
 
@@ -243,21 +239,21 @@ public:
    {
       char* buf = fEventBuffer.data();
       size_t bufsize = fEventBuffer.size();
-      fEq->ComposeEvent(buf, bufsize);
-      fEq->BkInit(buf, bufsize);
+      ComposeEvent(buf, bufsize);
+      BkInit(buf, bufsize);
          
-      char* ptr = (char*)fEq->BkOpen(buf, "bulk", TID_BYTE);
+      char* ptr = (char*)BkOpen(buf, "bulk", TID_BYTE);
       ptr += fEventSize;
-      fEq->BkClose(buf, ptr);
+      BkClose(buf, ptr);
 
-      fEq->EqSendEvent(buf);
+      EqSendEvent(buf);
    }
 
    void Thread()
    {
       printf("FeBulk::Thread: thread started\n");
 
-      fEq->EqSetStatus("Thread running", "#00FF00");
+      EqSetStatus("Thread running", "#00FF00");
 
       fThreadRunning = true;
       while (!fMfe->fShutdownRequested) {
@@ -300,14 +296,14 @@ struct EqInfoBulk: TMFeEqInfo { EqInfoBulk() {
    ReadOnlyWhenRunning = true;
 } };
 
-static TMFeRegister eq_bulk_register("fetest", "test_bulk", __FILE__, new EqBulk(), new EqInfoBulk);
+static TMFeRegister eq_bulk_register("fetest", new EqBulk("test_bulk", __FILE__, new EqInfoBulk), false, false, false);
    
 class EqRpc :
-   public TMFeEquipmentBase,
-   public TMFeHandlerInterface   
+   public TMFeEquipment
 {
 public:
-   EqRpc() // ctor
+   EqRpc(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
+      : TMFeEquipment(eqname, eqfilename, eqinfo)
    {
    }
 
@@ -315,13 +311,10 @@ public:
    {
    }
 
-   TMFeResult Init(const std::vector<std::string>& args)
+   TMFeResult HandleInit(const std::vector<std::string>& args)
    {
-      fEq->fEqInfo->Buffer = "SYSTEM";
-      //fMfe->RegisterRpcHandler(this);
-      //fMfe->RegisterPeriodicHandler(fEq, this);
-      fMfe->RegisterHandler(fEq, this, true, true, false);
-      fEq->EqSetStatus("Started...", "white");
+      fEqInfo->Buffer = "SYSTEM";
+      EqSetStatus("Started...", "white");
       return TMFeOk();
    }
 
@@ -343,12 +336,12 @@ public:
    TMFeResult HandleBeginRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleBeginRun", "Begin run %d!", run_number);
-      fEq->EqSetStatus("Running", "#00FF00");
+      EqSetStatus("Running", "#00FF00");
       
       printf("begin_of_run %d\n", run_number);
       
       int fail = 0;
-      fEq->fOdbEqSettings->RI("fail_begin_of_run", &fail, true);
+      fOdbEqSettings->RI("fail_begin_of_run", &fail, true);
       
       if (fail) {
          printf("fail_begin_of_run: returning error status %d\n", fail);
@@ -356,7 +349,7 @@ public:
       }
       
       int s = 0;
-      fEq->fOdbEqSettings->RI("sleep_begin_of_run", &s, true);
+      fOdbEqSettings->RI("sleep_begin_of_run", &s, true);
       
       if (s) {
          printf("sleep_begin_of_run: calling ss_sleep(%d)\n", s);
@@ -369,12 +362,12 @@ public:
    TMFeResult HandleEndRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleEndRun", "End run %d!", run_number);
-      fEq->EqSetStatus("Stopped", "#00FF00");
+      EqSetStatus("Stopped", "#00FF00");
 
       printf("end_of_run %d\n", run_number);
       
       int fail = 0;
-      fEq->fOdbEqSettings->RI("fail_end_of_run", &fail, true);
+      fOdbEqSettings->RI("fail_end_of_run", &fail, true);
       
       if (fail) {
          printf("fail_end_of_run: returning error status %d\n", fail);
@@ -382,7 +375,7 @@ public:
       }
       
       int s = 0;
-      fEq->fOdbEqSettings->RI("sleep_end_of_run", &s, true);
+      fOdbEqSettings->RI("sleep_end_of_run", &s, true);
       
       if (s) {
          printf("sleep_end_of_run: calling ss_sleep(%d)\n", s);
@@ -395,12 +388,12 @@ public:
    TMFeResult HandlePauseRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandlePauseRun", "Pause run %d!", run_number);
-      fEq->EqSetStatus("Stopped", "#00FF00");
+      EqSetStatus("Stopped", "#00FF00");
 
       printf("pause_run %d\n", run_number);
 
       int fail = 0;
-      fEq->fOdbEqSettings->RI("fail_pause_run", &fail, true);
+      fOdbEqSettings->RI("fail_pause_run", &fail, true);
       
       if (fail) {
          printf("fail_pause_run: returning error status %d\n", fail);
@@ -413,12 +406,12 @@ public:
    TMFeResult HandleResumeRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleResumeRun", "Resume run %d!", run_number);
-      fEq->EqSetStatus("Stopped", "#00FF00");
+      EqSetStatus("Stopped", "#00FF00");
 
       printf("resume_run %d\n", run_number);
 
       int fail = 0;
-      fEq->fOdbEqSettings->RI("fail_resume_run", &fail, true);
+      fOdbEqSettings->RI("fail_resume_run", &fail, true);
       
       if (fail) {
          printf("fail_resume_run: returning error status %d\n", fail);
@@ -431,12 +424,12 @@ public:
    TMFeResult HandleStartAbortRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleStartAbortRun", "Begin run %d aborted!", run_number);
-      fEq->EqSetStatus("Stopped", "#00FF00");
+      EqSetStatus("Stopped", "#00FF00");
 
       printf("start abort run %d\n", run_number);
 
       int fail = 0;
-      fEq->fOdbEqSettings->RI("fail_start_abort", &fail, true);
+      fOdbEqSettings->RI("fail_start_abort", &fail, true);
       
       if (fail) {
          printf("fail_start_abort: returning error status %d\n", fail);
@@ -445,17 +438,13 @@ public:
       
       return TMFeOk();
    }
-
-   void HandlePeriodic()
-   {
-   }
 };
 
 struct EqInfoRpc: TMFeEqInfo { EqInfoRpc() {
    EventID = 1;
 } };
 
-static TMFeRegister eq_rpc_register("fetest", "test_rpc", __FILE__, new EqRpc(), new EqInfoRpc);
+static TMFeRegister eq_rpc_register("fetest", new EqRpc("test_rpc", __FILE__, new EqInfoRpc), true, false, false);
 
 /* emacs
  * Local Variables:

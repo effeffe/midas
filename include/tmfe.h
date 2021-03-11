@@ -146,6 +146,11 @@ public: // general configuration, should not be changed by user
    std::string fEqFilename;
    std::mutex  fEqMutex;
 
+public: // handlers
+   bool fEqEnableRpc = false;
+   bool fEqEnablePeriodic = false;
+   bool fEqEnablePoll = false;
+
 public: // conection to event buffer
    size_t fEqBufferSize = 0;
    size_t fEqMaxEventSize = 0;
@@ -174,14 +179,43 @@ public: // statistics
    double fEqStatLastWrite = 0;
    double fEqStatNextWrite = 0;
 
+public: // periodic scheduler
+   double fEqPeriodicLastCallTime = 0;
+   double fEqPeriodicNextCallTime = 0;
+
 public: // contructors and initialization. not thread-safe.
-   TMFeEquipment(TMFE* mfe, const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo); // ctor
-   ~TMFeEquipment(); // dtor
-   TMFeResult EqInit(); ///< Initialize equipment
+   TMFeEquipment(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo); // ctor
+   virtual ~TMFeEquipment(); // dtor
+   TMFeResult EqInit(const std::vector<std::string>& args); ///< Initialize equipment
    TMFeResult EqPreInit(); ///< Initialize equipment, before EquipmentBase::Init()
    TMFeResult EqPostInit(); ///< Initialize equipment, after EquipmentBase::Init()
    TMFeResult EqReadCommon(); ///< Read TMFeEqInfo from ODB /Equipment/NAME/Common
    TMFeResult EqWriteCommon() const; ///< Write TMFeEqInfo to ODB /Equipment/NAME/Common
+
+private: // default ctor is not permitted
+   TMFeEquipment() {}; // ctor
+
+public: // handlers for initialization run from the main thread
+   virtual TMFeResult HandleInit(const std::vector<std::string>& args) { return TMFeOk(); };
+   virtual void HandleUsage() {};
+
+public: // optional RPC handlers run from the frontend RPC thread
+   virtual TMFeResult HandleBeginRun(int run_number)  { return TMFeOk(); };
+   virtual TMFeResult HandleEndRun(int run_number)    { return TMFeOk(); };
+   virtual TMFeResult HandlePauseRun(int run_number)  { return TMFeOk(); };
+   virtual TMFeResult HandleResumeRun(int run_number) { return TMFeOk(); };
+   virtual TMFeResult HandleStartAbortRun(int run_number) { return TMFeOk(); };
+   virtual TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response) { return TMFeOk(); };
+
+public: // optional periodic equipment handler runs from the frontend periodic thread
+   virtual void HandlePeriodic() {};
+
+public: // optional polled equipment handler runs from the per-equipment poll thread
+   virtual bool HandlePoll() { return false; };
+   virtual void HandleRead() {};
+
+public: // optional ODB watch handler runs from the midas poll thread
+   virtual void HandleOdbWatch(const std::string& odbpath, int odbarrayindex) {};
 
 public: // event composition methods
    TMFeResult ComposeEvent(char* pevent, size_t size) const;
@@ -201,47 +235,15 @@ private: // non-thread-safe methods
    TMFeResult EqWriteEventToOdb_locked(const char* pevent);
 };
 
-class TMFeHandlerInterface
-{
-public: // optional RPC handlers run from the frontend RPC thread
-   virtual TMFeResult HandleBeginRun(int run_number)  { return TMFeOk(); };
-   virtual TMFeResult HandleEndRun(int run_number)    { return TMFeOk(); };
-   virtual TMFeResult HandlePauseRun(int run_number)  { return TMFeOk(); };
-   virtual TMFeResult HandleResumeRun(int run_number) { return TMFeOk(); };
-   virtual TMFeResult HandleStartAbortRun(int run_number) { return TMFeOk(); };
-   virtual TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response) { return TMFeOk(); };
-
-public: // optional periodic equipment handler runs from the frontend periodic thread
-   virtual void HandlePeriodic() {};
-
-public: // optional polled equipment handler runs from the per-equipment poll thread
-   virtual bool HandlePoll() { return false; };
-   virtual void HandleRead() {};
-
-public: // optional ODB watch handler runs from the midas poll thread
-   virtual void HandleOdbWatch(const std::string& odbpath, int odbarrayindex) {};
-};
-
-class TMFeEquipmentBase
-{
-public:
-   TMFE* fMfe = NULL;
-   TMFeEquipment* fEq = NULL;
-   virtual ~TMFeEquipmentBase();
-   virtual TMFeResult HandleInit(const std::vector<std::string>& args) { return TMFeOk(); };
-   virtual void HandleUsage() {};
-};
-
 class TMFeHooksInterface
 {
 public:
    virtual void HandlePreConnect(const std::vector<std::string>& args) {};
    virtual void HandlePostConnect(const std::vector<std::string>& args) {};
+   virtual void HandlePostInit(const std::vector<std::string>& args) {};
    virtual void HandlePreDisconnect() {};
    virtual void HandlePostDisconnect() {};
 };
-
-class TMFeHandlerData;
 
 class TMFE
 {
@@ -254,29 +256,26 @@ class TMFE
    std::string fFrontendHostname; ///< frontend hostname
    std::string fFrontendFilename; ///< frontend program file name
 
-public:
+public: // ODB access
    int    fDB = 0;         ///< ODB database handle
    MVOdb* fOdbRoot = NULL; ///< ODB root
 
-public:
+public: // shutdown flag
    bool fShutdownRequested = false; ///< shutdown was requested by Ctrl-C or by RPC command
 
-public:
+public: // run state
    int  fRunNumber = 0; ///< current run number
    bool fStateRunning = false; ///< run state is running or paused
 
 public:   
+   // NOTE: fEquipments must be protected against multithreaded write access. K.O.
    std::vector<TMFeEquipment*> fEquipments;
-   std::vector<TMFeEquipmentBase*> fEquipmentBases;
 
-public:
-   // NOTE: fHandlers must be protected against multithreaded write access. K.O.
-   std::vector<TMFeHandlerData*> fHandlers;
-
+public: // periodic and poll scheduler
    double fNextPeriodic = 0;
    double fNextPoll = 0;
 
- public:
+public: // internal threads
    bool fRpcThreadStarting = false;
    bool fRpcThreadRunning  = false;
    bool fRpcThreadShutdownRequested = false;
@@ -304,17 +303,12 @@ public:
    TMFeResult Connect(const char* progname, const char* filename = NULL, const char*hostname = NULL, const char*exptname = NULL);
    TMFeResult Disconnect();
 
-   TMFeResult CreateEquipment(const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeEqInfo* eqinfo);
+   TMFeResult RegisterEquipment(TMFeEquipment* eq, bool enable_rpc, bool enable_periodic, bool enable_poll);
+   TMFeResult UnregisterEquipment(TMFeEquipment* eq);
 
    void       Usage();
    TMFeResult InitEquipments(const std::vector<std::string>& args);
    void       DeleteEquipments();
-
-
-   void RegisterEquipment(TMFeEquipment* eq);
-   void RegisterHandler(TMFeEquipment* eq, TMFeHandlerInterface* handler, bool enable_rpc, bool enable_periodic, bool enable_poll);
-
-   void UnregisterEquipment(TMFeEquipment* eq);
 
    void StartRpcThread();
    void StartPeriodicThread();
@@ -346,6 +340,7 @@ public:
    void DeregisterTransitionResume();
    void DeregisterTransitionStartAbort();
    void RegisterTransitionStartAbort();
+   void RegisterRPCs();
 
 public:
    std::vector<TMFeHooksInterface*> fHooks;
@@ -356,6 +351,7 @@ public:
 public:
    void CallPreConnectHooks(const std::vector<std::string>& args);
    void CallPostConnectHooks(const std::vector<std::string>& args);
+   void CallPostInitHooks(const std::vector<std::string>& args);
    void CallPreDisconnectHooks();
    void CallPostDisconnectHooks();
 
@@ -368,7 +364,7 @@ public:
 class TMFeRegister
 {
  public:
-   TMFeRegister(const char* fename, const char* eqname, const char* eqfile, TMFeEquipmentBase* eqbase, TMFeEqInfo* eqinfo);
+   TMFeRegister(const char* fename, TMFeEquipment* eq, bool enable_rpc, bool enable_periodic, bool enable_poll);
 };
 
 #endif

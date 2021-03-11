@@ -15,11 +15,11 @@
 #include "tmfe.h"
 
 class EqEverything :
-   public TMFeEquipmentBase,
-   public TMFeHandlerInterface
+   public TMFeEquipment
 {
 public:
-   EqEverything() // ctor
+   EqEverything(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
+      : TMFeEquipment(eqname, eqfilename, eqinfo)
    {
       printf("EqEverything::ctor!\n");
    }
@@ -29,20 +29,16 @@ public:
       printf("EqEverything::dtor!\n");
    }
 
-   void Usage()
+   void HandleUsage()
    {
       printf("EqEverything::Usage!\n");
    }
 
-   TMFeResult Init(const std::vector<std::string>& args)
+   TMFeResult HandleInit(const std::vector<std::string>& args)
    {
       printf("EqEverything::Init!\n");
-      fMfe->RegisterHandler(fEq, this, true, true, true);
-      //fMfe->RegisterRpcHandler(this);
-      //fMfe->RegisterPeriodicHandler(fEq, this);
-      //fMfe->RegisterPollHandler(fEq, this);
       fMfe->RegisterTransitionStartAbort();
-      fEq->EqSetStatus("Started...", "white");
+      EqSetStatus("Started...", "white");
       return TMFeOk();
    }
 
@@ -64,49 +60,49 @@ public:
    TMFeResult HandleBeginRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleBeginRun", "Begin run %d!", run_number);
-      fEq->EqSetStatus("Running", "#00FF00");
+      EqSetStatus("Running", "#00FF00");
       return TMFeOk();
    }
 
    TMFeResult HandleEndRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleEndRun", "End run %d!", run_number);
-      fEq->EqSetStatus("Stopped", "#FFFFFF");
+      EqSetStatus("Stopped", "#FFFFFF");
       return TMFeOk();
    }
 
    TMFeResult HandlePauseRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandlePauseRun", "Pause run %d!", run_number);
-      fEq->EqSetStatus("Paused", "#FFFF00");
+      EqSetStatus("Paused", "#FFFF00");
       return TMFeOk();
    }
 
    TMFeResult HandleResumeRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleResumeRun", "Resume run %d!", run_number);
-      fEq->EqSetStatus("Running", "#00FF00");
+      EqSetStatus("Running", "#00FF00");
       return TMFeOk();
    }
 
    TMFeResult HandleStartAbortRun(int run_number)
    {
       fMfe->Msg(MINFO, "HandleStartAbortRun", "Begin run %d aborted!", run_number);
-      fEq->EqSetStatus("Stopped", "#FFFFFF");
+      EqSetStatus("Stopped", "#FFFFFF");
       return TMFeOk();
    }
 
    void SendData(double dvalue)
    {
       char buf[1024];
-      fEq->ComposeEvent(buf, sizeof(buf));
-      fEq->BkInit(buf, sizeof(buf));
+      ComposeEvent(buf, sizeof(buf));
+      BkInit(buf, sizeof(buf));
          
-      double* ptr = (double*)fEq->BkOpen(buf, "data", TID_DOUBLE);
+      double* ptr = (double*)BkOpen(buf, "data", TID_DOUBLE);
       *ptr++ = dvalue;
-      fEq->BkClose(buf, ptr);
+      BkClose(buf, ptr);
 
-      fEq->EqSendEvent(buf);
+      EqSendEvent(buf);
    }
 
    void HandlePeriodic()
@@ -117,7 +113,7 @@ public:
       SendData(data);
       char status_buf[256];
       sprintf(status_buf, "value %.1f", data);
-      fEq->EqSetStatus(status_buf, "#00FF00");
+      EqSetStatus(status_buf, "#00FF00");
    }
 
    bool HandlePoll()
@@ -145,7 +141,7 @@ struct EqInfoEverything: TMFeEqInfo { EqInfoEverything() {
    WriteEventsToOdb = true;
 } };
 
-static TMFeRegister eq_everything_register("tmfe_example_everything", "test_everything", __FILE__, new EqEverything(), new EqInfoEverything);
+static TMFeRegister eq_everything_register("tmfe_example_everything", new EqEverything("test_everything", __FILE__, new EqInfoEverything), true, true, true);
 
 // example frontend hooks
 

@@ -121,6 +121,8 @@ int main(int argc, char* argv[])
       return 1;
    }
 
+   mfe->CallPostInitHooks(eq_args);
+
    while (!mfe->fShutdownRequested) {
       mfe->PollMidas(10);
    }
