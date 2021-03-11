@@ -15,8 +15,7 @@
 #include "tmfe.h"
 
 class Myfe :
-   public TMFeRpcHandlerInterface,
-   public TMFePeriodicHandlerInterface   
+   public TMFeHandlerInterface   
 {
 public:
    TMFE* fMfe;
@@ -130,7 +129,7 @@ int main(int argc, char* argv[])
 
    Myfe* myfe = new Myfe(mfe, eq);
 
-   mfe->RegisterRpcHandler(myfe);
+   //mfe->RegisterRpcHandler(myfe);
 
    //mfe->SetTransitionSequenceStart(910);
    //mfe->SetTransitionSequenceStop(90);
@@ -140,7 +139,8 @@ int main(int argc, char* argv[])
 
    //mfe->RegisterTransitionStartAbort();
 
-   mfe->RegisterPeriodicHandler(eq, myfe);
+   //mfe->RegisterPeriodicHandler(eq, myfe);
+   mfe->RegisterHandler(eq, myfe, true, true, false);
 
    printf("Main thread is %s\n", TMFE::GetThreadId().c_str());
 

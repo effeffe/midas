@@ -16,9 +16,7 @@
 
 class EqEverything :
    public TMFeEquipmentBase,
-   public TMFeRpcHandlerInterface,
-   public TMFePeriodicHandlerInterface,
-   public TMFePollHandlerInterface
+   public TMFeHandlerInterface
 {
 public:
    EqEverything() // ctor
@@ -39,9 +37,10 @@ public:
    TMFeResult Init(const std::vector<std::string>& args)
    {
       printf("EqEverything::Init!\n");
-      fMfe->RegisterRpcHandler(this);
-      fMfe->RegisterPeriodicHandler(fEq, this);
-      fMfe->RegisterPollHandler(fEq, this);
+      fMfe->RegisterHandler(fEq, this, true, true, true);
+      //fMfe->RegisterRpcHandler(this);
+      //fMfe->RegisterPeriodicHandler(fEq, this);
+      //fMfe->RegisterPollHandler(fEq, this);
       fMfe->RegisterTransitionStartAbort();
       fEq->SetStatus("Started...", "white");
       return TMFeOk();

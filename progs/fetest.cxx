@@ -31,7 +31,7 @@
 
 class EqRandom :
    public TMFeEquipmentBase,
-   public TMFePeriodicHandlerInterface   
+   public TMFeHandlerInterface   
 {
 public:
    EqRandom()
@@ -40,7 +40,8 @@ public:
    
    TMFeResult Init(const std::vector<std::string>& args)
    {
-      fMfe->RegisterPeriodicHandler(fEq, this);
+      //fMfe->RegisterPeriodicHandler(fEq, this);
+      fMfe->RegisterHandler(fEq, this, false, true, false);
       return TMFeOk();
    }
    
@@ -124,7 +125,7 @@ static TMFeRegister eq_random_register("fetest", "test_random", __FILE__, new Eq
 
 class EqSlow :
    public TMFeEquipmentBase,
-   public TMFePeriodicHandlerInterface   
+   public TMFeHandlerInterface   
 {
 public:
    EqSlow()
@@ -133,7 +134,8 @@ public:
 
    TMFeResult Init(const std::vector<std::string>& args)
    {
-      fMfe->RegisterPeriodicHandler(fEq, this);
+      //fMfe->RegisterPeriodicHandler(fEq, this);
+      fMfe->RegisterHandler(fEq, this, false, true, false);
       return TMFeOk();
    }
    
@@ -193,7 +195,7 @@ static TMFeRegister eq_slow_register("fetest", "test_slow", __FILE__, new EqSlow
 
 class EqBulk :
    public TMFeEquipmentBase,
-   public TMFeRpcHandlerInterface
+   public TMFeHandlerInterface
 {
 public: // configuration
    int fEventSize = 0;
@@ -302,8 +304,7 @@ static TMFeRegister eq_bulk_register("fetest", "test_bulk", __FILE__, new EqBulk
    
 class EqRpc :
    public TMFeEquipmentBase,
-   public TMFeRpcHandlerInterface,
-   public TMFePeriodicHandlerInterface   
+   public TMFeHandlerInterface   
 {
 public:
    EqRpc() // ctor
@@ -317,8 +318,9 @@ public:
    TMFeResult Init(const std::vector<std::string>& args)
    {
       fEq->fInfo->Buffer = "SYSTEM";
-      fMfe->RegisterRpcHandler(this);
-      fMfe->RegisterPeriodicHandler(fEq, this);
+      //fMfe->RegisterRpcHandler(this);
+      //fMfe->RegisterPeriodicHandler(fEq, this);
+      fMfe->RegisterHandler(fEq, this, true, true, false);
       fEq->SetStatus("Started...", "white");
       return TMFeOk();
    }

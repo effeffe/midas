@@ -203,28 +203,25 @@ private: // non-thread-safe methods
    TMFeResult WriteEventToOdb_locked(const char* pevent);
 };
 
-class TMFeRpcHandlerInterface
+class TMFeHandlerInterface
 {
- public:
-   virtual TMFeResult HandleBeginRun(int run_number);
-   virtual TMFeResult HandleEndRun(int run_number);
-   virtual TMFeResult HandlePauseRun(int run_number);
-   virtual TMFeResult HandleResumeRun(int run_number);
-   virtual TMFeResult HandleStartAbortRun(int run_number);
-   virtual TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response);
-};
+public: // optional RPC handlers run from the frontend RPC thread
+   virtual TMFeResult HandleBeginRun(int run_number)  { return TMFeOk(); };
+   virtual TMFeResult HandleEndRun(int run_number)    { return TMFeOk(); };
+   virtual TMFeResult HandlePauseRun(int run_number)  { return TMFeOk(); };
+   virtual TMFeResult HandleResumeRun(int run_number) { return TMFeOk(); };
+   virtual TMFeResult HandleStartAbortRun(int run_number) { return TMFeOk(); };
+   virtual TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response) { return TMFeOk(); };
 
-class TMFePeriodicHandlerInterface
-{
- public:
-   virtual void HandlePeriodic() = 0;
-};
+public: // optional periodic equipment handler runs from the frontend periodic thread
+   virtual void HandlePeriodic() {};
 
-class TMFePollHandlerInterface
-{
- public:
-   virtual bool HandlePoll() = 0;
-   virtual void HandleRead() = 0;
+public: // optional polled equipment handler runs from the per-equipment poll thread
+   virtual bool HandlePoll() { return false; };
+   virtual void HandleRead() {};
+
+public: // optional ODB watch handler runs from the midas poll thread
+   virtual void HandleOdbWatch(const std::string& odbpath, int odbarrayindex) {};
 };
 
 class TMFeEquipmentBase
@@ -237,9 +234,6 @@ public:
    virtual void Usage();
 };
 
-class TMFePeriodicHandlerData;
-class TMFePollHandlerData;
-
 class TMFeHooksInterface
 {
 public:
@@ -248,6 +242,8 @@ public:
    virtual void HandlePreDisconnect() {};
    virtual void HandlePostDisconnect() {};
 };
+
+class TMFeHandlerData;
 
 class TMFE
 {
@@ -275,10 +271,9 @@ public:
    std::vector<TMFeEquipment*> fEquipments;
    std::vector<TMFeEquipmentBase*> fEquipmentBases;
 
-public:   
-   std::vector<TMFeRpcHandlerInterface*> fRpcHandlers;
-   std::vector<TMFePeriodicHandlerData*> fPeriodicHandlers;
-   std::vector<TMFePollHandlerData*>     fPollHandlers;
+public:
+   // NOTE: fHandlers must be protected against multithreaded write access. K.O.
+   std::vector<TMFeHandlerData*> fHandlers;
 
    double fNextPeriodic = 0;
    double fNextPoll = 0;
@@ -319,9 +314,7 @@ public:
 
 
    void RegisterEquipment(TMFeEquipment* eq);
-   void RegisterRpcHandler(TMFeRpcHandlerInterface* handler); ///< RPC handlers are executed from the RPC thread, if started
-   void RegisterPeriodicHandler(TMFeEquipment* eq, TMFePeriodicHandlerInterface* handler); ///< periodic handlers are executed from the periodic thread, if started
-   void RegisterPollHandler(TMFeEquipment* eq, TMFePollHandlerInterface* handler); ///< poll handlers are executed from the per-equipment poll threads, if started
+   void RegisterHandler(TMFeEquipment* eq, TMFeHandlerInterface* handler, bool enable_rpc, bool enable_periodic, bool enable_poll);
 
    void UnregisterEquipment(TMFeEquipment* eq);
 

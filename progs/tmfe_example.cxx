@@ -14,8 +14,7 @@
 #include "tmfe.h"
 
 class Myfe :
-   public TMFeRpcHandlerInterface,
-   public TMFePeriodicHandlerInterface   
+   public TMFeHandlerInterface   
 {
 public:
    TMFE* fMfe = NULL;
@@ -129,7 +128,7 @@ int main(int argc, char* argv[])
 
    Myfe* myfe = new Myfe(mfe, eq);
 
-   mfe->RegisterRpcHandler(myfe);
+   mfe->RegisterHandler(eq, myfe, true, true, false);
 
    //mfe->SetTransitionSequenceStart(910);
    //mfe->SetTransitionSequenceStop(90);
@@ -139,7 +138,7 @@ int main(int argc, char* argv[])
 
    //mfe->RegisterTransitionStartAbort();
 
-   mfe->RegisterPeriodicHandler(eq, myfe);
+   //mfe->RegisterPeriodicHandler(eq, myfe);
 
    eq->SetStatus("Started...", "white");
 
