@@ -40,6 +40,9 @@ public:
    
    TMFeResult HandleInit(const std::vector<std::string>& args)
    {
+      fEqInfo->ReadOnlyWhenRunning = true;
+      fEqInfo->WriteEventsToOdb = true;
+      fEqInfo->LogHistory = 0;
       return TMFeOk();
    }
    
@@ -132,6 +135,9 @@ public:
 
    TMFeResult HandleInit(const std::vector<std::string>& args)
    {
+      fEqInfo->ReadOnlyWhenRunning = false;
+      fEqInfo->WriteEventsToOdb = true;
+      //fEqInfo->LogHistory = 1;
       return TMFeOk();
    }
    
@@ -218,6 +224,9 @@ public:
    {
       EqSetStatus("Starting...", "white");
 
+      fEqInfo->ReadOnlyWhenRunning = true;
+      fEqInfo->WriteEventsToOdb = false;
+
       fOdbEqSettings->RI("event_size", &fEventSize, true);
       fOdbEqSettings->RD("event_sleep_sec", &fEventSleep, true);
 
@@ -257,8 +266,12 @@ public:
 
       fThreadRunning = true;
       while (!fMfe->fShutdownRequested) {
-         fMfe->Sleep(fEventSleep);
-         SendEvent();
+         if (fMfe->fStateRunning || !fEqInfo->ReadOnlyWhenRunning) {
+            fMfe->Sleep(fEventSleep);
+            SendEvent();
+         } else {
+            fMfe->Sleep(1.0);
+         }
       }
       
       printf("FeBulk::Thread: thread finished\n");

@@ -129,9 +129,11 @@ struct TMFeEqInfo
    bool Hidden = false;
    int WriteCacheSize = 100000;
 
-   bool ReadOnlyWhenRunning = false; // RO_RUNNING
+   bool ReadOnlyWhenRunning = true; // RO_RUNNING
    bool WriteEventsToOdb = false; // RO_ODB
    double PeriodStatisticsSec = 1.0; // statistics update period
+
+   bool ReadEqInfoFromOdb = true; // read equipment common from ODB
 };
 
 class TMFE;
@@ -190,7 +192,7 @@ public: // contructors and initialization. not thread-safe.
    TMFeResult EqPreInit(); ///< Initialize equipment, before EquipmentBase::Init()
    TMFeResult EqPostInit(); ///< Initialize equipment, after EquipmentBase::Init()
    TMFeResult EqReadCommon(); ///< Read TMFeEqInfo from ODB /Equipment/NAME/Common
-   TMFeResult EqWriteCommon() const; ///< Write TMFeEqInfo to ODB /Equipment/NAME/Common
+   TMFeResult EqWriteCommon(); ///< Write TMFeEqInfo to ODB /Equipment/NAME/Common
 
 private: // default ctor is not permitted
    TMFeEquipment() {}; // ctor

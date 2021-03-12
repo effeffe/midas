@@ -927,51 +927,81 @@ TMFeResult TMFeEquipment::EqReadCommon()
 {
    if (TMFE::gfVerbose)
       printf("TMFeEquipment::EqReadCommon: for [%s]\n", fEqName.c_str());
-   fOdbEqCommon->RU16("Event ID",     &fEqInfo->EventID, true);
-   fOdbEqCommon->RU16("Trigger mask", &fEqInfo->TriggerMask, true);
-   fOdbEqCommon->RS("Buffer",         &fEqInfo->Buffer, true, NAME_LENGTH);
-   fOdbEqCommon->RI("Type",           &fEqInfo->Type, true);
-   fOdbEqCommon->RI("Source",         &fEqInfo->Source, true);
-   fOdbEqCommon->RS("Format",         &fEqInfo->Format, true, 8);
-   fOdbEqCommon->RB("Enabled",        &fEqInfo->Enabled, true);
-   fOdbEqCommon->RI("Read on",        &fEqInfo->ReadOn, true);
-   fOdbEqCommon->RI("Period",         &fEqInfo->Period, true);
-   fOdbEqCommon->RD("Event limit",    &fEqInfo->EventLimit, true);
-   fOdbEqCommon->RU32("Num subevents",  &fEqInfo->NumSubEvents, true);
-   fOdbEqCommon->RI("Log history",    &fEqInfo->LogHistory, true);
-   fOdbEqCommon->RS("Frontend host",  &fEqInfo->FrontendHost, true, NAME_LENGTH);
-   fOdbEqCommon->RS("Frontend name",  &fEqInfo->FrontendName, true, NAME_LENGTH);
+
+   // list of ODB Common entries always read
+
+   fOdbEqCommon->RB("Enabled", &fEqInfo->Enabled, true);
+
+   if (fEqInfo->ReadEqInfoFromOdb) {
+      // list of ODB Common entries read if we want to control equipment from ODB
+
+      fOdbEqCommon->RU16("Event ID",       &fEqInfo->EventID,        true);
+      fOdbEqCommon->RU16("Trigger mask",   &fEqInfo->TriggerMask,    true);
+      fOdbEqCommon->RS("Buffer",           &fEqInfo->Buffer,         true, NAME_LENGTH);
+      fOdbEqCommon->RI("Type",             &fEqInfo->Type,           true);
+      fOdbEqCommon->RI("Source",           &fEqInfo->Source,         true);
+      fOdbEqCommon->RS("Format",           &fEqInfo->Format,         true, 8);
+      fOdbEqCommon->RI("Read on",          &fEqInfo->ReadOn,         true);
+      fOdbEqCommon->RI("Period",           &fEqInfo->Period,         true);
+      fOdbEqCommon->RD("Event limit",      &fEqInfo->EventLimit,     true);
+      fOdbEqCommon->RU32("Num subevents",  &fEqInfo->NumSubEvents,   true);
+      fOdbEqCommon->RI("Log history",      &fEqInfo->LogHistory,     true);
+      fOdbEqCommon->RB("Hidden",           &fEqInfo->Hidden,         true);
+      fOdbEqCommon->RI("Write cache size", &fEqInfo->WriteCacheSize, true);
+   }
+
+   // list of ODB Common entries we read and write back to ODB, but do not actually use.
+
+   fOdbEqCommon->RS("Frontend host",       &fEqInfo->FrontendHost,     true, NAME_LENGTH);
+   fOdbEqCommon->RS("Frontend name",       &fEqInfo->FrontendName,     true, NAME_LENGTH);
    fOdbEqCommon->RS("Frontend file name",  &fEqInfo->FrontendFileName, true, 256);
-   fOdbEqCommon->RS("Status",         &fEqInfo->Status, true, 256);
-   fOdbEqCommon->RS("Status color",   &fEqInfo->StatusColor, true, NAME_LENGTH);
-   fOdbEqCommon->RB("Hidden",         &fEqInfo->Hidden, true);
-   fOdbEqCommon->RI("Write cache size", &fEqInfo->WriteCacheSize, true);
+   fOdbEqCommon->RS("Status",              &fEqInfo->Status,           true, 256);
+   fOdbEqCommon->RS("Status color",        &fEqInfo->StatusColor,      true, NAME_LENGTH);
+
+   // decode data from ODB Common
+
+   fEqInfo->ReadOnlyWhenRunning = !(fEqInfo->ReadOn & (RO_PAUSED|RO_STOPPED));
+   fEqInfo->WriteEventsToOdb    = (fEqInfo->ReadOn & RO_ODB);
+
    return TMFeOk();
 }
 
-TMFeResult TMFeEquipment::EqWriteCommon() const
+TMFeResult TMFeEquipment::EqWriteCommon()
 {
    if (TMFE::gfVerbose)
       printf("TMFeEquipment::EqWriteCommon: for [%s]\n", fEqName.c_str());
-   fOdbEqCommon->WU16("Event ID",     fEqInfo->EventID);
-   fOdbEqCommon->WU16("Trigger mask", fEqInfo->TriggerMask);
-   fOdbEqCommon->WS("Buffer",         fEqInfo->Buffer.c_str(), NAME_LENGTH);
-   fOdbEqCommon->WI("Type",           fEqInfo->Type);
-   fOdbEqCommon->WI("Source",         fEqInfo->Source);
-   fOdbEqCommon->WS("Format",         fEqInfo->Format.c_str(), 8);
-   fOdbEqCommon->WB("Enabled",        fEqInfo->Enabled);
-   fOdbEqCommon->WI("Read on",        fEqInfo->ReadOn);
-   fOdbEqCommon->WI("Period",         fEqInfo->Period);
-   fOdbEqCommon->WD("Event limit",    fEqInfo->EventLimit);
-   fOdbEqCommon->WU32("Num subevents",  fEqInfo->NumSubEvents);
-   fOdbEqCommon->WI("Log history",    fEqInfo->LogHistory);
-   fOdbEqCommon->WS("Frontend host",  fEqInfo->FrontendHost.c_str(), NAME_LENGTH);
-   fOdbEqCommon->WS("Frontend name",  fEqInfo->FrontendName.c_str(), NAME_LENGTH);
+
+   // encode data for ODB Common
+
+   fEqInfo->ReadOn = 0;
+   if (fEqInfo->ReadOnlyWhenRunning)
+      fEqInfo->ReadOn |= (RO_RUNNING);
+   else
+      fEqInfo->ReadOn |= (RO_RUNNING|RO_PAUSED|RO_STOPPED);
+   if (fEqInfo->WriteEventsToOdb)
+      fEqInfo->ReadOn |= RO_ODB;
+
+   // write to ODB
+   
+   fOdbEqCommon->WU16("Event ID",          fEqInfo->EventID);
+   fOdbEqCommon->WU16("Trigger mask",      fEqInfo->TriggerMask);
+   fOdbEqCommon->WS("Buffer",              fEqInfo->Buffer.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WI("Type",                fEqInfo->Type);
+   fOdbEqCommon->WI("Source",              fEqInfo->Source);
+   fOdbEqCommon->WS("Format",              fEqInfo->Format.c_str(), 8);
+   fOdbEqCommon->WB("Enabled",             fEqInfo->Enabled);
+   fOdbEqCommon->WI("Read on",             fEqInfo->ReadOn);
+   fOdbEqCommon->WI("Period",              fEqInfo->Period);
+   fOdbEqCommon->WD("Event limit",         fEqInfo->EventLimit);
+   fOdbEqCommon->WU32("Num subevents",     fEqInfo->NumSubEvents);
+   fOdbEqCommon->WI("Log history",         fEqInfo->LogHistory);
+   fOdbEqCommon->WS("Frontend host",       fEqInfo->FrontendHost.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WS("Frontend name",       fEqInfo->FrontendName.c_str(), NAME_LENGTH);
    fOdbEqCommon->WS("Frontend file name",  fEqInfo->FrontendFileName.c_str(), 256);
-   fOdbEqCommon->WS("Status",         fEqInfo->Status.c_str(), 256);
-   fOdbEqCommon->WS("Status color",   fEqInfo->StatusColor.c_str(), NAME_LENGTH);
-   fOdbEqCommon->WB("Hidden",         fEqInfo->Hidden);
-   fOdbEqCommon->WI("Write cache size", fEqInfo->WriteCacheSize);
+   fOdbEqCommon->WS("Status",              fEqInfo->Status.c_str(), 256);
+   fOdbEqCommon->WS("Status color",        fEqInfo->StatusColor.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WB("Hidden",              fEqInfo->Hidden);
+   fOdbEqCommon->WI("Write cache size",    fEqInfo->WriteCacheSize);
    return TMFeOk();
 }
 
@@ -985,7 +1015,13 @@ TMFeResult TMFeEquipment::EqPreInit()
    //
 
    fOdbEq = fMfe->fOdbRoot->Chdir((std::string("Equipment/") + fEqName).c_str(), true);
-   fOdbEqCommon     = fOdbEq->Chdir("Common", true);
+   fOdbEqCommon     = fOdbEq->Chdir("Common", false);
+   if (!fOdbEqCommon) {
+      if (TMFE::gfVerbose)
+         printf("TMFeEquipment::PreInit: creating ODB common\n");
+      fOdbEqCommon  = fOdbEq->Chdir("Common", true);
+      EqWriteCommon();
+   }
    fOdbEqSettings   = fOdbEq->Chdir("Settings", true);
    fOdbEqVariables  = fOdbEq->Chdir("Variables", true);
    fOdbEqStatistics = fOdbEq->Chdir("Statistics", true);

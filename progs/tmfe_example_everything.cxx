@@ -38,6 +38,8 @@ public:
    {
       printf("EqEverything::Init!\n");
       fMfe->RegisterTransitionStartAbort();
+      fEqInfo->ReadOnlyWhenRunning = false; // overwrite ODB Common RO_RUNNING to false
+      fEqInfo->WriteEventsToOdb = true; // overwrite ODB Common RO_ODB to true
       EqSetStatus("Started...", "white");
       return TMFeOk();
    }
@@ -135,13 +137,14 @@ public:
 
 struct EqInfoEverything: TMFeEqInfo { EqInfoEverything() {
    printf("EqInfoEverything::ctor!\n");
+   //ReadEqInfoFromOdb = false;
    EventID = 1;
    Period = 1000;
    LogHistory = 1;
    WriteEventsToOdb = true;
 } };
 
-static TMFeRegister eq_everything_register("tmfe_example_everything", new EqEverything("test_everything", __FILE__, new EqInfoEverything), true, true, true);
+static TMFeRegister eq_everything_register("tmfe_example_everything", new EqEverything("tmfe_example_everything", __FILE__, new EqInfoEverything), true, true, true);
 
 // example frontend hooks
 
