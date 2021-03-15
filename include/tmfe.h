@@ -13,7 +13,8 @@
 #include <stdint.h>
 #include <string>
 #include <vector>
-#include <mutex>
+#include <mutex> // std::mutex
+#include <thread> // std::thread
 //#include "midas.h"
 #include "mvodb.h"
 
@@ -223,6 +224,8 @@ public: // optional polled equipment handler runs from the per-equipment poll th
    virtual void HandleRead() {};
 
 public: // per-equipment poll thread
+   std::thread* fEqPollThread = NULL;
+   void EqPollThread();
    void EqStartPollThread();
    void EqStopPollThread();
 
@@ -268,6 +271,9 @@ class TMFE
    std::string fFrontendHostname; ///< frontend hostname
    std::string fFrontendFilename; ///< frontend program file name
 
+public: // multithreaded lock
+   std::mutex fMutex;
+
 public: // ODB access
    int    fDB = 0;         ///< ODB database handle
    MVOdb* fOdbRoot = NULL; ///< ODB root
@@ -287,10 +293,12 @@ public: // periodic and poll schedulers
    double fNextPeriodic = 0;
 
 public: // internal threads
+   std::thread* fRpcThread = NULL;
    bool fRpcThreadStarting = false;
    bool fRpcThreadRunning  = false;
    bool fRpcThreadShutdownRequested = false;
 
+   std::thread* fPeriodicThread = NULL;
    bool fPeriodicThreadStarting = false;
    bool fPeriodicThreadRunning  = false;
    bool fPeriodicThreadShutdownRequested = false;
@@ -321,12 +329,17 @@ public: // internal threads
    TMFeResult InitEquipments(const std::vector<std::string>& args);
    void       DeleteEquipments();
 
+public: // RPC thread methods, thread-safe
+   void RpcThread();
    void StartRpcThread();
-   void StartPeriodicThread();
-
    void StopRpcThread();
+
+public: // periodic thread methods, thread-safe
+   void PeriodicThread();
+   void StartPeriodicThread();
    void StopPeriodicThread();
 
+public:
    TMFeResult SetWatchdogSec(int sec);
 
    void PollMidas(int millisec);

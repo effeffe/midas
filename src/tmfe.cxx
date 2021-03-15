@@ -247,32 +247,27 @@ double TMFE::EquipmentPollTasks()
    return poll_sleep_sec;
 }
 
-static int tmfe_poll_thread(void* param)
+void TMFeEquipment::EqPollThread()
 {
-   TMFE* mfe = TMFE::Instance();
-   TMFeEquipment* eq = (TMFeEquipment*)param;
-   
    if (TMFE::gfVerbose)
-      printf("tmfe_poll_thread: equipment \"%s\" poll thread started\n", eq->fEqName.c_str());
+      printf("TMFeEquipment::EqPollThread: equipment \"%s\" poll thread started\n", fEqName.c_str());
    
-   eq->fEqPollThreadRunning = true;
+   fEqPollThreadRunning = true;
 
-   while (!mfe->fShutdownRequested && !eq->fEqPollThreadShutdownRequested) {
-      bool poll = eq->HandlePoll();
+   while (!fMfe->fShutdownRequested && !fEqPollThreadShutdownRequested) {
+      bool poll = HandlePoll();
       if (poll) {
-         eq->HandleRead();
+         HandleRead();
       } else {
-         if (eq->fEqInfo->PollSleepSec > 0) {
-            TMFE::Sleep(eq->fEqInfo->PollSleepSec);
+         if (fEqInfo->PollSleepSec > 0) {
+            TMFE::Sleep(fEqInfo->PollSleepSec);
          }
       }
    }
    if (TMFE::gfVerbose)
-      printf("tmfe_poll_thread: equipment \"%s\" poll thread stopped\n", eq->fEqName.c_str());
+      printf("TMFeEquipment::EqPollThread: equipment \"%s\" poll thread stopped\n", fEqName.c_str());
 
-   eq->fEqPollThreadRunning = false;
-
-   return SUCCESS;
+   fEqPollThreadRunning = false;
 }
 
 void TMFeEquipment::EqStartPollThread()
@@ -281,7 +276,7 @@ void TMFeEquipment::EqStartPollThread()
 
    std::lock_guard<std::mutex> guard(fEqMutex);
 
-   if (fEqPollThreadRunning || fEqPollThreadStarting) {
+   if (fEqPollThreadRunning || fEqPollThreadStarting || fEqPollThread) {
       fMfe->Msg(MERROR, "TMFeEquipment::EqStartPollThread", "Equipment \"%s\": poll thread is already running", fEqName.c_str());
       return;
    }
@@ -289,7 +284,7 @@ void TMFeEquipment::EqStartPollThread()
    fEqPollThreadShutdownRequested = false;
    fEqPollThreadStarting = true;
 
-   ss_thread_create(tmfe_poll_thread, this);
+   fEqPollThread = new std::thread(&TMFeEquipment::EqPollThread, this);
 }
 
 void TMFeEquipment::EqStopPollThread()
@@ -298,8 +293,15 @@ void TMFeEquipment::EqStopPollThread()
    fEqPollThreadStarting = false;
    fEqPollThreadShutdownRequested = true;
    for (int i=0; i<100; i++) {
-      if (!fEqPollThreadRunning)
+      if (!fEqPollThreadRunning) {
+         std::lock_guard<std::mutex> guard(fEqMutex);
+         if (fEqPollThread) {
+            fEqPollThread->join();
+            delete fEqPollThread;
+            fEqPollThread = NULL;
+         }
          return;
+      }
       TMFE::Sleep(0.1);
    }
    if (fEqPollThreadRunning) {
@@ -309,6 +311,7 @@ void TMFeEquipment::EqStopPollThread()
 
 void TMFE::PollMidas(int msec)
 {
+   bool debug = false;
    double now = GetTime();
    double sleep_start = now;
    double sleep_end = now + msec/1000.0;
@@ -331,8 +334,10 @@ void TMFE::PollMidas(int msec)
       if (poll_sleep*1000.0 < s) {
          s = 0;
       }
-      
-      //printf("now %.6f, sleep_end %.6f, cm_yield(%d), poll period %.6f\n", now, sleep_end, s, poll_sleep);
+
+      if (debug) {
+         printf("now %.6f, sleep_end %.6f, cm_yield(%d), poll period %.6f\n", now, sleep_end, s, poll_sleep);
+      }
 
       int status = cm_yield(s);
       
@@ -354,7 +359,9 @@ void TMFE::PollMidas(int msec)
       }
    }
 
-   //printf("TMFE::PollMidas: msec %d, actual %.1f msec, %d loops\n", msec, (now - sleep_start) * 1000.0, count_yield_loops);
+   if (debug) {
+      printf("TMFE::PollMidas: msec %d, actual %.1f msec, %d loops\n", msec, (now - sleep_start) * 1000.0, count_yield_loops);
+   }
 }
 
 void TMFE::MidasPeriodicTasks()
@@ -362,119 +369,139 @@ void TMFE::MidasPeriodicTasks()
    cm_periodic_tasks();
 }
 
-static int tmfe_rpc_thread(void* param)
+void TMFE::RpcThread()
 {
    if (TMFE::gfVerbose)
-      printf("tmfe_rpc_thread: RPC thread started\n");
+      printf("TMFE::RpcThread: RPC thread started\n");
 
    int msec = 1000;
-   TMFE* mfe = TMFE::Instance();
-   mfe->fRpcThreadRunning = true;
+
+   fRpcThreadRunning = true;
    ss_suspend_set_rpc_thread(ss_gettid());
-   while (!mfe->fShutdownRequested && !mfe->fRpcThreadShutdownRequested) {
+
+   while (!fShutdownRequested && !fRpcThreadShutdownRequested) {
 
       int status = cm_yield(msec);
 
       if (status == RPC_SHUTDOWN || status == SS_ABORT) {
-         mfe->fShutdownRequested = true;
+         fShutdownRequested = true;
          if (TMFE::gfVerbose)
-            printf("tmfe_rpc_thread: cm_yield(%d) status %d, shutdown requested...\n", msec, status);
+            printf("TMFE::RpcThread: cm_yield(%d) status %d, shutdown requested...\n", msec, status);
       }
    }
    ss_suspend_exit();
    if (TMFE::gfVerbose)
-      printf("tmfe_rpc_thread: RPC thread stopped\n");
-   mfe->fRpcThreadRunning = false;
-   return SUCCESS;
+      printf("TMFE::RpcThread: RPC thread stopped\n");
+   fRpcThreadRunning = false;
 }
 
-static int tmfe_periodic_thread(void* param)
+void TMFE::PeriodicThread()
 {
    if (TMFE::gfVerbose)
-      printf("tmfe_periodic_thread: periodic thread started\n");
+      printf("TMFE::PeriodicThread: periodic thread started\n");
    
-   TMFE* mfe = TMFE::Instance();
-   mfe->fPeriodicThreadRunning = true;
-   while (!mfe->fShutdownRequested && !mfe->fPeriodicThreadShutdownRequested) {
-      mfe->EquipmentPeriodicTasks();
-      int status = ss_suspend(1000, 0);
+   fPeriodicThreadRunning = true;
+   while (!fShutdownRequested && !fPeriodicThreadShutdownRequested) {
+      EquipmentPeriodicTasks();
+      int status = ss_suspend(1000, 0); // FIXME: is this sleep correct? K.O.
       if (status == RPC_SHUTDOWN || status == SS_ABORT || status == SS_EXIT) {
-         mfe->fShutdownRequested = true;
+         fShutdownRequested = true;
          if (TMFE::gfVerbose)
-            printf("tmfe_periodic_thread: ss_susend() status %d, shutdown requested...\n", status);
+            printf("TMFE::PeriodicThread: ss_susend() status %d, shutdown requested...\n", status);
       }
    }
    ss_suspend_exit();
    if (TMFE::gfVerbose)
-      printf("tmfe_periodic_thread: periodic thread stopped\n");
-   mfe->fPeriodicThreadRunning = false;
-   return SUCCESS;
+      printf("TMFE::PeriodicThread: periodic thread stopped\n");
+   fPeriodicThreadRunning = false;
 }
 
 void TMFE::StartRpcThread()
 {
-   if (fRpcThreadRunning || fRpcThreadStarting) {
+   // NOTE: this is thread safe
+
+   std::lock_guard<std::mutex> guard(fMutex);
+   
+   if (fRpcThreadRunning || fRpcThreadStarting || fRpcThread) {
       if (gfVerbose)
          printf("TMFE::StartRpcThread: RPC thread already running\n");
       return;
    }
    
    fRpcThreadStarting = true;
-   ss_thread_create(tmfe_rpc_thread, NULL);
+   fRpcThread = new std::thread(&TMFE::RpcThread, this);
 }
 
 void TMFE::StartPeriodicThread()
 {
-   if (fPeriodicThreadRunning || fPeriodicThreadStarting) {
+   // NOTE: this is thread safe
+
+   std::lock_guard<std::mutex> guard(fMutex);
+
+   if (fPeriodicThreadRunning || fPeriodicThreadStarting || fPeriodicThread) {
       if (gfVerbose)
          printf("TMFE::StartPeriodicThread: periodic thread already running\n");
       return;
    }
 
    fPeriodicThreadStarting = true;
-   ss_thread_create(tmfe_periodic_thread, NULL);
+   fPeriodicThread = new std::thread(&TMFE::PeriodicThread, this);
 }
 
 void TMFE::StopRpcThread()
 {
-   if (!fRpcThreadRunning)
-      return;
+   // NOTE: this is thread safe
    
    fRpcThreadStarting = false;
    fRpcThreadShutdownRequested = true;
+   
    for (int i=0; i<60; i++) {
-      if (!fRpcThreadRunning)
-         break;
+      if (!fRpcThreadRunning) {
+         std::lock_guard<std::mutex> guard(fMutex);
+         if (fRpcThread) {
+            fRpcThread->join();
+            delete fRpcThread;
+            fRpcThread = NULL;
+            if (gfVerbose)
+               fprintf(stderr, "TMFE::StopRpcThread: RPC thread stopped\n");
+         }
+         return;
+      }
       if (i>5) {
          fprintf(stderr, "TMFE::StopRpcThread: waiting for RPC thread to stop\n");
       }
       ::sleep(1);
    }
 
-   if (fRpcThreadRunning) {
-      fprintf(stderr, "TMFE::StopRpcThread: timeout waiting for RPC thread to stop\n");
-   }
+   fprintf(stderr, "TMFE::StopRpcThread: timeout waiting for RPC thread to stop\n");
 }
 
 void TMFE::StopPeriodicThread()
 {
-   if (!fPeriodicThreadRunning)
-      return;
+   // NOTE: this is thread safe
    
    fPeriodicThreadStarting = false;
    fPeriodicThreadShutdownRequested = true;
+
    for (int i=0; i<60; i++) {
-      if (!fPeriodicThreadRunning)
-         break;
+      if (!fPeriodicThreadRunning) {
+         std::lock_guard<std::mutex> guard(fMutex);
+         if (fPeriodicThread) {
+            fPeriodicThread->join();
+            delete fPeriodicThread;
+            fPeriodicThread = NULL;
+            if (gfVerbose)
+               fprintf(stderr, "TMFE::StopPeriodicThread: periodic thread stopped\n");
+         }
+         return;
+      }
       if (i>5) {
          fprintf(stderr, "TMFE::StopPeriodicThread: waiting for periodic thread to stop\n");
       }
       ::sleep(1);
    }
 
-   if (fPeriodicThreadRunning) {
-      fprintf(stderr, "TMFE::StopPeriodicThread: timeout waiting for periodic thread to stop\n");
-   }
+   fprintf(stderr, "TMFE::StopPeriodicThread: timeout waiting for periodic thread to stop\n");
 }
 
 void TMFE::Msg(int message_type, const char *filename, int line, const char *routine, const char *format, ...)
