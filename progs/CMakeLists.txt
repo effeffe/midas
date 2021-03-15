@@ -42,6 +42,7 @@ set(MFEPROGS
 
 set(TMFEPROGS
    tmfe_example_everything
+   tmfe_example_frontend
    #tmfe_example_periodic
    #tmfe_example_poll
    fetest

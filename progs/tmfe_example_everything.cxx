@@ -31,12 +31,12 @@ public:
 
    void HandleUsage()
    {
-      printf("EqEverything::Usage!\n");
+      printf("EqEverything::HandleUsage!\n");
    }
 
    TMFeResult HandleInit(const std::vector<std::string>& args)
    {
-      printf("EqEverything::Init!\n");
+      printf("EqEverything::HandleInit!\n");
       fMfe->RegisterTransitionStartAbort();
       fEqInfo->ReadOnlyWhenRunning = false; // overwrite ODB Common RO_RUNNING to false
       fEqInfo->WriteEventsToOdb = true; // overwrite ODB Common RO_ODB to true
@@ -167,6 +167,11 @@ public:
    void HandlePostConnect(const std::vector<std::string>& args)
    {
       printf("EqEverythingHooks::HandlePostConnect!\n");
+   };
+   
+   void HandlePostInit(const std::vector<std::string>& args)
+   {
+      printf("EqEverythingHooks::HandlePostInit!\n");
    };
    
    void HandlePreDisconnect()
