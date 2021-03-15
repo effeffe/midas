@@ -221,31 +221,102 @@ void TMFE::EquipmentPeriodicTasks()
 
 }
 
-void TMFE::EquipmentPollTasks()
+double TMFE::EquipmentPollTasks()
 {
-   // NOTE: ok to use range-based for() loop, there will be a crash if HandlePoll() or HandleRead() modify fEquipments, so they should not do that. K.O.
-   for (auto e : fEquipments) {
-      if (e && e->fEqEnablePoll) {
-         bool poll = e->HandlePoll();
-         if (poll) {
-            e->HandleRead();
+   double poll_sleep_sec = 9999.0;
+   while (1) {
+      bool poll_again = false;
+      // NOTE: ok to use range-based for() loop, there will be a crash if HandlePoll() or HandleRead() modify fEquipments, so they should not do that. K.O.
+      for (auto eq : fEquipments) {
+         if (eq && eq->fEqEnablePoll && !eq->fEqPollThreadRunning && !eq->fEqPollThreadStarting) {
+            if (eq->fEqInfo->PollSleepSec < poll_sleep_sec)
+               poll_sleep_sec = eq->fEqInfo->PollSleepSec;
+            bool poll = eq->HandlePoll();
+            if (poll) {
+               poll_again = true;
+               eq->HandleRead();
+            }
          }
       }
+      if (!poll_again)
+         break;
+   }
+   return poll_sleep_sec;
+}
+
+static int tmfe_poll_thread(void* param)
+{
+   TMFE* mfe = TMFE::Instance();
+   TMFeEquipment* eq = (TMFeEquipment*)param;
+   
+   if (TMFE::gfVerbose)
+      printf("tmfe_poll_thread: equipment \"%s\" poll thread started\n", eq->fEqName.c_str());
+   
+   eq->fEqPollThreadRunning = true;
+
+   while (!mfe->fShutdownRequested && !eq->fEqPollThreadShutdownRequested) {
+      bool poll = eq->HandlePoll();
+      if (poll) {
+         eq->HandleRead();
+      } else {
+         if (eq->fEqInfo->PollSleepSec > 0) {
+            TMFE::Sleep(eq->fEqInfo->PollSleepSec);
+         }
+      }
+   }
+   if (TMFE::gfVerbose)
+      printf("tmfe_poll_thread: equipment \"%s\" poll thread stopped\n", eq->fEqName.c_str());
+
+   eq->fEqPollThreadRunning = false;
+
+   return SUCCESS;
+}
+
+void TMFeEquipment::EqStartPollThread()
+{
+   // NOTE: this is thread safe
+
+   std::lock_guard<std::mutex> guard(fEqMutex);
+
+   if (fEqPollThreadRunning || fEqPollThreadStarting) {
+      fMfe->Msg(MERROR, "TMFeEquipment::EqStartPollThread", "Equipment \"%s\": poll thread is already running", fEqName.c_str());
+      return;
+   }
+
+   fEqPollThreadShutdownRequested = false;
+   fEqPollThreadStarting = true;
+
+   ss_thread_create(tmfe_poll_thread, this);
+}
+
+void TMFeEquipment::EqStopPollThread()
+{
+   // NOTE: this is thread safe
+   fEqPollThreadStarting = false;
+   fEqPollThreadShutdownRequested = true;
+   for (int i=0; i<100; i++) {
+      if (!fEqPollThreadRunning)
+         return;
+      TMFE::Sleep(0.1);
+   }
+   if (fEqPollThreadRunning) {
+      fMfe->Msg(MERROR, "TMFeEquipment::EqStopPollThread", "Equipment \"%s\": timeout waiting for shutdown of poll thread", fEqName.c_str());
    }
 }
 
 void TMFE::PollMidas(int msec)
 {
    double now = GetTime();
-   //double sleep_start = now;
+   double sleep_start = now;
    double sleep_end = now + msec/1000.0;
+   int count_yield_loops = 0;
 
    while (!fShutdownRequested) {
       if (!fPeriodicThreadRunning) {
          EquipmentPeriodicTasks();
       }
 
-      EquipmentPollTasks();
+      double poll_sleep = EquipmentPollTasks();
 
       now = GetTime();
 
@@ -254,8 +325,12 @@ void TMFE::PollMidas(int msec)
       if (sleep_time > 0)
          s = 1 + sleep_time*1000.0;
 
-      //printf("now %f, sleep_end %f, s %d\n", now, sleep_end, s);
+      if (poll_sleep*1000.0 < s) {
+         s = 0;
+      }
       
+      //printf("now %.6f, sleep_end %.6f, cm_yield(%d), poll period %.6f\n", now, sleep_end, s, poll_sleep);
+
       int status = cm_yield(s);
       
       if (status == RPC_SHUTDOWN || status == SS_ABORT) {
@@ -265,11 +340,18 @@ void TMFE::PollMidas(int msec)
       }
 
       now = GetTime();
-      if (now >= sleep_end)
+      double sleep_more = sleep_end - now;
+      if (sleep_more <= 0)
          break;
+
+      count_yield_loops++;
+
+      if (poll_sleep < sleep_more) {
+         TMFE::Sleep(poll_sleep);
+      }
    }
 
-   //printf("TMFE::PollMidas: msec %d, actual %f msec\n", msec, (now - sleep_start) * 1000.0);
+   //printf("TMFE::PollMidas: msec %d, actual %.1f msec, %d loops\n", msec, (now - sleep_start) * 1000.0, count_yield_loops);
 }
 
 void TMFE::MidasPeriodicTasks()
@@ -823,7 +905,6 @@ TMFeResult TMFE::RegisterEquipment(TMFeEquipment* eq, bool enable_rpc, bool enab
    eq->fEqEnablePoll = enable_poll;
 
    fNextPeriodic = 0;
-   fNextPoll = 0;
 
    // NOTE: fEquipments must be protected again multithreaded access here. K.O.
    fEquipments.push_back(eq);
@@ -897,6 +978,10 @@ TMFeEquipment::~TMFeEquipment() // dtor
 {
    if (TMFE::gfVerbose)
       printf("TMFeEquipment::dtor: equipment name [%s]\n", fEqName.c_str());
+
+   EqStopPollThread();
+
+   // free the data and poison the pointers
    fMfe = NULL;
    if (fEqInfo) {
       delete fEqInfo;
@@ -1348,6 +1433,124 @@ TMFE* TMFE::gfMFE = NULL;
 
 // static data members
 bool TMFE::gfVerbose = false;
+
+static void tmfe_usage(const char* argv0)
+{
+   fprintf(stderr, "\n");
+   fprintf(stderr, "Usage: %s args... -- [equipment args...]\n", argv0);
+   fprintf(stderr, "\n");
+   fprintf(stderr, " -v -- set the TMFE verbose flag to report all major activity\n");
+   fprintf(stderr, " -h -- print this help message\n");
+   fprintf(stderr, " --help -- print this help message\n");
+   fprintf(stderr, "\n");
+   fprintf(stderr, " -h hostname[:port] -- connect to MIDAS mserver on given host and port number\n");
+   fprintf(stderr, " -e exptname -- connect to given MIDAS experiment\n");
+   fprintf(stderr, "\n");
+   exit(1);
+}
+
+int tmfe_main(int argc, char* argv[])
+{
+   setbuf(stdout, NULL);
+   setbuf(stderr, NULL);
+
+   signal(SIGPIPE, SIG_IGN);
+
+   std::vector<std::string> args;
+   for (int i=0; i<argc; i++) {
+      args.push_back(argv[i]);
+   }
+
+   std::vector<std::string> eq_args;
+
+   bool help = false;
+   std::string exptname;
+   std::string hostname;
+
+   for (unsigned int i=1; i<args.size(); i++) { // loop over the commandline options
+      //printf("argv[%d] is %s\n", i, args[i].c_str());
+      if (args[i] == "--") {
+         // remaining arguments are passed to equipment Init()
+         for (unsigned j=i+1; j<args.size(); j++)
+            eq_args.push_back(args[j]);
+         break;
+      } else if (args[i] == "-v") {
+         TMFE::gfVerbose = true;
+      } else if (args[i] == "-h") {
+         i++;
+         if (i >= args.size()) { help = true; break; }
+         hostname = args[i];
+      } else if (args[i] == "-e") {
+         i++;
+         if (i >= args.size()) { help = true; break; }
+         exptname = args[i];
+      } else if (args[i] == "--help") {
+         help = true;
+         break;
+      } else if (args[i][0] == '-') {
+         help = true;
+         break;
+      } else {
+         help = true;
+         break;
+      }
+   }
+
+   TMFE* mfe = TMFE::Instance();
+
+   // call pre-connect hook before calling Usage(). Otherwise, if user creates
+   // new equipments inside the hook, they will never see it's Usage(). K.O.
+   mfe->CallPreConnectHooks(eq_args);
+
+   if (help) {
+      tmfe_usage(argv[0]);
+      mfe->Usage();
+   }
+
+   TMFeResult r = mfe->Connect(NULL, __FILE__, hostname.c_str(), exptname.c_str());
+   if (r.error_flag) {
+      fprintf(stderr, "Cannot connect to MIDAS, error message: %s, bye.\n", r.error_message.c_str());
+      return 1;
+   }
+
+   mfe->CallPostConnectHooks(eq_args);
+
+   //mfe->SetWatchdogSec(0);
+   //mfe->SetTransitionSequenceStart(910);
+   //mfe->SetTransitionSequenceStop(90);
+   //mfe->DeregisterTransitionPause();
+   //mfe->DeregisterTransitionResume();
+   //mfe->RegisterTransitionStartAbort();
+
+   r = mfe->InitEquipments(eq_args);
+
+   if (r.error_flag) {
+      fprintf(stderr, "Cannot initialize equipments, error message: %s, bye.\n", r.error_message.c_str());
+      return 1;
+   }
+
+   mfe->CallPostInitHooks(eq_args);
+
+   while (!mfe->fShutdownRequested) {
+      mfe->PollMidas(10);
+   }
+
+   mfe->CallPreDisconnectHooks();
+   mfe->DeleteEquipments();
+   mfe->Disconnect();
+   mfe->CallPostDisconnectHooks();
+
+   return 0;
+}
+
+/* emacs
+ * Local Variables:
+ * tab-width: 8
+ * c-basic-offset: 3
+ * indent-tabs-mode: nil
+ * End:
+ */
+
 
 /* emacs
  * Local Variables:

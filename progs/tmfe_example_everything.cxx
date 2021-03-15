@@ -41,6 +41,7 @@ public:
       fEqInfo->ReadOnlyWhenRunning = false; // overwrite ODB Common RO_RUNNING to false
       fEqInfo->WriteEventsToOdb = true; // overwrite ODB Common RO_ODB to true
       EqSetStatus("Started...", "white");
+      EqStartPollThread();
       return TMFeOk();
    }
 
@@ -120,7 +121,7 @@ public:
 
    bool HandlePoll()
    {
-      printf("EqEverything::HandlePoll!\n");
+      //printf("EqEverything::HandlePoll!\n");
       double r = drand48();
       if (r > 0.90) {
          // return successful poll rarely
@@ -131,7 +132,7 @@ public:
 
    void HandleRead()
    {
-      printf("EqEverything::HandleRead!\n");
+      //printf("EqEverything::HandleRead!\n");
    }
 };
 
@@ -142,6 +143,7 @@ struct EqInfoEverything: TMFeEqInfo { EqInfoEverything() {
    Period = 1000;
    LogHistory = 1;
    WriteEventsToOdb = true;
+   //PollSleepSec = 0; // poll sleep time set to zero create a "100% CPU busy" polling loop
 } };
 
 static TMFeRegister eq_everything_register("tmfe_example_everything", new EqEverything("tmfe_example_everything", __FILE__, new EqInfoEverything), true, true, true);

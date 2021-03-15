@@ -132,6 +132,7 @@ struct TMFeEqInfo
    bool ReadOnlyWhenRunning = true; // RO_RUNNING
    bool WriteEventsToOdb = false; // RO_ODB
    double PeriodStatisticsSec = 1.0; // statistics update period
+   double PollSleepSec = 0.000100; // shortest sleep for linux is 50-6-70 microseconds
 
    bool ReadEqInfoFromOdb = true; // read equipment common from ODB
 };
@@ -185,6 +186,11 @@ public: // periodic scheduler
    double fEqPeriodicLastCallTime = 0;
    double fEqPeriodicNextCallTime = 0;
 
+public: // poll scheduler
+   bool fEqPollThreadStarting = false;
+   bool fEqPollThreadRunning = false;
+   bool fEqPollThreadShutdownRequested = false;
+
 public: // contructors and initialization. not thread-safe.
    TMFeEquipment(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo); // ctor
    virtual ~TMFeEquipment(); // dtor
@@ -215,6 +221,10 @@ public: // optional periodic equipment handler runs from the frontend periodic t
 public: // optional polled equipment handler runs from the per-equipment poll thread
    virtual bool HandlePoll() { return false; };
    virtual void HandleRead() {};
+
+public: // per-equipment poll thread
+   void EqStartPollThread();
+   void EqStopPollThread();
 
 public: // optional ODB watch handler runs from the midas poll thread
    virtual void HandleOdbWatch(const std::string& odbpath, int odbarrayindex) {};
@@ -273,9 +283,8 @@ public:
    // NOTE: fEquipments must be protected against multithreaded write access. K.O.
    std::vector<TMFeEquipment*> fEquipments;
 
-public: // periodic and poll scheduler
+public: // periodic and poll schedulers
    double fNextPeriodic = 0;
-   double fNextPoll = 0;
 
 public: // internal threads
    bool fRpcThreadStarting = false;
@@ -323,7 +332,7 @@ public: // internal threads
    void PollMidas(int millisec);
    void MidasPeriodicTasks();
    void EquipmentPeriodicTasks();
-   void EquipmentPollTasks();
+   double EquipmentPollTasks();
 
    TMFeResult TriggerAlarm(const char* name, const char* message, const char* aclass);
    TMFeResult ResetAlarm(const char* name);
@@ -368,6 +377,8 @@ class TMFeRegister
  public:
    TMFeRegister(const char* fename, TMFeEquipment* eq, bool enable_rpc, bool enable_periodic, bool enable_poll);
 };
+
+int tmfe_main(int argc, char* argv[]);
 
 #endif
 /* emacs
