@@ -41,7 +41,7 @@ public:
       fEqInfo->ReadOnlyWhenRunning = false; // overwrite ODB Common RO_RUNNING to false
       fEqInfo->WriteEventsToOdb = true; // overwrite ODB Common RO_ODB to true
       EqSetStatus("Started...", "white");
-      EqStartPollThread();
+      //EqStartPollThread();
       return TMFeOk();
    }
 
