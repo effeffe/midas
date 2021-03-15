@@ -7,9 +7,12 @@
 
 \********************************************************************/
 
+#undef NDEBUG // midas required assert() to be always enabled
+
 #include <stdio.h>
 #include <stdarg.h>
 #include <assert.h>
+#include <signal.h> // signal()
 #include <sys/time.h> // gettimeofday()
 
 #include "tmfe.h"
