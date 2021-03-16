@@ -319,6 +319,64 @@ void TMFeEquipment::EqStopPollThread()
    }
 }
 
+void TMFE::StopRun()
+{
+   char str[TRANSITION_ERROR_STRING_LENGTH];
+
+   int status = cm_transition(TR_STOP, 0, str, sizeof(str), TR_SYNC, FALSE);
+   if (status != CM_SUCCESS) {
+      Msg(MERROR, "TMFE::StopRun", "Cannot stop run, error: %s", str);
+      fRunStopRequested = false;
+      return;
+   }
+
+   fRunStopRequested = false;
+
+   bool logger_auto_restart = false;
+   fOdbRoot->RB("Logger/Auto restart", &logger_auto_restart);
+
+   int logger_auto_restart_delay = 0;
+   fOdbRoot->RI("Logger/Auto restart delay", &logger_auto_restart_delay);
+
+   if (logger_auto_restart) {
+      Msg(MINFO, "TMFE::StopRun", "Run will restart after %d seconds", logger_auto_restart_delay);
+      fRunStartTime = GetTime() + logger_auto_restart_delay;
+   } else {
+      fRunStartTime = 0;
+   }
+}
+
+void TMFE::StartRun()
+{
+   fRunStartTime = 0;
+
+   /* check if really stopped */
+   int run_state = 0;
+   fOdbRoot->RI("Runinfo/State", &run_state);
+
+   if (run_state != STATE_STOPPED) {
+      Msg(MERROR, "TMFE::StartRun", "Run start requested, but run is already in progress");
+      return;
+   }
+
+   bool logger_auto_restart = false;
+   fOdbRoot->RB("Logger/Auto restart", &logger_auto_restart);
+
+   if (!logger_auto_restart) {
+      Msg(MERROR, "TMFE::StartRun", "Run start requested, but logger/auto restart is off");
+      return;
+   }
+
+   Msg(MTALK, "TMFE::StartRun", "Starting new run");
+
+   char str[TRANSITION_ERROR_STRING_LENGTH];
+
+   int status = cm_transition(TR_START, 0, str, sizeof(str), TR_SYNC, FALSE);
+   if (status != CM_SUCCESS) {
+      Msg(MERROR, "TMFE::StartRun", "Cannot restart run, error: %s", str);
+   }
+}
+
 void TMFE::PollMidas(int msec)
 {
    bool debug = false;
@@ -334,7 +392,17 @@ void TMFE::PollMidas(int msec)
 
       double poll_sleep = EquipmentPollTasks();
 
+      if (fRunStopRequested) {
+         StopRun();
+         continue;
+      }
+
       now = GetTime();
+
+      if (fRunStartTime && now >= fRunStartTime) {
+         StartRun();
+         continue;
+      }
 
       double sleep_time = sleep_end - now;
       int s = 0;
@@ -1382,6 +1450,17 @@ TMFeResult TMFeEquipment::EqSendEvent(const char* event)
       TMFeResult r = EqWriteEventToOdb_locked(event);
       if (r.error_flag)
          return r;
+   }
+
+   if (fMfe->fStateRunning) {
+      if (fEqInfo->EventLimit > 0) {
+         if (fEqStatEvents >= fEqInfo->EventLimit) {
+            if (!fMfe->fRunStopRequested) {
+               fMfe->Msg(MINFO, "TMFeEquipment::EqSendEvent", "Equipment \"%s\" sent %.0f events out of %.0f requested, run will stop now", fEqName.c_str(), fEqStatEvents, fEqInfo->EventLimit);
+            }
+            fMfe->fRunStopRequested = true;
+         }
+      }
    }
 
    return TMFeOk();
