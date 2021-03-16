@@ -90,28 +90,6 @@ EQUIPMENT equipment[] = {
 };
 #endif
 
-struct EqInfoTrigger: TMFeEqInfo { EqInfoTrigger() {
-   ReadEqInfoFromOdb = false;
-   EventID = 1;
-   Buffer = "SYSTEM";
-   Period = 0; // in milliseconds
-   LogHistory = 0;
-   ReadOnlyWhenRunning = true;
-   WriteEventsToOdb = true;
-   //PollSleepSec = 0; // poll sleep time set to zero create a "100% CPU busy" polling loop
-} };
-
-struct EqInfoPeriodic: TMFeEqInfo { EqInfoPeriodic() {
-   ReadEqInfoFromOdb = false;
-   EventID = 2;
-   Buffer = "SYSTEM";
-   Period = 1000; // in milliseconds
-   LogHistory = 1;
-   ReadOnlyWhenRunning = true;
-   WriteEventsToOdb = true;
-   //PollSleepSec = 0; // poll sleep time set to zero create a "100% CPU busy" polling loop
-} };
-
 class EqTrigger :
    public TMFeEquipment
 {
@@ -119,6 +97,17 @@ public:
    EqTrigger(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
       : TMFeEquipment(eqname, eqfilename, eqinfo)
    {
+      /* configure your equipment here */
+      
+      fEqInfo->ReadEqInfoFromOdb = false;
+      fEqInfo->EventID = 1;
+      fEqInfo->Buffer = "SYSTEM";
+      fEqInfo->Period = 0; // in milliseconds
+      fEqInfo->LogHistory = 0;
+      fEqInfo->ReadOnlyWhenRunning = true;
+      fEqInfo->WriteEventsToOdb = true;
+      //fEqInfo->PollSleepSec = 0; // poll sleep time set to zero create a "100% CPU busy" polling loop
+      fEqInfo->PollSleepSec = 0.010; // limit event rate to 100 Hz. In a real experiment remove this line
    }
 
    ~EqTrigger() // dtor
@@ -133,6 +122,8 @@ public:
    TMFeResult HandleInit(const std::vector<std::string>& args)
    {
       /* put any hardware initialization here */
+
+      fEqInfo->Enabled = false;
       
       /* return TMFeErrorMessage("my error message") if frontend should not be started */
       return TMFeOk();
@@ -168,7 +159,7 @@ public:
       BkInit(buf, sizeof(buf));
 
       /* create structured ADC0 bank */
-      uint16_t* pdata = (uint16_t*)BkOpen(buf, "ADC0", TID_UINT16);
+      uint32_t* pdata = (uint32_t*)BkOpen(buf, "ADC0", TID_UINT32);
       
       /* following code to "simulates" some ADC data */
       for (int a = 0; a < 4; a++)
@@ -177,7 +168,7 @@ public:
       BkClose(buf, pdata);
 
       /* create variable length TDC bank */
-      pdata = (uint16_t*)BkOpen(buf, "TDC0", TID_UINT16);
+      pdata = (uint32_t*)BkOpen(buf, "TDC0", TID_UINT32);
       
       /* following code to "simulates" some TDC data */
       for (int a = 0; a < 4; a++)
@@ -189,7 +180,7 @@ public:
    }
 };
 
-static TMFeRegister eq_trigger_register("Sample Frontend", new EqTrigger("Trigger", __FILE__, new EqInfoTrigger), true, false, true);
+static TMFeRegister eq_trigger_register("Sample Frontend", new EqTrigger("Trigger", __FILE__, NULL), true, false, true);
 
 class EqPeriodic :
    public TMFeEquipment
@@ -198,6 +189,15 @@ public:
    EqPeriodic(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
       : TMFeEquipment(eqname, eqfilename, eqinfo)
    {
+      /* configure your equipment here */
+
+      fEqInfo->ReadEqInfoFromOdb = false;
+      fEqInfo->EventID = 2;
+      fEqInfo->Buffer = "SYSTEM";
+      fEqInfo->Period = 1000; // in milliseconds
+      fEqInfo->LogHistory = 1;
+      fEqInfo->ReadOnlyWhenRunning = true;
+      fEqInfo->WriteEventsToOdb = true;
    }
 
    void HandlePeriodic()
@@ -220,7 +220,7 @@ public:
    }
 };
 
-static TMFeRegister eq_periodic_register("Sample Frontend", new EqPeriodic("Periodic", __FILE__, new EqInfoPeriodic), true, true, false);
+static TMFeRegister eq_periodic_register("Sample Frontend", new EqPeriodic("Periodic", __FILE__, NULL), true, true, false);
 
 static class EqEverythingHooks: public TMFeHooksInterface
 {

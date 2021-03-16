@@ -22,6 +22,15 @@ public:
       : TMFeEquipment(eqname, eqfilename, eqinfo)
    {
       printf("EqEverything::ctor!\n");
+
+      // configure the equipment here:
+      
+      //fEqInfo->ReadEqInfoFromOdb = false;
+      fEqInfo->EventID = 1;
+      fEqInfo->Period = 1000;
+      fEqInfo->LogHistory = 1;
+      fEqInfo->WriteEventsToOdb = true;
+      //fEqInfo->PollSleepSec = 0; // poll sleep time set to zero create a "100% CPU busy" polling loop
    }
 
    ~EqEverything() // dtor
@@ -136,17 +145,7 @@ public:
    }
 };
 
-struct EqInfoEverything: TMFeEqInfo { EqInfoEverything() {
-   printf("EqInfoEverything::ctor!\n");
-   //ReadEqInfoFromOdb = false;
-   EventID = 1;
-   Period = 1000;
-   LogHistory = 1;
-   WriteEventsToOdb = true;
-   //PollSleepSec = 0; // poll sleep time set to zero create a "100% CPU busy" polling loop
-} };
-
-static TMFeRegister eq_everything_register("tmfe_example_everything", new EqEverything("tmfe_example_everything", __FILE__, new EqInfoEverything), true, true, true);
+static TMFeRegister eq_everything_register("tmfe_example_everything", new EqEverything("tmfe_example_everything", __FILE__, NULL), true, true, true);
 
 // example frontend hooks
 
