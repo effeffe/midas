@@ -1436,8 +1436,8 @@ TMFeResult TMFeEquipment::EqSendEvent(const char* event)
 
    int status = bm_send_event(fEqBufferHandle, pevent, sizeof(EVENT_HEADER) + pevent->data_size, BM_WAIT);
    if (status == BM_CORRUPTED) {
-      TMFE::Instance()->Msg(MERROR, "TMFeEquipment::SendData", "bm_send_event() returned %d, event buffer is corrupted, shutting down the frontend", status);
-      TMFE::Instance()->fShutdownRequested = true;
+      fMfe->Msg(MERROR, "TMFeEquipment::SendData", "bm_send_event() returned %d, event buffer is corrupted, shutting down the frontend", status);
+      fMfe->fShutdownRequested = true;
       return TMFeMidasError("Cannot send event, event buffer is corrupted, shutting down the frontend", "bm_send_event", status);
    } else if (status != BM_SUCCESS) {
       return TMFeMidasError("Cannot send event", "bm_send_event", status);
