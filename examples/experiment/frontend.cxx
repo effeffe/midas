@@ -104,7 +104,7 @@ EQUIPMENT equipment[] = {
          1000,               /* read every sec */
          0,                  /* stop run after this event limit */
          0,                  /* number of sub events */
-         TRUE,               /* log history */
+         10,                 /* log history every ten seconds*/
          "", "", "",},
       read_periodic_event,   /* readout routine */
    },
@@ -244,25 +244,25 @@ INT interrupt_configure(INT cmd, INT source, POINTER_T adr)
 
 INT read_trigger_event(char *pevent, INT off)
 {
-   WORD *pdata, a;
+   UINT32 *pdata;
 
    /* init bank structure */
    bk_init(pevent);
 
    /* create structured ADC0 bank */
-   bk_create(pevent, "ADC0", TID_UINT16, (void **)&pdata);
+   bk_create(pevent, "ADC0", TID_UINT32, (void **)&pdata);
 
    /* following code to "simulates" some ADC data */
-   for (a = 0; a < 4; a++)
+   for (int i = 0; i < 4; i++)
       *pdata++ = rand()%1024 + rand()%1024 + rand()%1024 + rand()%1024;
 
    bk_close(pevent, pdata);
 
    /* create variable length TDC bank */
-   bk_create(pevent, "TDC0", TID_UINT16, (void **)&pdata);
+   bk_create(pevent, "TDC0", TID_UINT32, (void **)&pdata);
 
    /* following code to "simulates" some TDC data */
-   for (a = 0; a < 4; a++)
+   for (int i = 0; i < 4; i++)
       *pdata++ = rand()%1024 + rand()%1024 + rand()%1024 + rand()%1024;
 
    bk_close(pevent, pdata);
@@ -277,18 +277,17 @@ INT read_trigger_event(char *pevent, INT off)
 
 INT read_periodic_event(char *pevent, INT off)
 {
-   float *pdata;
-   int a;
+   UINT64 *pdata;
 
    /* init bank structure */
    bk_init(pevent);
 
    /* create SCLR bank */
-   bk_create(pevent, "PRDC", TID_FLOAT, (void **)&pdata);
+   bk_create(pevent, "PRDC", TID_UINT64, (void **)&pdata);
 
    /* following code "simulates" some values in sine wave form */
-   for (a = 0; a < 16; a++)
-      *pdata++ = 100*sin(M_PI*time(NULL)/60+a/2.0)+100;
+   for (int i = 0; i < 16; i++)
+      *pdata++ = 100*sin(M_PI*time(NULL)/60+i/2.0)+100;
 
    bk_close(pevent, pdata);
 
