@@ -40,7 +40,7 @@ TBW
 Frontend equipment (TMFeEquipment) is configured by the equipment info (TMFeEqInfo) object. Most data members
 directly corresponds to entries in ODB /Equipment/EQNAME/Common:
 
-* Enabled - TBI
+* Enabled - if set to "false", equipment is disabled, user handlers are not called
 * Hidden - if set to "true", do not display this equipment on the midas status page. used by mhttpd, status.html & co
 * Event ID - value used to create all new events for this equipment
 * Trigger Mask - ditto
@@ -50,7 +50,7 @@ directly corresponds to entries in ODB /Equipment/EQNAME/Common:
 * Format  - TBI
 * Read On - see bits RO_RUNNING and RO_ODB below
 * Period - in milliseconds, period for calling the periodic handler.
-* Event Limit - TBI, stop run after sending this many events
+* Event Limit - stop run after sending this many events. If "/logger/auto restart" is "true", a new run will be started after waiting for "/logger/auto restart delay" seconds.
 * Num subevents - not used
 * Log History - control writing equipment variables to history: 0=disable history, 1=write as often as possible, other value=write with this interval, in seconds. used by mlogger.
 * Frontend host - hostname where frontend is running

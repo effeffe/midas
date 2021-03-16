@@ -173,33 +173,37 @@ void TMFE::EquipmentPeriodicTasks()
       int n = fEquipments.size();
       fNextPeriodic = 0;
       for (int i=0; i<n; i++) {
-         TMFeEquipment* e = fEquipments[i];
-         if (!e->fEqEnablePeriodic)
+         TMFeEquipment* eq = fEquipments[i];
+         if (!eq)
             continue;
-         double period = e->fEqInfo->Period/1000.0;
+         if (!eq->fEqInfo->Enabled)
+            continue;
+         if (!eq->fEqEnablePeriodic)
+            continue;
+         double period = eq->fEqInfo->Period/1000.0;
          //printf("periodic[%d] period %f, last call %f, next call %f (+%f)\n", i, period, h->fLastCallTime, h->fNextCallTime, now - h->fNextCallTime);
          if (period <= 0)
             continue;
-         if (e->fEqPeriodicNextCallTime == 0 || now >= e->fEqPeriodicNextCallTime) {
-            e->fEqPeriodicLastCallTime = now;
-            e->fEqPeriodicNextCallTime = e->fEqPeriodicLastCallTime + period;
+         if (eq->fEqPeriodicNextCallTime == 0 || now >= eq->fEqPeriodicNextCallTime) {
+            eq->fEqPeriodicLastCallTime = now;
+            eq->fEqPeriodicNextCallTime = eq->fEqPeriodicLastCallTime + period;
 
-            if (e->fEqPeriodicNextCallTime < now) {
+            if (eq->fEqPeriodicNextCallTime < now) {
                if (gfVerbose)
                   printf("TMFE::EquipmentPeriodicTasks: periodic equipment does not keep up!\n");
-               while (e->fEqPeriodicNextCallTime < now) {
-                  e->fEqPeriodicNextCallTime += period;
+               while (eq->fEqPeriodicNextCallTime < now) {
+                  eq->fEqPeriodicNextCallTime += period;
                }
             }
 
             if (fNextPeriodic == 0)
-               fNextPeriodic = e->fEqPeriodicNextCallTime;
-            else if (e->fEqPeriodicNextCallTime < fNextPeriodic)
-               fNextPeriodic = e->fEqPeriodicNextCallTime;
+               fNextPeriodic = eq->fEqPeriodicNextCallTime;
+            else if (eq->fEqPeriodicNextCallTime < fNextPeriodic)
+               fNextPeriodic = eq->fEqPeriodicNextCallTime;
 
-            if (fStateRunning || !e->fEqInfo->ReadOnlyWhenRunning) {
+            if (fStateRunning || !eq->fEqInfo->ReadOnlyWhenRunning) {
                //printf("handler %d eq [%s] call HandlePeriodic()\n", i, h->fEq->fName.c_str());                     
-               e->HandlePeriodic();
+               eq->HandlePeriodic();
             }
 
             now = GetTime();
@@ -214,11 +218,13 @@ void TMFE::EquipmentPeriodicTasks()
    now = GetTime();
 
    // update statistics
-   for (auto e : fEquipments) {
-      if (e) {
-         if (now > e->fEqStatNextWrite) {
-            e->EqWriteStatistics();
-         }
+   for (auto eq : fEquipments) {
+      if (!eq)
+         continue;
+      if (!eq->fEqInfo->Enabled)
+         continue;
+      if (now > eq->fEqStatNextWrite) {
+         eq->EqWriteStatistics();
       }
    }
 
@@ -231,7 +237,11 @@ double TMFE::EquipmentPollTasks()
       bool poll_again = false;
       // NOTE: ok to use range-based for() loop, there will be a crash if HandlePoll() or HandleRead() modify fEquipments, so they should not do that. K.O.
       for (auto eq : fEquipments) {
-         if (eq && eq->fEqEnablePoll && !eq->fEqPollThreadRunning && !eq->fEqPollThreadStarting) {
+         if (!eq)
+            continue;
+         if (!eq->fEqInfo->Enabled)
+            continue;
+         if (eq->fEqEnablePoll && !eq->fEqPollThreadRunning && !eq->fEqPollThreadStarting) {
             if (eq->fEqInfo->PollSleepSec < poll_sleep_sec)
                poll_sleep_sec = eq->fEqInfo->PollSleepSec;
             bool poll = eq->HandlePoll();
@@ -309,6 +319,64 @@ void TMFeEquipment::EqStopPollThread()
    }
 }
 
+void TMFE::StopRun()
+{
+   char str[TRANSITION_ERROR_STRING_LENGTH];
+
+   int status = cm_transition(TR_STOP, 0, str, sizeof(str), TR_SYNC, FALSE);
+   if (status != CM_SUCCESS) {
+      Msg(MERROR, "TMFE::StopRun", "Cannot stop run, error: %s", str);
+      fRunStopRequested = false;
+      return;
+   }
+
+   fRunStopRequested = false;
+
+   bool logger_auto_restart = false;
+   fOdbRoot->RB("Logger/Auto restart", &logger_auto_restart);
+
+   int logger_auto_restart_delay = 0;
+   fOdbRoot->RI("Logger/Auto restart delay", &logger_auto_restart_delay);
+
+   if (logger_auto_restart) {
+      Msg(MINFO, "TMFE::StopRun", "Run will restart after %d seconds", logger_auto_restart_delay);
+      fRunStartTime = GetTime() + logger_auto_restart_delay;
+   } else {
+      fRunStartTime = 0;
+   }
+}
+
+void TMFE::StartRun()
+{
+   fRunStartTime = 0;
+
+   /* check if really stopped */
+   int run_state = 0;
+   fOdbRoot->RI("Runinfo/State", &run_state);
+
+   if (run_state != STATE_STOPPED) {
+      Msg(MERROR, "TMFE::StartRun", "Run start requested, but run is already in progress");
+      return;
+   }
+
+   bool logger_auto_restart = false;
+   fOdbRoot->RB("Logger/Auto restart", &logger_auto_restart);
+
+   if (!logger_auto_restart) {
+      Msg(MERROR, "TMFE::StartRun", "Run start requested, but logger/auto restart is off");
+      return;
+   }
+
+   Msg(MTALK, "TMFE::StartRun", "Starting new run");
+
+   char str[TRANSITION_ERROR_STRING_LENGTH];
+
+   int status = cm_transition(TR_START, 0, str, sizeof(str), TR_SYNC, FALSE);
+   if (status != CM_SUCCESS) {
+      Msg(MERROR, "TMFE::StartRun", "Cannot restart run, error: %s", str);
+   }
+}
+
 void TMFE::PollMidas(int msec)
 {
    bool debug = false;
@@ -324,7 +392,17 @@ void TMFE::PollMidas(int msec)
 
       double poll_sleep = EquipmentPollTasks();
 
+      if (fRunStopRequested) {
+         StopRun();
+         continue;
+      }
+
       now = GetTime();
+
+      if (fRunStartTime && now >= fRunStartTime) {
+         StartRun();
+         continue;
+      }
 
       double sleep_time = sleep_end - now;
       int s = 0;
@@ -616,10 +694,15 @@ static INT rpc_callback(INT index, void *prpc_param[])
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleRpc() modifies fEquipments. K.O.
    for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      if (!mfe->fEquipments[i]->fEqEnableRpc)
+      TMFeEquipment* eq = mfe->fEquipments[i];
+      if (!eq)
+         continue;
+      if (!eq->fEqInfo->Enabled)
+         continue;
+      if (!eq->fEqEnableRpc)
          continue;
       std::string result = "";
-      TMFeResult r = mfe->fEquipments[i]->HandleRpc(cmd, args, result);
+      TMFeResult r = eq->HandleRpc(cmd, args, result);
       if (result.length() > 0) {
          //printf("Handler reply [%s]\n", C(r));
          strlcpy(return_buf, result.c_str(), return_max_length);
@@ -642,19 +725,27 @@ static INT tr_start(INT run_number, char *errstr)
    mfe->fStateRunning = true;
    
    for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      if (mfe->fEquipments[i] == NULL)
+      TMFeEquipment* eq = mfe->fEquipments[i];
+      if (!eq)
          continue;
-      mfe->fEquipments[i]->EqZeroStatistics();
-      mfe->fEquipments[i]->EqWriteStatistics();
+      if (!eq->fEqInfo->Enabled)
+         continue;
+      eq->EqZeroStatistics();
+      eq->EqWriteStatistics();
    }
 
    TMFeResult result;
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleBeginRun() modifies fEquipments. K.O.
    for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      if (!mfe->fEquipments[i]->fEqEnableRpc)
+      TMFeEquipment* eq = mfe->fEquipments[i];
+      if (!eq)
          continue;
-      result = mfe->fEquipments[i]->HandleBeginRun(run_number);
+      if (!eq->fEqInfo->Enabled)
+         continue;
+      if (!eq->fEqEnableRpc)
+         continue;
+      result = eq->HandleBeginRun(run_number);
       if (result.error_flag) {
          // error handling in this function matches general transition error handling:
          // on run start, the first user handler to return an error code
@@ -687,9 +778,14 @@ static INT tr_stop(INT run_number, char *errstr)
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleEndRun() modifies fEquipments. K.O.
    for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      if (!mfe->fEquipments[i]->fEqEnableRpc)
+      TMFeEquipment* eq = mfe->fEquipments[i];
+      if (!eq)
          continue;
-      TMFeResult xresult = mfe->fEquipments[i]->HandleEndRun(run_number);
+      if (!eq->fEqInfo->Enabled)
+         continue;
+      if (!eq->fEqEnableRpc)
+         continue;
+      TMFeResult xresult = eq->HandleEndRun(run_number);
       if (xresult.error_flag) {
          // error handling in this function matches general transition error handling:
          // the "run stop" transition is always sucessful, the run always stops.
@@ -700,9 +796,12 @@ static INT tr_stop(INT run_number, char *errstr)
    }
 
    for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      if (mfe->fEquipments[i] == NULL)
+      TMFeEquipment* eq = mfe->fEquipments[i];
+      if (!eq)
          continue;
-      mfe->fEquipments[i]->EqWriteStatistics();
+      if (!eq->fEqInfo->Enabled)
+         continue;
+      eq->EqWriteStatistics();
    }
 
    mfe->fStateRunning = false;
@@ -725,9 +824,14 @@ static INT tr_pause(INT run_number, char *errstr)
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandlePauseRun() modifies fEquipments. K.O.
    for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      if (!mfe->fEquipments[i]->fEqEnableRpc)
+      TMFeEquipment* eq = mfe->fEquipments[i];
+      if (!eq)
          continue;
-      result = mfe->fEquipments[i]->HandlePauseRun(run_number);
+      if (!eq->fEqInfo->Enabled)
+         continue;
+      if (!eq->fEqEnableRpc)
+         continue;
+      result = eq->HandlePauseRun(run_number);
       if (result.error_flag) {
          // error handling in this function matches general transition error handling:
          // logic is same as "start run"
@@ -754,9 +858,14 @@ static INT tr_resume(INT run_number, char *errstr)
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleResumeRun() modifies fEquipments. K.O.
    for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      if (!mfe->fEquipments[i]->fEqEnableRpc)
+      TMFeEquipment* eq = mfe->fEquipments[i];
+      if (!eq)
          continue;
-      result = mfe->fEquipments[i]->HandleResumeRun(run_number);
+      if (!eq->fEqInfo->Enabled)
+         continue;
+      if (!eq->fEqEnableRpc)
+         continue;
+      result = eq->HandleResumeRun(run_number);
       if (result.error_flag) {
          // error handling in this function matches general transition error handling:
          // logic is same as "start run"
@@ -783,9 +892,14 @@ static INT tr_startabort(INT run_number, char *errstr)
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleStartAbortRun() modifies fEquipments. K.O.
    for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      if (!mfe->fEquipments[i]->fEqEnableRpc)
+      TMFeEquipment* eq = mfe->fEquipments[i];
+      if (!eq)
          continue;
-      result = mfe->fEquipments[i]->HandleStartAbortRun(run_number);
+      if (!eq->fEqInfo->Enabled)
+         continue;
+      if (!eq->fEqEnableRpc)
+         continue;
+      result = eq->HandleStartAbortRun(run_number);
       if (result.error_flag) {
          // error handling in this function matches general transition error handling:
          // logic is same as "start run"
@@ -884,6 +998,8 @@ void TMFE::Usage()
 {
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleUsage() modifies fEquipments. K.O.
    for (unsigned i=0; i<fEquipments.size(); i++) {
+      if (!fEquipments[i])
+         continue;
       fEquipments[i]->HandleUsage();
    }
 }
@@ -892,6 +1008,10 @@ TMFeResult TMFE::InitEquipments(const std::vector<std::string>& args)
 {
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleInit() modifies fEquipments. K.O.
    for (unsigned i=0; i<fEquipments.size(); i++) {
+      if (!fEquipments[i])
+         continue;
+      if (!fEquipments[i]->fEqInfo->Enabled)
+         continue;
       TMFeResult r = fEquipments[i]->EqInit(args);
       if (r.error_flag)
          return r;
@@ -906,7 +1026,7 @@ void TMFE::DeleteEquipments()
    
    // NOTE: should not use range-based for() loop, it uses an iterator and it not thread-safe. K.O.
    for (unsigned i=0; i<fEquipments.size(); i++) {
-      if (fEquipments[i] == NULL)
+      if (!fEquipments[i])
          continue;
       //printf("delete equipment [%s]\n", fEquipments[i]->fName.c_str());
       delete fEquipments[i];
@@ -948,6 +1068,8 @@ TMFeResult TMFE::UnregisterEquipment(TMFeEquipment* eq)
    
    // NOTE: should not use range-based for() loop, it uses an iterator and it not thread-safe. K.O.
    for (unsigned i=0; i<fEquipments.size(); i++) {
+      if (!fEquipments[i])
+         continue;
       if (fEquipments[i] == eq) {
          fEquipments[i] = NULL;
          return TMFeOk();
@@ -1063,6 +1185,11 @@ TMFeResult TMFeEquipment::EqReadCommon()
       fOdbEqCommon->RI("Log history",      &fEqInfo->LogHistory,     true);
       fOdbEqCommon->RB("Hidden",           &fEqInfo->Hidden,         true);
       fOdbEqCommon->RI("Write cache size", &fEqInfo->WriteCacheSize, true);
+
+      // decode data from ODB Common
+
+      fEqInfo->ReadOnlyWhenRunning = !(fEqInfo->ReadOn & (RO_PAUSED|RO_STOPPED));
+      fEqInfo->WriteEventsToOdb    = (fEqInfo->ReadOn & RO_ODB);
    }
 
    // list of ODB Common entries we read and write back to ODB, but do not actually use.
@@ -1072,11 +1199,6 @@ TMFeResult TMFeEquipment::EqReadCommon()
    fOdbEqCommon->RS("Frontend file name",  &fEqInfo->FrontendFileName, true, 256);
    fOdbEqCommon->RS("Status",              &fEqInfo->Status,           true, 256);
    fOdbEqCommon->RS("Status color",        &fEqInfo->StatusColor,      true, NAME_LENGTH);
-
-   // decode data from ODB Common
-
-   fEqInfo->ReadOnlyWhenRunning = !(fEqInfo->ReadOn & (RO_PAUSED|RO_STOPPED));
-   fEqInfo->WriteEventsToOdb    = (fEqInfo->ReadOn & RO_ODB);
 
    return TMFeOk();
 }
@@ -1154,11 +1276,18 @@ TMFeResult TMFeEquipment::EqPreInit()
       fEqInfo->FrontendFileName = fMfe->fFrontendFilename;
    }
 
-   fEqInfo->Status = "";
-   fEqInfo->Status += fMfe->fFrontendName;
-   fEqInfo->Status += "@";
-   fEqInfo->Status += fMfe->fFrontendHostname;
-   fEqInfo->StatusColor = "greenLight";
+   if (fEqInfo->Enabled) {
+      fEqInfo->Status = "";
+      fEqInfo->Status += fMfe->fFrontendName;
+      if (rpc_is_remote()) {
+         fEqInfo->Status += "@";
+         fEqInfo->Status += fMfe->fFrontendHostname;
+      }
+      fEqInfo->StatusColor = "greenLight";
+   } else {
+      fEqInfo->Status = "Disabled";
+      fEqInfo->StatusColor = "yellowLight";
+   }
 
    EqZeroStatistics();
    EqWriteStatistics();
@@ -1321,6 +1450,17 @@ TMFeResult TMFeEquipment::EqSendEvent(const char* event)
       TMFeResult r = EqWriteEventToOdb_locked(event);
       if (r.error_flag)
          return r;
+   }
+
+   if (fMfe->fStateRunning) {
+      if (fEqInfo->EventLimit > 0) {
+         if (fEqStatEvents >= fEqInfo->EventLimit) {
+            if (!fMfe->fRunStopRequested) {
+               fMfe->Msg(MINFO, "TMFeEquipment::EqSendEvent", "Equipment \"%s\" sent %.0f events out of %.0f requested, run will stop now", fEqName.c_str(), fEqStatEvents, fEqInfo->EventLimit);
+            }
+            fMfe->fRunStopRequested = true;
+         }
+      }
    }
 
    return TMFeOk();

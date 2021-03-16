@@ -278,8 +278,10 @@ public: // ODB access
    int    fDB = 0;         ///< ODB database handle
    MVOdb* fOdbRoot = NULL; ///< ODB root
 
-public: // shutdown flag
+public: // shutdown and run stop flags
    bool fShutdownRequested = false; ///< shutdown was requested by Ctrl-C or by RPC command
+   bool fRunStopRequested = false; ///< run stop was requested by equipment
+   double fRunStartTime = 0; ///< start a new run at this time
 
 public: // run state
    int  fRunNumber = 0; ///< current run number
@@ -346,6 +348,8 @@ public:
    void MidasPeriodicTasks();
    void EquipmentPeriodicTasks();
    double EquipmentPollTasks();
+   void StopRun();
+   void StartRun();
 
    TMFeResult TriggerAlarm(const char* name, const char* message, const char* aclass);
    TMFeResult ResetAlarm(const char* name);

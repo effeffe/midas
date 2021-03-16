@@ -1727,7 +1727,7 @@ static INT scheduler()
    DWORD last_time_network = 0, last_time_display = 0, last_time_flush = 0,
       readout_start, sent, size, last_time_rate = 0;
    INT i, j, idx, status = 0, ch, source, state, old_flag;
-   char str[80], *pdata;
+   char *pdata;
    unsigned char *pd;
    BOOL flag, force_update = FALSE;
 
@@ -2049,6 +2049,7 @@ static INT scheduler()
              eq->stats.events_sent + eq->events_sent >= eq_info->event_limit &&
              run_state == STATE_RUNNING) {
             /* stop run */
+            char str[TRANSITION_ERROR_STRING_LENGTH];
             if (cm_transition(TR_STOP, 0, str, sizeof(str), TR_SYNC, FALSE) != CM_SUCCESS)
                cm_msg(MERROR, "scheduler", "cannot stop run: %s", str);
 
