@@ -44,18 +44,22 @@
 #include <ctype.h>
 #include <assert.h>
 #include <string.h>
-
+#include <iostream>
 #include "midas.h"
 #include "mfe.h"
 
-
+#ifdef HAVE_LM_SENSORS
+#include <sensors/sensors.h>
+#endif
 
 /*-- Globals -------------------------------------------------------*/
 
 /* The frontend name (client name) as seen by other MIDAS clients   */
-
+#ifdef HAVE_LM_SENSORS
+const char *frontend_name = "msysmon-lmsensors";
+#else
 const char *frontend_name = "msysmon";
-
+#endif
 /* The frontend file name, don't change it */
 const char *frontend_file_name = __FILE__;
 
@@ -309,6 +313,190 @@ std::string colours[16]={
      "#F0C000", "#2090A0", "#D040D0", "#90B000",
      "#B0B040", "#B0B0FF", "#FFA0A0", "#A0FFA0"};
 
+
+#ifdef HAVE_LM_SENSORS
+class LM_Sensors
+{
+  private:
+    class MySensor
+    {
+      private:
+        const std::string SensorName;
+        const std::string FeatureName;
+        const sensors_chip_name* cn;
+        const int number;
+      public:
+        MySensor(const std::string _SensorName, const std::string _name, const sensors_chip_name* _cn, int _number):
+          SensorName(_SensorName), FeatureName(_name), cn(_cn), number(_number)
+        {
+        }
+        double GetValue()
+        {
+          double value;
+          sensors_get_value(this->cn,this->number,&value);
+          return value;
+        }
+        std::string GetFullName(size_t limit)
+        {
+           std::string fullname = SensorName + "(" + FeatureName + ")";
+           if (fullname.size()> limit)
+              return fullname.substr(0,limit-1);
+           return fullname;
+        }
+    };
+    int status;
+    std::vector<MySensor*> Temperatures;
+    std::vector<MySensor*> Fans;
+
+  public:
+    LM_Sensors()
+    {
+      //FILE* = fopen("");
+      status = sensors_init(NULL);
+      if (status!=0)
+      {
+        printf("Issue with sensors\n");
+        exit(status);
+      }
+      int nr = 0;
+      while (const sensors_chip_name* cn = sensors_get_detected_chips(0, &nr))
+      {
+        int fnr = 0;
+        while (const sensors_feature * cf = sensors_get_features(cn,&fnr))
+        {
+          int sfnr = 0;
+          //std::cout << sensors_get_label(cn,cf) <<"\t";// <<std::endl;
+          while (const sensors_subfeature * scf = sensors_get_all_subfeatures(cn , cf, &sfnr))
+          {
+            //For more sensor subfeature types, see full list:
+            //https://github.com/lm-sensors/lm-sensors/blob/master/lib/sensors.h
+            if (scf->type == SENSORS_SUBFEATURE_TEMP_INPUT )
+            {
+              Temperatures.push_back(
+                new MySensor(
+                  sensors_get_label(cn,cf),
+                  scf->name,
+                  cn,
+                  scf->number)
+                );
+            }
+            if (scf->type == SENSORS_SUBFEATURE_FAN_INPUT  )
+            {
+              Fans.push_back(
+                new MySensor(
+                  sensors_get_label(cn,cf),
+                  scf->name,
+                  cn,
+                  scf->number)
+                );
+            }
+          }
+        }
+      }
+    }
+    
+    void BuildHostTemperaturePlot()
+    {
+      //Insert per Temperature monitor graphs into the history
+      int status, size;
+      char path[256];
+      int NVARS=Temperatures.size();
+      /////////////////////////////////////////////////////
+      // Setup variables to plot:
+      /////////////////////////////////////////////////////
+      size = 64;
+      sprintf(path,"/History/Display/msysmon/%s-Temperature/Variables",equipment[0].info.frontend_host);
+      {
+        char vars[size*NVARS];
+        memset(vars, 0, size*NVARS);
+        for (int i=0; i<NVARS; i++)
+        {
+          sprintf(vars+size*i,"%s/TEMP:TEMP[%d]",equipment[0].name,i);
+        }
+        status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
+      }
+      assert(status == DB_SUCCESS);
+
+      /////////////////////////////////////////////////////
+      // Setup labels 
+      /////////////////////////////////////////////////////
+      size = 32;
+      sprintf(path,"/History/Display/msysmon/%s-Temperature/Label",equipment[0].info.frontend_host);
+      {
+        char vars[size*NVARS];
+        memset(vars, 0, size*NVARS);
+        for (int i=0; i<NVARS; i++)
+          sprintf(vars+size*i,Temperatures.at(i)->GetFullName(size).c_str(),i+1);
+        status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
+      }
+      assert(status == DB_SUCCESS);
+
+      /////////////////////////////////////////////////////
+      // Setup colours:
+      /////////////////////////////////////////////////////
+      size = 32;
+      sprintf(path,"/History/Display/msysmon/%s-Temperature/Colour",equipment[0].info.frontend_host);
+      {
+        char vars[size*NVARS];
+        memset(vars, 0, size*NVARS);
+        for (int i=0; i<NVARS; i++)
+          sprintf(vars+size*i,"%s",(colours[i%16]).c_str());
+        status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
+      }
+      assert(status == DB_SUCCESS);
+
+      /////////////////////////////////////////////////////
+      // Setup time scale and range:
+      /////////////////////////////////////////////////////
+      sprintf(path,"/History/Display/msysmon/%s-Temperature/Timescale",equipment[0].info.frontend_host);
+      status = db_set_value(hDB,0,path,"1h",3,1,TID_STRING);
+      float *m=new float();
+      *m=0.;
+      sprintf(path,"/History/Display/msysmon/%s-Temperature/Minimum",equipment[0].info.frontend_host);
+      status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
+      *m=100.;
+      sprintf(path,"/History/Display/msysmon/%s-Temperature/Maximum",equipment[0].info.frontend_host);
+      status = db_set_value(hDB,0,path,m,sizeof(float),1,TID_FLOAT);
+      delete m;
+    }
+    
+    char* ReadAndLogSensors(char* pevent)
+    {
+      //If sensors_init failed, do nothing
+      if (status!=0)
+        return pevent;
+
+      double* v;
+
+      if (Temperatures.size())
+      {
+        bk_create(pevent, "TEMP", TID_DOUBLE, (void**)&v);
+        for ( MySensor* s: Temperatures)
+        {
+          *v = s->GetValue();
+          v++;
+        }
+        bk_close(pevent,v);
+      }
+      if (Fans.size())
+      {
+        bk_create(pevent, "FANS", TID_DOUBLE, (void**)&v);
+        for ( MySensor* s: Fans)
+        {
+          *v = s->GetValue();
+          v++;
+        }
+        bk_close(pevent,v);
+      }
+      return pevent;
+    }
+    
+};
+
+LM_Sensors* sensors = NULL;
+#endif
+
+
 /********************************************************************\
               Callback routines for system transitions
 
@@ -456,6 +644,7 @@ void BuildHostCPUPlot()
    {
       char vars[size*NVARS];
       memset(vars, 0, size*NVARS);
+#ifdef CLASSIC_CPU_VARS
       for (int i=0; i<cpuCount; i++)
       {
          int icpu=i+1;
@@ -474,6 +663,12 @@ void BuildHostCPUPlot()
             exit(FE_ERR_HW);
          }
       }
+#else
+      for (int i=0; i<cpuCount; i++)
+      {
+         sprintf(vars+size*i,"%s:CPUA[%d]",equipment[0].name,i);
+      }
+#endif
       status = db_set_value(hDB, 0, path,  vars, size*NVARS, NVARS, TID_STRING);
    }
    assert(status == DB_SUCCESS);
@@ -725,14 +920,24 @@ INT frontend_init()
    BuildHostHistoryPlot();
    BuildHostCPUPlot();
    BuildHostNetPlot();
+
 #ifdef HAVE_NVIDIA
    BuildHostGPUPlot();
    InitGPU();
 #endif
+
+#ifdef HAVE_LM_SENSORS
+   if (!sensors)
+      sensors= new LM_Sensors();
+   sensors->BuildHostTemperaturePlot();
+
+#endif
+
 #ifdef RPC_JRPC
    status = cm_register_function(RPC_JRPC, rpc_callback);
    assert(status == SUCCESS);
 #endif
+
    return SUCCESS;
 }
 
@@ -877,6 +1082,7 @@ INT interrupt_configure(INT cmd, INT source, PTYPE adr)
       }
    return SUCCESS;
 }
+
 void ReadCPUData()
 {
    //Largely from htop: https://github.com/hishamhm/htop (GNU licence)
@@ -1121,12 +1327,13 @@ int read_system_load(char *pevent, int off)
 {
    bk_init32(pevent);
 
-
    ReadCPUData();
 
    ReadNetData();
 
    //Calculate load:
+   // The classic layout of CPU variables would be to log a bank for 4 doubles for each CPU core. This will not scale with very high core counts in the future
+#ifdef CLASSIC_CPU_VARS
    double CPULoadTotal[4]; //nice, user, system, total
    for (int j=0; j<4; j++)
       CPULoadTotal[j]=0;
@@ -1174,7 +1381,74 @@ int read_system_load(char *pevent, int off)
       bk_close(pevent,a);
    
    }
+#else
+   //Instead of the 'Classic' variables. Log 4 banks with N doubles, where N is the number of CPUs
+   double CPUN[cpuCount]; // % nice time
+   double CPUU[cpuCount]; // % user time
+   double CPUS[cpuCount]; // % system time
+   double CPUA[cpuCount]; // % total CPU time
+   for (int i = 0; i <= cpuCount; i++) {
+      CPUData* cpuData = (cpus[i]);
+      double total = (double) ( cpuData->totalPeriod == 0 ? 1 : cpuData->totalPeriod);
+      CPUN[i] = cpuData->nicePeriod / total * 100.0;
+      CPUU[i] = cpuData->userPeriod / total * 100.0;
+      CPUS[i] = cpuData->systemPeriod / total * 100.0;
+      CPUA[i] = CPUN[i]+CPUU[i]+CPUS[i];
+   }
+   double* c;
+   bk_create(pevent, "CPUN", TID_DOUBLE, (void**)&c);
+   for (int k=0; k<cpuCount; k++)
+   {
+      *c=CPUN[k];
+      c++;
+   }
+   bk_close(pevent,c);
+   bk_create(pevent, "CPUU", TID_DOUBLE, (void**)&c);
+   for (int k=0; k<cpuCount; k++)
+   {
+      *c=CPUU[k];
+      c++;
+   }
+   bk_close(pevent,c);
    
+   bk_create(pevent, "CPUS", TID_DOUBLE, (void**)&c);
+   for (int k=0; k<cpuCount; k++)
+   {
+      *c=CPUS[k];
+      c++;
+   }
+   bk_close(pevent,c);
+   
+   bk_create(pevent, "CPUA", TID_DOUBLE, (void**)&c);
+   for (int k=0; k<cpuCount; k++)
+   {
+      *c=CPUA[k];
+      c++;
+   }
+   bk_close(pevent,c);
+   double TotalLoad[4]={0};
+   for (int k=0; k<cpuCount; k++)
+   {
+      TotalLoad[0]+=CPUN[k];
+      TotalLoad[1]+=CPUU[k];
+      TotalLoad[2]+=CPUS[k];
+      TotalLoad[3]+=CPUA[k];
+   }
+   bk_create(pevent, "LOAD", TID_DOUBLE, (void**)&c);
+   for (int k=0; k<4; k++)
+   {
+      *c=TotalLoad[k]/(double)cpuCount;
+      c++;
+   }
+   bk_close(pevent,c);
+#endif
+
+
+//Read and log system temperatures
+#ifdef HAVE_LM_SENSORS
+   pevent = sensors->ReadAndLogSensors(pevent);
+#endif
+
    double DataRecieve;
    double DataTransmit;
 

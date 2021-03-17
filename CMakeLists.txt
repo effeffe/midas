@@ -268,21 +268,37 @@ if (NOT NO_NVIDIA)
    set(NO_NVIDIA 0 CACHE PATH "")
 endif()
 if (NO_NVIDIA)
-   message(STATUS "MIDAS: NVIDIA GPU support is disabled via NO_NVIDIA")
+   message(STATUS "MIDAS (msysmon): NVIDIA GPU support is disabled via NO_NVIDIA")
 else (NO_NVIDIA)
   if (EXISTS /usr/local/cuda/include)
     execute_process(COMMAND nvidia-smi -L COMMAND wc -l OUTPUT_VARIABLE HAVE_NVIDIA)
     if (HAVE_NVIDIA)
-       message(STATUS "MIDAS: Found nvidia-smi. Number of GPUs detected: " ${HAVE_NVIDIA} )
+       message(STATUS "MIDAS (msysmon): Found nvidia-smi. Number of GPUs detected: " ${HAVE_NVIDIA} )
        set(NVIDIA_INC /usr/local/cuda/include)
        set(NVIDIA_LIBS -L/usr/local/cuda/lib64 -lnvidia-ml)
     else (HAVE_NVIDIA)
-       message(STATUS "MIDAS: nvidia-smi not found")
+       message(STATUS "MIDAS (msysmon): nvidia-smi not found")
     endif(HAVE_NVIDIA)
   else()
-    message(STATUS "MIDAS: NVIDIA CUDA libs not found")
+    message(STATUS "MIDAS (msysmon): NVIDIA CUDA libs not found")
   endif()
 endif(NO_NVIDIA)
+
+#
+# Optional lm-sensors support (used msysmon)
+#
+
+if (NO_SENSORS)
+  message(STATUS "MIDAS (msysmon): LM_SENSORS disabled")
+else()
+  find_library(libsensors sensors REQUIRED) #Requires libsesnsors-dev
+  if(libsensors STREQUAL "libsensors-NOTFOUND")
+    message(STATUS "MIDAS (msysmon): LM_SENSORS libs not found")
+  else()
+    message(STATUS "MIDAS (msysmon): Found LM_SENSORS ")
+    set(HAVE_LM_SENSORS TRUE)
+  endif()
+endif(NO_SENSORS)
 
 #-----------------------
 # Default build type
