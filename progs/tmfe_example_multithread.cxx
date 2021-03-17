@@ -18,8 +18,8 @@ class Myfe :
    public TMFeEquipment
 {
 public:
-   Myfe(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
-      : TMFeEquipment(eqname, eqfilename, eqinfo)
+   Myfe(const char* eqname, const char* eqfilename) // ctor
+      : TMFeEquipment(eqname, eqfilename)
    {
    }
 
@@ -113,13 +113,12 @@ int main(int argc, char* argv[])
 
    //mfe->SetWatchdogSec(0);
 
-   TMFeEqInfo *info = new TMFeEqInfo();
-   info->EventID = 1;
-   info->LogHistory = 1;
-   info->Period = 1000; // milliseconds
-   //info->Buffer = "SYSTEM";
-   
-   TMFeEquipment* eq = new Myfe("tmfe_example_mt", __FILE__, info);
+   TMFeEquipment* eq = new Myfe("tmfe_example_mt", __FILE__);
+   eq->fEqConfEventID = 1;
+   eq->fEqConfLogHistory = 1;
+   eq->fEqConfPeriodMilliSec = 1000; // milliseconds
+   eq->fEqConfBuffer = "SYSTEM";
+
    eq->EqInit(eq_args);
    eq->EqSetStatus("Starting...", "white");
 

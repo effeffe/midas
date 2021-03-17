@@ -106,38 +106,6 @@ inline TMFeResult TMFeOk() { return TMFeResult(); }
 TMFeResult TMFeErrorMessage(const std::string& message);
 TMFeResult TMFeMidasError(const std::string& message, const char* midas_function_name, int midas_status);
 
-// Equipment configuration, corresponds to EQUIPMENT_INFO and ODB /Equipement/NAME/Common
-
-struct TMFeEqInfo
-{
-   uint16_t EventID = 1;
-   uint16_t TriggerMask = 0;
-   std::string Buffer = "SYSTEM";
-   int Type = 0;
-   int Source = 0;
-   std::string Format = "MIDAS";
-   bool Enabled = true;
-   int ReadOn = 0;
-   int Period = 1000;
-   double EventLimit = 0;
-   uint32_t NumSubEvents = 0;
-   int LogHistory = 0;
-   std::string FrontendHost;
-   std::string FrontendName;
-   std::string FrontendFileName;
-   std::string Status;
-   std::string StatusColor;
-   bool Hidden = false;
-   int WriteCacheSize = 100000;
-
-   bool ReadOnlyWhenRunning = true; // RO_RUNNING
-   bool WriteEventsToOdb = false; // RO_ODB
-   double PeriodStatisticsSec = 1.0; // statistics update period
-   double PollSleepSec = 0.000100; // shortest sleep for linux is 50-6-70 microseconds
-
-   bool ReadEqInfoFromOdb = true; // read equipment common from ODB
-};
-
 class TMFE;
 class MVOdb;
 
@@ -145,15 +113,49 @@ class TMFeEquipment
 {
 public: // general configuration, should not be changed by user
    std::string fEqName;
-   TMFeEqInfo *fEqInfo = NULL;
-   TMFE* fMfe = NULL;
    std::string fEqFilename;
-   std::mutex  fEqMutex;
+
+public: // ODB Common configuration
+
+   bool        fEqConfReadConfigFromOdb = true; // read equipment common from ODB
+
+   bool        fEqConfEnabled        = true;
+   uint16_t    fEqConfEventID        = 1;
+   uint16_t    fEqConfTriggerMask    = 0;
+   std::string fEqConfBuffer         = "SYSTEM";
+   int         fEqConfType           = 0; // not used
+   int         fEqConfSource         = 0; // not used
+   std::string fEqConfFormat         = "MIDAS"; // TBI
+   int         fEqConfReadOn         = 0;
+   int         fEqConfPeriodMilliSec = 1000;
+   double      fEqConfEventLimit     = 0;
+   uint32_t    fEqConfNumSubEvents   = 0; // not used
+   int         fEqConfLogHistory     = 0;
+   bool        fEqConfHidden         = false;
+   int         fEqConfWriteCacheSize = 100000;
+   //std::string FrontendHost;
+   //std::string FrontendName;
+   //std::string FrontendFileName;
+   //std::string Status;
+   //std::string StatusColor;
+
+public: // configuration not stored in ODB
+
+   bool   fEqConfReadOnlyWhenRunning = true; // RO_RUNNING
+   bool   fEqConfWriteEventsToOdb = false; // RO_ODB
+   double fEqConfPeriodStatisticsSec = 1.0; // period for updating ODB statistics
+   double fEqConfPollSleepSec = 0.000100; // shortest sleep for linux is 50-6-70 microseconds
+
+public: // pointer to the TMFE singleton
+   TMFE* fMfe = NULL;
 
 public: // handlers
    bool fEqEnableRpc = false;
    bool fEqEnablePeriodic = false;
    bool fEqEnablePoll = false;
+
+public: // multithread lock
+   std::mutex  fEqMutex;
 
 public: // conection to event buffer
    size_t fEqBufferSize = 0;
@@ -193,13 +195,13 @@ public: // poll scheduler
    bool fEqPollThreadShutdownRequested = false;
 
 public: // contructors and initialization. not thread-safe.
-   TMFeEquipment(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo); // ctor
+   TMFeEquipment(const char* eqname, const char* eqfilename); // ctor
    virtual ~TMFeEquipment(); // dtor
    TMFeResult EqInit(const std::vector<std::string>& args); ///< Initialize equipment
    TMFeResult EqPreInit(); ///< Initialize equipment, before EquipmentBase::Init()
    TMFeResult EqPostInit(); ///< Initialize equipment, after EquipmentBase::Init()
    TMFeResult EqReadCommon(); ///< Read TMFeEqInfo from ODB /Equipment/NAME/Common
-   TMFeResult EqWriteCommon(); ///< Write TMFeEqInfo to ODB /Equipment/NAME/Common
+   TMFeResult EqWriteCommon(bool create=false); ///< Write TMFeEqInfo to ODB /Equipment/NAME/Common
 
 private: // default ctor is not permitted
    TMFeEquipment() {}; // ctor

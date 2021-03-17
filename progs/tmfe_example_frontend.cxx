@@ -94,20 +94,20 @@ class EqTrigger :
    public TMFeEquipment
 {
 public:
-   EqTrigger(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
-      : TMFeEquipment(eqname, eqfilename, eqinfo)
+   EqTrigger(const char* eqname, const char* eqfilename) // ctor
+      : TMFeEquipment(eqname, eqfilename)
    {
       /* configure your equipment here */
       
-      fEqInfo->ReadEqInfoFromOdb = false;
-      fEqInfo->EventID = 1;
-      fEqInfo->Buffer = "SYSTEM";
-      fEqInfo->Period = 0; // in milliseconds
-      fEqInfo->LogHistory = 0;
-      fEqInfo->ReadOnlyWhenRunning = true;
-      fEqInfo->WriteEventsToOdb = true;
-      //fEqInfo->PollSleepSec = 0; // poll sleep time set to zero create a "100% CPU busy" polling loop
-      fEqInfo->PollSleepSec = 0.010; // limit event rate to 100 Hz. In a real experiment remove this line
+      fEqConfReadConfigFromOdb = false;
+      fEqConfEventID = 1;
+      fEqConfBuffer = "SYSTEM";
+      fEqConfPeriodMilliSec = 0; // in milliseconds
+      fEqConfLogHistory = 0;
+      fEqConfReadOnlyWhenRunning = true;
+      fEqConfWriteEventsToOdb = true;
+      //fEqConfPollSleepSec = 0; // poll sleep time set to zero create a "100% CPU busy" polling loop
+      fEqConfPollSleepSec = 0.010; // limit event rate to 100 Hz. In a real experiment remove this line
    }
 
    ~EqTrigger() // dtor
@@ -123,7 +123,7 @@ public:
    {
       /* put any hardware initialization here */
 
-      fEqInfo->Enabled = false;
+      fEqConfEnabled = false;
       
       /* return TMFeErrorMessage("my error message") if frontend should not be started */
       return TMFeOk();
@@ -180,24 +180,24 @@ public:
    }
 };
 
-static TMFeRegister eq_trigger_register("Sample Frontend", new EqTrigger("Trigger", __FILE__, NULL), true, false, true);
+static TMFeRegister eq_trigger_register("Sample Frontend", new EqTrigger("Trigger", __FILE__), true, false, true);
 
 class EqPeriodic :
    public TMFeEquipment
 {
 public:
-   EqPeriodic(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
-      : TMFeEquipment(eqname, eqfilename, eqinfo)
+   EqPeriodic(const char* eqname, const char* eqfilename) // ctor
+      : TMFeEquipment(eqname, eqfilename)
    {
       /* configure your equipment here */
 
-      fEqInfo->ReadEqInfoFromOdb = false;
-      fEqInfo->EventID = 2;
-      fEqInfo->Buffer = "SYSTEM";
-      fEqInfo->Period = 1000; // in milliseconds
-      fEqInfo->LogHistory = 1;
-      fEqInfo->ReadOnlyWhenRunning = true;
-      fEqInfo->WriteEventsToOdb = true;
+      fEqConfReadConfigFromOdb = false;
+      fEqConfEventID = 2;
+      fEqConfBuffer = "SYSTEM";
+      fEqConfPeriodMilliSec = 1000; // in milliseconds
+      fEqConfLogHistory = 1;
+      fEqConfReadOnlyWhenRunning = true;
+      fEqConfWriteEventsToOdb = true;
    }
 
    void HandlePeriodic()
@@ -220,7 +220,7 @@ public:
    }
 };
 
-static TMFeRegister eq_periodic_register("Sample Frontend", new EqPeriodic("Periodic", __FILE__, NULL), true, true, false);
+static TMFeRegister eq_periodic_register("Sample Frontend", new EqPeriodic("Periodic", __FILE__), true, true, false);
 
 static class EqEverythingHooks: public TMFeHooksInterface
 {

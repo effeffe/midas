@@ -37,35 +37,36 @@ TBW
 
 ### Equipment configuration and ODB Common
 
-Frontend equipment (TMFeEquipment) is configured by the equipment info (TMFeEqInfo) object. Most data members
-directly corresponds to entries in ODB /Equipment/EQNAME/Common:
+Frontend equipment (TMFeEquipment) is configured by fEqConfFoo data members. Many of them correspond to
+entries in ODB /Equipment/EQNAME/Common:
 
-* Enabled - if set to "false", equipment is disabled, user handlers are not called
-* Hidden - if set to "true", do not display this equipment on the midas status page. used by mhttpd, status.html & co
-* Event ID - value used to create all new events for this equipment
-* Trigger Mask - ditto
-* Buffer - send all events into this event buffer. used only in PostInit()
+* Enabled - fEqConfEnabled - if set to "false", equipment is disabled, user handlers are not called
+* Hidden - fEqConfHidden - if set to "true", do not display this equipment on the midas status page. used by mhttpd, status.html & co
+* Event ID - fEqConfEventId - value used to create all new events for this equipment
+* Trigger Mask - fEqConfTriggerMask - ditto
+* Buffer - fEqConfBuffer - send all events into this event buffer. used only in PostInit()
 * Type - not used
 * Source - not used
-* Format  - TBI
+* Format  - fEqConfFormat - TBI
 * Read On - see bits RO_RUNNING and RO_ODB below
-* Period - in milliseconds, period for calling the periodic handler.
-* Event Limit - stop run after sending this many events. If "/logger/auto restart" is "true", a new run will be started after waiting for "/logger/auto restart delay" seconds.
+* Period - fEqConfPeriodMilliSec - in milliseconds, period for calling the periodic handler.
+* Event Limit - fEqConfEventLimit - stop run after sending this many events. If "/logger/auto restart" is "true", a new run will be started after waiting for "/logger/auto restart delay" seconds.
 * Num subevents - not used
-* Log History - control writing equipment variables to history: 0=disable history, 1=write as often as possible, other value=write with this interval, in seconds. used by mlogger.
-* Frontend host - hostname where frontend is running
-* Frontend name - midas client name of frontend
-* Frontend file name - file name of the equipment source file (usually __FILE__)
+* Log History - fEqConfLogHistory - control writing equipment variables to history: 0=disable history, 1=write as often as possible, other value=write with this interval, in seconds. used by mlogger.
+* Frontend host - fMfe->fFrontendHostname - hostname where frontend is running
+* Frontend name - fMfe->fFrontendName - midas client name of frontend
+* Frontend file name - fEqFilename - file name of the equipment source file (usually __FILE__)
 * Status - equipment status shown on the midas status page. used by mhttpd, status.html & co
 * Status color - ditto
-* Write cache size - TBI
+* Write cache size - fEqConfWriteCacheSize - TBI
 
-Some equipment info data members do not have direct equivalents in ODB Common:
+Some equipment configuration has no ODB Common equivalents:
 
-* bool ReadEqInfoFromOdb - true: equipment is always configured using values from ODB, false: values specified by in the program always overwrite values in ODB, except for "Common/Enabled"
-* bool ReadOnlyWhenRunning - read equipment only when a run is running (stored in "Common/Read on" bits RO_RUNNING|RO_PAUSED|RO_STOPPED)
-* bool WriteEventsToOdb - write events sent by this equipment to ODB, if history is enabled, mlogger writes them to the history (stored in "Common/Read on" bit RO_ODB)
-* double PeriodStatisticsSec - period in seconds for updating /Equipment/EQNAME/Statistics
+* bool fEqConfReadConfigFromOdb - true: equipment is always configured using values from ODB, false: values specified by in the program always overwrite values in ODB, except for "Common/Enabled" and "Common/Event limit"
+* bool fEqConfReadOnlyWhenRunning - read equipment only when a run is running (stored in "Common/Read on" bits RO_RUNNING|RO_PAUSED|RO_STOPPED)
+* bool fEqConfWriteEventsToOdb - write events sent by this equipment to ODB, if history is enabled, mlogger writes them to the history (stored in "Common/Read on" bit RO_ODB)
+* double fEqConfPeriodStatisticsSec - period in seconds for updating /Equipment/EQNAME/Statistics
+* double fEqConfPollSleepPeriodSec - short sleep in the poll loop. default is 100 usec. shortest sleep in linux is 50-60 usec. set to 0 for 100% CPU-busy poll loop.
 
 The initial equipment info object is created and initialized by the user, see example at struct EqInfoEverything in tmfe_example_everything.cxx.
 

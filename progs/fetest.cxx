@@ -21,28 +21,25 @@
 #include <string> // std::string
 #include <thread> // std::thread
 
-/*-- Equipment list ------------------------------------------------*/
-
-#if 0
-#define EVID_TEST 1
-#define EVID_SLOW 2
-#define EVID_RANDOM 3
-#endif
-
 class EqRandom :
    public TMFeEquipment
 {
 public:
-   EqRandom(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
-      : TMFeEquipment(eqname, eqfilename, eqinfo)
+   EqRandom(const char* eqname, const char* eqfilename) // ctor
+      : TMFeEquipment(eqname, eqfilename)
    {
+      fEqConfEventID = 2;
+      fEqConfPeriodMilliSec = 1000;
+      fEqConfLogHistory = 0;
+      fEqConfWriteEventsToOdb = true;
+      fEqConfReadOnlyWhenRunning = true;
    }
    
    TMFeResult HandleInit(const std::vector<std::string>& args)
    {
-      fEqInfo->ReadOnlyWhenRunning = true;
-      fEqInfo->WriteEventsToOdb = true;
-      fEqInfo->LogHistory = 0;
+      fEqConfReadOnlyWhenRunning = true;
+      fEqConfWriteEventsToOdb = true;
+      fEqConfLogHistory = 0;
       return TMFeOk();
    }
    
@@ -114,30 +111,26 @@ public:
 
 };
 
-struct EqInfoRandom: TMFeEqInfo { EqInfoRandom() {
-   EventID = 2;
-   Period = 1000;
-   LogHistory = 0;
-   WriteEventsToOdb = true;
-   ReadOnlyWhenRunning = true;
-} };
-
-static TMFeRegister eq_random_register("fetest", new EqRandom("test_random", __FILE__, new EqInfoRandom), false, true, false);
+static TMFeRegister eq_random_register("fetest", new EqRandom("test_random", __FILE__), false, true, false);
 
 class EqSlow :
    public TMFeEquipment
 {
 public:
-   EqSlow(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
-      : TMFeEquipment(eqname, eqfilename, eqinfo)
+   EqSlow(const char* eqname, const char* eqfilename) // ctor
+      : TMFeEquipment(eqname, eqfilename)
    {
+      fEqConfEventID = 3;
+      fEqConfPeriodMilliSec = 1000;
+      fEqConfLogHistory = 1;
+      fEqConfWriteEventsToOdb = true;
    }
 
    TMFeResult HandleInit(const std::vector<std::string>& args)
    {
-      fEqInfo->ReadOnlyWhenRunning = false;
-      fEqInfo->WriteEventsToOdb = true;
-      //fEqInfo->LogHistory = 1;
+      fEqConfReadOnlyWhenRunning = false;
+      fEqConfWriteEventsToOdb = true;
+      //fEqConfLogHistory = 1;
       return TMFeOk();
    }
    
@@ -186,14 +179,7 @@ public:
 #endif
 };
 
-struct EqInfoSlow: TMFeEqInfo { EqInfoSlow() {
-   EventID = 3;
-   Period = 1000;
-   LogHistory = 1;
-   WriteEventsToOdb = true;
-} };
-
-static TMFeRegister eq_slow_register("fetest", new EqSlow("test_slow", __FILE__, new EqInfoSlow), false, true, false);
+static TMFeRegister eq_slow_register("fetest", new EqSlow("test_slow", __FILE__), false, true, false);
 
 class EqBulk :
    public TMFeEquipment
@@ -207,9 +193,12 @@ public: // internal state
    bool fThreadRunning = false;
    
 public:
-   EqBulk(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
-      : TMFeEquipment(eqname, eqfilename, eqinfo)
+   EqBulk(const char* eqname, const char* eqfilename) // ctor
+      : TMFeEquipment(eqname, eqfilename)
    {
+      fEqConfPeriodMilliSec = 1000;
+      fEqConfEventID = 3;
+      fEqConfReadOnlyWhenRunning = true;
    }
 
    ~EqBulk() // dtor
@@ -224,8 +213,8 @@ public:
    {
       EqSetStatus("Starting...", "white");
 
-      fEqInfo->ReadOnlyWhenRunning = true;
-      fEqInfo->WriteEventsToOdb = false;
+      fEqConfReadOnlyWhenRunning = true;
+      fEqConfWriteEventsToOdb = false;
 
       fOdbEqSettings->RI("event_size", &fEventSize, true);
       fOdbEqSettings->RD("event_sleep_sec", &fEventSleep, true);
@@ -266,7 +255,7 @@ public:
 
       fThreadRunning = true;
       while (!fMfe->fShutdownRequested) {
-         if (fMfe->fStateRunning || !fEqInfo->ReadOnlyWhenRunning) {
+         if (fMfe->fStateRunning || !fEqConfReadOnlyWhenRunning) {
             fMfe->Sleep(fEventSleep);
             SendEvent();
          } else {
@@ -303,21 +292,16 @@ public:
 #endif
 };
 
-struct EqInfoBulk: TMFeEqInfo { EqInfoBulk() {
-   Period = 1000;
-   EventID = 3;
-   ReadOnlyWhenRunning = true;
-} };
-
-static TMFeRegister eq_bulk_register("fetest", new EqBulk("test_bulk", __FILE__, new EqInfoBulk), false, false, false);
+static TMFeRegister eq_bulk_register("fetest", new EqBulk("test_bulk", __FILE__), false, false, false);
    
 class EqRpc :
    public TMFeEquipment
 {
 public:
-   EqRpc(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
-      : TMFeEquipment(eqname, eqfilename, eqinfo)
+   EqRpc(const char* eqname, const char* eqfilename) // ctor
+      : TMFeEquipment(eqname, eqfilename)
    {
+      fEqConfEventID = 1;
    }
 
    ~EqRpc() // dtor
@@ -326,7 +310,7 @@ public:
 
    TMFeResult HandleInit(const std::vector<std::string>& args)
    {
-      fEqInfo->Buffer = "SYSTEM";
+      fEqConfBuffer = "SYSTEM";
       EqSetStatus("Started...", "white");
       return TMFeOk();
    }
@@ -453,11 +437,7 @@ public:
    }
 };
 
-struct EqInfoRpc: TMFeEqInfo { EqInfoRpc() {
-   EventID = 1;
-} };
-
-static TMFeRegister eq_rpc_register("fetest", new EqRpc("test_rpc", __FILE__, new EqInfoRpc), true, false, false);
+static TMFeRegister eq_rpc_register("fetest", new EqRpc("test_rpc", __FILE__), true, false, false);
 
 /* emacs
  * Local Variables:

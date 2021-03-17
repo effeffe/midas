@@ -176,11 +176,11 @@ void TMFE::EquipmentPeriodicTasks()
          TMFeEquipment* eq = fEquipments[i];
          if (!eq)
             continue;
-         if (!eq->fEqInfo->Enabled)
+         if (!eq->fEqConfEnabled)
             continue;
          if (!eq->fEqEnablePeriodic)
             continue;
-         double period = eq->fEqInfo->Period/1000.0;
+         double period = eq->fEqConfPeriodMilliSec/1000.0;
          //printf("periodic[%d] period %f, last call %f, next call %f (+%f)\n", i, period, h->fLastCallTime, h->fNextCallTime, now - h->fNextCallTime);
          if (period <= 0)
             continue;
@@ -201,7 +201,7 @@ void TMFE::EquipmentPeriodicTasks()
             else if (eq->fEqPeriodicNextCallTime < fNextPeriodic)
                fNextPeriodic = eq->fEqPeriodicNextCallTime;
 
-            if (fStateRunning || !eq->fEqInfo->ReadOnlyWhenRunning) {
+            if (fStateRunning || !eq->fEqConfReadOnlyWhenRunning) {
                //printf("handler %d eq [%s] call HandlePeriodic()\n", i, h->fEq->fName.c_str());                     
                eq->HandlePeriodic();
             }
@@ -221,7 +221,7 @@ void TMFE::EquipmentPeriodicTasks()
    for (auto eq : fEquipments) {
       if (!eq)
          continue;
-      if (!eq->fEqInfo->Enabled)
+      if (!eq->fEqConfEnabled)
          continue;
       if (now > eq->fEqStatNextWrite) {
          eq->EqWriteStatistics();
@@ -239,11 +239,11 @@ double TMFE::EquipmentPollTasks()
       for (auto eq : fEquipments) {
          if (!eq)
             continue;
-         if (!eq->fEqInfo->Enabled)
+         if (!eq->fEqConfEnabled)
             continue;
          if (eq->fEqEnablePoll && !eq->fEqPollThreadRunning && !eq->fEqPollThreadStarting) {
-            if (eq->fEqInfo->PollSleepSec < poll_sleep_sec)
-               poll_sleep_sec = eq->fEqInfo->PollSleepSec;
+            if (eq->fEqConfPollSleepSec < poll_sleep_sec)
+               poll_sleep_sec = eq->fEqConfPollSleepSec;
             bool poll = eq->HandlePoll();
             if (poll) {
                poll_again = true;
@@ -269,8 +269,8 @@ void TMFeEquipment::EqPollThread()
       if (poll) {
          HandleRead();
       } else {
-         if (fEqInfo->PollSleepSec > 0) {
-            TMFE::Sleep(fEqInfo->PollSleepSec);
+         if (fEqConfPollSleepSec > 0) {
+            TMFE::Sleep(fEqConfPollSleepSec);
          }
       }
    }
@@ -697,7 +697,7 @@ static INT rpc_callback(INT index, void *prpc_param[])
       TMFeEquipment* eq = mfe->fEquipments[i];
       if (!eq)
          continue;
-      if (!eq->fEqInfo->Enabled)
+      if (!eq->fEqConfEnabled)
          continue;
       if (!eq->fEqEnableRpc)
          continue;
@@ -728,7 +728,7 @@ static INT tr_start(INT run_number, char *errstr)
       TMFeEquipment* eq = mfe->fEquipments[i];
       if (!eq)
          continue;
-      if (!eq->fEqInfo->Enabled)
+      if (!eq->fEqConfEnabled)
          continue;
       eq->EqZeroStatistics();
       eq->EqWriteStatistics();
@@ -741,7 +741,7 @@ static INT tr_start(INT run_number, char *errstr)
       TMFeEquipment* eq = mfe->fEquipments[i];
       if (!eq)
          continue;
-      if (!eq->fEqInfo->Enabled)
+      if (!eq->fEqConfEnabled)
          continue;
       if (!eq->fEqEnableRpc)
          continue;
@@ -781,7 +781,7 @@ static INT tr_stop(INT run_number, char *errstr)
       TMFeEquipment* eq = mfe->fEquipments[i];
       if (!eq)
          continue;
-      if (!eq->fEqInfo->Enabled)
+      if (!eq->fEqConfEnabled)
          continue;
       if (!eq->fEqEnableRpc)
          continue;
@@ -799,7 +799,7 @@ static INT tr_stop(INT run_number, char *errstr)
       TMFeEquipment* eq = mfe->fEquipments[i];
       if (!eq)
          continue;
-      if (!eq->fEqInfo->Enabled)
+      if (!eq->fEqConfEnabled)
          continue;
       eq->EqWriteStatistics();
    }
@@ -827,7 +827,7 @@ static INT tr_pause(INT run_number, char *errstr)
       TMFeEquipment* eq = mfe->fEquipments[i];
       if (!eq)
          continue;
-      if (!eq->fEqInfo->Enabled)
+      if (!eq->fEqConfEnabled)
          continue;
       if (!eq->fEqEnableRpc)
          continue;
@@ -861,7 +861,7 @@ static INT tr_resume(INT run_number, char *errstr)
       TMFeEquipment* eq = mfe->fEquipments[i];
       if (!eq)
          continue;
-      if (!eq->fEqInfo->Enabled)
+      if (!eq->fEqConfEnabled)
          continue;
       if (!eq->fEqEnableRpc)
          continue;
@@ -895,7 +895,7 @@ static INT tr_startabort(INT run_number, char *errstr)
       TMFeEquipment* eq = mfe->fEquipments[i];
       if (!eq)
          continue;
-      if (!eq->fEqInfo->Enabled)
+      if (!eq->fEqConfEnabled)
          continue;
       if (!eq->fEqEnableRpc)
          continue;
@@ -1010,7 +1010,7 @@ TMFeResult TMFE::InitEquipments(const std::vector<std::string>& args)
    for (unsigned i=0; i<fEquipments.size(); i++) {
       if (!fEquipments[i])
          continue;
-      if (!fEquipments[i]->fEqInfo->Enabled)
+      if (!fEquipments[i]->fEqConfEnabled)
          continue;
       TMFeResult r = fEquipments[i]->EqInit(args);
       if (r.error_flag)
@@ -1108,21 +1108,15 @@ TMFeRegister::TMFeRegister(const char* fename, TMFeEquipment* eq, bool enable_rp
    }
 }
 
-TMFeEquipment::TMFeEquipment(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
+TMFeEquipment::TMFeEquipment(const char* eqname, const char* eqfilename) // ctor
 {
    assert(eqname != NULL);
    assert(eqfilename != NULL);
-   //assert(eqinfo != NULL);
    if (TMFE::gfVerbose)
       printf("TMFeEquipment::ctor: equipment name [%s] file [%s]\n", eqname, eqfilename);
    fMfe = TMFE::Instance();
    fEqName = eqname;
    fEqFilename = eqfilename;
-   if (eqinfo)
-      fEqInfo = eqinfo;
-   else
-      fEqInfo = new TMFeEqInfo;
-
    fEqStatNextWrite = TMFE::GetTime();
 }
 
@@ -1133,12 +1127,8 @@ TMFeEquipment::~TMFeEquipment() // dtor
 
    EqStopPollThread();
 
-   // free the data and poison the pointers
+   // free data and poison pointers
    fMfe = NULL;
-   if (fEqInfo) {
-      delete fEqInfo;
-      fEqInfo = NULL;
-   }
 }
 
 TMFeResult TMFeEquipment::EqInit(const std::vector<std::string>& args)
@@ -1167,78 +1157,80 @@ TMFeResult TMFeEquipment::EqReadCommon()
 
    // list of ODB Common entries always read
 
-   fOdbEqCommon->RB("Enabled", &fEqInfo->Enabled, true);
+   fOdbEqCommon->RB("Enabled", &fEqConfEnabled, true);
+   fOdbEqCommon->RD("Event limit", &fEqConfEventLimit, true);
 
-   if (fEqInfo->ReadEqInfoFromOdb) {
+   if (fEqConfReadConfigFromOdb) {
       // list of ODB Common entries read if we want to control equipment from ODB
 
-      fOdbEqCommon->RU16("Event ID",       &fEqInfo->EventID,        true);
-      fOdbEqCommon->RU16("Trigger mask",   &fEqInfo->TriggerMask,    true);
-      fOdbEqCommon->RS("Buffer",           &fEqInfo->Buffer,         true, NAME_LENGTH);
-      fOdbEqCommon->RI("Type",             &fEqInfo->Type,           true);
-      fOdbEqCommon->RI("Source",           &fEqInfo->Source,         true);
-      fOdbEqCommon->RS("Format",           &fEqInfo->Format,         true, 8);
-      fOdbEqCommon->RI("Read on",          &fEqInfo->ReadOn,         true);
-      fOdbEqCommon->RI("Period",           &fEqInfo->Period,         true);
-      fOdbEqCommon->RD("Event limit",      &fEqInfo->EventLimit,     true);
-      fOdbEqCommon->RU32("Num subevents",  &fEqInfo->NumSubEvents,   true);
-      fOdbEqCommon->RI("Log history",      &fEqInfo->LogHistory,     true);
-      fOdbEqCommon->RB("Hidden",           &fEqInfo->Hidden,         true);
-      fOdbEqCommon->RI("Write cache size", &fEqInfo->WriteCacheSize, true);
+      fOdbEqCommon->RU16("Event ID",       &fEqConfEventID,        true);
+      fOdbEqCommon->RU16("Trigger mask",   &fEqConfTriggerMask,    true);
+      fOdbEqCommon->RS("Buffer",           &fEqConfBuffer,         true, NAME_LENGTH);
+      fOdbEqCommon->RI("Type",             &fEqConfType,           true);
+      fOdbEqCommon->RI("Source",           &fEqConfSource,         true);
+      fOdbEqCommon->RS("Format",           &fEqConfFormat,         true, 8);
+      fOdbEqCommon->RI("Read on",          &fEqConfReadOn,         true);
+      fOdbEqCommon->RI("Period",           &fEqConfPeriodMilliSec, true);
+      fOdbEqCommon->RU32("Num subevents",  &fEqConfNumSubEvents,   true);
+      fOdbEqCommon->RI("Log history",      &fEqConfLogHistory,     true);
+      fOdbEqCommon->RB("Hidden",           &fEqConfHidden,         true);
+      fOdbEqCommon->RI("Write cache size", &fEqConfWriteCacheSize, true);
 
       // decode data from ODB Common
 
-      fEqInfo->ReadOnlyWhenRunning = !(fEqInfo->ReadOn & (RO_PAUSED|RO_STOPPED));
-      fEqInfo->WriteEventsToOdb    = (fEqInfo->ReadOn & RO_ODB);
+      fEqConfReadOnlyWhenRunning = !(fEqConfReadOn & (RO_PAUSED|RO_STOPPED));
+      fEqConfWriteEventsToOdb    = (fEqConfReadOn & RO_ODB);
    }
 
    // list of ODB Common entries we read and write back to ODB, but do not actually use.
 
-   fOdbEqCommon->RS("Frontend host",       &fEqInfo->FrontendHost,     true, NAME_LENGTH);
-   fOdbEqCommon->RS("Frontend name",       &fEqInfo->FrontendName,     true, NAME_LENGTH);
-   fOdbEqCommon->RS("Frontend file name",  &fEqInfo->FrontendFileName, true, 256);
-   fOdbEqCommon->RS("Status",              &fEqInfo->Status,           true, 256);
-   fOdbEqCommon->RS("Status color",        &fEqInfo->StatusColor,      true, NAME_LENGTH);
+   //fOdbEqCommon->RS("Frontend host",       &fEqConfFrontendHost,     true, NAME_LENGTH);
+   //fOdbEqCommon->RS("Frontend name",       &fEqConfFrontendName,     true, NAME_LENGTH);
+   //fOdbEqCommon->RS("Frontend file name",  &fEqConfFrontendFileName, true, 256);
+   //fOdbEqCommon->RS("Status",              &fEqConfStatus,           true, 256);
+   //fOdbEqCommon->RS("Status color",        &fEqConfStatusColor,      true, NAME_LENGTH);
 
    return TMFeOk();
 }
 
-TMFeResult TMFeEquipment::EqWriteCommon()
+TMFeResult TMFeEquipment::EqWriteCommon(bool create)
 {
    if (TMFE::gfVerbose)
       printf("TMFeEquipment::EqWriteCommon: for [%s]\n", fEqName.c_str());
 
    // encode data for ODB Common
 
-   fEqInfo->ReadOn = 0;
-   if (fEqInfo->ReadOnlyWhenRunning)
-      fEqInfo->ReadOn |= (RO_RUNNING);
+   fEqConfReadOn = 0;
+   if (fEqConfReadOnlyWhenRunning)
+      fEqConfReadOn |= (RO_RUNNING);
    else
-      fEqInfo->ReadOn |= (RO_RUNNING|RO_PAUSED|RO_STOPPED);
-   if (fEqInfo->WriteEventsToOdb)
-      fEqInfo->ReadOn |= RO_ODB;
+      fEqConfReadOn |= (RO_RUNNING|RO_PAUSED|RO_STOPPED);
+   if (fEqConfWriteEventsToOdb)
+      fEqConfReadOn |= RO_ODB;
 
    // write to ODB
    
-   fOdbEqCommon->WU16("Event ID",          fEqInfo->EventID);
-   fOdbEqCommon->WU16("Trigger mask",      fEqInfo->TriggerMask);
-   fOdbEqCommon->WS("Buffer",              fEqInfo->Buffer.c_str(), NAME_LENGTH);
-   fOdbEqCommon->WI("Type",                fEqInfo->Type);
-   fOdbEqCommon->WI("Source",              fEqInfo->Source);
-   fOdbEqCommon->WS("Format",              fEqInfo->Format.c_str(), 8);
-   fOdbEqCommon->WB("Enabled",             fEqInfo->Enabled);
-   fOdbEqCommon->WI("Read on",             fEqInfo->ReadOn);
-   fOdbEqCommon->WI("Period",              fEqInfo->Period);
-   fOdbEqCommon->WD("Event limit",         fEqInfo->EventLimit);
-   fOdbEqCommon->WU32("Num subevents",     fEqInfo->NumSubEvents);
-   fOdbEqCommon->WI("Log history",         fEqInfo->LogHistory);
-   fOdbEqCommon->WS("Frontend host",       fEqInfo->FrontendHost.c_str(), NAME_LENGTH);
-   fOdbEqCommon->WS("Frontend name",       fEqInfo->FrontendName.c_str(), NAME_LENGTH);
-   fOdbEqCommon->WS("Frontend file name",  fEqInfo->FrontendFileName.c_str(), 256);
-   fOdbEqCommon->WS("Status",              fEqInfo->Status.c_str(), 256);
-   fOdbEqCommon->WS("Status color",        fEqInfo->StatusColor.c_str(), NAME_LENGTH);
-   fOdbEqCommon->WB("Hidden",              fEqInfo->Hidden);
-   fOdbEqCommon->WI("Write cache size",    fEqInfo->WriteCacheSize);
+   fOdbEqCommon->WU16("Event ID",          fEqConfEventID);
+   fOdbEqCommon->WU16("Trigger mask",      fEqConfTriggerMask);
+   fOdbEqCommon->WS("Buffer",              fEqConfBuffer.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WI("Type",                fEqConfType);
+   fOdbEqCommon->WI("Source",              fEqConfSource);
+   fOdbEqCommon->WS("Format",              fEqConfFormat.c_str(), 8);
+   fOdbEqCommon->WB("Enabled",             fEqConfEnabled);
+   fOdbEqCommon->WI("Read on",             fEqConfReadOn);
+   fOdbEqCommon->WI("Period",              fEqConfPeriodMilliSec);
+   fOdbEqCommon->WD("Event limit",         fEqConfEventLimit);
+   fOdbEqCommon->WU32("Num subevents",     fEqConfNumSubEvents);
+   fOdbEqCommon->WI("Log history",         fEqConfLogHistory);
+   fOdbEqCommon->WS("Frontend host",       fMfe->fFrontendHostname.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WS("Frontend name",       fMfe->fFrontendName.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WS("Frontend file name",  fEqFilename.c_str(), 256);
+   if (create) {
+      fOdbEqCommon->WS("Status",           "", 256);
+      fOdbEqCommon->WS("Status color",     "", NAME_LENGTH);
+   }
+   fOdbEqCommon->WB("Hidden",              fEqConfHidden);
+   fOdbEqCommon->WI("Write cache size",    fEqConfWriteCacheSize);
    return TMFeOk();
 }
 
@@ -1257,7 +1249,7 @@ TMFeResult TMFeEquipment::EqPreInit()
       if (TMFE::gfVerbose)
          printf("TMFeEquipment::PreInit: creating ODB common\n");
       fOdbEqCommon  = fOdbEq->Chdir("Common", true);
-      EqWriteCommon();
+      EqWriteCommon(true);
    }
    fOdbEqSettings   = fOdbEq->Chdir("Settings", true);
    fOdbEqVariables  = fOdbEq->Chdir("Variables", true);
@@ -1268,25 +1260,10 @@ TMFeResult TMFeEquipment::EqPreInit()
    if (r.error_flag)
       return r;
 
-   fEqInfo->FrontendHost = fMfe->fFrontendHostname;
-   fEqInfo->FrontendName = fMfe->fFrontendName;
-   if (!fEqFilename.empty()) {
-      fEqInfo->FrontendFileName = fEqFilename;
+   if (rpc_is_remote()) {
+      EqSetStatus((fMfe->fFrontendName + "@" + fMfe->fFrontendHostname).c_str(), "greenLight");
    } else {
-      fEqInfo->FrontendFileName = fMfe->fFrontendFilename;
-   }
-
-   if (fEqInfo->Enabled) {
-      fEqInfo->Status = "";
-      fEqInfo->Status += fMfe->fFrontendName;
-      if (rpc_is_remote()) {
-         fEqInfo->Status += "@";
-         fEqInfo->Status += fMfe->fFrontendHostname;
-      }
-      fEqInfo->StatusColor = "greenLight";
-   } else {
-      fEqInfo->Status = "Disabled";
-      fEqInfo->StatusColor = "yellowLight";
+      EqSetStatus(fMfe->fFrontendName.c_str(), "greenLight");
    }
 
    EqZeroStatistics();
@@ -1300,6 +1277,10 @@ TMFeResult TMFeEquipment::EqPostInit()
    if (TMFE::gfVerbose)
       printf("TMFeEquipment::EqPostInit: for [%s]\n", fEqName.c_str());
 
+   if (!fEqConfEnabled) {
+      EqSetStatus("Disabled", "yellowLight");
+   }
+
    // open event buffer
    
    uint32_t odb_max_event_size = DEFAULT_MAX_EVENT_SIZE;
@@ -1307,15 +1288,15 @@ TMFeResult TMFeEquipment::EqPostInit()
 
    fEqMaxEventSize = odb_max_event_size;
 
-   if (fEqInfo->Buffer.length() > 0) {
-      int status = bm_open_buffer(fEqInfo->Buffer.c_str(), DEFAULT_BUFFER_SIZE, &fEqBufferHandle);
+   if (!fEqConfBuffer.empty()) {
+      int status = bm_open_buffer(fEqConfBuffer.c_str(), DEFAULT_BUFFER_SIZE, &fEqBufferHandle);
 
       if (status != BM_SUCCESS && status != BM_CREATED) {
-         return TMFeMidasError(msprintf("Cannot open event buffer \"%s\"", fEqInfo->Buffer.c_str()), "bm_open_buffer", status);
+         return TMFeMidasError(msprintf("Cannot open event buffer \"%s\"", fEqConfBuffer.c_str()), "bm_open_buffer", status);
       }
 
       uint32_t buffer_size = 0;
-      fMfe->fOdbRoot->RU32(std::string("Experiment/Buffer Sizes/" + fEqInfo->Buffer).c_str(), &buffer_size);
+      fMfe->fOdbRoot->RU32(std::string("Experiment/Buffer Sizes/" + fEqConfBuffer).c_str(), &buffer_size);
 
       if (buffer_size > 0) {
          fEqBufferSize = buffer_size;
@@ -1332,7 +1313,7 @@ TMFeResult TMFeEquipment::EqPostInit()
    }
 
    if (TMFE::gfVerbose)
-      printf("TMFeEquipment::EqPostInit: Equipment \"%s\", max event size: %d, max event size in ODB: %d, event buffer \"%s\" size: %d\n", fEqName.c_str(), (int)fEqMaxEventSize, (int)odb_max_event_size, fEqInfo->Buffer.c_str(), (int)fEqBufferSize);
+      printf("TMFeEquipment::EqPostInit: Equipment \"%s\", max event size: %d, max event size in ODB: %d, event buffer \"%s\" size: %d\n", fEqName.c_str(), (int)fEqMaxEventSize, (int)odb_max_event_size, fEqConfBuffer.c_str(), (int)fEqBufferSize);
 
    // update ODB common
 
@@ -1392,14 +1373,14 @@ TMFeResult TMFeEquipment::EqWriteStatistics()
 
    fEqStatLastWrite = now;
 
-   if (fEqInfo->PeriodStatisticsSec > 0) {
+   if (fEqConfPeriodStatisticsSec > 0) {
       // avoid creap of NextWrite: we start it at
       // time of initialization, then increment it strictly
       // by the period value, regardless of when it is actually
       // written to ODB (actual period is longer than requested
       // period because we only over-sleep, never under-sleep). K.O.
       while (fEqStatNextWrite <= now) {
-         fEqStatNextWrite += fEqInfo->PeriodStatisticsSec;
+         fEqStatNextWrite += fEqConfPeriodStatisticsSec;
       }
    } else {
       fEqStatNextWrite = now;
@@ -1413,8 +1394,8 @@ TMFeResult TMFeEquipment::EqWriteStatistics()
 TMFeResult TMFeEquipment::ComposeEvent(char* event, size_t size) const
 {
    EVENT_HEADER* pevent = (EVENT_HEADER*)event;
-   pevent->event_id = fEqInfo->EventID;
-   pevent->trigger_mask = fEqInfo->TriggerMask;
+   pevent->event_id = fEqConfEventID;
+   pevent->trigger_mask = fEqConfTriggerMask;
    pevent->serial_number = fEqSerial;
    pevent->time_stamp = TMFE::GetTime();
    pevent->data_size = 0;
@@ -1446,17 +1427,17 @@ TMFeResult TMFeEquipment::EqSendEvent(const char* event)
    fEqStatEvents += 1;
    fEqStatBytes  += sizeof(EVENT_HEADER) + pevent->data_size;
 
-   if (fEqInfo->WriteEventsToOdb) {
+   if (fEqConfWriteEventsToOdb) {
       TMFeResult r = EqWriteEventToOdb_locked(event);
       if (r.error_flag)
          return r;
    }
 
    if (fMfe->fStateRunning) {
-      if (fEqInfo->EventLimit > 0) {
-         if (fEqStatEvents >= fEqInfo->EventLimit) {
+      if (fEqConfEventLimit > 0) {
+         if (fEqStatEvents >= fEqConfEventLimit) {
             if (!fMfe->fRunStopRequested) {
-               fMfe->Msg(MINFO, "TMFeEquipment::EqSendEvent", "Equipment \"%s\" sent %.0f events out of %.0f requested, run will stop now", fEqName.c_str(), fEqStatEvents, fEqInfo->EventLimit);
+               fMfe->Msg(MINFO, "TMFeEquipment::EqSendEvent", "Equipment \"%s\" sent %.0f events out of %.0f requested, run will stop now", fEqName.c_str(), fEqStatEvents, fEqConfEventLimit);
             }
             fMfe->fRunStopRequested = true;
          }

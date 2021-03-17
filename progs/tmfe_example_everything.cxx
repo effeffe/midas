@@ -18,19 +18,19 @@ class EqEverything :
    public TMFeEquipment
 {
 public:
-   EqEverything(const char* eqname, const char* eqfilename, TMFeEqInfo* eqinfo) // ctor
-      : TMFeEquipment(eqname, eqfilename, eqinfo)
+   EqEverything(const char* eqname, const char* eqfilename) // ctor
+      : TMFeEquipment(eqname, eqfilename)
    {
       printf("EqEverything::ctor!\n");
 
       // configure the equipment here:
       
-      //fEqInfo->ReadEqInfoFromOdb = false;
-      fEqInfo->EventID = 1;
-      fEqInfo->Period = 1000;
-      fEqInfo->LogHistory = 1;
-      fEqInfo->WriteEventsToOdb = true;
-      //fEqInfo->PollSleepSec = 0; // poll sleep time set to zero create a "100% CPU busy" polling loop
+      //fEqConfReadEqInfoFromOdb = false;
+      fEqConfEventID = 1;
+      fEqConfPeriodMilliSec = 1000;
+      fEqConfLogHistory = 1;
+      fEqConfWriteEventsToOdb = true;
+      //fEqConfPollSleepSec = 0; // poll sleep time set to zero create a "100% CPU busy" polling loop
    }
 
    ~EqEverything() // dtor
@@ -47,8 +47,8 @@ public:
    {
       printf("EqEverything::HandleInit!\n");
       fMfe->RegisterTransitionStartAbort();
-      fEqInfo->ReadOnlyWhenRunning = false; // overwrite ODB Common RO_RUNNING to false
-      fEqInfo->WriteEventsToOdb = true; // overwrite ODB Common RO_ODB to true
+      fEqConfReadOnlyWhenRunning = false; // overwrite ODB Common RO_RUNNING to false
+      fEqConfWriteEventsToOdb = true; // overwrite ODB Common RO_ODB to true
       EqSetStatus("Started...", "white");
       //EqStartPollThread();
       return TMFeOk();
@@ -145,7 +145,7 @@ public:
    }
 };
 
-static TMFeRegister eq_everything_register("tmfe_example_everything", new EqEverything("tmfe_example_everything", __FILE__, NULL), true, true, true);
+static TMFeRegister eq_everything_register("tmfe_example_everything", new EqEverything("tmfe_example_everything", __FILE__), true, true, true);
 
 // example frontend hooks
 
