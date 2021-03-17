@@ -115,7 +115,11 @@ public: // general configuration, should not be changed by user
    std::string fEqName;
    std::string fEqFilename;
 
-public: // ODB Common configuration
+public: // equipment configuration
+
+   bool        fEqConfEnableRpc      = true;
+   bool        fEqConfEnablePeriodic = true;
+   bool        fEqConfEnablePoll     = false;
 
    bool        fEqConfReadConfigFromOdb = true; // read equipment common from ODB
 
@@ -139,20 +143,15 @@ public: // ODB Common configuration
    //std::string Status;
    //std::string StatusColor;
 
-public: // configuration not stored in ODB
-
-   bool   fEqConfReadOnlyWhenRunning = true; // RO_RUNNING
-   bool   fEqConfWriteEventsToOdb = false; // RO_ODB
-   double fEqConfPeriodStatisticsSec = 1.0; // period for updating ODB statistics
-   double fEqConfPollSleepSec = 0.000100; // shortest sleep for linux is 50-6-70 microseconds
+   bool   fEqConfReadOnlyWhenRunning  = true; // RO_RUNNING
+   bool   fEqConfWriteEventsToOdb     = false; // RO_ODB
+   double fEqConfPeriodStatisticsSec  = 1.0; // period for updating ODB statistics
+   double fEqConfPollSleepSec         = 0.000100; // shortest sleep for linux is 50-6-70 microseconds
 
 public: // pointer to the TMFE singleton
    TMFE* fMfe = NULL;
 
 public: // handlers
-   bool fEqEnableRpc = false;
-   bool fEqEnablePeriodic = false;
-   bool fEqEnablePoll = false;
 
 public: // multithread lock
    std::mutex  fEqMutex;
@@ -326,7 +325,7 @@ public: // internal threads
    TMFeResult Connect(const char* progname, const char* filename = NULL, const char*hostname = NULL, const char*exptname = NULL);
    TMFeResult Disconnect();
 
-   TMFeResult RegisterEquipment(TMFeEquipment* eq, bool enable_rpc, bool enable_periodic, bool enable_poll);
+   TMFeResult RegisterEquipment(TMFeEquipment* eq);
    TMFeResult UnregisterEquipment(TMFeEquipment* eq);
 
    void       Usage();
@@ -394,7 +393,7 @@ public:
 class TMFeRegister
 {
  public:
-   TMFeRegister(const char* fename, TMFeEquipment* eq, bool enable_rpc, bool enable_periodic, bool enable_poll);
+   TMFeRegister(const char* fename, TMFeEquipment* eq);
 };
 
 int tmfe_main(int argc, char* argv[]);

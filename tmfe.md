@@ -62,6 +62,9 @@ entries in ODB /Equipment/EQNAME/Common:
 
 Some equipment configuration has no ODB Common equivalents:
 
+* bool fEqConfEnableRpc - enable calling the RPC handlers, enabled by default
+* bool fEqConfEnablePeriodic - enable the periodic handler, enabled by default
+* bool fEqConfEnablePoll - enable poll handler, disabled by default
 * bool fEqConfReadConfigFromOdb - true: equipment is always configured using values from ODB, false: values specified by in the program always overwrite values in ODB, except for "Common/Enabled" and "Common/Event limit"
 * bool fEqConfReadOnlyWhenRunning - read equipment only when a run is running (stored in "Common/Read on" bits RO_RUNNING|RO_PAUSED|RO_STOPPED)
 * bool fEqConfWriteEventsToOdb - write events sent by this equipment to ODB, if history is enabled, mlogger writes them to the history (stored in "Common/Read on" bit RO_ODB)

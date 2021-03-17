@@ -178,7 +178,7 @@ void TMFE::EquipmentPeriodicTasks()
             continue;
          if (!eq->fEqConfEnabled)
             continue;
-         if (!eq->fEqEnablePeriodic)
+         if (!eq->fEqConfEnablePeriodic)
             continue;
          double period = eq->fEqConfPeriodMilliSec/1000.0;
          //printf("periodic[%d] period %f, last call %f, next call %f (+%f)\n", i, period, h->fLastCallTime, h->fNextCallTime, now - h->fNextCallTime);
@@ -241,7 +241,7 @@ double TMFE::EquipmentPollTasks()
             continue;
          if (!eq->fEqConfEnabled)
             continue;
-         if (eq->fEqEnablePoll && !eq->fEqPollThreadRunning && !eq->fEqPollThreadStarting) {
+         if (eq->fEqConfEnablePoll && !eq->fEqPollThreadRunning && !eq->fEqPollThreadStarting) {
             if (eq->fEqConfPollSleepSec < poll_sleep_sec)
                poll_sleep_sec = eq->fEqConfPollSleepSec;
             bool poll = eq->HandlePoll();
@@ -699,7 +699,7 @@ static INT rpc_callback(INT index, void *prpc_param[])
          continue;
       if (!eq->fEqConfEnabled)
          continue;
-      if (!eq->fEqEnableRpc)
+      if (!eq->fEqConfEnableRpc)
          continue;
       std::string result = "";
       TMFeResult r = eq->HandleRpc(cmd, args, result);
@@ -743,7 +743,7 @@ static INT tr_start(INT run_number, char *errstr)
          continue;
       if (!eq->fEqConfEnabled)
          continue;
-      if (!eq->fEqEnableRpc)
+      if (!eq->fEqConfEnableRpc)
          continue;
       result = eq->HandleBeginRun(run_number);
       if (result.error_flag) {
@@ -783,7 +783,7 @@ static INT tr_stop(INT run_number, char *errstr)
          continue;
       if (!eq->fEqConfEnabled)
          continue;
-      if (!eq->fEqEnableRpc)
+      if (!eq->fEqConfEnableRpc)
          continue;
       TMFeResult xresult = eq->HandleEndRun(run_number);
       if (xresult.error_flag) {
@@ -829,7 +829,7 @@ static INT tr_pause(INT run_number, char *errstr)
          continue;
       if (!eq->fEqConfEnabled)
          continue;
-      if (!eq->fEqEnableRpc)
+      if (!eq->fEqConfEnableRpc)
          continue;
       result = eq->HandlePauseRun(run_number);
       if (result.error_flag) {
@@ -863,7 +863,7 @@ static INT tr_resume(INT run_number, char *errstr)
          continue;
       if (!eq->fEqConfEnabled)
          continue;
-      if (!eq->fEqEnableRpc)
+      if (!eq->fEqConfEnableRpc)
          continue;
       result = eq->HandleResumeRun(run_number);
       if (result.error_flag) {
@@ -897,7 +897,7 @@ static INT tr_startabort(INT run_number, char *errstr)
          continue;
       if (!eq->fEqConfEnabled)
          continue;
-      if (!eq->fEqEnableRpc)
+      if (!eq->fEqConfEnableRpc)
          continue;
       result = eq->HandleStartAbortRun(run_number);
       if (result.error_flag) {
@@ -1034,7 +1034,7 @@ void TMFE::DeleteEquipments()
    }
 }
 
-TMFeResult TMFE::RegisterEquipment(TMFeEquipment* eq, bool enable_rpc, bool enable_periodic, bool enable_poll)
+TMFeResult TMFE::RegisterEquipment(TMFeEquipment* eq)
 {
    // NOTE: not thread-safe, we modify the fEquipments object. K.O.
    
@@ -1050,10 +1050,6 @@ TMFeResult TMFE::RegisterEquipment(TMFeEquipment* eq, bool enable_rpc, bool enab
       }
    }
    
-   eq->fEqEnableRpc = enable_rpc;
-   eq->fEqEnablePeriodic = enable_periodic;
-   eq->fEqEnablePoll = enable_poll;
-
    fNextPeriodic = 0;
 
    // NOTE: fEquipments must be protected again multithreaded access here. K.O.
@@ -1079,7 +1075,7 @@ TMFeResult TMFE::UnregisterEquipment(TMFeEquipment* eq)
    return TMFeErrorMessage(msprintf("TMFE::UnregisterEquipment: Cannot find equipment \"%s\"", eq->fEqName.c_str()));
 }
 
-TMFeRegister::TMFeRegister(const char* fename, TMFeEquipment* eq, bool enable_rpc, bool enable_periodic, bool enable_poll)
+TMFeRegister::TMFeRegister(const char* fename, TMFeEquipment* eq)
 {
    if (TMFE::gfVerbose)
       printf("TMFeRegister::ctor: Register equipment with fename [%s] eqname [%s] filename [%s]\n", fename, eq->fEqName.c_str(), eq->fEqFilename.c_str());
@@ -1099,7 +1095,7 @@ TMFeRegister::TMFeRegister(const char* fename, TMFeEquipment* eq, bool enable_rp
    //if (eqfile)
    //eqinfo->FrontendFileName = eqfile;
 
-   TMFeResult r = mfe->RegisterEquipment(eq, enable_rpc, enable_periodic, enable_poll);
+   TMFeResult r = mfe->RegisterEquipment(eq);
    
    if (r.error_flag) {
       fprintf(stderr, "TMFeRegister: Cannot register equipment \"%s\", TMFE::RegisterEquipment() error %s, sorry, bye!\n",

@@ -122,7 +122,7 @@ int main(int argc, char* argv[])
    eq->EqInit(eq_args);
    eq->EqSetStatus("Starting...", "white");
 
-   mfe->RegisterEquipment(eq, true, true, false);
+   mfe->RegisterEquipment(eq);
 
    //mfe->SetTransitionSequenceStart(910);
    //mfe->SetTransitionSequenceStop(90);

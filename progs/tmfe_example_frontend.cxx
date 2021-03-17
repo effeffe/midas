@@ -106,6 +106,7 @@ public:
       fEqConfLogHistory = 0;
       fEqConfReadOnlyWhenRunning = true;
       fEqConfWriteEventsToOdb = true;
+      fEqConfEnablePoll = true; // enable polled equipment
       //fEqConfPollSleepSec = 0; // poll sleep time set to zero create a "100% CPU busy" polling loop
       fEqConfPollSleepSec = 0.010; // limit event rate to 100 Hz. In a real experiment remove this line
    }
@@ -180,7 +181,7 @@ public:
    }
 };
 
-static TMFeRegister eq_trigger_register("Sample Frontend", new EqTrigger("Trigger", __FILE__), true, false, true);
+static TMFeRegister eq_trigger_register("Sample Frontend", new EqTrigger("Trigger", __FILE__));
 
 class EqPeriodic :
    public TMFeEquipment
@@ -220,7 +221,7 @@ public:
    }
 };
 
-static TMFeRegister eq_periodic_register("Sample Frontend", new EqPeriodic("Periodic", __FILE__), true, true, false);
+static TMFeRegister eq_periodic_register("Sample Frontend", new EqPeriodic("Periodic", __FILE__));
 
 static class EqEverythingHooks: public TMFeHooksInterface
 {

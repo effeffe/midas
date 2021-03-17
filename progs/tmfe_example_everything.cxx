@@ -30,6 +30,7 @@ public:
       fEqConfPeriodMilliSec = 1000;
       fEqConfLogHistory = 1;
       fEqConfWriteEventsToOdb = true;
+      fEqConfEnablePoll = true; // enable polled equipment
       //fEqConfPollSleepSec = 0; // poll sleep time set to zero create a "100% CPU busy" polling loop
    }
 
@@ -145,7 +146,7 @@ public:
    }
 };
 
-static TMFeRegister eq_everything_register("tmfe_example_everything", new EqEverything("tmfe_example_everything", __FILE__), true, true, true);
+static TMFeRegister eq_everything_register("tmfe_example_everything", new EqEverything("tmfe_example_everything", __FILE__));
 
 // example frontend hooks
 

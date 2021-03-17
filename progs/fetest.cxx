@@ -111,7 +111,7 @@ public:
 
 };
 
-static TMFeRegister eq_random_register("fetest", new EqRandom("test_random", __FILE__), false, true, false);
+static TMFeRegister eq_random_register("fetest", new EqRandom("test_random", __FILE__));
 
 class EqSlow :
    public TMFeEquipment
@@ -179,7 +179,7 @@ public:
 #endif
 };
 
-static TMFeRegister eq_slow_register("fetest", new EqSlow("test_slow", __FILE__), false, true, false);
+static TMFeRegister eq_slow_register("fetest", new EqSlow("test_slow", __FILE__));
 
 class EqBulk :
    public TMFeEquipment
@@ -292,7 +292,7 @@ public:
 #endif
 };
 
-static TMFeRegister eq_bulk_register("fetest", new EqBulk("test_bulk", __FILE__), false, false, false);
+static TMFeRegister eq_bulk_register("fetest", new EqBulk("test_bulk", __FILE__));
    
 class EqRpc :
    public TMFeEquipment
@@ -437,7 +437,7 @@ public:
    }
 };
 
-static TMFeRegister eq_rpc_register("fetest", new EqRpc("test_rpc", __FILE__), true, false, false);
+static TMFeRegister eq_rpc_register("fetest", new EqRpc("test_rpc", __FILE__));
 
 /* emacs
  * Local Variables:
