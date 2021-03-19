@@ -1034,7 +1034,7 @@ void TMFE::DeleteEquipments()
    }
 }
 
-TMFeResult TMFE::RegisterEquipment(TMFeEquipment* eq)
+TMFeResult TMFE::AddEquipment(TMFeEquipment* eq)
 {
    // NOTE: not thread-safe, we modify the fEquipments object. K.O.
    
@@ -1043,10 +1043,10 @@ TMFeResult TMFE::RegisterEquipment(TMFeEquipment* eq)
       if (!fEquipments[i])
          continue;
       if (fEquipments[i] == eq) {
-         return TMFeErrorMessage(msprintf("TMFE::RegisterEquipment: Equipment \"%s\" is already registered", fEquipments[i]->fEqName.c_str()));
+         return TMFeErrorMessage(msprintf("TMFE::AddEquipment: Equipment \"%s\" is already registered", fEquipments[i]->fEqName.c_str()));
       }
       if (fEquipments[i]->fEqName == eq->fEqName) {
-         return TMFeErrorMessage(std::string("TMFE::RegisterEquipment: Duplicate equipment name \"") + eq->fEqName + "\"");
+         return TMFeErrorMessage(std::string("TMFE::AddEquipment: Duplicate equipment name \"") + eq->fEqName + "\"");
       }
    }
    
@@ -1058,7 +1058,7 @@ TMFeResult TMFE::RegisterEquipment(TMFeEquipment* eq)
    return TMFeOk();
 }
 
-TMFeResult TMFE::UnregisterEquipment(TMFeEquipment* eq)
+TMFeResult TMFE::RemoveEquipment(TMFeEquipment* eq)
 {
    // NOTE: this is thread-safe, we do not modify the fEquipments object. K.O.
    
@@ -1072,7 +1072,7 @@ TMFeResult TMFE::UnregisterEquipment(TMFeEquipment* eq)
       }
    }
 
-   return TMFeErrorMessage(msprintf("TMFE::UnregisterEquipment: Cannot find equipment \"%s\"", eq->fEqName.c_str()));
+   return TMFeErrorMessage(msprintf("TMFE::RemoveEquipment: Cannot find equipment \"%s\"", eq->fEqName.c_str()));
 }
 
 TMFeRegister::TMFeRegister(const char* fename, TMFeEquipment* eq)
@@ -1095,7 +1095,7 @@ TMFeRegister::TMFeRegister(const char* fename, TMFeEquipment* eq)
    //if (eqfile)
    //eqinfo->FrontendFileName = eqfile;
 
-   TMFeResult r = mfe->RegisterEquipment(eq);
+   TMFeResult r = mfe->AddEquipment(eq);
    
    if (r.error_flag) {
       fprintf(stderr, "TMFeRegister: Cannot register equipment \"%s\", TMFE::RegisterEquipment() error %s, sorry, bye!\n",
@@ -1530,12 +1530,12 @@ TMFeResult TMFE::ResetAlarm(const char* name)
    return TMFeOk();
 }
 
-void TMFE::AddHooks(TMFeHooksInterface* hooks)
+void TMFE::AddInterface(TMFeInterface* hooks)
 {
    fHooks.push_back(hooks);
 }
 
-void TMFE::CallPreConnectHooks(const std::vector<std::string>& args)
+void TMFE::CallPreConnect(const std::vector<std::string>& args)
 {
    for (auto h : fHooks) {
       if (h)
@@ -1543,7 +1543,7 @@ void TMFE::CallPreConnectHooks(const std::vector<std::string>& args)
    }
 }
 
-void TMFE::CallPostConnectHooks(const std::vector<std::string>& args)
+void TMFE::CallPostConnect(const std::vector<std::string>& args)
 {
    for (auto h : fHooks) {
       if (h)
@@ -1551,7 +1551,7 @@ void TMFE::CallPostConnectHooks(const std::vector<std::string>& args)
    }
 }
 
-void TMFE::CallPostInitHooks(const std::vector<std::string>& args)
+void TMFE::CallPostInit(const std::vector<std::string>& args)
 {
    for (auto h : fHooks) {
       if (h)
@@ -1559,7 +1559,7 @@ void TMFE::CallPostInitHooks(const std::vector<std::string>& args)
    }
 }
 
-void TMFE::CallPreDisconnectHooks()
+void TMFE::CallPreDisconnect()
 {
    for (auto h : fHooks) {
       if (h)
@@ -1567,7 +1567,7 @@ void TMFE::CallPreDisconnectHooks()
    }
 }
 
-void TMFE::CallPostDisconnectHooks()
+void TMFE::CallPostDisconnect()
 {
    for (auto h : fHooks) {
       if (h)
@@ -1647,7 +1647,7 @@ int tmfe_main(int argc, char* argv[])
 
    // call pre-connect hook before calling Usage(). Otherwise, if user creates
    // new equipments inside the hook, they will never see it's Usage(). K.O.
-   mfe->CallPreConnectHooks(eq_args);
+   mfe->CallPreConnect(eq_args);
 
    if (help) {
       tmfe_usage(argv[0]);
@@ -1660,7 +1660,7 @@ int tmfe_main(int argc, char* argv[])
       return 1;
    }
 
-   mfe->CallPostConnectHooks(eq_args);
+   mfe->CallPostConnect(eq_args);
 
    //mfe->SetWatchdogSec(0);
    //mfe->SetTransitionSequenceStart(910);
@@ -1676,16 +1676,16 @@ int tmfe_main(int argc, char* argv[])
       return 1;
    }
 
-   mfe->CallPostInitHooks(eq_args);
+   mfe->CallPostInit(eq_args);
 
    while (!mfe->fShutdownRequested) {
       mfe->PollMidas(10);
    }
 
-   mfe->CallPreDisconnectHooks();
+   mfe->CallPreDisconnect();
    mfe->DeleteEquipments();
    mfe->Disconnect();
-   mfe->CallPostDisconnectHooks();
+   mfe->CallPostDisconnect();
 
    return 0;
 }

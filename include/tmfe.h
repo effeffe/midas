@@ -251,13 +251,13 @@ private: // non-thread-safe methods
    TMFeResult EqWriteEventToOdb_locked(const char* pevent);
 };
 
-class TMFeHooksInterface
+class TMFeInterface
 {
 public:
    virtual void HandlePreConnect(const std::vector<std::string>& args) {};
-   virtual void HandlePostConnect(const std::vector<std::string>& args) {};
+   virtual void HandlePostConnect(const std::vector<std::string>& args) {}; // HandleFrontendInit() ???
    virtual void HandlePostInit(const std::vector<std::string>& args) {};
-   virtual void HandlePreDisconnect() {};
+   virtual void HandlePreDisconnect() {}; // HandleFrontendExit() ???
    virtual void HandlePostDisconnect() {};
 };
 
@@ -325,8 +325,8 @@ public: // internal threads
    TMFeResult Connect(const char* progname, const char* filename = NULL, const char*hostname = NULL, const char*exptname = NULL);
    TMFeResult Disconnect();
 
-   TMFeResult RegisterEquipment(TMFeEquipment* eq);
-   TMFeResult UnregisterEquipment(TMFeEquipment* eq);
+   TMFeResult AddEquipment(TMFeEquipment* eq);
+   TMFeResult RemoveEquipment(TMFeEquipment* eq);
 
    void       Usage();
    TMFeResult InitEquipments(const std::vector<std::string>& args);
@@ -372,17 +372,17 @@ public:
    void RegisterRPCs();
 
 public:
-   std::vector<TMFeHooksInterface*> fHooks;
+   std::vector<TMFeInterface*> fHooks;
 
 public:
-   void AddHooks(TMFeHooksInterface*);
+   void AddInterface(TMFeInterface*);
 
 public:
-   void CallPreConnectHooks(const std::vector<std::string>& args);
-   void CallPostConnectHooks(const std::vector<std::string>& args);
-   void CallPostInitHooks(const std::vector<std::string>& args);
-   void CallPreDisconnectHooks();
-   void CallPostDisconnectHooks();
+   void CallPreConnect(const std::vector<std::string>& args);
+   void CallPostConnect(const std::vector<std::string>& args); // CallFrontendInit() ???
+   void CallPostInit(const std::vector<std::string>& args);
+   void CallPreDisconnect(); // CallFrontendExit() ???
+   void CallPostDisconnect();
 
 public:
    static double GetTime(); ///< return current time in seconds, with micro-second precision

@@ -181,8 +181,6 @@ public:
    }
 };
 
-static TMFeRegister eq_trigger_register("Sample Frontend", new EqTrigger("Trigger", __FILE__));
-
 class EqPeriodic :
    public TMFeEquipment
 {
@@ -221,15 +219,18 @@ public:
    }
 };
 
-static TMFeRegister eq_periodic_register("Sample Frontend", new EqPeriodic("Periodic", __FILE__));
+//static TMFeRegister eq_periodic_register("Sample Frontend", new EqPeriodic("Periodic", __FILE__));
 
-static class EqEverythingHooks: public TMFeHooksInterface
+static class FeFrontend: public TMFeInterface
 {
 public:
-   EqEverythingHooks() // ctor
+   FeFrontend() // ctor
    {
       /* register with the framework */
-      TMFE::Instance()->AddHooks(this);
+      TMFE::Instance()->fFrontendName = "Sample Frontend";
+      TMFE::Instance()->AddEquipment(new EqTrigger("Trigger", __FILE__));
+      TMFE::Instance()->AddEquipment(new EqPeriodic("Periodic", __FILE__));
+      TMFE::Instance()->AddInterface(this);
    }
 
    void HandlePostConnect(const std::vector<std::string>& args)
@@ -246,7 +247,7 @@ public:
    {
       /* frontend_exit: do all hardware shutdown before disconnect from midas */
    };
-} eq_frontend_hooks;
+} fe_frontend;
 
 
 /* emacs

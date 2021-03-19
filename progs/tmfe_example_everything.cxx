@@ -150,40 +150,40 @@ static TMFeRegister eq_everything_register("tmfe_example_everything", new EqEver
 
 // example frontend hooks
 
-static class EqEverythingHooks: public TMFeHooksInterface
+static class FeEverything: public TMFeInterface
 {
 public:
-   EqEverythingHooks() // ctor
+   FeEverything() // ctor
    {
-      printf("EqEverythingHooks::ctor!\n");
-      TMFE::Instance()->AddHooks(this);
+      printf("FeEverything::ctor!\n");
+      TMFE::Instance()->AddInterface(this);
    }
 
    void HandlePreConnect(const std::vector<std::string>& args)
    {
-      printf("EqEverythingHooks::HandlePreConnect!\n");
+      printf("FeEverything::HandlePreConnect!\n");
    };
    
    void HandlePostConnect(const std::vector<std::string>& args)
    {
-      printf("EqEverythingHooks::HandlePostConnect!\n");
+      printf("FeEverything::HandlePostConnect!\n");
    };
    
    void HandlePostInit(const std::vector<std::string>& args)
    {
-      printf("EqEverythingHooks::HandlePostInit!\n");
+      printf("FeEverything::HandlePostInit!\n");
    };
    
    void HandlePreDisconnect()
    {
-      printf("EqEverythingHooks::HandlePreDisconnect!\n");
+      printf("FeEverythingHooks::HandlePreDisconnect!\n");
    };
    
    void HandlePostDisconnect()
    {
-      printf("EqEverythingHooks::HandlePostDisconnect!\n");
+      printf("FeEverythingHooks::HandlePostDisconnect!\n");
    };
-} eq_everything_hooks;
+} fe_everything;
 
 /* emacs
  * Local Variables:

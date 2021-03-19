@@ -92,7 +92,33 @@ should set the initial value of ReadEqInfoFromODB to false.
 
 ### Main loop and general control flow
 
-TBW
+Frontend program elements run in this order:
+
+* static constructors for TMFeInterface objects
+** set frontend name
+** create equipments (run equipment constructors)
+* static constructors for TMFeRegister objects
+** set frontend name
+** create equipments (run equipment constructors)
+* main()
+** tmfe_main()
+** process standard command line parameters
+* pre-connect handlers
+* connect to midas
+* post-connect handlers ("frontend init")
+** could create more equipments based on ODB settings (run equipment constructors)
+* equipment init handlers
+* post-init handlers
+* tmfe main loop
+* pre-disconnect handlers ("frontend exit")
+* delete all equipments (call equipment destructors, stop per-equipment poll threads)
+* stop periodic thread
+* stop rpc thread
+* disconnect from midas
+* post-disconnect handlers
+* return from tmfe_main()
+* return from main()
+* exit(0)
 
 ### MIDAS RPC Handler
 
@@ -112,7 +138,7 @@ process them and send a response "quickly", within a few seconds.
 
 TBW
 
-### Polling Handler
+### Poll Handler
 
 TBW
 
