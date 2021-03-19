@@ -2053,13 +2053,17 @@ static INT scheduler()
             if (cm_transition(TR_STOP, 0, str, sizeof(str), TR_SYNC, FALSE) != CM_SUCCESS)
                cm_msg(MERROR, "scheduler", "cannot stop run: %s", str);
 
-            /* check if autorestart, main loop will take care of it */
-            size = sizeof(BOOL);
+            /* check if auto-restart, main loop will take care of it */
             flag = FALSE;
+            size = sizeof(flag);
             db_get_value(hDB, 0, "/Logger/Auto restart", &flag, (INT *)&size, TID_BOOL, TRUE);
 
-            if (flag)
-               auto_restart = ss_time() + 20;   /* restart in 20 sec. */
+            if (flag) {
+               UINT32 delay = 20;
+               size = sizeof(delay);
+               db_get_value(hDB, 0, "/Logger/Auto restart delay", &delay, (INT *)&size, TID_UINT32, TRUE);
+               auto_restart = ss_time() + delay;
+            }
 
             /* update event display correctly */
             force_update = TRUE;
