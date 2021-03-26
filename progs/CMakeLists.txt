@@ -79,6 +79,12 @@ if (HAVE_NVIDIA)
    target_compile_options(msysmon-nvidia PRIVATE -DHAVE_NVIDIA)
 endif(HAVE_NVIDIA)
 
+if (HAVE_LM_SENSORS)
+   add_executable(msysmon-lmsensors msysmon)
+   target_link_libraries(msysmon-lmsensors mfe midas ${LIBS} ${DB_LIBS} ${libsensors})
+   target_compile_options(msysmon-lmsensors PRIVATE -DHAVE_LM_SENSORS)
+endif(HAVE_LM_SENSORS)
+
 #
 # mhttpd
 #
