@@ -210,7 +210,7 @@ public:
       BkInit(buf, sizeof(buf));
 
       /* create SCLR bank */
-      float* pdata = (float*)BkOpen(buf, "PRDC", TID_FLOAT);
+      uint32_t* pdata = (uint32_t*)BkOpen(buf, "PRDC", TID_UINT32);
       
       /* following code "simulates" some values in sine wave form */
       for (int a = 0; a < 16; a++)
