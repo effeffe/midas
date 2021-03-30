@@ -181,33 +181,36 @@ void TMFE::EquipmentPeriodicTasks()
          if (!eq->fEqConfEnablePeriodic)
             continue;
          double period = eq->fEqConfPeriodMilliSec/1000.0;
-         //printf("periodic[%d] period %f, last call %f, next call %f (+%f)\n", i, period, h->fLastCallTime, h->fNextCallTime, now - h->fNextCallTime);
          if (period <= 0)
             continue;
-         if (eq->fEqPeriodicNextCallTime == 0 || now >= eq->fEqPeriodicNextCallTime) {
-            eq->fEqPeriodicLastCallTime = now;
-            eq->fEqPeriodicNextCallTime = eq->fEqPeriodicLastCallTime + period;
-
+         if (eq->fEqPeriodicNextCallTime == 0)
+            eq->fEqPeriodicNextCallTime = now + 0.5; // we are off by 0.5 sec with updating of statistics
+         //printf("periodic[%d] period %f, last call %f, next call %f (%f)\n", i, period, eq->fEqPeriodicLastCallTime, eq->fEqPeriodicNextCallTime, now - eq->fEqPeriodicNextCallTime);
+         if (now >= eq->fEqPeriodicNextCallTime) {
+            eq->fEqPeriodicNextCallTime += period;
+            
             if (eq->fEqPeriodicNextCallTime < now) {
                if (gfVerbose)
-                  printf("TMFE::EquipmentPeriodicTasks: periodic equipment does not keep up!\n");
+                  printf("TMFE::EquipmentPeriodicTasks: periodic equipment \"%s\" skipped some beats!\n", eq->fEqName.c_str());
+               Msg(MERROR, "TMFE::EquipmentPeriodicTasks", "Equipment \"%s\" skipped some beats!", eq->fEqName.c_str());
                while (eq->fEqPeriodicNextCallTime < now) {
                   eq->fEqPeriodicNextCallTime += period;
                }
             }
 
-            if (fNextPeriodic == 0)
-               fNextPeriodic = eq->fEqPeriodicNextCallTime;
-            else if (eq->fEqPeriodicNextCallTime < fNextPeriodic)
-               fNextPeriodic = eq->fEqPeriodicNextCallTime;
-
             if (fStateRunning || !eq->fEqConfReadOnlyWhenRunning) {
+               eq->fEqPeriodicLastCallTime = now;
                //printf("handler %d eq [%s] call HandlePeriodic()\n", i, h->fEq->fName.c_str());                     
                eq->HandlePeriodic();
             }
 
             now = GetTime();
          }
+
+         if (fNextPeriodic == 0)
+            fNextPeriodic = eq->fEqPeriodicNextCallTime;
+         else if (eq->fEqPeriodicNextCallTime < fNextPeriodic)
+            fNextPeriodic = eq->fEqPeriodicNextCallTime;
       }
 
       //printf("next periodic %f (+%f)\n", fNextPeriodic, fNextPeriodic - now);
@@ -223,15 +226,21 @@ void TMFE::EquipmentPeriodicTasks()
          continue;
       if (!eq->fEqConfEnabled)
          continue;
-      if (now > eq->fEqStatNextWrite) {
+      double next = eq->fEqStatNextWrite; // NOTE: this is not thread-safe, possible torn read of "double"
+      if (now > next) {
          eq->EqWriteStatistics();
+         next = eq->fEqStatNextWrite; // NOTE: this is not thread-safe, possible torn read of "double"
       }
+      if (fNextPeriodic == 0 || next < fNextPeriodic)
+         fNextPeriodic = next;
    }
 
 }
 
 double TMFE::EquipmentPollTasks()
 {
+   //printf("poll %f next %f diff %f\n", TMFE::GetTime(), fNextPeriodic, fNextPeriodic - TMFE::GetTime());
+   
    double poll_sleep_sec = 9999.0;
    while (1) {
       bool poll_again = false;
@@ -242,16 +251,23 @@ double TMFE::EquipmentPollTasks()
          if (!eq->fEqConfEnabled)
             continue;
          if (eq->fEqConfEnablePoll && !eq->fEqPollThreadRunning && !eq->fEqPollThreadStarting) {
-            if (eq->fEqConfPollSleepSec < poll_sleep_sec)
-               poll_sleep_sec = eq->fEqConfPollSleepSec;
-            bool poll = eq->HandlePoll();
-            if (poll) {
-               poll_again = true;
-               eq->HandleRead();
+            if (fStateRunning || !eq->fEqConfReadOnlyWhenRunning) {
+               if (eq->fEqConfPollSleepSec < poll_sleep_sec)
+                  poll_sleep_sec = eq->fEqConfPollSleepSec;
+               bool poll = eq->HandlePoll();
+               if (poll) {
+                  poll_again = true;
+                  eq->HandleRead();
+               }
             }
          }
       }
       if (!poll_again)
+         break;
+
+      // stop polling if we need to run periodic activity
+      double now = TMFE::GetTime();
+      if (now >= fNextPeriodic)
          break;
    }
    return poll_sleep_sec;
@@ -265,13 +281,17 @@ void TMFeEquipment::EqPollThread()
    fEqPollThreadRunning = true;
 
    while (!fMfe->fShutdownRequested && !fEqPollThreadShutdownRequested) {
-      bool poll = HandlePoll();
-      if (poll) {
-         HandleRead();
-      } else {
-         if (fEqConfPollSleepSec > 0) {
-            TMFE::Sleep(fEqConfPollSleepSec);
+      if (fMfe->fStateRunning || !fEqConfReadOnlyWhenRunning) {
+         bool poll = HandlePoll();
+         if (poll) {
+            HandleRead();
+         } else {
+            if (fEqConfPollSleepSec > 0) {
+               TMFE::Sleep(fEqConfPollSleepSec);
+            }
          }
+      } else {
+         TMFE::Sleep(0.1);
       }
    }
    if (TMFE::gfVerbose)
@@ -386,8 +406,11 @@ void TMFE::PollMidas(int msec)
    int count_yield_loops = 0;
 
    while (!fShutdownRequested) {
+      double next_periodic = 0;
+
       if (!fPeriodicThreadRunning) {
          EquipmentPeriodicTasks();
+         next_periodic = fNextPeriodic;
       }
 
       double poll_sleep = EquipmentPollTasks();
@@ -405,6 +428,11 @@ void TMFE::PollMidas(int msec)
       }
 
       double sleep_time = sleep_end - now;
+
+      if (next_periodic > 0 && next_periodic < sleep_end) {
+         sleep_time = next_periodic - now;
+      }
+
       int s = 0;
       if (sleep_time > 0)
          s = 1 + sleep_time*1000.0;
@@ -413,8 +441,8 @@ void TMFE::PollMidas(int msec)
          s = 0;
       }
 
-      if (debug) {
-         printf("now %.6f, sleep_end %.6f, cm_yield(%d), poll period %.6f\n", now, sleep_end, s, poll_sleep);
+      if (1||debug) {
+         printf("now %.6f, sleep_end %.6f, next_periodic %.6f, sleep_time %.6f, cm_yield(%d), poll period %.6f\n", now, sleep_end, next_periodic, sleep_time, s, poll_sleep);
       }
 
       int status = cm_yield(s);
@@ -481,14 +509,8 @@ void TMFE::PeriodicThread()
    fPeriodicThreadRunning = true;
    while (!fShutdownRequested && !fPeriodicThreadShutdownRequested) {
       EquipmentPeriodicTasks();
-      int status = ss_suspend(1000, 0); // FIXME: is this sleep correct? K.O.
-      if (status == RPC_SHUTDOWN || status == SS_ABORT || status == SS_EXIT) {
-         fShutdownRequested = true;
-         if (TMFE::gfVerbose)
-            printf("TMFE::PeriodicThread: ss_susend() status %d, shutdown requested...\n", status);
-      }
+      Sleep(0.0005);
    }
-   ss_suspend_exit();
    if (TMFE::gfVerbose)
       printf("TMFE::PeriodicThread: periodic thread stopped\n");
    fPeriodicThreadRunning = false;
@@ -1327,17 +1349,19 @@ TMFeResult TMFeEquipment::EqZeroStatistics()
 
    if (TMFE::gfVerbose)
       printf("TMFeEquipment::EqZeroStatistics: zero statistics for [%s]\n", fEqName.c_str());
+
+   double now = TMFE::GetTime();
    
    fEqStatEvents = 0;
    fEqStatBytes = 0;
    fEqStatEpS = 0;
    fEqStatKBpS = 0;
    
-   fEqStatLastTime = 0;
+   fEqStatLastTime = now;
    fEqStatLastEvents = 0;
    fEqStatLastBytes = 0;
 
-   fEqStatNextWrite = TMFE::GetTime(); // force immediate update
+   fEqStatNextWrite = now; // force immediate update
 
    fEqMutex.unlock();
 
@@ -1363,6 +1387,8 @@ TMFeResult TMFeEquipment::EqWriteStatistics()
       fEqStatLastBytes = fEqStatBytes;
    }
 
+   //printf("TMFeEquipment::EqWriteStatistics: write statistics for [%s], now %f, elapsed %f, sent %f, eps %f, kps %f\n", fEqName.c_str(), now, elapsed, fEqStatEvents, fEqStatEpS, fEqStatKBpS);
+
    fOdbEqStatistics->WD("Events sent", fEqStatEvents);
    fOdbEqStatistics->WD("Events per sec.", fEqStatEpS);
    fOdbEqStatistics->WD("kBytes per sec.", fEqStatKBpS);
@@ -1370,7 +1396,7 @@ TMFeResult TMFeEquipment::EqWriteStatistics()
    fEqStatLastWrite = now;
 
    if (fEqConfPeriodStatisticsSec > 0) {
-      // avoid creap of NextWrite: we start it at
+      // avoid creep of NextWrite: we start it at
       // time of initialization, then increment it strictly
       // by the period value, regardless of when it is actually
       // written to ODB (actual period is longer than requested
