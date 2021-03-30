@@ -291,7 +291,7 @@ endif(NO_NVIDIA)
 if (NO_SENSORS)
   message(STATUS "MIDAS (msysmon): LM_SENSORS disabled")
 else()
-  find_library(libsensors sensors REQUIRED) #Requires libsesnsors-dev
+  find_library(libsensors sensors) #Requires libsesnsors-dev
   if(libsensors STREQUAL "libsensors-NOTFOUND")
     message(STATUS "MIDAS (msysmon): LM_SENSORS libs not found")
   else()
