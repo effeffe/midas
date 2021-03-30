@@ -277,13 +277,13 @@ INT read_trigger_event(char *pevent, INT off)
 
 INT read_periodic_event(char *pevent, INT off)
 {
-   UINT64 *pdata;
+   UINT32 *pdata;
 
    /* init bank structure */
    bk_init(pevent);
 
    /* create SCLR bank */
-   bk_create(pevent, "PRDC", TID_UINT64, (void **)&pdata);
+   bk_create(pevent, "PRDC", TID_UINT32, (void **)&pdata);
 
    /* following code "simulates" some values in sine wave form */
    for (int i = 0; i < 16; i++)
