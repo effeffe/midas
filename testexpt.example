@@ -99,10 +99,10 @@ Event 101, "System", size 80, 2 tags.
   Tag 0: "Trigger per sec."[1], type "DOUBLE" (10), type size 8, offset 0+8
   Tag 1: "Trigger kB per sec."[1], type "DOUBLE" (10), type size 8, offset 8+8
 Event 0, "Run transitions", size 80, 2 tags.
-  Tag 0: "State"[1], type "DWORD" (6), type size 4, offset 0+4
-  Tag 1: "Run number"[1], type "DWORD" (6), type size 4, offset 4+4
+  Tag 0: "State"[1], type "UINT32" (6), type size 4, offset 0+4
+  Tag 1: "Run number"[1], type "UINT32" (6), type size 4, offset 4+4
 Event 2, "Periodic", size 40, 1 tags.
-  Tag 0: "PRDC"[16], type "FLOAT" (9), type size 4, offset 0+64
+  Tag 0: "PRDC"[16], type "UINT32" (6), type size 4, offset 0+64
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh \"sample frontend\""
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh logger"
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh mhttpd"
