@@ -263,7 +263,7 @@ public:
 
 class TMFE
 {
- public:
+public: // configuration
 
    std::string fHostname; ///< hostname where the mserver is running, blank if using shared memory
    std::string fExptname; ///< experiment name, blank if only one experiment defined in exptab
@@ -271,6 +271,11 @@ class TMFE
    std::string fFrontendName; ///< frontend program name
    std::string fFrontendHostname; ///< frontend hostname
    std::string fFrontendFilename; ///< frontend program file name
+
+public: // configuration, what to do if started when run is in progress
+
+   bool fIfRunningCallExit = false;
+   bool fIfRunningCallBeginRun = true;
 
 public: // multithreaded lock
    std::mutex fMutex;

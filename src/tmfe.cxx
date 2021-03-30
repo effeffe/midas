@@ -878,6 +878,9 @@ static INT tr_resume(INT run_number, char *errstr)
 
    TMFE* mfe = TMFE::Instance();
 
+   mfe->fRunNumber = run_number;
+   mfe->fStateRunning = true;
+
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleResumeRun() modifies fEquipments. K.O.
    for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
       TMFeEquipment* eq = mfe->fEquipments[i];
@@ -1707,6 +1710,25 @@ int tmfe_main(int argc, char* argv[])
    }
 
    mfe->CallPostInit(eq_args);
+
+   int run_state = 0;
+   int run_number = 0;
+
+   mfe->fOdbRoot->RI("Runinfo/state", &run_state);
+   mfe->fOdbRoot->RI("Runinfo/run number", &run_number);
+
+   if (run_state == STATE_RUNNING) {
+      if (mfe->fIfRunningCallExit) {
+         fprintf(stderr, "Cannot start frontend, run is in progress!\n");
+         exit(1);
+      } else if (mfe->fIfRunningCallBeginRun) {
+         char errstr[TRANSITION_ERROR_STRING_LENGTH];
+         tr_start(run_number, errstr);
+      } else {
+         mfe->fRunNumber = run_number;
+         mfe->fStateRunning = true;
+      }
+   }
 
    while (!mfe->fShutdownRequested) {
       mfe->PollMidas(10);

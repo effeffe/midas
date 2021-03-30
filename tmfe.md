@@ -35,6 +35,16 @@ TBW
 
 TBW
 
+### Frontend configuration
+
+* std::string fHostname - ???
+* std::string fExptname - experiment name
+* std::string fFrontendName - midas program name (as shown on the Programs page, etc)
+* std::string fFrontendHostname - hostname of machine we are running on (ss_gethostname())
+* std::string fFrontendFilename - program source file name if equipment source file name is not available
+* bool fIfRunningCallExit - do not allow frontend to start if a run is already running
+* bool fIfRunningCallBeginRun - if a run is already running, call begin run handlers
+
 ### Equipment configuration and ODB Common
 
 Frontend equipment (TMFeEquipment) is configured by fEqConfFoo data members. Many of them correspond to
