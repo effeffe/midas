@@ -1065,10 +1065,14 @@ TMFeResult TMFE::AddEquipment(TMFeEquipment* eq)
       if (!fEquipments[i])
          continue;
       if (fEquipments[i] == eq) {
-         return TMFeErrorMessage(msprintf("TMFE::AddEquipment: Equipment \"%s\" is already registered", fEquipments[i]->fEqName.c_str()));
+         fprintf(stderr, "TMFE::AddEquipment: Fatal error: Equipment \"%s\" is already registered, bye...\n", fEquipments[i]->fEqName.c_str());
+         exit(1);
+         //return TMFeErrorMessage(msprintf("TMFE::AddEquipment: Equipment \"%s\" is already registered", fEquipments[i]->fEqName.c_str()));
       }
       if (fEquipments[i]->fEqName == eq->fEqName) {
-         return TMFeErrorMessage(std::string("TMFE::AddEquipment: Duplicate equipment name \"") + eq->fEqName + "\"");
+         fprintf(stderr, "TMFE::AddEquipment: Fatal error: Duplicate equipment name \"%s\", bye...\n", eq->fEqName.c_str());
+         exit(1);
+         //return TMFeErrorMessage(std::string("TMFE::AddEquipment: Duplicate equipment name \"") + eq->fEqName + "\"");
       }
    }
    
