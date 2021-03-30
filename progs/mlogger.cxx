@@ -4566,6 +4566,14 @@ static int add_event(int* indexp, time_t timestamp, int event_id, const char* ev
          cm_msg(MERROR, "add_event", "Invalid tag %d \'%s\' in event %d \'%s\': cannot do history for TID_STRING data, sorry!", i, tags[i].name, event_id, event_name);
          return 0;
       }
+      if (tags[i].type == TID_INT64) {
+         cm_msg(MERROR, "add_event", "Invalid tag %d \'%s\' in event %d \'%s\': cannot do history for TID_INT64 data, sorry!", i, tags[i].name, event_id, event_name);
+         return 0;
+      }
+      if (tags[i].type == TID_UINT64) {
+         cm_msg(MERROR, "add_event", "Invalid tag %d \'%s\' in event %d \'%s\': cannot do history for TID_UINT64 data, sorry!", i, tags[i].name, event_id, event_name);
+         return 0;
+      }
       if (rpc_tid_size(tags[i].type) == 0) {
          cm_msg(MERROR, "add_event", "Invalid tag %d \'%s\' in event %d \'%s\': type %d size is zero", i, tags[i].name, event_id, event_name, tags[i].type);
          return 0;
