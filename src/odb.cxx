@@ -3285,6 +3285,11 @@ int db_create_key_wlocked(DATABASE_HEADER* pheader, KEY* parentKey, const char *
       db_msg(msg, MERROR, "db_create_key", "invalid key type %d to create \'%s\' in \'%s\'", type, key_name, db_get_path_locked(pheader, parentKey).c_str());
       return DB_INVALID_PARAM;
    }
+
+   if ((type == TID_INT64) || (type == TID_UINT64)) {
+      db_msg(msg, MERROR, "db_create_key", "TID_INT64 and TID_UINT64 are not permitted in ODB, sorry. invalid key type %d to create \'%s\' in \'%s\'", type, key_name, db_get_path_locked(pheader, parentKey).c_str());
+      return DB_INVALID_PARAM;
+   }
    
    const KEY* pdir = parentKey;
    
