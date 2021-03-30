@@ -1484,6 +1484,15 @@ static void db_validate_sizes()
    printf("EQUIPMENT_INFO offset of status: %d\n", (int)((char*)&eq.status - (char*)&eq));
    printf("EQUIPMENT_INFO offset of hidden: %d\n", (int)((char*)&eq.hidden - (char*)&eq));
 #endif
+
+   assert(sizeof(UINT8)  == 1);
+   assert(sizeof(INT8)   == 1);
+   assert(sizeof(UINT16) == 2);
+   assert(sizeof(INT16)  == 2);
+   assert(sizeof(UINT32) == 4);
+   assert(sizeof(INT32)  == 4);
+   assert(sizeof(UINT64) == 8);
+   assert(sizeof(INT64)  == 8);
    
 #ifdef OS_LINUX
    assert(sizeof(EVENT_REQUEST) == 16); // ODB v3
