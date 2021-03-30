@@ -124,7 +124,10 @@ public:
    {
       /* put any hardware initialization here */
 
-      fEqConfEnabled = false;
+
+      /* start poll thread here */
+
+      //EqStartPollThread();
       
       /* return TMFeErrorMessage("my error message") if frontend should not be started */
       return TMFeOk();
@@ -219,18 +222,27 @@ public:
    }
 };
 
+//
+// option 1: simple registration of equipments:
+//
+//static TMFeRegister eq_trigger_register("Sample Frontend", new EqTrigger("Trigger", __FILE__));
 //static TMFeRegister eq_periodic_register("Sample Frontend", new EqPeriodic("Periodic", __FILE__));
+//
+// option 2: explicit registration of equipments:
+//
 
 static class FeFrontend: public TMFeInterface
 {
 public:
    FeFrontend() // ctor
    {
+      TMFE* mfe = TMFE::Instance();
+
       /* register with the framework */
-      TMFE::Instance()->fFrontendName = "Sample Frontend";
-      TMFE::Instance()->AddEquipment(new EqTrigger("Trigger", __FILE__));
-      TMFE::Instance()->AddEquipment(new EqPeriodic("Periodic", __FILE__));
-      TMFE::Instance()->AddInterface(this);
+      mfe->fFrontendName = "Sample Frontend";
+      mfe->AddEquipment(new EqTrigger("Trigger", __FILE__));
+      mfe->AddEquipment(new EqPeriodic("Periodic", __FILE__));
+      mfe->AddInterface(this);
    }
 
    void HandlePostConnect(const std::vector<std::string>& args)
@@ -241,6 +253,11 @@ public:
    void HandlePostInit(const std::vector<std::string>& args)
    {
       /* do all hardware setup common to all equipments needed after HandleInit(), but before starting the main loop */
+
+      /* start periodic and rpc threads here */
+
+      //TMFE::Instance()->StartPeriodicThread();
+      //TMFE::Instance()->StartRpcThread();
    };
    
    void HandlePreDisconnect()
