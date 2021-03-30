@@ -147,8 +147,27 @@ public:
       EqSendEvent(buf);
    }
 
+#if 0
+   double first = 0;
+   double prev = 0;
+   int count = 0;
+#endif
+   
    void HandlePeriodic()
    {
+#if 0
+      double now = TMFE::GetTime();
+      if (first == 0)
+         first = now;
+      double elapsed = now - prev;
+      double expected = first + count*fEqConfPeriodMilliSec/1000.0;
+      printf("periodic %f, expected %f, diff %f, elapsed %f\n", now, expected, now-expected, elapsed);
+      prev = now;
+      count++;
+
+      //TMFE::Sleep(2);
+#endif
+      
       //printf("EqSlow::HandlePeriodic!\n");
       double t = TMFE::GetTime();
       double data = 100.0*sin(-M_PI/2.0+M_PI*t/60);
