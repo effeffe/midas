@@ -441,7 +441,7 @@ void TMFE::PollMidas(int msec)
          s = 0;
       }
 
-      if (1||debug) {
+      if (debug) {
          printf("now %.6f, sleep_end %.6f, next_periodic %.6f, sleep_time %.6f, cm_yield(%d), poll period %.6f\n", now, sleep_end, next_periodic, sleep_time, s, poll_sleep);
       }
 
