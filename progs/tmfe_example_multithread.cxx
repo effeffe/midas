@@ -122,7 +122,7 @@ int main(int argc, char* argv[])
    eq->EqInit(eq_args);
    eq->EqSetStatus("Starting...", "white");
 
-   mfe->AddEquipment(eq);
+   mfe->AddRpcHandler(eq);
 
    //mfe->SetTransitionSequenceStart(910);
    //mfe->SetTransitionSequenceStop(90);
@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
    printf("Main thread is %s\n", TMFE::GetThreadId().c_str());
 
    mfe->StartRpcThread();
-   mfe->StartPeriodicThread();
+   //mfe->StartPeriodicThread();
 
    eq->EqSetStatus("Started...", "white");
 

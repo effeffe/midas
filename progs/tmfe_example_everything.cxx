@@ -146,22 +146,22 @@ public:
    }
 };
 
-static TMFeRegister eq_everything_register("tmfe_example_everything", new EqEverything("tmfe_example_everything", __FILE__));
+// example frontend
 
-// example frontend hooks
-
-static class FeEverything: public TMFeInterface
+class FeEverything: public TMFrontend
 {
 public:
    FeEverything() // ctor
    {
       printf("FeEverything::ctor!\n");
-      TMFE::Instance()->AddInterface(this);
+      fFeName = "tmfe_example_everything";
+      FeAddEquipment(new EqEverything("tmfe_example_everything", __FILE__));
    }
 
-   void HandlePreConnect(const std::vector<std::string>& args)
+   TMFeResult HandlePreConnect(const std::vector<std::string>& args)
    {
       printf("FeEverything::HandlePreConnect!\n");
+      return TMFeOk();
    };
    
    void HandlePostConnect(const std::vector<std::string>& args)
@@ -176,14 +176,22 @@ public:
    
    void HandlePreDisconnect()
    {
-      printf("FeEverythingHooks::HandlePreDisconnect!\n");
+      printf("FeEverything::HandlePreDisconnect!\n");
    };
    
    void HandlePostDisconnect()
    {
-      printf("FeEverythingHooks::HandlePostDisconnect!\n");
+      printf("FeEverything::HandlePostDisconnect!\n");
    };
-} fe_everything;
+};
+
+// boilerplate main function
+
+int main(int argc, char* argv[])
+{
+   FeEverything fe_everything;
+   return fe_everything.FeMain(argc, argv);
+}
 
 /* emacs
  * Local Variables:

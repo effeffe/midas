@@ -44,18 +44,6 @@ TMFE::TMFE() // ctor
 {
    if (gfVerbose)
       printf("TMFE::ctor!\n");
-   fDB = 0;
-   fOdbRoot = NULL;
-   fShutdownRequested = false;
-   fNextPeriodic = 0;
-
-   fRpcThreadStarting = false;
-   fRpcThreadRunning = false;
-   fRpcThreadShutdownRequested = false;
-
-   fPeriodicThreadStarting = false;
-   fPeriodicThreadRunning = false;
-   fPeriodicThreadShutdownRequested = false;
 }
 
 TMFE::~TMFE() // dtor
@@ -73,18 +61,16 @@ TMFE* TMFE::Instance()
    return gfMFE;
 }
 
-TMFeResult TMFE::Connect(const char* xprogname, const char* filename, const char* hostname, const char* exptname)
+TMFeResult TMFE::Connect(const char* progname, const char* hostname, const char* exptname)
 {
-   if (xprogname)
-      fFrontendName     = xprogname;
-   if (filename)
-      fFrontendFilename = filename;
+   if (progname)
+      fProgramName = progname;
 
-   fFrontendHostname = ss_gethostname();
-
-   if (fFrontendName.empty()) {
-      return TMFeErrorMessage("TMFE::Connect: frontend name is not set");
+   if (fProgramName.empty()) {
+      return TMFeErrorMessage("TMFE::Connect: frontend program name is not set");
    }
+
+   fXHostname = ss_gethostname();
 
    int status;
   
@@ -99,9 +85,9 @@ TMFeResult TMFE::Connect(const char* xprogname, const char* filename, const char
    }
 
    if (hostname && hostname[0]) {
-      fHostname = hostname;
+      fMserverHostname = hostname;
    } else {
-      fHostname = env_hostname;
+      fMserverHostname = env_hostname;
    }
    
    if (exptname && exptname[0]) {
@@ -111,13 +97,13 @@ TMFeResult TMFE::Connect(const char* xprogname, const char* filename, const char
    }
 
    if (gfVerbose) {
-      printf("TMFE::Connect: Program \"%s\" connecting to experiment \"%s\" on host \"%s\"\n", fFrontendName.c_str(), fExptname.c_str(), fHostname.c_str());
+      printf("TMFE::Connect: Program \"%s\" connecting to experiment \"%s\" on host \"%s\"\n", fProgramName.c_str(), fExptname.c_str(), fMserverHostname.c_str());
    }
    
    int watchdog = DEFAULT_WATCHDOG_TIMEOUT;
    //int watchdog = 60*1000;
    
-   status = cm_connect_experiment1(fHostname.c_str(), fExptname.c_str(), fFrontendName.c_str(), NULL, DEFAULT_ODB_SIZE, watchdog);
+   status = cm_connect_experiment1(fMserverHostname.c_str(), fExptname.c_str(), fProgramName.c_str(), NULL, DEFAULT_ODB_SIZE, watchdog);
    
    if (status == CM_UNDEF_EXP) {
       return TMFeMidasError(msprintf("Cannot connect to MIDAS, experiment \"%s\" is not defined", fExptname.c_str()), "cm_connect_experiment1", status);
@@ -135,7 +121,7 @@ TMFeResult TMFE::Connect(const char* xprogname, const char* filename, const char
    RegisterRPCs();
 
    if (gfVerbose) {
-      printf("TMFE::Connect: Program \"%s\" connected to experiment \"%s\" on host \"%s\"\n", fFrontendName.c_str(), fExptname.c_str(), fHostname.c_str());
+      printf("TMFE::Connect: Program \"%s\" connected to experiment \"%s\" on host \"%s\"\n", fProgramName.c_str(), fExptname.c_str(), fMserverHostname.c_str());
    }
 
    return TMFeOk();
@@ -154,74 +140,64 @@ TMFeResult TMFE::SetWatchdogSec(int sec)
 TMFeResult TMFE::Disconnect()
 {
    if (gfVerbose)
-      printf("TMFE::Disconnect: Disconnecting from experiment \"%s\" on host \"%s\"\n", fExptname.c_str(), fHostname.c_str());
+      printf("TMFE::Disconnect: Disconnecting from experiment \"%s\" on host \"%s\"\n", fExptname.c_str(), fMserverHostname.c_str());
    StopRpcThread();
-   StopPeriodicThread();
    cm_disconnect_experiment();
    if (gfVerbose)
-      printf("TMFE::Disconnect: Disconnected from experiment \"%s\" on host \"%s\"\n", fExptname.c_str(), fHostname.c_str());
+      printf("TMFE::Disconnect: Disconnected from experiment \"%s\" on host \"%s\"\n", fExptname.c_str(), fMserverHostname.c_str());
    return TMFeOk();
 }
 
-void TMFE::EquipmentPeriodicTasks()
+double TMFrontend::FePeriodicTasks()
 {
-   double now = GetTime();
+   double now = TMFE::GetTime();
 
-   // run periodic equipments
+   double next_periodic = 9999;
 
-   if (fNextPeriodic == 0 || now >= fNextPeriodic) {
-      int n = fEquipments.size();
-      fNextPeriodic = 0;
-      for (int i=0; i<n; i++) {
-         TMFeEquipment* eq = fEquipments[i];
-         if (!eq)
-            continue;
-         if (!eq->fEqConfEnabled)
-            continue;
-         if (!eq->fEqConfEnablePeriodic)
-            continue;
-         double period = eq->fEqConfPeriodMilliSec/1000.0;
-         if (period <= 0)
-            continue;
-         if (eq->fEqPeriodicNextCallTime == 0)
-            eq->fEqPeriodicNextCallTime = now + 0.5; // we are off by 0.5 sec with updating of statistics
-         //printf("periodic[%d] period %f, last call %f, next call %f (%f)\n", i, period, eq->fEqPeriodicLastCallTime, eq->fEqPeriodicNextCallTime, now - eq->fEqPeriodicNextCallTime);
-         if (now >= eq->fEqPeriodicNextCallTime) {
-            eq->fEqPeriodicNextCallTime += period;
-            
-            if (eq->fEqPeriodicNextCallTime < now) {
-               if (gfVerbose)
-                  printf("TMFE::EquipmentPeriodicTasks: periodic equipment \"%s\" skipped some beats!\n", eq->fEqName.c_str());
-               Msg(MERROR, "TMFE::EquipmentPeriodicTasks", "Equipment \"%s\" skipped some beats!", eq->fEqName.c_str());
-               while (eq->fEqPeriodicNextCallTime < now) {
-                  eq->fEqPeriodicNextCallTime += period;
-               }
+   int n = fFeEquipments.size();
+   for (int i=0; i<n; i++) {
+      TMFeEquipment* eq = fFeEquipments[i];
+      if (!eq)
+         continue;
+      if (!eq->fEqConfEnabled)
+         continue;
+      if (!eq->fEqConfEnablePeriodic)
+         continue;
+      double period = eq->fEqConfPeriodMilliSec/1000.0;
+      if (period <= 0)
+         continue;
+      if (eq->fEqPeriodicNextCallTime == 0)
+         eq->fEqPeriodicNextCallTime = now + 0.5; // we are off by 0.5 sec with updating of statistics
+      //printf("periodic[%d] period %f, last call %f, next call %f (%f)\n", i, period, eq->fEqPeriodicLastCallTime, eq->fEqPeriodicNextCallTime, now - eq->fEqPeriodicNextCallTime);
+      if (now >= eq->fEqPeriodicNextCallTime) {
+         eq->fEqPeriodicNextCallTime += period;
+         
+         if (eq->fEqPeriodicNextCallTime < now) {
+            if (TMFE::gfVerbose)
+               printf("TMFE::EquipmentPeriodicTasks: periodic equipment \"%s\" skipped some beats!\n", eq->fEqName.c_str());
+            fMfe->Msg(MERROR, "TMFE::EquipmentPeriodicTasks", "Equipment \"%s\" skipped some beats!", eq->fEqName.c_str());
+            while (eq->fEqPeriodicNextCallTime < now) {
+               eq->fEqPeriodicNextCallTime += period;
             }
-
-            if (fStateRunning || !eq->fEqConfReadOnlyWhenRunning) {
-               eq->fEqPeriodicLastCallTime = now;
-               //printf("handler %d eq [%s] call HandlePeriodic()\n", i, h->fEq->fName.c_str());                     
-               eq->HandlePeriodic();
-            }
-
-            now = GetTime();
          }
-
-         if (fNextPeriodic == 0)
-            fNextPeriodic = eq->fEqPeriodicNextCallTime;
-         else if (eq->fEqPeriodicNextCallTime < fNextPeriodic)
-            fNextPeriodic = eq->fEqPeriodicNextCallTime;
+         
+         if (fMfe->fStateRunning || !eq->fEqConfReadOnlyWhenRunning) {
+            eq->fEqPeriodicLastCallTime = now;
+            //printf("handler %d eq [%s] call HandlePeriodic()\n", i, h->fEq->fName.c_str());                     
+            eq->HandlePeriodic();
+         }
+         
+         now = TMFE::GetTime();
       }
-
-      //printf("next periodic %f (+%f)\n", fNextPeriodic, fNextPeriodic - now);
-   } else {
-      //printf("next periodic %f (+%f), waiting\n", fNextPeriodic, fNextPeriodic - now);
+      
+      if (eq->fEqPeriodicNextCallTime < next_periodic)
+         next_periodic = eq->fEqPeriodicNextCallTime;
    }
 
-   now = GetTime();
+   now = TMFE::GetTime();
 
    // update statistics
-   for (auto eq : fEquipments) {
+   for (auto eq : fFeEquipments) {
       if (!eq)
          continue;
       if (!eq->fEqConfEnabled)
@@ -231,27 +207,28 @@ void TMFE::EquipmentPeriodicTasks()
          eq->EqWriteStatistics();
          next = eq->fEqStatNextWrite; // NOTE: this is not thread-safe, possible torn read of "double"
       }
-      if (fNextPeriodic == 0 || next < fNextPeriodic)
-         fNextPeriodic = next;
+      if (next < next_periodic)
+         next_periodic = next;
    }
 
+   return next_periodic;
 }
 
-double TMFE::EquipmentPollTasks()
+double TMFrontend::FePollTasks(double next_periodic_time)
 {
    //printf("poll %f next %f diff %f\n", TMFE::GetTime(), fNextPeriodic, fNextPeriodic - TMFE::GetTime());
    
    double poll_sleep_sec = 9999.0;
-   while (1) {
+   while (!fMfe->fShutdownRequested) {
       bool poll_again = false;
       // NOTE: ok to use range-based for() loop, there will be a crash if HandlePoll() or HandleRead() modify fEquipments, so they should not do that. K.O.
-      for (auto eq : fEquipments) {
+      for (auto eq : fFeEquipments) {
          if (!eq)
             continue;
          if (!eq->fEqConfEnabled)
             continue;
          if (eq->fEqConfEnablePoll && !eq->fEqPollThreadRunning && !eq->fEqPollThreadStarting) {
-            if (fStateRunning || !eq->fEqConfReadOnlyWhenRunning) {
+            if (fMfe->fStateRunning || !eq->fEqConfReadOnlyWhenRunning) {
                if (eq->fEqConfPollSleepSec < poll_sleep_sec)
                   poll_sleep_sec = eq->fEqConfPollSleepSec;
                bool poll = eq->HandlePoll();
@@ -265,10 +242,12 @@ double TMFE::EquipmentPollTasks()
       if (!poll_again)
          break;
 
-      // stop polling if we need to run periodic activity
-      double now = TMFE::GetTime();
-      if (now >= fNextPeriodic)
-         break;
+      if (next_periodic_time) {
+         // stop polling if we need to run periodic activity
+         double now = TMFE::TMFE::GetTime();
+         if (now >= next_periodic_time)
+            break;
+      }
    }
    return poll_sleep_sec;
 }
@@ -397,40 +376,42 @@ void TMFE::StartRun()
    }
 }
 
-void TMFE::PollMidas(int msec)
+void TMFrontend::FePollMidas(double sleep_sec)
 {
+   assert(sleep_sec >= 0);
    bool debug = false;
-   double now = GetTime();
+   double now = TMFE::GetTime();
    double sleep_start = now;
-   double sleep_end = now + msec/1000.0;
+   double sleep_end = now + sleep_sec;
    int count_yield_loops = 0;
 
-   while (!fShutdownRequested) {
-      double next_periodic = 0;
+   while (!fMfe->fShutdownRequested) {
+      double next_periodic_time = 0;
+      double poll_sleep = 1.0;
 
-      if (!fPeriodicThreadRunning) {
-         EquipmentPeriodicTasks();
-         next_periodic = fNextPeriodic;
+      if (!fFePeriodicThreadRunning) {
+         next_periodic_time = FePeriodicTasks();
+         poll_sleep = FePollTasks(next_periodic_time);
+      } else {
+         poll_sleep = FePollTasks(TMFE::GetTime() + 0.100);
       }
 
-      double poll_sleep = EquipmentPollTasks();
-
-      if (fRunStopRequested) {
-         StopRun();
+      if (fMfe->fRunStopRequested) {
+         fMfe->StopRun();
          continue;
       }
 
-      now = GetTime();
+      now = TMFE::GetTime();
 
-      if (fRunStartTime && now >= fRunStartTime) {
-         StartRun();
+      if (fMfe->fRunStartTime && now >= fMfe->fRunStartTime) {
+         fMfe->StartRun();
          continue;
       }
 
       double sleep_time = sleep_end - now;
 
-      if (next_periodic > 0 && next_periodic < sleep_end) {
-         sleep_time = next_periodic - now;
+      if (next_periodic_time > 0 && next_periodic_time < sleep_end) {
+         sleep_time = next_periodic_time - now;
       }
 
       int s = 0;
@@ -442,18 +423,19 @@ void TMFE::PollMidas(int msec)
       }
 
       if (debug) {
-         printf("now %.6f, sleep_end %.6f, next_periodic %.6f, sleep_time %.6f, cm_yield(%d), poll period %.6f\n", now, sleep_end, next_periodic, sleep_time, s, poll_sleep);
+         printf("now %.6f, sleep_end %.6f, next_periodic %.6f, sleep_time %.6f, cm_yield(%d), poll period %.6f\n", now, sleep_end, next_periodic_time, sleep_time, s, poll_sleep);
       }
 
       int status = cm_yield(s);
       
       if (status == RPC_SHUTDOWN || status == SS_ABORT) {
-         fShutdownRequested = true;
-         if (gfVerbose)
-            printf("TMFE::PollMidas: cm_yield(%d) status %d, shutdown requested...\n", msec, status);
+         fMfe->fShutdownRequested = true;
+         if (TMFE::gfVerbose) {
+            fprintf(stderr, "TMFE::PollMidas: cm_yield(%d) status %d, shutdown requested...\n", s, status);
+         }
       }
 
-      now = GetTime();
+      now = TMFE::GetTime();
       double sleep_more = sleep_end - now;
       if (sleep_more <= 0)
          break;
@@ -466,7 +448,7 @@ void TMFE::PollMidas(int msec)
    }
 
    if (debug) {
-      printf("TMFE::PollMidas: msec %d, actual %.1f msec, %d loops\n", msec, (now - sleep_start) * 1000.0, count_yield_loops);
+      printf("TMFE::PollMidas: sleep %.1f msec, actual %.1f msec, %d loops\n", sleep_sec * 1000.0, (now - sleep_start) * 1000.0, count_yield_loops);
    }
 }
 
@@ -501,19 +483,19 @@ void TMFE::RpcThread()
    fRpcThreadRunning = false;
 }
 
-void TMFE::PeriodicThread()
+void TMFrontend::FePeriodicThread()
 {
    if (TMFE::gfVerbose)
       printf("TMFE::PeriodicThread: periodic thread started\n");
    
-   fPeriodicThreadRunning = true;
-   while (!fShutdownRequested && !fPeriodicThreadShutdownRequested) {
-      EquipmentPeriodicTasks();
-      Sleep(0.0005);
+   fFePeriodicThreadRunning = true;
+   while (!fMfe->fShutdownRequested && !fFePeriodicThreadShutdownRequested) {
+      FePeriodicTasks();
+      TMFE::Sleep(0.0005);
    }
    if (TMFE::gfVerbose)
       printf("TMFE::PeriodicThread: periodic thread stopped\n");
-   fPeriodicThreadRunning = false;
+   fFePeriodicThreadRunning = false;
 }
 
 void TMFE::StartRpcThread()
@@ -532,20 +514,20 @@ void TMFE::StartRpcThread()
    fRpcThread = new std::thread(&TMFE::RpcThread, this);
 }
 
-void TMFE::StartPeriodicThread()
+void TMFrontend::FeStartPeriodicThread()
 {
    // NOTE: this is thread safe
 
-   std::lock_guard<std::mutex> guard(fMutex);
+   std::lock_guard<std::mutex> guard(fFeMutex);
 
-   if (fPeriodicThreadRunning || fPeriodicThreadStarting || fPeriodicThread) {
-      if (gfVerbose)
+   if (fFePeriodicThreadRunning || fFePeriodicThreadStarting || fFePeriodicThread) {
+      if (TMFE::gfVerbose)
          printf("TMFE::StartPeriodicThread: periodic thread already running\n");
       return;
    }
 
-   fPeriodicThreadStarting = true;
-   fPeriodicThread = new std::thread(&TMFE::PeriodicThread, this);
+   fFePeriodicThreadStarting = true;
+   fFePeriodicThread = new std::thread(&TMFrontend::FePeriodicThread, this);
 }
 
 void TMFE::StopRpcThread()
@@ -576,21 +558,21 @@ void TMFE::StopRpcThread()
    fprintf(stderr, "TMFE::StopRpcThread: timeout waiting for RPC thread to stop\n");
 }
 
-void TMFE::StopPeriodicThread()
+void TMFrontend::FeStopPeriodicThread()
 {
    // NOTE: this is thread safe
    
-   fPeriodicThreadStarting = false;
-   fPeriodicThreadShutdownRequested = true;
+   fFePeriodicThreadStarting = false;
+   fFePeriodicThreadShutdownRequested = true;
 
    for (int i=0; i<60; i++) {
-      if (!fPeriodicThreadRunning) {
-         std::lock_guard<std::mutex> guard(fMutex);
-         if (fPeriodicThread) {
-            fPeriodicThread->join();
-            delete fPeriodicThread;
-            fPeriodicThread = NULL;
-            if (gfVerbose)
+      if (!fFePeriodicThreadRunning) {
+         std::lock_guard<std::mutex> guard(fFeMutex);
+         if (fFePeriodicThread) {
+            fFePeriodicThread->join();
+            delete fFePeriodicThread;
+            fFePeriodicThread = NULL;
+            if (TMFE::gfVerbose)
                fprintf(stderr, "TMFE::StopPeriodicThread: periodic thread stopped\n");
          }
          return;
@@ -715,16 +697,12 @@ static INT rpc_callback(INT index, void *prpc_param[])
    TMFE* mfe = TMFE::Instance();
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleRpc() modifies fEquipments. K.O.
-   for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      TMFeEquipment* eq = mfe->fEquipments[i];
-      if (!eq)
-         continue;
-      if (!eq->fEqConfEnabled)
-         continue;
-      if (!eq->fEqConfEnableRpc)
+   for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
+      TMFeRpcHandlerInterface* h = mfe->fRpcHandlers[i];
+      if (!h)
          continue;
       std::string result = "";
-      TMFeResult r = eq->HandleRpc(cmd, args, result);
+      TMFeResult r = h->HandleRpc(cmd, args, result);
       if (result.length() > 0) {
          //printf("Handler reply [%s]\n", C(r));
          strlcpy(return_buf, result.c_str(), return_max_length);
@@ -736,6 +714,63 @@ static INT rpc_callback(INT index, void *prpc_param[])
    return RPC_SUCCESS;
 }
 
+class TMFrontendRpcHelper: public TMFeRpcHandlerInterface
+{
+public:
+   TMFrontend* fFe = NULL;
+
+public:
+   TMFrontendRpcHelper(TMFrontend* fe) // ctor
+   {
+      if (TMFE::gfVerbose)
+         printf("TMFrontendRpcHelper::ctor!\n");
+
+      fFe = fe;
+   }
+
+   virtual ~TMFrontendRpcHelper() // dtor
+   {
+      if (TMFE::gfVerbose)
+         printf("TMFrontendRpcHelper::dtor!\n");
+
+      // poison pointers
+      fFe = NULL;
+   }
+
+   TMFeResult HandleBeginRun(int run_number)
+   {
+      if (TMFE::gfVerbose)
+         printf("TMFrontendRpcHelper::HandleBeginRun!\n");
+
+      for (unsigned i=0; i<fFe->fFeEquipments.size(); i++) {
+         TMFeEquipment* eq = fFe->fFeEquipments[i];
+         if (!eq)
+            continue;
+         if (!eq->fEqConfEnabled)
+            continue;
+         eq->EqZeroStatistics();
+         eq->EqWriteStatistics();
+      }
+      return TMFeOk();
+   }
+
+   TMFeResult HandleEndRun(int run_number)
+   {
+      if (TMFE::gfVerbose)
+         printf("TMFrontendRpcHelper::HandleEndRun!\n");
+
+      for (unsigned i=0; i<fFe->fFeEquipments.size(); i++) {
+         TMFeEquipment* eq = fFe->fFeEquipments[i];
+         if (!eq)
+            continue;
+         if (!eq->fEqConfEnabled)
+            continue;
+         eq->EqWriteStatistics();
+      }
+      return TMFeOk();
+   }
+};
+
 static INT tr_start(INT run_number, char *errstr)
 {
    if (TMFE::gfVerbose)
@@ -746,28 +781,14 @@ static INT tr_start(INT run_number, char *errstr)
    mfe->fRunNumber = run_number;
    mfe->fStateRunning = true;
    
-   for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      TMFeEquipment* eq = mfe->fEquipments[i];
-      if (!eq)
-         continue;
-      if (!eq->fEqConfEnabled)
-         continue;
-      eq->EqZeroStatistics();
-      eq->EqWriteStatistics();
-   }
-
    TMFeResult result;
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleBeginRun() modifies fEquipments. K.O.
-   for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      TMFeEquipment* eq = mfe->fEquipments[i];
-      if (!eq)
+   for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
+      TMFeRpcHandlerInterface* h = mfe->fRpcHandlers[i];
+      if (!h)
          continue;
-      if (!eq->fEqConfEnabled)
-         continue;
-      if (!eq->fEqConfEnableRpc)
-         continue;
-      result = eq->HandleBeginRun(run_number);
+      result = h->HandleBeginRun(run_number);
       if (result.error_flag) {
          // error handling in this function matches general transition error handling:
          // on run start, the first user handler to return an error code
@@ -799,15 +820,11 @@ static INT tr_stop(INT run_number, char *errstr)
    TMFE* mfe = TMFE::Instance();
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleEndRun() modifies fEquipments. K.O.
-   for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      TMFeEquipment* eq = mfe->fEquipments[i];
-      if (!eq)
+   for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
+      TMFeRpcHandlerInterface* h = mfe->fRpcHandlers[i];
+      if (!h)
          continue;
-      if (!eq->fEqConfEnabled)
-         continue;
-      if (!eq->fEqConfEnableRpc)
-         continue;
-      TMFeResult xresult = eq->HandleEndRun(run_number);
+      TMFeResult xresult = h->HandleEndRun(run_number);
       if (xresult.error_flag) {
          // error handling in this function matches general transition error handling:
          // the "run stop" transition is always sucessful, the run always stops.
@@ -815,15 +832,6 @@ static INT tr_stop(INT run_number, char *errstr)
          // as the transition over all status. K.O.
          result = xresult;
       }
-   }
-
-   for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      TMFeEquipment* eq = mfe->fEquipments[i];
-      if (!eq)
-         continue;
-      if (!eq->fEqConfEnabled)
-         continue;
-      eq->EqWriteStatistics();
    }
 
    mfe->fStateRunning = false;
@@ -845,15 +853,11 @@ static INT tr_pause(INT run_number, char *errstr)
    TMFE* mfe = TMFE::Instance();
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandlePauseRun() modifies fEquipments. K.O.
-   for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      TMFeEquipment* eq = mfe->fEquipments[i];
-      if (!eq)
+   for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
+      TMFeRpcHandlerInterface* h = mfe->fRpcHandlers[i];
+      if (!h)
          continue;
-      if (!eq->fEqConfEnabled)
-         continue;
-      if (!eq->fEqConfEnableRpc)
-         continue;
-      result = eq->HandlePauseRun(run_number);
+      result = h->HandlePauseRun(run_number);
       if (result.error_flag) {
          // error handling in this function matches general transition error handling:
          // logic is same as "start run"
@@ -882,15 +886,11 @@ static INT tr_resume(INT run_number, char *errstr)
    mfe->fStateRunning = true;
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleResumeRun() modifies fEquipments. K.O.
-   for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      TMFeEquipment* eq = mfe->fEquipments[i];
-      if (!eq)
+   for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
+      TMFeRpcHandlerInterface* h = mfe->fRpcHandlers[i];
+      if (!h)
          continue;
-      if (!eq->fEqConfEnabled)
-         continue;
-      if (!eq->fEqConfEnableRpc)
-         continue;
-      result = eq->HandleResumeRun(run_number);
+      result = h->HandleResumeRun(run_number);
       if (result.error_flag) {
          // error handling in this function matches general transition error handling:
          // logic is same as "start run"
@@ -916,15 +916,11 @@ static INT tr_startabort(INT run_number, char *errstr)
    TMFE* mfe = TMFE::Instance();
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleStartAbortRun() modifies fEquipments. K.O.
-   for (unsigned i=0; i<mfe->fEquipments.size(); i++) {
-      TMFeEquipment* eq = mfe->fEquipments[i];
-      if (!eq)
+   for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
+      TMFeRpcHandlerInterface* h = mfe->fRpcHandlers[i];
+      if (!h)
          continue;
-      if (!eq->fEqConfEnabled)
-         continue;
-      if (!eq->fEqConfEnableRpc)
-         continue;
-      result = eq->HandleStartAbortRun(run_number);
+      result = h->HandleStartAbortRun(run_number);
       if (result.error_flag) {
          // error handling in this function matches general transition error handling:
          // logic is same as "start run"
@@ -1019,118 +1015,110 @@ void TMFE::RegisterRPCs()
    cm_register_transition(TR_STARTABORT, tr_startabort, 500);
 }
 
-void TMFE::Usage()
+void TMFE::AddRpcHandler(TMFeRpcHandlerInterface* h)
 {
-   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleUsage() modifies fEquipments. K.O.
-   for (unsigned i=0; i<fEquipments.size(); i++) {
-      if (!fEquipments[i])
-         continue;
-      fEquipments[i]->HandleUsage();
+   fRpcHandlers.push_back(h);
+}
+
+void TMFE::RemoveRpcHandler(TMFeRpcHandlerInterface* h)
+{
+   for (unsigned i=0; i<fRpcHandlers.size(); i++) {
+      if (fRpcHandlers[i] == h) {
+         fRpcHandlers[i] = NULL;
+      }
    }
 }
 
-TMFeResult TMFE::InitEquipments(const std::vector<std::string>& args)
+TMFrontend::TMFrontend() // ctor
+{
+   fMfe = TMFE::Instance();
+}
+
+TMFrontend::~TMFrontend() // dtor
+{
+   if (fFeRpcHelper) {
+      fMfe->RemoveRpcHandler(fFeRpcHelper);
+      delete fFeRpcHelper;
+      fFeRpcHelper = NULL;
+   }
+   // poison all pointers
+   fMfe = NULL;
+}
+
+TMFeResult TMFrontend::FeInitEquipments(const std::vector<std::string>& args)
 {
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleInit() modifies fEquipments. K.O.
-   for (unsigned i=0; i<fEquipments.size(); i++) {
-      if (!fEquipments[i])
+   for (unsigned i=0; i<fFeEquipments.size(); i++) {
+      if (!fFeEquipments[i])
          continue;
-      if (!fEquipments[i]->fEqConfEnabled)
+      if (!fFeEquipments[i]->fEqConfEnabled)
          continue;
-      TMFeResult r = fEquipments[i]->EqInit(args);
+      TMFeResult r = fFeEquipments[i]->EqInit(args);
       if (r.error_flag)
          return r;
    }
    return TMFeOk();
 }
 
-void TMFE::DeleteEquipments()
+void TMFrontend::FeDeleteEquipments()
 {
    // NOTE: this is thread-safe: we do not modify the fEquipments object. K.O.
    // NOTE: this is not thread-safe, we will race against ourselves and do multiple delete of fEquipents[i]. K.O.
    
    // NOTE: should not use range-based for() loop, it uses an iterator and it not thread-safe. K.O.
-   for (unsigned i=0; i<fEquipments.size(); i++) {
-      if (!fEquipments[i])
+   for (unsigned i=0; i<fFeEquipments.size(); i++) {
+      if (!fFeEquipments[i])
          continue;
       //printf("delete equipment [%s]\n", fEquipments[i]->fName.c_str());
-      delete fEquipments[i];
-      fEquipments[i] = NULL;
+      fMfe->RemoveRpcHandler(fFeEquipments[i]);
+      delete fFeEquipments[i];
+      fFeEquipments[i] = NULL;
    }
 }
 
-TMFeResult TMFE::AddEquipment(TMFeEquipment* eq)
+TMFeResult TMFrontend::FeAddEquipment(TMFeEquipment* eq)
 {
    // NOTE: not thread-safe, we modify the fEquipments object. K.O.
    
    // NOTE: should not use range-based for() loop, it uses an iterator and it not thread-safe. K.O.
-   for (unsigned i=0; i<fEquipments.size(); i++) {
-      if (!fEquipments[i])
+   for (unsigned i=0; i<fFeEquipments.size(); i++) {
+      if (!fFeEquipments[i])
          continue;
-      if (fEquipments[i] == eq) {
-         fprintf(stderr, "TMFE::AddEquipment: Fatal error: Equipment \"%s\" is already registered, bye...\n", fEquipments[i]->fEqName.c_str());
+      if (fFeEquipments[i] == eq) {
+         fprintf(stderr, "TMFE::AddEquipment: Fatal error: Equipment \"%s\" is already registered, bye...\n", fFeEquipments[i]->fEqName.c_str());
          exit(1);
-         //return TMFeErrorMessage(msprintf("TMFE::AddEquipment: Equipment \"%s\" is already registered", fEquipments[i]->fEqName.c_str()));
+         //return TMFeErrorMessage(msprintf("TMFE::AddEquipment: Equipment \"%s\" is already registered", fFeEquipments[i]->fEqName.c_str()));
       }
-      if (fEquipments[i]->fEqName == eq->fEqName) {
+      if (fFeEquipments[i]->fEqName == eq->fEqName) {
          fprintf(stderr, "TMFE::AddEquipment: Fatal error: Duplicate equipment name \"%s\", bye...\n", eq->fEqName.c_str());
          exit(1);
          //return TMFeErrorMessage(std::string("TMFE::AddEquipment: Duplicate equipment name \"") + eq->fEqName + "\"");
       }
    }
-   
-   fNextPeriodic = 0;
 
+   eq->fFe = this;
+   
    // NOTE: fEquipments must be protected again multithreaded access here. K.O.
-   fEquipments.push_back(eq);
+   fFeEquipments.push_back(eq);
 
    return TMFeOk();
 }
 
-TMFeResult TMFE::RemoveEquipment(TMFeEquipment* eq)
+TMFeResult TMFrontend::FeRemoveEquipment(TMFeEquipment* eq)
 {
    // NOTE: this is thread-safe, we do not modify the fEquipments object. K.O.
    
    // NOTE: should not use range-based for() loop, it uses an iterator and it not thread-safe. K.O.
-   for (unsigned i=0; i<fEquipments.size(); i++) {
-      if (!fEquipments[i])
+   for (unsigned i=0; i<fFeEquipments.size(); i++) {
+      if (!fFeEquipments[i])
          continue;
-      if (fEquipments[i] == eq) {
-         fEquipments[i] = NULL;
+      if (fFeEquipments[i] == eq) {
+         fFeEquipments[i] = NULL;
          return TMFeOk();
       }
    }
 
    return TMFeErrorMessage(msprintf("TMFE::RemoveEquipment: Cannot find equipment \"%s\"", eq->fEqName.c_str()));
-}
-
-TMFeRegister::TMFeRegister(const char* fename, TMFeEquipment* eq)
-{
-   if (TMFE::gfVerbose)
-      printf("TMFeRegister::ctor: Register equipment with fename [%s] eqname [%s] filename [%s]\n", fename, eq->fEqName.c_str(), eq->fEqFilename.c_str());
-
-   TMFE* mfe = TMFE::Instance();
-
-   if (fename) {
-      if (mfe->fFrontendName.empty())
-         mfe->fFrontendName = fename;
-      else if (mfe->fFrontendName != fename) {
-         fprintf(stderr, "TMFeRegister: Cannot register equipment \"%s\" with frontend name \"%s\" because TMFE frontend name is already set to \"%s\", sorry, bye!\n",
-                 eq->fEqName.c_str(), fename, mfe->fFrontendName.c_str());
-         exit(1);
-      }
-   }
-
-   //if (eqfile)
-   //eqinfo->FrontendFileName = eqfile;
-
-   TMFeResult r = mfe->AddEquipment(eq);
-   
-   if (r.error_flag) {
-      fprintf(stderr, "TMFeRegister: Cannot register equipment \"%s\", TMFE::RegisterEquipment() error %s, sorry, bye!\n",
-              eq->fEqName.c_str(), r.error_message.c_str());
-      exit(1);
-   }
 }
 
 TMFeEquipment::TMFeEquipment(const char* eqname, const char* eqfilename) // ctor
@@ -1140,6 +1128,7 @@ TMFeEquipment::TMFeEquipment(const char* eqname, const char* eqfilename) // ctor
    if (TMFE::gfVerbose)
       printf("TMFeEquipment::ctor: equipment name [%s] file [%s]\n", eqname, eqfilename);
    fMfe = TMFE::Instance();
+   fFe = NULL; // set in FeAddEquipment()
    fEqName = eqname;
    fEqFilename = eqfilename;
    fEqStatNextWrite = TMFE::GetTime();
@@ -1154,6 +1143,7 @@ TMFeEquipment::~TMFeEquipment() // dtor
 
    // free data and poison pointers
    fMfe = NULL;
+   fFe  = NULL;
 }
 
 TMFeResult TMFeEquipment::EqInit(const std::vector<std::string>& args)
@@ -1247,8 +1237,8 @@ TMFeResult TMFeEquipment::EqWriteCommon(bool create)
    fOdbEqCommon->WD("Event limit",         fEqConfEventLimit);
    fOdbEqCommon->WU32("Num subevents",     fEqConfNumSubEvents);
    fOdbEqCommon->WI("Log history",         fEqConfLogHistory);
-   fOdbEqCommon->WS("Frontend host",       fMfe->fFrontendHostname.c_str(), NAME_LENGTH);
-   fOdbEqCommon->WS("Frontend name",       fMfe->fFrontendName.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WS("Frontend host",       fMfe->fXHostname.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WS("Frontend name",       fFe->fFeName.c_str(), NAME_LENGTH);
    fOdbEqCommon->WS("Frontend file name",  fEqFilename.c_str(), 256);
    if (create) {
       fOdbEqCommon->WS("Status",           "", 256);
@@ -1286,9 +1276,9 @@ TMFeResult TMFeEquipment::EqPreInit()
       return r;
 
    if (rpc_is_remote()) {
-      EqSetStatus((fMfe->fFrontendName + "@" + fMfe->fFrontendHostname).c_str(), "greenLight");
+      EqSetStatus((fFe->fFeName + "@" + fMfe->fXHostname).c_str(), "greenLight");
    } else {
-      EqSetStatus(fMfe->fFrontendName.c_str(), "greenLight");
+      EqSetStatus(fFe->fFeName.c_str(), "greenLight");
    }
 
    EqZeroStatistics();
@@ -1346,6 +1336,10 @@ TMFeResult TMFeEquipment::EqPostInit()
 
    if (r.error_flag)
       return r;
+
+   if (fEqConfEnabled && fEqConfEnableRpc) {
+      fMfe->AddRpcHandler(this);
+   }
 
    return TMFeOk();
 };
@@ -1563,58 +1557,7 @@ TMFeResult TMFE::ResetAlarm(const char* name)
    return TMFeOk();
 }
 
-void TMFE::AddInterface(TMFeInterface* hooks)
-{
-   fHooks.push_back(hooks);
-}
-
-void TMFE::CallPreConnect(const std::vector<std::string>& args)
-{
-   for (auto h : fHooks) {
-      if (h)
-         h->HandlePreConnect(args);
-   }
-}
-
-void TMFE::CallPostConnect(const std::vector<std::string>& args)
-{
-   for (auto h : fHooks) {
-      if (h)
-         h->HandlePostConnect(args);
-   }
-}
-
-void TMFE::CallPostInit(const std::vector<std::string>& args)
-{
-   for (auto h : fHooks) {
-      if (h)
-         h->HandlePostInit(args);
-   }
-}
-
-void TMFE::CallPreDisconnect()
-{
-   for (auto h : fHooks) {
-      if (h)
-         h->HandlePreDisconnect();
-   }
-}
-
-void TMFE::CallPostDisconnect()
-{
-   for (auto h : fHooks) {
-      if (h)
-         h->HandlePostDisconnect();
-   }
-}
-
-// singleton instance
-TMFE* TMFE::gfMFE = NULL;
-
-// static data members
-bool TMFE::gfVerbose = false;
-
-static void tmfe_usage(const char* argv0)
+void TMFrontend::FeUsage(const char* argv0)
 {
    fprintf(stderr, "\n");
    fprintf(stderr, "Usage: %s args... -- [equipment args...]\n", argv0);
@@ -1626,20 +1569,33 @@ static void tmfe_usage(const char* argv0)
    fprintf(stderr, " -h hostname[:port] -- connect to MIDAS mserver on given host and port number\n");
    fprintf(stderr, " -e exptname -- connect to given MIDAS experiment\n");
    fprintf(stderr, "\n");
-   exit(1);
+
+   // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleUsage() modifies fEquipments. K.O.
+   for (unsigned i=0; i<fFeEquipments.size(); i++) {
+      if (!fFeEquipments[i])
+         continue;
+      fprintf(stderr, "Usage of equipment \"%s\":\n", fFeEquipments[i]->fEqName.c_str());
+      fprintf(stderr, "\n");
+      fFeEquipments[i]->HandleUsage();
+   }
 }
 
-int tmfe_main(int argc, char* argv[])
+int TMFrontend::FeMain(int argc, char* argv[])
+{
+   std::vector<std::string> args;
+   for (int i=0; i<argc; i++) {
+      args.push_back(argv[i]);
+   }
+
+   return FeMain(args);
+}
+
+TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
 {
    setbuf(stdout, NULL);
    setbuf(stderr, NULL);
 
    signal(SIGPIPE, SIG_IGN);
-
-   std::vector<std::string> args;
-   for (int i=0; i<argc; i++) {
-      args.push_back(argv[i]);
-   }
 
    std::vector<std::string> eq_args;
 
@@ -1676,24 +1632,39 @@ int tmfe_main(int argc, char* argv[])
       }
    }
 
-   TMFE* mfe = TMFE::Instance();
+   TMFeResult r;
 
    // call pre-connect hook before calling Usage(). Otherwise, if user creates
    // new equipments inside the hook, they will never see it's Usage(). K.O.
-   mfe->CallPreConnect(eq_args);
+   r = HandlePreConnect(eq_args);
+
+   if (r.error_flag) {
+      fprintf(stderr, "Fatal error: pre-connect handler error: %s, bye.\n", r.error_message.c_str());
+      exit(1);
+   }
 
    if (help) {
-      tmfe_usage(argv[0]);
-      mfe->Usage();
+      FeUsage(args[0].c_str());
+      HandleUsage();
+      exit(1);
    }
 
-   TMFeResult r = mfe->Connect(NULL, __FILE__, hostname.c_str(), exptname.c_str());
+   r = fMfe->Connect(fFeName.c_str(), hostname.c_str(), exptname.c_str());
+
    if (r.error_flag) {
-      fprintf(stderr, "Cannot connect to MIDAS, error message: %s, bye.\n", r.error_message.c_str());
-      return 1;
+      fprintf(stderr, "Fatal error: cannot connect to MIDAS, error: %s, bye.\n", r.error_message.c_str());
+      exit(1);
    }
 
-   mfe->CallPostConnect(eq_args);
+   r = HandleFrontendInit(eq_args);
+
+   if (r.error_flag) {
+      fprintf(stderr, "Fatal error: frontend init error: %s, bye.\n", r.error_message.c_str());
+      exit(1);
+   }
+
+   fFeRpcHelper = new TMFrontendRpcHelper(this);
+   fMfe->AddRpcHandler(fFeRpcHelper);
 
    //mfe->SetWatchdogSec(0);
    //mfe->SetTransitionSequenceStart(910);
@@ -1702,54 +1673,78 @@ int tmfe_main(int argc, char* argv[])
    //mfe->DeregisterTransitionResume();
    //mfe->RegisterTransitionStartAbort();
 
-   r = mfe->InitEquipments(eq_args);
+   r = FeInitEquipments(eq_args);
 
    if (r.error_flag) {
       fprintf(stderr, "Cannot initialize equipments, error message: %s, bye.\n", r.error_message.c_str());
-      return 1;
+      exit(1);
    }
 
-   mfe->CallPostInit(eq_args);
+   r = HandleFrontendPostInit(eq_args);
+
+   if (r.error_flag) {
+      fprintf(stderr, "Fatal error: frontend post-init error: %s, bye.\n", r.error_message.c_str());
+      exit(1);
+   }
 
    int run_state = 0;
    int run_number = 0;
 
-   mfe->fOdbRoot->RI("Runinfo/state", &run_state);
-   mfe->fOdbRoot->RI("Runinfo/run number", &run_number);
+   fMfe->fOdbRoot->RI("Runinfo/state", &run_state);
+   fMfe->fOdbRoot->RI("Runinfo/run number", &run_number);
 
    if (run_state == STATE_RUNNING) {
-      if (mfe->fIfRunningCallExit) {
-         fprintf(stderr, "Cannot start frontend, run is in progress!\n");
+      if (fMfe->fIfRunningCallExit) {
+         fprintf(stderr, "Fatal error: Cannot start frontend, run is in progress!\n");
          exit(1);
-      } else if (mfe->fIfRunningCallBeginRun) {
+      } else if (fMfe->fIfRunningCallBeginRun) {
          char errstr[TRANSITION_ERROR_STRING_LENGTH];
          tr_start(run_number, errstr);
       } else {
-         mfe->fRunNumber = run_number;
-         mfe->fStateRunning = true;
+         fMfe->fRunNumber = run_number;
+         fMfe->fStateRunning = true;
       }
    }
 
-   while (!mfe->fShutdownRequested) {
-      mfe->PollMidas(10);
+   return TMFeOk();
+}
+
+void TMFrontend::FeMainLoop()
+{
+   while (!fMfe->fShutdownRequested) {
+      FePollMidas(0.100);
+   }
+}
+   
+void TMFrontend::FeShutdown()
+{
+   FeStopPeriodicThread();
+   HandleFrontendExit();
+   FeDeleteEquipments();
+   fMfe->Disconnect();
+   HandlePostDisconnect();
+}
+
+int TMFrontend::FeMain(const std::vector<std::string> &args)
+{
+   TMFeResult r = FeInit(args);
+
+   if (r.error_flag) {
+      fprintf(stderr, "Fatal error: frontend init error: %s, bye.\n", r.error_message.c_str());
+      exit(1);
    }
 
-   mfe->CallPreDisconnect();
-   mfe->DeleteEquipments();
-   mfe->Disconnect();
-   mfe->CallPostDisconnect();
+   FeMainLoop();
+   FeShutdown();
 
    return 0;
 }
 
-/* emacs
- * Local Variables:
- * tab-width: 8
- * c-basic-offset: 3
- * indent-tabs-mode: nil
- * End:
- */
+// singleton instance
+TMFE* TMFE::gfMFE = NULL;
 
+// static data members
+bool TMFE::gfVerbose = false;
 
 /* emacs
  * Local Variables:

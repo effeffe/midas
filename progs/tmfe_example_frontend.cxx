@@ -231,41 +231,48 @@ public:
 // option 2: explicit registration of equipments:
 //
 
-static class FeFrontend: public TMFeInterface
+class FeExample: public TMFrontend
 {
 public:
-   FeFrontend() // ctor
+   FeExample() // ctor
    {
-      TMFE* mfe = TMFE::Instance();
-
       /* register with the framework */
-      mfe->fFrontendName = "Sample Frontend";
-      mfe->AddEquipment(new EqTrigger("Trigger", __FILE__));
-      mfe->AddEquipment(new EqPeriodic("Periodic", __FILE__));
-      mfe->AddInterface(this);
+      fFeName = "Sample Frontend";
+      FeAddEquipment(new EqTrigger("Trigger", __FILE__));
+      FeAddEquipment(new EqPeriodic("Periodic", __FILE__));
    }
 
-   void HandlePostConnect(const std::vector<std::string>& args)
+   TMFeResult HandleFrontendInit(const std::vector<std::string>& args)
    {
-      /* frontend_init: do all hardware setup common to all equipments needed before HandleInit() */
+      /* called before HandleInit(), do all hardware initialization here */
+
+      return TMFeOk();
    };
    
-   void HandlePostInit(const std::vector<std::string>& args)
+   TMFeResult HandleFrontendPostInit(const std::vector<std::string>& args)
    {
-      /* do all hardware setup common to all equipments needed after HandleInit(), but before starting the main loop */
+      /* called after HandleInit(), anything that needs to be done
+       * before starting the main loop goes here */
 
       /* start periodic and rpc threads here */
 
       //TMFE::Instance()->StartPeriodicThread();
       //TMFE::Instance()->StartRpcThread();
+
+      return TMFeOk();
    };
    
-   void HandlePreDisconnect()
+   void HandleFrontendExit()
    {
-      /* frontend_exit: do all hardware shutdown before disconnect from midas */
+      /* hardware shutdown goes here */
    };
-} fe_frontend;
+};
 
+int main(int argc, char* argv[])
+{
+   FeExample fe_example;
+   return fe_example.FeMain(argc, argv);
+}
 
 /* emacs
  * Local Variables:

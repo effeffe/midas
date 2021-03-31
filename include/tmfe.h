@@ -107,9 +107,22 @@ TMFeResult TMFeErrorMessage(const std::string& message);
 TMFeResult TMFeMidasError(const std::string& message, const char* midas_function_name, int midas_status);
 
 class TMFE;
+class TMFrontend;
+class TMFrontendRpcHelper;
 class MVOdb;
 
-class TMFeEquipment
+class TMFeRpcHandlerInterface
+{
+ public:
+   virtual TMFeResult HandleBeginRun(int run_number)  { return TMFeOk(); };
+   virtual TMFeResult HandleEndRun(int run_number)    { return TMFeOk(); };
+   virtual TMFeResult HandlePauseRun(int run_number)  { return TMFeOk(); };
+   virtual TMFeResult HandleResumeRun(int run_number) { return TMFeOk(); };
+   virtual TMFeResult HandleStartAbortRun(int run_number) { return TMFeOk(); };
+   virtual TMFeResult HandleRpc(const char* cmd, const char* args, std::string& result) { return TMFeOk(); };
+};
+
+class TMFeEquipment : public TMFeRpcHandlerInterface
 {
 public: // general configuration, should not be changed by user
    std::string fEqName;
@@ -150,6 +163,7 @@ public: // equipment configuration
 
 public: // pointer to the TMFE singleton
    TMFE* fMfe = NULL;
+   TMFrontend* fFe = NULL;
 
 public: // handlers
 
@@ -251,26 +265,78 @@ private: // non-thread-safe methods
    TMFeResult EqWriteEventToOdb_locked(const char* pevent);
 };
 
-class TMFeInterface
+class TMFrontend
 {
-public:
-   virtual void HandlePreConnect(const std::vector<std::string>& args) {};
-   virtual void HandlePostConnect(const std::vector<std::string>& args) {}; // HandleFrontendInit() ???
-   virtual void HandlePostInit(const std::vector<std::string>& args) {};
-   virtual void HandlePreDisconnect() {}; // HandleFrontendExit() ???
-   virtual void HandlePostDisconnect() {};
+public: // configuration
+   TMFE* fMfe = NULL;
+   TMFrontendRpcHelper* fFeRpcHelper = NULL;
+
+public: // configuration
+   std::string fFeName; ///< frontend program name
+
+public: // multithreaded lock
+   std::mutex fFeMutex;
+
+public: // constructor
+   TMFrontend(); // ctor
+   ~TMFrontend(); // dtor
+   
+public: // main program, main event loop
+   int FeMain(int argc, char* argv[]);
+   int FeMain(const std::vector<std::string>& args);
+   void FeUsage(const char* argv0);
+
+public: // main loop components
+   TMFeResult FeInit(const std::vector<std::string>& args);
+   void FeMainLoop();
+   void FeShutdown();
+
+public: // user handlers
+   virtual TMFeResult HandlePreConnect(const std::vector<std::string>& args)   { return TMFeOk(); };
+   virtual TMFeResult HandleFrontendInit(const std::vector<std::string>& args) { return TMFeOk(); };
+   virtual TMFeResult HandleFrontendPostInit(const std::vector<std::string>& args) { return TMFeOk(); };
+   virtual void HandleFrontendExit()    { };
+   virtual void HandlePostDisconnect()  { };
+   virtual void HandleUsage()           { };
+
+public: // equipments
+   // NOTE: fEquipments must be protected against multithreaded write access. K.O.
+   std::vector<TMFeEquipment*> fFeEquipments;
+
+   TMFeResult FeAddEquipment(TMFeEquipment* eq);
+   TMFeResult FeRemoveEquipment(TMFeEquipment* eq);
+
+   TMFeResult FeInitEquipments(const std::vector<std::string>& args);
+   void       FeDeleteEquipments();
+
+   double FePeriodicTasks(); //< run periodic tasks: equipment periodic handlers, write statistics. returns next time it should be called
+   double FePollTasks(double next_periodic_time); //< run equipment poll. returns requested poll sleep time, value 0 for poll busy loop
+
+public: // scheduler
+   void FePollMidas(double sleep_sec);
+
+public: // periodic thread methods, thread-safe
+   void FePeriodicThread();
+   void FeStartPeriodicThread();
+   void FeStopPeriodicThread();
+
+public: // periodic thread intername data
+   std::thread* fFePeriodicThread = NULL;
+   bool fFePeriodicThreadStarting = false;
+   bool fFePeriodicThreadRunning  = false;
+   bool fFePeriodicThreadShutdownRequested = false;
+
 };
 
 class TMFE
 {
 public: // configuration
 
-   std::string fHostname; ///< hostname where the mserver is running, blank if using shared memory
    std::string fExptname; ///< experiment name, blank if only one experiment defined in exptab
+   std::string fMserverHostname; ///< hostname where the mserver is running, blank if using shared memory
 
-   std::string fFrontendName; ///< frontend program name
-   std::string fFrontendHostname; ///< frontend hostname
-   std::string fFrontendFilename; ///< frontend program file name
+   std::string fProgramName; ///< frontend program name
+   std::string fXHostname; ///< hostname we are running on
 
 public: // configuration, what to do if started when run is in progress
 
@@ -284,21 +350,12 @@ public: // ODB access
    int    fDB = 0;         ///< ODB database handle
    MVOdb* fOdbRoot = NULL; ///< ODB root
 
-public: // shutdown and run stop flags
+public: // shutdown
    bool fShutdownRequested = false; ///< shutdown was requested by Ctrl-C or by RPC command
-   bool fRunStopRequested = false; ///< run stop was requested by equipment
-   double fRunStartTime = 0; ///< start a new run at this time
 
 public: // run state
    int  fRunNumber = 0; ///< current run number
    bool fStateRunning = false; ///< run state is running or paused
-
-public:   
-   // NOTE: fEquipments must be protected against multithreaded write access. K.O.
-   std::vector<TMFeEquipment*> fEquipments;
-
-public: // periodic and poll schedulers
-   double fNextPeriodic = 0;
 
 public: // internal threads
    std::thread* fRpcThread = NULL;
@@ -306,11 +363,6 @@ public: // internal threads
    bool fRpcThreadRunning  = false;
    bool fRpcThreadShutdownRequested = false;
 
-   std::thread* fPeriodicThread = NULL;
-   bool fPeriodicThreadStarting = false;
-   bool fPeriodicThreadRunning  = false;
-   bool fPeriodicThreadShutdownRequested = false;
-   
  private:
    /// TMFE is a singleton class: only one
    /// instance is allowed at any time
@@ -327,40 +379,37 @@ public: // internal threads
    
    static bool gfVerbose;
 
-   TMFeResult Connect(const char* progname, const char* filename = NULL, const char*hostname = NULL, const char*exptname = NULL);
+   TMFeResult Connect(const char* progname = NULL, const char*hostname = NULL, const char*exptname = NULL);
    TMFeResult Disconnect();
-
-   TMFeResult AddEquipment(TMFeEquipment* eq);
-   TMFeResult RemoveEquipment(TMFeEquipment* eq);
-
-   void       Usage();
-   TMFeResult InitEquipments(const std::vector<std::string>& args);
-   void       DeleteEquipments();
 
 public: // RPC thread methods, thread-safe
    void RpcThread();
    void StartRpcThread();
    void StopRpcThread();
 
-public: // periodic thread methods, thread-safe
-   void PeriodicThread();
-   void StartPeriodicThread();
-   void StopPeriodicThread();
+public: // run control
+   bool   fRunStopRequested = false; ///< run stop was requested by equipment
+   double fRunStartTime = 0; ///< start a new run at this time
+
+   void StopRun();
+   void StartRun();
 
 public:
    TMFeResult SetWatchdogSec(int sec);
 
    void PollMidas(int millisec);
    void MidasPeriodicTasks();
-   void EquipmentPeriodicTasks();
-   double EquipmentPollTasks();
-   void StopRun();
-   void StartRun();
 
    TMFeResult TriggerAlarm(const char* name, const char* message, const char* aclass);
    TMFeResult ResetAlarm(const char* name);
 
    void Msg(int message_type, const char *filename, int line, const char *routine, const char *format, ...) MATTRPRINTF(6,7);
+
+public: // run transitions and RPCs
+   std::vector<TMFeRpcHandlerInterface*> fRpcHandlers;
+
+   void AddRpcHandler(TMFeRpcHandlerInterface*);
+   void RemoveRpcHandler(TMFeRpcHandlerInterface*);
 
    void SetTransitionSequenceStart(int seqno);
    void SetTransitionSequenceStop(int seqno);
@@ -377,31 +426,10 @@ public:
    void RegisterRPCs();
 
 public:
-   std::vector<TMFeInterface*> fHooks;
-
-public:
-   void AddInterface(TMFeInterface*);
-
-public:
-   void CallPreConnect(const std::vector<std::string>& args);
-   void CallPostConnect(const std::vector<std::string>& args); // CallFrontendInit() ???
-   void CallPostInit(const std::vector<std::string>& args);
-   void CallPreDisconnect(); // CallFrontendExit() ???
-   void CallPostDisconnect();
-
-public:
    static double GetTime(); ///< return current time in seconds, with micro-second precision
    static void Sleep(double sleep_time_sec); ///< sleep, with micro-second precision
    static std::string GetThreadId(); ///< return identification of this thread
 };
-
-class TMFeRegister
-{
- public:
-   TMFeRegister(const char* fename, TMFeEquipment* eq);
-};
-
-int tmfe_main(int argc, char* argv[]);
 
 #endif
 /* emacs

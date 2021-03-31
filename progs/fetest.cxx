@@ -111,8 +111,6 @@ public:
 
 };
 
-static TMFeRegister eq_random_register("fetest", new EqRandom("test_random", __FILE__));
-
 class EqSlow :
    public TMFeEquipment
 {
@@ -197,8 +195,6 @@ public:
   },
 #endif
 };
-
-static TMFeRegister eq_slow_register("fetest", new EqSlow("test_slow", __FILE__));
 
 class EqBulk :
    public TMFeEquipment
@@ -311,8 +307,6 @@ public:
 #endif
 };
 
-static TMFeRegister eq_bulk_register("fetest", new EqBulk("test_bulk", __FILE__));
-   
 class EqRpc :
    public TMFeEquipment
 {
@@ -456,7 +450,26 @@ public:
    }
 };
 
-static TMFeRegister eq_rpc_register("fetest", new EqRpc("test_rpc", __FILE__));
+class FeTest: public TMFrontend
+{
+public:
+   FeTest() // ctor
+   {
+      fFeName = "fetest";
+      FeAddEquipment(new EqRpc("test_rpc", __FILE__));
+      FeAddEquipment(new EqRandom("test_random", __FILE__));
+      FeAddEquipment(new EqSlow("test_slow", __FILE__));
+      FeAddEquipment(new EqBulk("test_bulk", __FILE__));
+   }
+};
+
+// boilerplate main function
+
+int main(int argc, char* argv[])
+{
+   FeTest fe_test;
+   return fe_test.FeMain(argc, argv);
+}
 
 /* emacs
  * Local Variables:

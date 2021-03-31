@@ -122,7 +122,7 @@ int main(int argc, char* argv[])
    eq->EqInit(eq_args);
    eq->EqSetStatus("Starting...", "white");
 
-   mfe->AddEquipment(eq);
+   mfe->AddRpcHandler(eq);
    mfe->RegisterRPCs();
 
    //mfe->SetTransitionSequenceStart(910);
@@ -135,9 +135,9 @@ int main(int argc, char* argv[])
 
    eq->EqSetStatus("Started...", "white");
 
-   while (!mfe->fShutdownRequested) {
-      mfe->PollMidas(10);
-   }
+   //while (!mfe->fShutdownRequested) {
+   //   mfe->PollMidas(10);
+   //}
 
    mfe->Disconnect();
 
