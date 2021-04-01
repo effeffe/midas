@@ -574,10 +574,12 @@ class SqlBase
 public:
    int  fDebug;
    bool fIsConnected;
+   bool fTransactionPerTable;
 
    SqlBase() {  // ctor
       fDebug = 0;
       fIsConnected = false;
+      fTransactionPerTable = true;
    };
 
    virtual ~SqlBase() { // dtor
@@ -628,22 +630,25 @@ public:
 struct HsSqlSchema : public HsSchema {
    SqlBase* sql;
    std::vector<std::string> disconnected_buffer;
-   int transaction_count;
    std::string table_name;
    std::vector<std::string> column_names;
    std::vector<std::string> column_types;
 
    HsSqlSchema() // ctor
    {
-      transaction_count = 0;
+      sql = 0;
+      table_transaction_count = 0;
    }
 
    ~HsSqlSchema() // dtor
    {
-      assert(transaction_count == 0);
+      assert(get_transaction_count() == 0);
    }
 
    void print(bool print_tags = true) const;
+   int get_transaction_count();
+   void reset_transaction_count();
+   void increment_transaction_count();
    int close_transaction();
    int flush_buffers() { return close_transaction(); }
    int close() { return close_transaction(); }
@@ -658,7 +663,17 @@ struct HsSqlSchema : public HsSchema {
                  const int debug,
                  std::vector<time_t>& last_time,
                  MidasHistoryBufferInterface* buffer[]);
+
+private:
+   // Sqlite uses a transaction per table; MySQL uses a single transaction for all tables.
+   // But to support future "single transaction" DBs more easily (e.g. if user wants to
+   // log to both Postgres and MySQL in future), we keep track of the transaction count
+   // per SQL engine.
+   int table_transaction_count;
+   static std::map<SqlBase*, int> global_transaction_count;
 };
+
+std::map<SqlBase*, int> HsSqlSchema::global_transaction_count;
 
 struct HsFileSchema : public HsSchema {
    std::string file_name;
@@ -812,6 +827,7 @@ Mysql::Mysql() // ctor
    fNextReconnect = 0;
    fNextReconnectDelaySec = 0;
    fDisconnectedLost = 0;
+   fTransactionPerTable = false;
 }
 
 Mysql::~Mysql() // dtor
@@ -3153,9 +3169,9 @@ int HsSqlSchema::close_transaction()
    }
    
    int status = HS_SUCCESS;
-   if (transaction_count > 0) {
+   if (get_transaction_count() > 0) {
       status = sql->CommitTransaction(table_name.c_str());
-      transaction_count = 0;
+      reset_transaction_count();
    }
    return status;
 }
@@ -3355,20 +3371,20 @@ int HsSqlSchema::write_event(const time_t t, const char* data, const int data_si
    cmd += ");";
 
    if (sql->IsConnected()) {
-      if (s->transaction_count == 0)
+      if (s->get_transaction_count() == 0)
          sql->OpenTransaction(s->table_name.c_str());
 
-      s->transaction_count++;
+      s->increment_transaction_count();
 
       int status = sql->Exec(s->table_name.c_str(), cmd.c_str());
 
       // mh2sql who does not call hs_flush_buffers()
       // so we should flush the transaction by hand
       // some SQL engines have limited transaction buffers... K.O.
-      if (s->transaction_count > 100000) {
+      if (s->get_transaction_count() > 100000) {
          //printf("flush table %s\n", table_name);
          sql->CommitTransaction(s->table_name.c_str());
-         s->transaction_count = 0;
+         s->reset_transaction_count();
       }
       
       if (status != DB_SUCCESS) {
@@ -3518,6 +3534,30 @@ int HsSqlSchema::read_data(const time_t start_time,
       printf("SqlHistory::read_data: table [%s], start %s, end %s, read %d rows\n", table_name.c_str(), TimeToString(start_time).c_str(), TimeToString(end_time).c_str(), count);
 
    return HS_SUCCESS;
+}
+
+int HsSqlSchema::get_transaction_count() {
+   if (!sql || sql->fTransactionPerTable) {
+      return table_transaction_count;
+   } else {
+      return global_transaction_count[sql];
+   }
+}
+
+void HsSqlSchema::reset_transaction_count() {
+   if (!sql || sql->fTransactionPerTable) {
+      table_transaction_count = 0;
+   } else {
+      global_transaction_count[sql] = 0;
+   }
+}
+
+void HsSqlSchema::increment_transaction_count() {
+   if (!sql || sql->fTransactionPerTable) {
+      table_transaction_count++;
+   } else {
+      global_transaction_count[sql]++;
+   }
 }
 
 ////////////////////////////////////////////////////////
