@@ -152,7 +152,7 @@ double TMFrontend::FePeriodicTasks()
 {
    double now = TMFE::GetTime();
 
-   double next_periodic = 9999;
+   double next_periodic = now + 60;
 
    int n = fFeEquipments.size();
    for (int i=0; i<n; i++) {
@@ -216,7 +216,7 @@ double TMFrontend::FePeriodicTasks()
 
 double TMFrontend::FePollTasks(double next_periodic_time)
 {
-   //printf("poll %f next %f diff %f\n", TMFE::GetTime(), fNextPeriodic, fNextPeriodic - TMFE::GetTime());
+   //printf("poll %f next %f diff %f\n", TMFE::GetTime(), next_periodic_time, next_periodic_time - TMFE::GetTime());
    
    double poll_sleep_sec = 9999.0;
    while (!fMfe->fShutdownRequested) {
