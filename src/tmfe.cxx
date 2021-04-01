@@ -820,7 +820,12 @@ static INT tr_stop(INT run_number, char *errstr)
    TMFE* mfe = TMFE::Instance();
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleEndRun() modifies fEquipments. K.O.
-   for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
+   // NOTE: we need to stop thing in reverse order, otherwise TMFrontend code
+   // does not work right - TMFrontend is registered first, and (correctly) runs
+   // first at begin of run (to clear statistics, etc). But at the end of run
+   // it needs to run last, to update the statistics, etc. after all the equipments
+   // have done their end of run things and are finished. K.O.
+   for (int i = (int)mfe->fRpcHandlers.size() - 1; i >= 0; i--) {
       TMFeRpcHandlerInterface* h = mfe->fRpcHandlers[i];
       if (!h)
          continue;
@@ -853,7 +858,8 @@ static INT tr_pause(INT run_number, char *errstr)
    TMFE* mfe = TMFE::Instance();
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandlePauseRun() modifies fEquipments. K.O.
-   for (unsigned i=0; i<mfe->fRpcHandlers.size(); i++) {
+   // NOTE: tr_pause runs in reverse order to match tr_stop. K.O.
+   for (int i = (int)mfe->fRpcHandlers.size() - 1; i >= 0; i--) {
       TMFeRpcHandlerInterface* h = mfe->fRpcHandlers[i];
       if (!h)
          continue;
