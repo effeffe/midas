@@ -16,6 +16,10 @@ set(PROGS
    hwtest
    tmfe_example
    tmfe_example_multithread
+   tmfe_example_everything
+   tmfe_example_frontend
+   fetest
+   test_sleep
    crc32c_sum
    lazylogger
 )
@@ -39,15 +43,6 @@ set(MFEPROGS
    msysmon
 )
 
-set(TMFEPROGS
-   tmfe_example_everything
-   tmfe_example_frontend
-   #tmfe_example_periodic
-   #tmfe_example_poll
-   fetest
-   test_sleep
-)
-
 foreach(PROG ${PROGS} ${TESTPROGS})
    add_executable(${PROG} ${PROG})
    target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/mscb/include)
@@ -62,13 +57,6 @@ foreach(PROG ${MFEPROGS})
    target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/mscb/include)
    target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
    target_link_libraries(${PROG} mfe midas ${LIBS} ${DB_LIBS})
-endforeach()
-
-foreach(PROG ${TMFEPROGS})
-   add_executable(${PROG} ${PROG})
-   target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb)
-   #target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
-   target_link_libraries(${PROG} tmfe_main midas ${LIBS} ${DB_LIBS})
 endforeach()
 
 if (HAVE_NVIDIA)
@@ -133,6 +121,7 @@ target_link_libraries(mhttpd6 midas ${LIBS} ${DB_LIBS})
 #
 # odbedit
 #
+
 add_executable(odbedit odbedit cmdedit)
 target_include_directories(odbedit PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 target_link_libraries(odbedit midas ${LIBS})
@@ -140,6 +129,7 @@ target_link_libraries(odbedit midas ${LIBS})
 #
 # lazylogger
 #
+
 if (HAVE_CURL)
    target_compile_options(lazylogger PRIVATE -DHAVE_CURL)   
 endif (HAVE_CURL)
@@ -147,6 +137,7 @@ endif (HAVE_CURL)
 #
 # rmlogger
 #
+
 if (HAVE_ROOT)
    add_executable(rmlogger mlogger)
    target_include_directories(rmlogger PUBLIC ${ROOT_INCLUDE_DIRS})
@@ -158,7 +149,9 @@ endif(HAVE_ROOT)
 #
 # Installation
 #
-install(TARGETS ${PROGS} ${TMFEPROGS} ${MFEPROGS} mhttpd mhttpd6 odbedit DESTINATION bin)
+
+install(TARGETS ${PROGS} ${MFEPROGS} mhttpd mhttpd6 odbedit DESTINATION bin)
+
 if (HAVE_NVIDIA)
    install(TARGETS msysmon-nvidia DESTINATION bin)
 endif(HAVE_NVIDIA)

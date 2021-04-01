@@ -448,23 +448,22 @@ ifdef NEED_RANLIB
 endif
 
 MFE_MAIN   := $(LIB_DIR)/mfe.o
-TMFE_MAIN  := $(LIB_DIR)/tmfe_main.o
 
 TMFE_PROGS :=
-TMFE_PROGS += $(BIN_DIR)/fetest
-TMFE_PROGS += $(BIN_DIR)/tmfe_example_everything
 #TMFE_PROGS += $(BIN_DIR)/tmfe_example_periodic
 #TMFE_PROGS += $(BIN_DIR)/tmfe_example_polled
 
 MINI_OBJS  :=
 MINI_OBJS  += $(MFE_MAIN)
-MINI_OBJS  += $(TMFE_MAIN)
 
 MINI_PROGS :=
 MINI_PROGS += $(BIN_DIR)/odbinit
 MINI_PROGS += $(BIN_DIR)/odbedit
+TMFE_PROGS += $(BIN_DIR)/fetest
 MINI_PROGS += $(BIN_DIR)/tmfe_example
 MINI_PROGS += $(BIN_DIR)/tmfe_example_multithread
+TMFE_PROGS += $(BIN_DIR)/tmfe_example_everything
+TMFE_PROGS += $(BIN_DIR)/tmfe_example_frontend
 MINI_PROGS += $(TMFE_PROGS)
 
 SUBMODULES :=
@@ -472,7 +471,7 @@ SUBMODULES += mxml/mxml.cxx
 SUBMODULES += mjson/mjson.cxx
 SUBMODULES += mvodb/mvodb.cxx
 
-$(LIB_DIR)/mfe.o $(LIB_DIR)/tmfe_main.o $(LIB) $(OBJS): $(OS_DIR) $(GIT_REVISION) $(SUBMODULES)
+$(LIB_DIR)/mfe.o $(LIB) $(OBJS): $(OS_DIR) $(GIT_REVISION) $(SUBMODULES)
 
 $(OS_DIR):
 	mkdir -p $(BIN_DIR)
@@ -515,9 +514,6 @@ $(BIN_DIR)/%: progs/%.cxx $(LIB)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
 
 $(BIN_DIR)/odbedit: progs/odbedit.cxx progs/cmdedit.cxx $(LIB)
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
-
-$(TMFE_PROGS): $(BIN_DIR)/%: progs/%.cxx $(LIB) $(TMFE_MAIN)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
 
 #
