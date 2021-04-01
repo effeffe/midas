@@ -70,7 +70,7 @@ TMFeResult TMFE::Connect(const char* progname, const char* hostname, const char*
       return TMFeErrorMessage("TMFE::Connect: frontend program name is not set");
    }
 
-   fXHostname = ss_gethostname();
+   fHostname = ss_gethostname();
 
    int status;
   
@@ -1096,8 +1096,6 @@ TMFeResult TMFrontend::FeAddEquipment(TMFeEquipment* eq)
       }
    }
 
-   eq->fFe = this;
-   
    // NOTE: fEquipments must be protected again multithreaded access here. K.O.
    fFeEquipments.push_back(eq);
 
@@ -1121,14 +1119,21 @@ TMFeResult TMFrontend::FeRemoveEquipment(TMFeEquipment* eq)
    return TMFeErrorMessage(msprintf("TMFE::RemoveEquipment: Cannot find equipment \"%s\"", eq->fEqName.c_str()));
 }
 
+void TMFrontend::FeSetName(const char* program_name)
+{
+   assert(program_name != NULL);
+   fMfe->fProgramName = program_name;
+}
+
 TMFeEquipment::TMFeEquipment(const char* eqname, const char* eqfilename) // ctor
 {
    assert(eqname != NULL);
    assert(eqfilename != NULL);
+   
    if (TMFE::gfVerbose)
       printf("TMFeEquipment::ctor: equipment name [%s] file [%s]\n", eqname, eqfilename);
+
    fMfe = TMFE::Instance();
-   fFe = NULL; // set in FeAddEquipment()
    fEqName = eqname;
    fEqFilename = eqfilename;
    fEqStatNextWrite = TMFE::GetTime();
@@ -1143,7 +1148,6 @@ TMFeEquipment::~TMFeEquipment() // dtor
 
    // free data and poison pointers
    fMfe = NULL;
-   fFe  = NULL;
 }
 
 TMFeResult TMFeEquipment::EqInit(const std::vector<std::string>& args)
@@ -1237,8 +1241,8 @@ TMFeResult TMFeEquipment::EqWriteCommon(bool create)
    fOdbEqCommon->WD("Event limit",         fEqConfEventLimit);
    fOdbEqCommon->WU32("Num subevents",     fEqConfNumSubEvents);
    fOdbEqCommon->WI("Log history",         fEqConfLogHistory);
-   fOdbEqCommon->WS("Frontend host",       fMfe->fXHostname.c_str(), NAME_LENGTH);
-   fOdbEqCommon->WS("Frontend name",       fFe->fFeName.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WS("Frontend host",       fMfe->fHostname.c_str(), NAME_LENGTH);
+   fOdbEqCommon->WS("Frontend name",       fMfe->fProgramName.c_str(), NAME_LENGTH);
    fOdbEqCommon->WS("Frontend file name",  fEqFilename.c_str(), 256);
    if (create) {
       fOdbEqCommon->WS("Status",           "", 256);
@@ -1276,9 +1280,9 @@ TMFeResult TMFeEquipment::EqPreInit()
       return r;
 
    if (rpc_is_remote()) {
-      EqSetStatus((fFe->fFeName + "@" + fMfe->fXHostname).c_str(), "greenLight");
+      EqSetStatus((fMfe->fProgramName + "@" + fMfe->fHostname).c_str(), "greenLight");
    } else {
-      EqSetStatus(fFe->fFeName.c_str(), "greenLight");
+      EqSetStatus(fMfe->fProgramName.c_str(), "greenLight");
    }
 
    EqZeroStatistics();
@@ -1634,12 +1638,13 @@ TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
 
    TMFeResult r;
 
-   // call pre-connect hook before calling Usage(). Otherwise, if user creates
-   // new equipments inside the hook, they will never see it's Usage(). K.O.
-   r = HandlePreConnect(eq_args);
+   // call arguments handler before calling the usage handlers. Otherwise,
+   // if the arguments handler creates new equipments,
+   // we will never see their Usage(). K.O.
+   r = HandleArguments(eq_args);
 
    if (r.error_flag) {
-      fprintf(stderr, "Fatal error: pre-connect handler error: %s, bye.\n", r.error_message.c_str());
+      fprintf(stderr, "Fatal error: arguments handler error: %s, bye.\n", r.error_message.c_str());
       exit(1);
    }
 
@@ -1649,7 +1654,7 @@ TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
       exit(1);
    }
 
-   r = fMfe->Connect(fFeName.c_str(), hostname.c_str(), exptname.c_str());
+   r = fMfe->Connect(NULL, hostname.c_str(), exptname.c_str());
 
    if (r.error_flag) {
       fprintf(stderr, "Fatal error: cannot connect to MIDAS, error: %s, bye.\n", r.error_message.c_str());
@@ -1680,7 +1685,7 @@ TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
       exit(1);
    }
 
-   r = HandleFrontendPostInit(eq_args);
+   r = HandleFrontendReady(eq_args);
 
    if (r.error_flag) {
       fprintf(stderr, "Fatal error: frontend post-init error: %s, bye.\n", r.error_message.c_str());
@@ -1718,11 +1723,12 @@ void TMFrontend::FeMainLoop()
    
 void TMFrontend::FeShutdown()
 {
+   fMfe->StopRpcThread();
    FeStopPeriodicThread();
+   FeStopEquipmentPollThreads();
    HandleFrontendExit();
    FeDeleteEquipments();
    fMfe->Disconnect();
-   HandlePostDisconnect();
 }
 
 int TMFrontend::FeMain(const std::vector<std::string> &args)

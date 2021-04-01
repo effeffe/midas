@@ -237,7 +237,7 @@ public:
    FeExample() // ctor
    {
       /* register with the framework */
-      fFeName = "Sample Frontend";
+      FeSetName("Sample Frontend");
       FeAddEquipment(new EqTrigger("Trigger", __FILE__));
       FeAddEquipment(new EqPeriodic("Periodic", __FILE__));
    }

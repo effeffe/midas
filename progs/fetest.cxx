@@ -455,7 +455,7 @@ class FeTest: public TMFrontend
 public:
    FeTest() // ctor
    {
-      fFeName = "fetest";
+      FeSetName("fetest");
       FeAddEquipment(new EqRpc("test_rpc", __FILE__));
       FeAddEquipment(new EqRandom("test_random", __FILE__));
       FeAddEquipment(new EqSlow("test_slow", __FILE__));

@@ -154,7 +154,7 @@ public:
    FeEverything() // ctor
    {
       printf("FeEverything::ctor!\n");
-      fFeName = "tmfe_example_everything";
+      FeSetName("tmfe_example_everything");
       FeAddEquipment(new EqEverything("tmfe_example_everything", __FILE__));
    }
 

@@ -161,27 +161,24 @@ public: // equipment configuration
    double fEqConfPeriodStatisticsSec  = 1.0; // period for updating ODB statistics
    double fEqConfPollSleepSec         = 0.000100; // shortest sleep for linux is 50-6-70 microseconds
 
-public: // pointer to the TMFE singleton
-   TMFE* fMfe = NULL;
-   TMFrontend* fFe = NULL;
-
-public: // handlers
-
 public: // multithread lock
    std::mutex  fEqMutex;
 
-public: // conection to event buffer
-   size_t fEqBufferSize = 0;
-   size_t fEqMaxEventSize = 0;
-   int    fEqBufferHandle = 0;
-   int    fEqSerial = 0;
+public: // connection to MIDAS
+   TMFE* fMfe = NULL;
 
-public:
+public: // connection to ODB
    MVOdb* fOdbEq = NULL;           ///< ODB Equipment/EQNAME
    MVOdb* fOdbEqCommon = NULL;     ///< ODB Equipment/EQNAME/Common
    MVOdb* fOdbEqSettings = NULL;   ///< ODB Equipment/EQNAME/Settings
    MVOdb* fOdbEqVariables = NULL;  ///< ODB Equipment/EQNAME/Variables
    MVOdb* fOdbEqStatistics = NULL; ///< ODB Equipment/EQNAME/Statistics
+
+public: // connection to event buffer
+   size_t fEqBufferSize = 0;
+   size_t fEqMaxEventSize = 0;
+   int    fEqBufferHandle = 0;
+   int    fEqSerial = 0;
 
 public: // statistics
    double fEqStatEvents = 0;
@@ -219,11 +216,11 @@ public: // contructors and initialization. not thread-safe.
 private: // default ctor is not permitted
    TMFeEquipment() {}; // ctor
 
-public: // handlers for initialization run from the main thread
+public: // handlers for initialization are called by the main thread
    virtual TMFeResult HandleInit(const std::vector<std::string>& args) { return TMFeOk(); };
    virtual void HandleUsage() {};
 
-public: // optional RPC handlers run from the frontend RPC thread
+public: // optional RPC handlers are called by the RPC thread
    virtual TMFeResult HandleBeginRun(int run_number)  { return TMFeOk(); };
    virtual TMFeResult HandleEndRun(int run_number)    { return TMFeOk(); };
    virtual TMFeResult HandlePauseRun(int run_number)  { return TMFeOk(); };
@@ -231,10 +228,10 @@ public: // optional RPC handlers run from the frontend RPC thread
    virtual TMFeResult HandleStartAbortRun(int run_number) { return TMFeOk(); };
    virtual TMFeResult HandleRpc(const char* cmd, const char* args, std::string& response) { return TMFeOk(); };
 
-public: // optional periodic equipment handler runs from the frontend periodic thread
+public: // optional periodic equipment handler is called by the periodic thread
    virtual void HandlePeriodic() {};
 
-public: // optional polled equipment handler runs from the per-equipment poll thread
+public: // optional polled equipment handler is called by the per-equipment poll thread
    virtual bool HandlePoll() { return false; };
    virtual void HandleRead() {};
 
@@ -244,10 +241,10 @@ public: // per-equipment poll thread
    void EqStartPollThread();
    void EqStopPollThread();
 
-public: // optional ODB watch handler runs from the midas poll thread
-   virtual void HandleOdbWatch(const std::string& odbpath, int odbarrayindex) {};
+   //public: // optional ODB watch handler runs from the midas poll thread
+   //virtual void HandleOdbWatch(const std::string& odbpath, int odbarrayindex) {};
 
-public: // event composition methods
+public: // temporary event composition methods, to bre replaced by the "event object"
    TMFeResult ComposeEvent(char* pevent, size_t size) const;
    TMFeResult BkInit(char* pevent, size_t size) const;
    void*      BkOpen(char* pevent, const char* bank_name, int bank_type) const;
@@ -271,9 +268,6 @@ public: // configuration
    TMFE* fMfe = NULL;
    TMFrontendRpcHelper* fFeRpcHelper = NULL;
 
-public: // configuration
-   std::string fFeName; ///< frontend program name
-
 public: // multithreaded lock
    std::mutex fFeMutex;
 
@@ -286,31 +280,35 @@ public: // main program, main event loop
    int FeMain(const std::vector<std::string>& args);
    void FeUsage(const char* argv0);
 
-public: // main loop components
-   TMFeResult FeInit(const std::vector<std::string>& args);
-   void FeMainLoop();
-   void FeShutdown();
-
-public: // user handlers
-   virtual TMFeResult HandlePreConnect(const std::vector<std::string>& args)   { return TMFeOk(); };
+public: // user provided handlers, see tmfe.md
+   virtual TMFeResult HandleArguments(const std::vector<std::string>& args)    { return TMFeOk(); };
+   virtual void       HandleUsage() { };
    virtual TMFeResult HandleFrontendInit(const std::vector<std::string>& args) { return TMFeOk(); };
-   virtual TMFeResult HandleFrontendPostInit(const std::vector<std::string>& args) { return TMFeOk(); };
-   virtual void HandleFrontendExit()    { };
-   virtual void HandlePostDisconnect()  { };
-   virtual void HandleUsage()           { };
+   virtual TMFeResult HandleFrontendReady(const std::vector<std::string>& args) { return TMFeOk(); };
+   virtual void       HandleFrontendExit() { };
 
-public: // equipments
-   // NOTE: fEquipments must be protected against multithreaded write access. K.O.
+public: // frontend init functions
+   void       FeSetName(const char* program_name);
+   TMFeResult FeAddEquipment(TMFeEquipment* eq);
+
+public: // equipment functions
+   // NOTE: fFeEquipments must be protected against multithreaded write access. K.O.
    std::vector<TMFeEquipment*> fFeEquipments;
 
-   TMFeResult FeAddEquipment(TMFeEquipment* eq);
    TMFeResult FeRemoveEquipment(TMFeEquipment* eq);
 
    TMFeResult FeInitEquipments(const std::vector<std::string>& args);
    void       FeDeleteEquipments();
 
+   void       FeStopEquipmentPollThreads();
+
    double FePeriodicTasks(); //< run periodic tasks: equipment periodic handlers, write statistics. returns next time it should be called
    double FePollTasks(double next_periodic_time); //< run equipment poll. returns requested poll sleep time, value 0 for poll busy loop
+
+public: // main loop
+   TMFeResult FeInit(const std::vector<std::string>& args);
+   void       FeMainLoop();
+   void       FeShutdown();
 
 public: // scheduler
    void FePollMidas(double sleep_sec);
@@ -320,7 +318,7 @@ public: // periodic thread methods, thread-safe
    void FeStartPeriodicThread();
    void FeStopPeriodicThread();
 
-public: // periodic thread intername data
+public: // periodic thread internal data
    std::thread* fFePeriodicThread = NULL;
    bool fFePeriodicThreadStarting = false;
    bool fFePeriodicThreadRunning  = false;
@@ -336,7 +334,7 @@ public: // configuration
    std::string fMserverHostname; ///< hostname where the mserver is running, blank if using shared memory
 
    std::string fProgramName; ///< frontend program name
-   std::string fXHostname; ///< hostname we are running on
+   std::string fHostname; ///< hostname we are running on
 
 public: // configuration, what to do if started when run is in progress
 

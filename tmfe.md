@@ -1,4 +1,4 @@
-# MIDAS C++ modular frontend TMFE
+# MIDAS C++ frontend (TMFE)
 
 ### Introduction
 
@@ -102,40 +102,101 @@ should set the initial value of ReadEqInfoFromODB to false.
 
 ### Main loop and general control flow
 
-Frontend program elements run in this order:
+Everything happens in this order:
 
-* static constructors for TMFeInterface objects
-** set frontend name
-** create equipments (run equipment constructors)
-* static constructors for TMFeRegister objects
-** set frontend name
-** create equipments (run equipment constructors)
 * main()
-** tmfe_main()
-** process standard command line parameters
-* pre-connect handlers
-* connect to midas
-* post-connect handlers ("frontend init")
-** could create more equipments based on ODB settings (run equipment constructors)
-* equipment init handlers
-* post-init handlers
-* tmfe main loop
-* pre-disconnect handlers ("frontend exit")
-* delete all equipments (call equipment destructors, stop per-equipment poll threads)
-* stop periodic thread
-* stop rpc thread
-* disconnect from midas
-* post-disconnect handlers
-* return from tmfe_main()
-* return from main()
-* exit(0)
+* constructor of frontend object
+** user: set the frontend name
+** user: create equipment objects
+* call frontend main function FeMain(), inside:
+* call FeInit(), inside:
+* process command line arguments
+* call frontend arguments handler
+** user: create more equipments, as needed
+* if called with "-h", report program usage, call frontend usage handler, call equipment usage handlers and exit
+* connect to MIDAS
+* call frontend init handler
+** user: open vme/usb/network interfaces
+** user: initialize hardware common to all equipments
+* initialize equipments FeInitEquipments(), for each equipment, call EqInit():
+* call EqPreInit() (prepare ODB common, etc)
+* call equipment init handler (initialize hardware, etc)
+** user: initialize hardware, enable trigger
+** user: start the poll thread if needed
+* call EqPostInitHandler() (open midas event buffer, etc)
+* call frontend ready handler
+** user: do the very last hardware initializations
+** user: start the periodic thread if needed
+** user: start the RPC thread if needed
+* call the frontend begin run function if run is already running (see explanation of run transitions)
+* call FeMainLoop(), inside:
+* while (1) call FePollMidas(), inside:
+* call scheduled equipment periodic handlers
+* call equipment poll handlers
+* write equipment statistics
+* run midas periodic tasks (update watchdog timeouts, etc)
+* poll midas RPC (run transitions, db_watch() notifications, etc)
+* frontend shutdown is initiated by setting fMfe->fShutdownRequested to "true"
+* FeMainLoop() returns
+* call FeShutdown()
+* stop periodic thread, stop poll threads, stop rpc thread
+* call frontend exit handler
+** user: shutdown hardware, etc
+* delete all equipment objects (stop the equipment poll thread, call equipment object destructor)
+* disconnect from MIDAS
+* FeMain() returns
+** user: last chance to do something
+* main() returns
 
-### MIDAS RPC Handler
+### Frontend handlers
 
-In MIDAS, frontends are controlled using an RPC. To start/stop runs
-and cause other activity, programs like mhttpd and odbedit will make RPC
+User code is connected with the TMFE framework in several places:
+
+* frontend constructor
+** user: set program name, create equipments, etc (MIDAS not connected yet)
+* before calling FeMain()
+** user: ditto
+* frontend arguments handler
+** first and last opportunity to examine our command line arguments before we connect to MIDAS
+** for example, adjust our program name according command line arguments
+* frontend init handler, called immediately after connecting to MIDAS
+** user: initialize hardware
+** user: examine ODB and create more equipments
+* frontend ready handler, called immediately after all initialization is completed
+** user: last chance to adjust, modify and initialze anything before frontend starts running
+** user: start the periodic thread and the rpc thread, as needed
+* frontend exit handler, called after shutting down all threads, right before disconnecting from MIDAS
+** user: last chance to do anything, no other frontend or equipment handler will be called after this
+** user: shutdown the hardware, etc
+* after FeMain() returns
+** user: not much to do here, all equipment objects have been deleted, midas is disconnected
+
+### Equipment handlers
+
+User code is connected with the TMFE framework in several places:
+
+* equipment constructor, called from frontend constructor or from frontend arguments handler (MIDAS is disconnected)
+or from frontend init hanmdler (MIDAS is connected)
+** user: configure the equipment here: set the event id, set the event buffer name, etc
+** user: do all hardware setup and initialization in the equipment init handler, not here
+* equipment usage handler
+** user: print usage information, what command line arguments we accept, etc
+* equipment init handler
+** user: examine command line arguments and ODB
+** user: do additional configuration, i.e. according to ODB, modify the event id, modify the event buffer name, etc
+** user: initialize and setup the hardware
+** user: start the equipment poll thread as needed
+* equipment RPC handlers, see next section
+* equipment periodic handler, see next section
+* equipment poll handler, see next section
+
+### Equipment RPC Handlers
+
+In MIDAS, frontends are controlled using the MIDAS RPC (Remote Procedure Call) functions.
+
+To start/stop runs and cause other activity, programs like mhttpd and odbedit will make RPC
 calls to the frontend. Frontend has to listen for the RPC calls, accept them,
-process them and send a response "quickly", within a few seconds.
+process them and reply in a timely manner (within a few seconds or there will be general trouble).
 
 * begin run handler ...
 * end run handler ...
@@ -144,11 +205,11 @@ process them and send a response "quickly", within a few seconds.
 * startabort handler ...
 * jrpc handler ...
 
-### Periodic Handler
+### Equipment Periodic Handler
 
 TBW
 
-### Poll Handler
+### Equipment Poll Handler
 
 TBW
 
@@ -163,7 +224,36 @@ TBW about ODB Statistics
 
 ### Multithreaded frontend
 
-TBW
+By default, MIDAS frontends are single threaded. It is the most safe
+and easy to debug configuration. If threads are started, one must be
+sure that all shared resources - global variables, object data members,
+access to hardware and 3rd party libraries - are protected by locks -
+mutexes or condition variables.
+
+Typical problems present in most multithreaded programs are:
+* race conditions (results depend on which thread does something first)
+* crashes of non-thread-safe 3rd party libraries
+* crashes of non-thread-safe C++ constructs (std::string, std::vector, etc)
+* access to stale pointers (one thread deletes an object, another thread still has a pointer to it)
+* torn reads and writes (global variable "double foo", one thread does "foo=1", another thread does "foo=2",
+result is unpredictable because writing "double" values is not atomic at the hardware level and
+data in memory will be half from one thread half from another thread
+* delivery of UNIX signals (SIGALARM, etc) is unpredictable (which thread will get the signal?)
+
+In DAQ applications use of threads is often unavoidable to improve performance,
+to use all the available CPU cores, to improve program parallelism and to provide
+good real-time behaviour.
+
+In a MIDAS frontend, the two main reasons to use threads is to improve real-time
+performance and to improve response time to run transition RPCs. Data readout will stall
+when the main loop is sending events, updating ODB statistics, etc. RPCs will stall and timeout
+if hardware readout has lengthy delays.
+
+To help with this the TMFE frontend provides standard threads:
+
+* midas rpc thread: all handling of MIDAS RPCs (run transitions, etc) ...
+* frontend periodic thread
+* equipment poll thread
 
 ### Thread locking rules
 
