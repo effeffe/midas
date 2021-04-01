@@ -166,6 +166,7 @@ public: // multithread lock
 
 public: // connection to MIDAS
    TMFE* fMfe = NULL;
+   TMFrontend* fFe = NULL;
 
 public: // connection to ODB
    MVOdb* fOdbEq = NULL;           ///< ODB Equipment/EQNAME
@@ -267,6 +268,10 @@ class TMFrontend
 public: // configuration
    TMFE* fMfe = NULL;
    TMFrontendRpcHelper* fFeRpcHelper = NULL;
+
+public: // configuration
+   // use fMfe->fProgramName instead std::string fFeName; //< frontend name
+   int fFeIndex = 0; //< frontend index
 
 public: // multithreaded lock
    std::mutex fFeMutex;

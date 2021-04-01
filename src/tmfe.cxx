@@ -1112,6 +1112,8 @@ TMFeResult TMFrontend::FeAddEquipment(TMFeEquipment* eq)
       }
    }
 
+   eq->fFe = this;
+
    // NOTE: fEquipments must be protected again multithreaded access here. K.O.
    fFeEquipments.push_back(eq);
 
@@ -1164,6 +1166,7 @@ TMFeEquipment::~TMFeEquipment() // dtor
 
    // free data and poison pointers
    fMfe = NULL;
+   fFe  = NULL;
 }
 
 TMFeResult TMFeEquipment::EqInit(const std::vector<std::string>& args)
@@ -1273,6 +1276,18 @@ TMFeResult TMFeEquipment::EqPreInit()
 {
    if (TMFE::gfVerbose)
       printf("TMFeEquipment::PreInit: for [%s]\n", fEqName.c_str());
+
+   //
+   // Apply frontend index
+   //
+
+   if (fEqName.find("%") != std::string::npos) {
+      fEqName = msprintf(fEqName.c_str(), fFe->fFeIndex);
+   }
+
+   if (fEqConfBuffer.find("%") != std::string::npos) {
+      fEqConfBuffer = msprintf(fEqConfBuffer.c_str(), fFe->fFeIndex);
+   }
 
    //
    // create ODB /eq/name/common
@@ -1580,14 +1595,19 @@ TMFeResult TMFE::ResetAlarm(const char* name)
 void TMFrontend::FeUsage(const char* argv0)
 {
    fprintf(stderr, "\n");
-   fprintf(stderr, "Usage: %s args... -- [equipment args...]\n", argv0);
+   fprintf(stderr, "Usage: %s args... [-- equipment args...]\n", argv0);
    fprintf(stderr, "\n");
-   fprintf(stderr, " -v -- set the TMFE verbose flag to report all major activity\n");
-   fprintf(stderr, " -h -- print this help message\n");
    fprintf(stderr, " --help -- print this help message\n");
+   fprintf(stderr, " -h -- print this help message\n");
+   fprintf(stderr, " -v -- report all activities\n");
    fprintf(stderr, "\n");
-   fprintf(stderr, " -h hostname[:port] -- connect to MIDAS mserver on given host and port number\n");
+   fprintf(stderr, " -h hostname[:tcpport] -- connect to MIDAS mserver on given host and tcp port number\n");
    fprintf(stderr, " -e exptname -- connect to given MIDAS experiment\n");
+   fprintf(stderr, "\n");
+   fprintf(stderr, " -D -- Become a daemon\n");
+   fprintf(stderr, " -O -- Become a daemon but keep stdout\n");
+   fprintf(stderr, "\n");
+   fprintf(stderr, " -i NNN -- Set frontend index number\n");
    fprintf(stderr, "\n");
 
    // NOTE: cannot use range-based for() loop, it uses an iterator and will crash if HandleUsage() modifies fEquipments. K.O.
@@ -1641,6 +1661,10 @@ TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
          i++;
          if (i >= args.size()) { help = true; break; }
          exptname = args[i];
+      } else if (args[i] == "-i") {
+         i++;
+         if (i >= args.size()) { help = true; break; }
+         fFeIndex = atoi(args[i].c_str());
       } else if (args[i] == "--help") {
          help = true;
          break;
@@ -1653,6 +1677,14 @@ TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
       }
    }
 
+   //
+   // apply frontend index to indexed frontend
+   //
+
+   if (fMfe->fProgramName.find("%") != std::string::npos) {
+      fMfe->fProgramName = msprintf(fMfe->fProgramName.c_str(), fFeIndex);
+   }
+      
    TMFeResult r;
 
    // call arguments handler before calling the usage handlers. Otherwise,

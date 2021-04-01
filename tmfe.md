@@ -158,7 +158,7 @@ User code is connected with the TMFE framework in several places:
 ** user: ditto
 * frontend arguments handler
 ** first and last opportunity to examine our command line arguments before we connect to MIDAS
-** for example, adjust our program name according command line arguments
+** for example, adjust our program name according to command line arguments
 * frontend init handler, called immediately after connecting to MIDAS
 ** user: initialize hardware
 ** user: examine ODB and create more equipments
@@ -258,6 +258,21 @@ To help with this the TMFE frontend provides standard threads:
 ### Thread locking rules
 
 TBW
+
+### Indexed equipments
+
+To run multiple copies of identical frontends and equipments, use the indexed frontend feature.
+
+Start frontend with "-i NNN" (i.e. "-i 1", "-i 2", etc) to specify an integer frontend index. 
+
+If equipment name fEqName contains a format specifier, i.e. "%d", "%02d", "0x%x", "0x%02" and similar,
+it is replaced by the frontend index (see sprintf() formatting rules). This is done by EqPreInit()
+and the user has a chance to overwrite it in their equipment init handler.
+
+Same thing for the event buffer name fEqConfBuffer.
+
+Same thing for the program name fMfe->fProgramName. This is done in FeInit() 
+and the user has a chance to overwrite it in their frontend arguments handler.
 
 ### Example programs
 

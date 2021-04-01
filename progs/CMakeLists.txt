@@ -18,6 +18,7 @@ set(PROGS
    tmfe_example_multithread
    tmfe_example_everything
    tmfe_example_frontend
+   tmfe_example_indexed
    fetest
    test_sleep
    crc32c_sum
