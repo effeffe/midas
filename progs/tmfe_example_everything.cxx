@@ -133,16 +133,30 @@ public:
    {
       //printf("EqEverything::HandlePoll!\n");
       double r = drand48();
-      if (r > 0.90) {
+      if (r > 0.999) {
          // return successful poll rarely
+         printf("EqEverything::HandlePoll!\n");
          return true;
       }
       return false;
    }
 
-   void HandleRead()
+   void HandlePollRead()
    {
-      //printf("EqEverything::HandleRead!\n");
+      printf("EqEverything::HandleRead!\n");
+
+         char buf[1024];
+
+         ComposeEvent(buf, sizeof(buf));
+         BkInit(buf, sizeof(buf));
+         
+         uint32_t* ptr = (uint32_t*)BkOpen(buf, "poll", TID_UINT32);
+         for (int i=0; i<16; i++) {
+            *ptr++ = lrand48();
+         }
+         BkClose(buf, ptr);
+         
+         EqSendEvent(buf, false); // do not write polled data to ODB and history
    }
 };
 

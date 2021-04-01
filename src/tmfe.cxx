@@ -221,7 +221,7 @@ double TMFrontend::FePollTasks(double next_periodic_time)
    double poll_sleep_sec = 9999.0;
    while (!fMfe->fShutdownRequested) {
       bool poll_again = false;
-      // NOTE: ok to use range-based for() loop, there will be a crash if HandlePoll() or HandleRead() modify fEquipments, so they should not do that. K.O.
+      // NOTE: ok to use range-based for() loop, there will be a crash if HandlePoll() or HandlePollRead() modify fEquipments, so they should not do that. K.O.
       for (auto eq : fFeEquipments) {
          if (!eq)
             continue;
@@ -234,7 +234,7 @@ double TMFrontend::FePollTasks(double next_periodic_time)
                bool poll = eq->HandlePoll();
                if (poll) {
                   poll_again = true;
-                  eq->HandleRead();
+                  eq->HandlePollRead();
                }
             }
          }
@@ -263,7 +263,7 @@ void TMFeEquipment::EqPollThread()
       if (fMfe->fStateRunning || !fEqConfReadOnlyWhenRunning) {
          bool poll = HandlePoll();
          if (poll) {
-            HandleRead();
+            HandlePollRead();
          } else {
             if (fEqConfPollSleepSec > 0) {
                TMFE::Sleep(fEqConfPollSleepSec);
@@ -1439,7 +1439,7 @@ TMFeResult TMFeEquipment::ComposeEvent(char* event, size_t size) const
    return TMFeOk();
 }
 
-TMFeResult TMFeEquipment::EqSendEvent(const char* event)
+TMFeResult TMFeEquipment::EqSendEvent(const char* event, bool write_to_odb)
 {
    std::lock_guard<std::mutex> guard(fEqMutex);
    
@@ -1464,7 +1464,7 @@ TMFeResult TMFeEquipment::EqSendEvent(const char* event)
    fEqStatEvents += 1;
    fEqStatBytes  += sizeof(EVENT_HEADER) + pevent->data_size;
 
-   if (fEqConfWriteEventsToOdb) {
+   if (fEqConfWriteEventsToOdb && write_to_odb) {
       TMFeResult r = EqWriteEventToOdb_locked(event);
       if (r.error_flag)
          return r;

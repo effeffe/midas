@@ -233,7 +233,7 @@ public: // optional periodic equipment handler is called by the periodic thread
 
 public: // optional polled equipment handler is called by the per-equipment poll thread
    virtual bool HandlePoll() { return false; };
-   virtual void HandleRead() {};
+   virtual void HandlePollRead() {};
 
 public: // per-equipment poll thread
    std::thread* fEqPollThread = NULL;
@@ -252,7 +252,7 @@ public: // temporary event composition methods, to bre replaced by the "event ob
    int        BkSize(const char* pevent) const;
 
 public: // thread-safe methods
-   TMFeResult EqSendEvent(const char* pevent);
+   TMFeResult EqSendEvent(const char* pevent, bool write_to_odb = true);
    TMFeResult EqWriteEventToOdb(const char* pevent);
    TMFeResult EqZeroStatistics();
    TMFeResult EqWriteStatistics();

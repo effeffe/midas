@@ -156,7 +156,7 @@ public:
       return true;
    }
 
-   void HandleRead()
+   void HandlePollRead()
    {
       char buf[1024];
       ComposeEvent(buf, sizeof(buf));
