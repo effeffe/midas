@@ -1060,6 +1060,16 @@ TMFeResult TMFrontend::FeInitEquipments(const std::vector<std::string>& args)
    return TMFeOk();
 }
 
+void TMFrontend::FeStopEquipmentPollThreads()
+{
+   // NOTE: should not use range-based for() loop, it uses an iterator and it not thread-safe. K.O.
+   for (unsigned i=0; i<fFeEquipments.size(); i++) {
+      if (!fFeEquipments[i])
+         continue;
+      fFeEquipments[i]->EqStopPollThread();
+   }
+}
+
 void TMFrontend::FeDeleteEquipments()
 {
    // NOTE: this is thread-safe: we do not modify the fEquipments object. K.O.
@@ -1581,6 +1591,7 @@ void TMFrontend::FeUsage(const char* argv0)
       fprintf(stderr, "Usage of equipment \"%s\":\n", fFeEquipments[i]->fEqName.c_str());
       fprintf(stderr, "\n");
       fFeEquipments[i]->HandleUsage();
+      fprintf(stderr, "\n");
    }
 }
 

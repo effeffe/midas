@@ -281,11 +281,11 @@ public: // main program, main event loop
    void FeUsage(const char* argv0);
 
 public: // user provided handlers, see tmfe.md
-   virtual TMFeResult HandleArguments(const std::vector<std::string>& args)    { return TMFeOk(); };
-   virtual void       HandleUsage() { };
-   virtual TMFeResult HandleFrontendInit(const std::vector<std::string>& args) { return TMFeOk(); };
+   virtual TMFeResult HandleArguments(const std::vector<std::string>& args)     { return TMFeOk(); };
+   virtual void       HandleUsage()                                             { };
+   virtual TMFeResult HandleFrontendInit(const std::vector<std::string>& args)  { return TMFeOk(); };
    virtual TMFeResult HandleFrontendReady(const std::vector<std::string>& args) { return TMFeOk(); };
-   virtual void       HandleFrontendExit() { };
+   virtual void       HandleFrontendExit()                                      { };
 
 public: // frontend init functions
    void       FeSetName(const char* program_name);

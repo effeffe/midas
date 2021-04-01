@@ -158,30 +158,32 @@ public:
       FeAddEquipment(new EqEverything("tmfe_example_everything", __FILE__));
    }
 
-   TMFeResult HandlePreConnect(const std::vector<std::string>& args)
+   void HandleUsage()
    {
-      printf("FeEverything::HandlePreConnect!\n");
+      printf("FeEverything::HandleUsage!\n");
+   };
+   
+   TMFeResult HandleArguments(const std::vector<std::string>& args)
+   {
+      printf("FeEverything::HandleArguments!\n");
       return TMFeOk();
    };
    
-   void HandlePostConnect(const std::vector<std::string>& args)
+   TMFeResult HandleFrontendInit(const std::vector<std::string>& args)
    {
-      printf("FeEverything::HandlePostConnect!\n");
+      printf("FeEverything::HandleFrontendInit!\n");
+      return TMFeOk();
    };
    
-   void HandlePostInit(const std::vector<std::string>& args)
+   TMFeResult HandleFrontendReady(const std::vector<std::string>& args)
    {
-      printf("FeEverything::HandlePostInit!\n");
+      printf("FeEverything::HandleFrontendReady!\n");
+      return TMFeOk();
    };
    
-   void HandlePreDisconnect()
+   void HandleFrontendExit()
    {
-      printf("FeEverything::HandlePreDisconnect!\n");
-   };
-   
-   void HandlePostDisconnect()
-   {
-      printf("FeEverything::HandlePostDisconnect!\n");
+      printf("FeEverything::HandleFrontendExit!\n");
    };
 };
 

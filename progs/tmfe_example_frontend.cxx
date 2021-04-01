@@ -222,15 +222,6 @@ public:
    }
 };
 
-//
-// option 1: simple registration of equipments:
-//
-//static TMFeRegister eq_trigger_register("Sample Frontend", new EqTrigger("Trigger", __FILE__));
-//static TMFeRegister eq_periodic_register("Sample Frontend", new EqPeriodic("Periodic", __FILE__));
-//
-// option 2: explicit registration of equipments:
-//
-
 class FeExample: public TMFrontend
 {
 public:
@@ -244,15 +235,19 @@ public:
 
    TMFeResult HandleFrontendInit(const std::vector<std::string>& args)
    {
-      /* called before HandleInit(), do all hardware initialization here */
+      /* called before equipment HandleInit(), do all hardware initialization here */
+
+      printf("frontend init!\n");
 
       return TMFeOk();
    };
    
-   TMFeResult HandleFrontendPostInit(const std::vector<std::string>& args)
+   TMFeResult HandleFrontendReady(const std::vector<std::string>& args)
    {
-      /* called after HandleInit(), anything that needs to be done
+      /* called after equipment HandleInit(), anything that needs to be done
        * before starting the main loop goes here */
+
+      printf("frontend ready!\n");
 
       /* start periodic and rpc threads here */
 
@@ -265,6 +260,8 @@ public:
    void HandleFrontendExit()
    {
       /* hardware shutdown goes here */
+
+      printf("frontend exit!\n");
    };
 };
 
