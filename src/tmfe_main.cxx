@@ -11,10 +11,10 @@
 
 #include "tmfe.h"
 
-int main(int argc, char* argv[])
-{
-   return tmfe_main(argc, argv);
-}
+//int main(int argc, char* argv[])
+//{
+//   return tmfe_main(argc, argv);
+//}
 
 /* emacs
  * Local Variables:
