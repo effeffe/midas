@@ -132,18 +132,23 @@ public:
    bool HandlePoll()
    {
       //printf("EqEverything::HandlePoll!\n");
+
+      if (!fMfe->fStateRunning) // only poll when running
+         return false;
+
       double r = drand48();
       if (r > 0.999) {
          // return successful poll rarely
          printf("EqEverything::HandlePoll!\n");
          return true;
       }
+
       return false;
    }
 
    void HandlePollRead()
    {
-      printf("EqEverything::HandleRead!\n");
+      printf("EqEverything::HandlePollRead!\n");
 
          char buf[1024];
 
