@@ -545,7 +545,7 @@ void TMFE::StopRpcThread()
             delete fRpcThread;
             fRpcThread = NULL;
             if (gfVerbose)
-               fprintf(stderr, "TMFE::StopRpcThread: RPC thread stopped\n");
+               printf("TMFE::StopRpcThread: RPC thread stopped\n");
          }
          return;
       }
@@ -573,7 +573,7 @@ void TMFrontend::FeStopPeriodicThread()
             delete fFePeriodicThread;
             fFePeriodicThread = NULL;
             if (TMFE::gfVerbose)
-               fprintf(stderr, "TMFE::StopPeriodicThread: periodic thread stopped\n");
+               printf("TMFE::StopPeriodicThread: periodic thread stopped\n");
          }
          return;
       }
@@ -1605,7 +1605,7 @@ void TMFrontend::FeUsage(const char* argv0)
    fprintf(stderr, " -e exptname -- connect to given MIDAS experiment\n");
    fprintf(stderr, "\n");
    fprintf(stderr, " -D -- Become a daemon\n");
-   fprintf(stderr, " -O -- Become a daemon but keep stdout\n");
+   fprintf(stderr, " -O -- Become a daemon but keep stdout for saving in a log file: frontend -O >file.log 2>&1\n");
    fprintf(stderr, "\n");
    fprintf(stderr, " -i NNN -- Set frontend index number\n");
    fprintf(stderr, "\n");
@@ -1643,6 +1643,8 @@ TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
    bool help = false;
    std::string exptname;
    std::string hostname;
+   bool daemon0 = false;
+   bool daemon1 = false;
 
    for (unsigned int i=1; i<args.size(); i++) { // loop over the commandline options
       //printf("argv[%d] is %s\n", i, args[i].c_str());
@@ -1653,6 +1655,10 @@ TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
          break;
       } else if (args[i] == "-v") {
          TMFE::gfVerbose = true;
+      } else if (args[i] == "-D") {
+         daemon0 = true;
+      } else if (args[i] == "-O") {
+         daemon1 = true;
       } else if (args[i] == "-h") {
          i++;
          if (i >= args.size()) { help = true; break; }
@@ -1675,6 +1681,18 @@ TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
          help = true;
          break;
       }
+   }
+
+   //
+   // daemonize...
+   //
+
+   if (daemon0) {
+      printf("Becoming a daemon...\n");
+      ss_daemon_init(FALSE);
+   } else if (daemon1) {
+      printf("Becoming a daemon...\n");
+      ss_daemon_init(TRUE);
    }
 
    //
