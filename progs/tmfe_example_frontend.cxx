@@ -107,7 +107,7 @@ public:
       fEqConfReadOnlyWhenRunning = true;
       fEqConfWriteEventsToOdb = true;
       fEqConfEnablePoll = true; // enable polled equipment
-      //fEqConfPollSleepSec = 0; // poll sleep time set to zero create a "100% CPU busy" polling loop
+      //fEqConfPollSleepSec = 0; // to create a "100% CPU busy" polling loop, set poll sleep time to zero 
       fEqConfPollSleepSec = 0.010; // limit event rate to 100 Hz. In a real experiment remove this line
    }
 
@@ -251,8 +251,8 @@ public:
 
       /* start periodic and rpc threads here */
 
-      //TMFE::Instance()->StartPeriodicThread();
-      //TMFE::Instance()->StartRpcThread();
+      //fMfe->StartPeriodicThread();
+      //fMfe->StartRpcThread();
 
       return TMFeOk();
    };

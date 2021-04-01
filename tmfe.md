@@ -259,4 +259,10 @@ To help with this the TMFE frontend provides standard threads:
 
 TBW
 
+### Example programs
+
+* tmfe_example_frontend - simple frontend with a periodic equipment simulating slow control readout of a sine wave data and a polled equipment readout of a block of scalers/counters
+* tmfe_example_everything - example frontend and equipment that implement all available frontend functions
+* fetest - frontend for generating test data for the mserver, analyzer and mlogger.
+
 ### The End

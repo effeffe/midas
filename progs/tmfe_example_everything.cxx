@@ -31,7 +31,7 @@ public:
       fEqConfLogHistory = 1;
       fEqConfWriteEventsToOdb = true;
       fEqConfEnablePoll = true; // enable polled equipment
-      //fEqConfPollSleepSec = 0; // poll sleep time set to zero create a "100% CPU busy" polling loop
+      //fEqConfPollSleepSec = 0; // to create a "100% CPU busy" polling loop, set poll sleep time to zero 
    }
 
    ~EqEverything() // dtor
@@ -197,6 +197,8 @@ public:
    TMFeResult HandleFrontendReady(const std::vector<std::string>& args)
    {
       printf("FeEverything::HandleFrontendReady!\n");
+      //fMfe->StartPeriodicThread();
+      //fMfe->StartRpcThread();
       return TMFeOk();
    };
    
