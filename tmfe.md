@@ -274,6 +274,10 @@ Same thing for the event buffer name fEqConfBuffer.
 Same thing for the program name fMfe->fProgramName. This is done in FeInit() 
 and the user has a chance to overwrite it in their frontend arguments handler.
 
+### Event buffer write cache
+
+TBW
+
 ### Example programs
 
 * tmfe_example_frontend - simple frontend with a periodic equipment simulating slow control readout of a sine wave data and a polled equipment readout of a block of scalers/counters
