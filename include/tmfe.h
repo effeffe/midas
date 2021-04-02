@@ -149,7 +149,7 @@ public: // equipment configuration
    uint32_t    fEqConfNumSubEvents   = 0; // not used
    int         fEqConfLogHistory     = 0;
    bool        fEqConfHidden         = false;
-   int         fEqConfWriteCacheSize = 100000;
+   int         fEqConfWriteCacheSize = 1024*1024;
    //std::string FrontendHost;
    //std::string FrontendName;
    //std::string FrontendFileName;
@@ -254,6 +254,7 @@ public: // temporary event composition methods, to bre replaced by the "event ob
 
 public: // thread-safe methods
    TMFeResult EqSendEvent(const char* pevent, bool write_to_odb = true);
+   TMFeResult EqFlushWriteCache();
    TMFeResult EqWriteEventToOdb(const char* pevent);
    TMFeResult EqZeroStatistics();
    TMFeResult EqWriteStatistics();
@@ -328,6 +329,10 @@ public: // periodic thread internal data
    bool fFePeriodicThreadStarting = false;
    bool fFePeriodicThreadRunning  = false;
    bool fFePeriodicThreadShutdownRequested = false;
+
+public: // flush write cache
+   double fFeFlushWriteCachePeriodSec    = 0.5;
+   double fFeFlushWriteCacheNextCallTime = 0;
 
 };
 
