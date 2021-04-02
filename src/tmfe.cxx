@@ -1473,13 +1473,23 @@ TMFeResult TMFeEquipment::EqSendEvent(const char* event, bool write_to_odb)
    EVENT_HEADER* pevent = (EVENT_HEADER*)event;
    pevent->data_size = BkSize(event);
 
-   int status = bm_send_event(fEqBufferHandle, pevent, sizeof(EVENT_HEADER) + pevent->data_size, BM_WAIT);
-   if (status == BM_CORRUPTED) {
-      fMfe->Msg(MERROR, "TMFeEquipment::SendData", "bm_send_event() returned %d, event buffer is corrupted, shutting down the frontend", status);
-      fMfe->fShutdownRequested = true;
-      return TMFeMidasError("Cannot send event, event buffer is corrupted, shutting down the frontend", "bm_send_event", status);
-   } else if (status != BM_SUCCESS) {
-      return TMFeMidasError("Cannot send event", "bm_send_event", status);
+   if (rpc_is_remote()) {
+      //double t0 = TMFE::GetTime();
+      int status = rpc_send_event1(fEqBufferHandle, pevent);
+      if (status != RPC_SUCCESS) {
+         return TMFeMidasError("Cannot send event", "rpc_send_event1", status);
+      }
+      //double t1 = TMFE::GetTime();
+      //printf("rpc_send_event time %f\n", t1-t0);
+   } else {
+      int status = bm_send_event(fEqBufferHandle, pevent, sizeof(EVENT_HEADER) + pevent->data_size, BM_WAIT);
+      if (status == BM_CORRUPTED) {
+         fMfe->Msg(MERROR, "TMFeEquipment::SendData", "bm_send_event() returned %d, event buffer is corrupted, shutting down the frontend", status);
+         fMfe->fShutdownRequested = true;
+         return TMFeMidasError("Cannot send event, event buffer is corrupted, shutting down the frontend", "bm_send_event", status);
+      } else if (status != BM_SUCCESS) {
+         return TMFeMidasError("Cannot send event", "bm_send_event", status);
+      }
    }
 
    fEqStatEvents += 1;
