@@ -105,7 +105,7 @@ public:
       fEqConfPeriodMilliSec = 0; // in milliseconds
       fEqConfLogHistory = 0;
       fEqConfReadOnlyWhenRunning = true;
-      fEqConfWriteEventsToOdb = true;
+      //fEqConfWriteEventsToOdb = true;
       fEqConfEnablePoll = true; // enable polled equipment
       //fEqConfPollSleepSec = 0; // to create a "100% CPU busy" polling loop, set poll sleep time to zero 
       fEqConfPollSleepSec = 0.010; // limit event rate to 100 Hz. In a real experiment remove this line
