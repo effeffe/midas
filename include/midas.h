@@ -1973,6 +1973,8 @@ Data conversion flags */
    INT EXPRT rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, INT buf_size, INT async_flag, INT mode);
    INT EXPRT rpc_flush_event(void);
 
+   INT EXPRT rpc_send_event1(INT buffer_handle, const EVENT_HEADER *event);
+
    void EXPRT rpc_get_convert_flags(INT * convert_flags);
    void EXPRT rpc_convert_single(void *data, INT tid, INT flags, INT convert_flags);
    void EXPRT rpc_convert_data(void *data, INT tid, INT flags, INT size, INT convert_flags);
@@ -2002,6 +2004,8 @@ Data conversion flags */
    char EXPRT *ss_gets(char *string, int size);
 
    void EXPRT *ss_ctrlc_handler(void (*func) (int));
+
+   INT EXPRT ss_write_tcp(int sock, const char *buffer, size_t buffer_size);
 
    /*---- direct io routines ----*/
    INT EXPRT ss_directio_give_port(INT start, INT end);

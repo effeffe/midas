@@ -12853,6 +12853,48 @@ INT rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, INT buf_size, I
 }
 
 
+/********************************************************************/
+/**
+Fast send_event routine which bypasses the RPC layer and
+           sends the event directly at the TCP level.
+@param buffer_handle      Handle of the buffer to send the event to.
+                          Must be obtained via bm_open_buffer.
+@param event              Pointer to event header
+
+@return RPC_SUCCESS, RPC_NET_ERROR, RPC_NO_CONNECTION
+*/
+INT rpc_send_event1(INT buffer_handle, const EVENT_HEADER *event)
+{
+   int status;
+
+   if (_server_connection.event_sock == 0) {
+      return RPC_NO_CONNECTION;
+   }
+
+   /* send buffer */
+   status = ss_write_tcp(_server_connection.event_sock, (const char *) &buffer_handle, sizeof(INT));
+   if (status != SS_SUCCESS) {
+      closesocket(_server_connection.event_sock);
+      _server_connection.event_sock = 0;
+      cm_msg(MERROR, "rpc_send_event1", "ss_write_tcp(buffer handle) failed, event socket is now closed");
+      return RPC_NET_ERROR;
+   }
+
+   size_t event_size = ALIGN8(event->data_size + sizeof(EVENT_HEADER));
+          
+   /* send data */
+   status = ss_write_tcp(_server_connection.event_sock, (const char *) event, event_size);
+   if (status != SS_SUCCESS) {
+      closesocket(_server_connection.event_sock);
+      _server_connection.event_sock = 0;
+      cm_msg(MERROR, "rpc_send_event1", "send_tcp(event data) failed, event socket is now closed");
+      return RPC_NET_ERROR;
+   }
+
+   return RPC_SUCCESS;
+}
+
+
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 

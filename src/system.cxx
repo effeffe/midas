@@ -4669,6 +4669,53 @@ INT send_tcp(int sock, char *buffer, DWORD buffer_size, INT flags)
 }
 
 /*------------------------------------------------------------------*/
+INT ss_write_tcp(int sock, const char *buffer, size_t buffer_size)
+/********************************************************************\
+
+  Routine: write_tcp
+
+  Purpose: Send network data over TCP port. Handle partial writes
+
+  Input:
+    INT   sock               Socket which was previosly opened.
+    DWORD buffer_size        Size of the buffer in bytes.
+    INT   flags              Flags passed to send()
+                             0x10000 : do not send error message
+
+  Output:
+    char  *buffer            Network receive buffer.
+
+  Function value:
+    SS_SUCCESS               Everything was sent
+    SS_SOCKET_ERROR          There was a socket error
+
+\********************************************************************/
+{
+   ssize_t count = 0;
+
+   while (count < buffer_size) {
+      ssize_t wr = write(sock, buffer + count, buffer_size - count);
+
+      if (wr == 0) {
+         cm_msg(MERROR, "ss_write_tcp", "write(socket=%d,size=%d) returned zero, errno: %d (%s)", sock, (int) (buffer_size - count), errno, strerror(errno));
+         return SS_SOCKET_ERROR;
+      } else if (wr < 0) {
+#ifdef OS_UNIX
+         if (errno == EINTR)
+            continue;
+#endif
+         cm_msg(MERROR, "ss_write_tcp", "write(socket=%d,size=%d) returned %d, errno: %d (%s)", sock, (int) (buffer_size - count), (int)wr, errno, strerror(errno));
+         return SS_SOCKET_ERROR;
+      }
+
+      // good write
+      count += wr;
+   }
+
+   return SS_SUCCESS;
+}
+
+/*------------------------------------------------------------------*/
 INT recv_string(int sock, char *buffer, DWORD buffer_size, INT millisec)
 /********************************************************************\
 
