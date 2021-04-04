@@ -1610,7 +1610,7 @@ int TMFeEquipment::BkSize(const char* event) const
 
 TMFeResult TMFeEquipment::BkInit(char* event, size_t size) const
 {
-   bk_init32(event + sizeof(EVENT_HEADER));
+   bk_init32a(event + sizeof(EVENT_HEADER));
    return TMFeOk();
 }
 
