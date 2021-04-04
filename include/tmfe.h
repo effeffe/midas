@@ -254,7 +254,7 @@ public: // temporary event composition methods, to bre replaced by the "event ob
 
 public: // thread-safe methods
    TMFeResult EqSendEvent(const char* pevent, bool write_to_odb = true);
-   TMFeResult EqFlushWriteCache();
+   TMFeResult EqFlushWriteCache(bool wait_for_flush = false);
    TMFeResult EqWriteEventToOdb(const char* pevent);
    TMFeResult EqZeroStatistics();
    TMFeResult EqWriteStatistics();

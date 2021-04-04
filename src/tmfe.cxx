@@ -785,6 +785,7 @@ public:
          if (!eq->fEqConfEnabled)
             continue;
          eq->EqWriteStatistics();
+         eq->EqFlushWriteCache(true);
       }
       return TMFeOk();
    }
@@ -1543,35 +1544,33 @@ TMFeResult TMFeEquipment::EqSendEvent(const char* event, bool write_to_odb)
    return TMFeOk();
 }
 
-TMFeResult TMFeEquipment::EqFlushWriteCache()
+TMFeResult TMFeEquipment::EqFlushWriteCache(bool wait_for_flush)
 {
+   // we only call bm_flush_cache(), it is thread-safe. K.O.
    //std::lock_guard<std::mutex> guard(fEqMutex);
-   
+
    if (fEqBufferHandle == 0) {
       return TMFeOk();
    }
 
+   int flag = BM_NO_WAIT;
+   if (wait_for_flush)
+      flag = BM_WAIT;
+
    if (TMFE::gfVerbose)
       printf("TMFeEquipment::EqFlushWriteCache: flush write cache for equipment [%s] buffer [%s]\n", fEqName.c_str(), fEqConfBuffer.c_str());
 
-   if (rpc_is_remote()) {
-      //double t0 = TMFE::GetTime();
-      int status = bm_flush_cache(fEqBufferHandle, BM_NO_WAIT);
-      if (status != RPC_SUCCESS) {
-         return TMFeMidasError("Cannot flush write cache", "bm_flush_cache", status);
-      }
-      //double t1 = TMFE::GetTime();
-      //printf("rpc_send_event time %f\n", t1-t0);
-   } else {
-      int status = bm_flush_cache(fEqBufferHandle, BM_NO_WAIT);
-      if (status == BM_CORRUPTED) {
-         fMfe->Msg(MERROR, "TMFeEquipment::EqFlushWriteCache", "Cannot flush write cache on buffer \"%s\": bm_flush_cache() returned %d, event buffer is corrupted, shutting down the frontend", fEqConfBuffer.c_str(), status);
-         fMfe->fShutdownRequested = true;
-         return TMFeMidasError("Cannot flush write cache, event buffer is corrupted, shutting down the frontend", "bm_flush_buffer", status);
-      } else if (status != BM_SUCCESS) {
-         fMfe->Msg(MERROR, "TMFeEquipment::EqFlushWriteCache", "Cannot flush write cache on buffer \"%s\": bm_flush_cache() returned %d", fEqConfBuffer.c_str(), status);
-         return TMFeMidasError("Cannot flush write cache", "bm_flush_cache", status);
-      }
+   int status = bm_flush_cache(fEqBufferHandle, flag);
+
+   if (status == BM_CORRUPTED) {
+      fMfe->Msg(MERROR, "TMFeEquipment::EqFlushWriteCache", "Cannot flush write cache on buffer \"%s\": bm_flush_cache() returned %d, event buffer is corrupted, shutting down the frontend", fEqConfBuffer.c_str(), status);
+      fMfe->fShutdownRequested = true;
+      return TMFeMidasError("Cannot flush write cache, event buffer is corrupted, shutting down the frontend", "bm_flush_buffer", status);
+   } else if (status == BM_ASYNC_RETURN) {
+      // cannot flush cache. event buffer is full or congested?
+   } else if (status != BM_SUCCESS) {
+      fMfe->Msg(MERROR, "TMFeEquipment::EqFlushWriteCache", "Cannot flush write cache on buffer \"%s\": bm_flush_cache() returned %d", fEqConfBuffer.c_str(), status);
+      return TMFeMidasError("Cannot flush write cache", "bm_flush_cache", status);
    }
 
    return TMFeOk();
