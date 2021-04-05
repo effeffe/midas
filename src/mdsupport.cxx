@@ -1288,9 +1288,9 @@ none
                i += 8;
             }
             if (dsp_fmt == DSP_DEC)
-               printf("%16.1llu ", *((uint64_t *) pdata));
+               printf("%16.1llu ", (long long unsigned) *((uint64_t *) pdata));
             if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
-               printf("0x%16.16llx ", *((uint64_t *) pdata));
+               printf("0x%16.16llx ", (long long unsigned) *((uint64_t *) pdata));
             pdata = (char *) (((uint64_t *) pdata) + 1);
             j++;
             break;
@@ -1301,9 +1301,9 @@ none
                i += 8;
             }
             if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
-               printf("%16.1lli ", *((int64_t *) pdata));
+               printf("%16.1lli ", (long long int) *((int64_t *) pdata));
             if (dsp_fmt == DSP_HEX)
-               printf("0x%16.16llx ", *((int64_t *) pdata));
+               printf("0x%16.16llx ", (long long unsigned int) *((int64_t *) pdata));
             pdata = (char *) (((int64_t *) pdata) + 1);
             j++;
             break;
@@ -1545,9 +1545,9 @@ none
                i += 8;
             }
             if (dsp_fmt == DSP_DEC)
-               printf("%16.1llu ", *((uint64_t *) pdata));
+               printf("%16.1llu ", (long long unsigned int) *((uint64_t *) pdata));
             if ((dsp_fmt == DSP_HEX) || (dsp_fmt == DSP_UNK))
-               printf("0x%16.16llx ", *((uint64_t *) pdata));
+               printf("0x%16.16llx ", (long long unsigned int) *((uint64_t *) pdata));
             pdata = (char *) (((uint64_t *) pdata) + 1);
             j++;
             break;
@@ -1558,9 +1558,9 @@ none
                i += 8;
             }
             if ((dsp_fmt == DSP_DEC) || (dsp_fmt == DSP_UNK))
-               printf("%16.1lli ", *((int64_t *) pdata));
+               printf("%16.1lli ", (long long int) *((int64_t *) pdata));
             if (dsp_fmt == DSP_HEX)
-               printf("0x%16.16llx ", *((int64_t *) pdata));
+               printf("0x%16.16llx ", (long long unsigned int) *((int64_t *) pdata));
             pdata = (char *) (((int64_t *) pdata) + 1);
             j++;
             break;

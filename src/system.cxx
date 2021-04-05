@@ -4691,7 +4691,7 @@ INT ss_write_tcp(int sock, const char *buffer, size_t buffer_size)
 
 \********************************************************************/
 {
-   ssize_t count = 0;
+   size_t count = 0;
 
    while (count < buffer_size) {
       ssize_t wr = write(sock, buffer + count, buffer_size - count);

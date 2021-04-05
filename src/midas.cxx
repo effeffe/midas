@@ -10326,7 +10326,7 @@ static RPC_SERVER_ACCEPTION* _mserver_acception = NULL; // mserver acception
 static RPC_SERVER_ACCEPTION* rpc_get_server_acception(int idx)
 {
    assert(idx >= 0);
-   assert(idx < _server_acceptions.size());
+   assert(idx < (int)_server_acceptions.size());
    assert(_server_acceptions[idx] != NULL);
    return _server_acceptions[idx];
 }
@@ -10951,7 +10951,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
       static int last_reused = 0;
 
       int size = _client_connections.size();
-      for (size_t j = 1; j < size; j++) {
+      for (int j = 1; j < size; j++) {
          int i = (last_reused + j) % size;
          if (_client_connections[i] && !_client_connections[i]->connected) {
             c = _client_connections[i];
@@ -11552,7 +11552,7 @@ static RPC_CLIENT_CONNECTION* rpc_get_locked_client_connection(HNDLE hConn)
 {
    RPC_CLIENT_CONNECTION* c = NULL;
    _client_connections_mutex.lock();
-   if (hConn >= 0 && hConn < _client_connections.size()) {
+   if (hConn >= 0 && hConn < (int)_client_connections.size()) {
       c = _client_connections[hConn];
       if (c) {
          if (!c->connected) {
