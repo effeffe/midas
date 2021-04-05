@@ -165,7 +165,8 @@ cclean:
 #####################################################################
 
 # get OS type from shell
-OSTYPE = $(shell uname)
+OSTYPE := $(shell uname)
+ARCH := $(shell uname -m)
 
 #
 # Optional stack trace support
@@ -368,7 +369,7 @@ CFLAGS += -D_LARGEFILE64_SOURCE
 # include ZLIB support
 NEED_ZLIB=1
 
-OS_DIR = linux
+OS_DIR = linux-$(ARCH)
 OSFLAGS += -DOS_LINUX -fPIC -Wno-unused-function -std=c++11
 LIBS = -lutil -lpthread -lrt -ldl
 SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker $(BIN_DIR)/dio
@@ -564,12 +565,12 @@ gofmt:
 #
 
 remoteonly:
-	$(MAKE) mini OS_DIR=$(OSTYPE)-remoteonly USERFLAGS=-DNO_LOCAL_ROUTINES=1
+	$(MAKE) mini OS_DIR=$(OSTYPE)-$(ARCH)-remoteonly USERFLAGS=-DNO_LOCAL_ROUTINES=1
 
 clean:: cleanremoteonly
 
 cleanremoteonly:
-	$(MAKE) OS_DIR=$(OSTYPE)-remoteonly cleanmini
+	$(MAKE) OS_DIR=$(OSTYPE)-$(ARCH)-remoteonly cleanmini
 
 linux32:
 	$(MAKE) mini OS_DIR=linux-m32 USERFLAGS=-m32
