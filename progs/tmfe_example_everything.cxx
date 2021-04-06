@@ -25,7 +25,7 @@ public:
 
       // configure the equipment here:
       
-      //fEqConfReadEqInfoFromOdb = false;
+      //fEqConfReadConfigFromOdb = false;
       fEqConfEventID = 1;
       fEqConfPeriodMilliSec = 1000;
       fEqConfLogHistory = 1;
