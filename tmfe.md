@@ -217,6 +217,33 @@ TBW
 
 TBI, TBW
 
+### Variables provided by the framework
+
+Important variables provided by the framework:
+
+* fMfe->Msg() - midas info, log and error messages
+* fMfe->fProgramName - current MIDAS program name
+* fMfe->fHostname - current hostname (same as ss_gethostname())
+* fMfe->fExptname - current experiment (blank if default/only experiment)
+* fMfe->MserverHostname - mserver connection, blank if local shared memory connection
+* fMfe->fShutdownRequested - frontend is shutting down. stop looping, etc, return from event loop, return from handler, etc
+* fMfe->fRunNumber - current run number (same as ODB "Runinfo/Run Number")
+* fMfe->fStateRunning - current run state is running or paused (run in progress)
+* fMfe->fDB - MIDAS ODB handle
+* fMfe->fOdbRoot - MIDAS ODB MVOdb top level directory
+
+* fFe->fFeIndex - frontend index for indexed equipments
+
+* fEqName - equipment name
+* fEqConfXXX - equipment configuration (see above)
+* fOdbEq - ODB directory /Equipment/EQNAME
+* fOdbEqSettings - ODB directory /Equipment/EQNAME/Settings
+* fOdbEqVariables - ODB directory /Equipment/EQNAME/Variables
+* fOdbEqStatistics - ODB directory /Equipment/EQNAME/Statistics
+* fEqBufferSize - size of current event buffer
+* fEqMaxEventSize - current maximum event size (typically half of event buffer size)
+* EqSetStatus() - set equipment status string on the midas status page
+
 ### Creating and sending events
 
 TBW
