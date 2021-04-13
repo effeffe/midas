@@ -980,10 +980,13 @@ none
       md_raw_bank_display(pbk, data_fmt, dsp_fmt);
    else {
       if (data_fmt == FORMAT_MIDAS) {
-         if (bk_is32(pmbh))
+         if (bk_is32a(pmbh)) {
+            midas_bank_display32<BANK32A>((BANK32A *) pbk, dsp_fmt);
+         } else if (bk_is32(pmbh)) {
             midas_bank_display32<BANK32>((BANK32 *) pbk, dsp_fmt);
-         else
+         } else {
             midas_bank_display((BANK *) pbk, dsp_fmt);
+         }
       } else if (data_fmt == FORMAT_YBOS)
          assert(!"YBOS not supported anymore");
    }

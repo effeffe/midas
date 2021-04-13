@@ -309,7 +309,9 @@ void process_event(HNDLE hBuf, HNDLE request_id, EVENT_HEADER * pheader, void *p
 	if (bk_find(pmbh, sbank_name, &bklen, &bktyp, (void **) &pmbk) == SS_SUCCESS) {      /* bank name given through argument list */
 	  status = bk_list(pmbh, banklist);
 	  printf("#banks:%i Bank list:-%s-", status, banklist);
-	  if (bk_is32(pmbh))
+	  if (bk_is32a(pmbh))
+	    pmbk = (BANK*)(((char*)pmbk) - sizeof(BANK32A));
+	  else if (bk_is32(pmbh))
 	    pmbk = (BANK*)(((char*)pmbk) - sizeof(BANK32));
 	  else
 	    pmbk = (BANK*)(((char*)pmbk) - sizeof(BANK));
