@@ -64,6 +64,16 @@
                mhttpdConfigSet(this.id, this.checked);
             });
          }
+         if (input[i].type === 'radio') {
+            if (input[i].id === 'timezoneLocal')
+               input[i].checked = (config['timezone'] === 'local');
+            if (input[i].id === 'timezoneServer')
+               input[i].checked = (config['timezone'] === 'server');
+            input[i].addEventListener('change', function () {
+               mhttpdConfigSet('timezone', this.value);
+               document.getElementById('timezoneSpecific').selectedIndex = 0;
+            });
+         }
          if (input[i].type === 'text') {
             input[i].value = config[input[i].id];
             input[i].addEventListener('change', function () {
@@ -89,6 +99,14 @@
          let audio = new Audio(this.value + ".mp3");
          audio.volume = parseFloat(mhttpdConfig().alarmVolume);
          audio.play();
+      });
+
+      let tz = document.getElementById('timezoneSpecific');
+      tz.value = config.timezone;
+      tz.addEventListener('change', function() {
+         mhttpdConfigSet('timezone', this.value);
+         document.getElementById('timezoneLocal').checked = false;
+         document.getElementById('timezoneServer').checked = false;
       });
 
       if (speechSynthesis.getVoices().length > 0)
@@ -294,6 +312,57 @@
       <tr>
          <td colspan="4" style="background-color: #A0A0A0; height:2px; padding: 0;"></td>
       </tr>
+
+      <tr>
+         <td>
+            Time zone:</br>
+            <small>Used for status bar and history time axis</small>
+         </td>
+         <td>
+            <input type="radio" id="timezoneLocal" name="timezone" value="local">
+            <label for="timezoneLocal">Local</label>
+         </td>
+         <td>
+            <input type="radio" id="timezoneServer" name="timezone" value="server">
+            <label for="timezoneServer">Server</label>
+         </td>
+         <td>
+            <select id="timezoneSpecific">
+               <option value=""></option>
+               <option value="-12">UTC-12:00</option>
+               <option value="-11">UTC-11:00</option>
+               <option value="-10">UTC-10:00</option>
+               <option value="-9">UTC-09:00</option>
+               <option value="-8">UTC-08:00</option>
+               <option value="-7">UTC-07:00</option>
+               <option value="-6">UTC-06:00</option>
+               <option value="-5">UTC-05:00</option>
+               <option value="-4">UTC-04:00</option>
+               <option value="-3">UTC-03:00</option>
+               <option value="-2">UTC-02:00</option>
+               <option value="-1">UTC-01:00</option>
+               <option value="0">UTC</option>
+               <option value="+1">UTC+01:00</option>
+               <option value="+2">UTC+02:00</option>
+               <option value="+3">UTC+03:00</option>
+               <option value="+4">UTC+04:00</option>
+               <option value="+5">UTC+05:00</option>
+               <option value="+6">UTC+06:00</option>
+               <option value="+7">UTC+07:00</option>
+               <option value="+8">UTC+08:00</option>
+               <option value="+9">UTC+09:00</option>
+               <option value="+10">UTC+10:00</option>
+               <option value="+11">UTC+11:00</option>
+               <option value="+12">UTC+12:00</option>
+            </select>
+         </td>
+
+      </tr>
+
+      <tr>
+         <td colspan="4" style="background-color: #A0A0A0; height:2px; padding: 0;"></td>
+      </tr>
+
       <tr>
          <td colspan="4" style="background-color: #A0A0A0; height:0; padding: 0;"></td>
       </tr>

@@ -768,6 +768,26 @@ function mjsonrpc_cm_msg(message, type, id) {
    return mjsonrpc_call("cm_msg1", req, id);
 }
 
+function mjsonrpc_get_timezone() {
+   /// Get timezone offset of server in hours
+   ///
+   /// RPC method: "get_timezone"
+   ///
+   /// \code
+   /// mjsonrpc_get_timezone().then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var tz     = rpc.result;  // server timezone
+   ///    ...
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   return mjsonrpc_call("get_timezone", req, 0);
+}
+
 function modbset(path, value)
    /// \ingroup mjsonrpc_js
    /// Simplified function to initiate an ODB write RPC request. This function returns immediately, without waiting for the request to complete. There is no way to check that the write request completed without error. Multiple calls to modbset() may result in out-of-order writes to ODB (later requests may be processed before earlier requests).

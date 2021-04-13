@@ -3671,6 +3671,27 @@ static MJsonNode* get_schema(const MJsonNode* params)
    return mjsonrpc_make_result(mjsonrpc_get_schema());
 }
 
+static MJsonNode* js_get_timezone(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO *doc = MJSO::I();
+      doc->D("get current server timezone offset in seconds");
+      doc->P(NULL, 0, "there are no input parameters");
+      doc->R(NULL, MJSON_INT, "offset in seconds");
+      return doc;
+   }
+
+   tzset();
+   time_t rawtime = time(NULL);
+   struct tm *ptm = gmtime(&rawtime);
+   time_t gmt = mktime(ptm);
+   ptm = localtime(&rawtime);
+   time_t offset = rawtime - gmt + (ptm->tm_isdst ? 3600 : 0);
+
+   return mjsonrpc_make_result(MJsonNode::MakeNumber(offset));
+}
+
+
 /////////////////////////////////////////////////////////////////////////////////
 //
 // No RPC handlers beyound here
@@ -3769,6 +3790,8 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("jrpc",  jrpc); // Uses a mutex per client, not the global mutex
    mjsonrpc_add_handler("start_program", start_program);
    mjsonrpc_add_handler("exec_script", exec_script);
+   // timezone function
+   mjsonrpc_add_handler("get_timezone", js_get_timezone);
 
    mjsonrpc_user_init();
 }

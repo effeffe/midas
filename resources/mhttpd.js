@@ -11,6 +11,8 @@
 
 let run_state_names = {1: "Stopped", 2: "Paused", 3: "Running"};
 
+let serverTimezoneOffset = undefined;
+
 let transition_names = {
    1: "Starting run...",
    2: "Stopping run...",
@@ -642,6 +644,13 @@ function mhttpd_init(current_page, interval, callback) {
    url = mhttpd_getParameterByName("URL");
    if (url)
       mjsonrpc_set_url(url);
+
+   // retrieve timezone of server
+   mjsonrpc_get_timezone().then( function(rpc) {
+      serverTimezoneOffset = rpc.result;
+   }).catch(function (error) {
+      mjsonrpc_error_alert(error);
+   });
 
    // create header
    let h = document.getElementById("mheader");
@@ -1849,10 +1858,29 @@ function mhttpd_refresh() {
 
       // update time in header
       let d = new Date();
+      let offset = 0;
+      if (mhttpdConfig().timezone === 'local') {
+         offset = -d.getTimezoneOffset() / 60;
+      } else if (mhttpdConfig().timezone === 'server') {
+         offset = serverTimezoneOffset / 3600;
+      } else {
+         offset = parseInt(mhttpdConfig().timezone);
+      }
+
+      d = new Date(d.getTime() + offset * 3600 * 1000);
+
       let dstr = d.toLocaleString("en-gb", {
+         timeZone: 'UTC',
          hour12: false, day: 'numeric', month: 'short', year: 'numeric',
-         hour: 'numeric', minute: 'numeric', second: 'numeric', timeZoneName: 'short'
+         hour: 'numeric', minute: 'numeric', second: 'numeric'
       });
+
+      if (offset === 0)
+         dstr += " UTC";
+      else if (offset > 0)
+         dstr += " UTC+"+offset;
+      else
+         dstr += " UTC"+offset;
 
       if (document.getElementById("mheader_last_updated") !== undefined) {
          //mhttpd_set_innerHTML(document.getElementById("mheader_last_updated"), dstr);
@@ -2790,6 +2818,8 @@ let mhttpd_config_defaults = {
    'alarmSoundFile': 'beep.mp3',
    'alarmRepeat': 60,
    'alarmVolume': 1,
+
+   'timezone': 'local',
 
    'var': {
       'lastSpeak': 0,
