@@ -395,6 +395,62 @@ function dlgOdbEdit(path) {
 
 /*---- mhttpd functions -------------------------------------*/
 
+function mhttpd_get_display_time(sec) {
+// Returns time to display in status bar and history.
+// By default show local time, but through the config page the
+// user can select the server time zone or any other time zone
+
+   // retrieve timezone of server on the first call
+   if (serverTimezoneOffset === undefined) {
+      mjsonrpc_get_timezone().then(function (rpc) {
+         serverTimezoneOffset = rpc.result;
+      }).catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
+
+   let d;
+   if (sec !== undefined)
+      d = new Date(sec * 1000);
+   else
+      d = new Date();
+   let o = 0;
+   if (mhttpdConfig().timezone === 'local') {
+      o = -d.getTimezoneOffset() / 60;
+   } else if (mhttpdConfig().timezone === 'server') {
+      if (serverTimezoneOffset === undefined)
+         return {
+            date: undefined,
+            string: "",
+            offset: 0
+         };
+      o = serverTimezoneOffset / 3600;
+   } else {
+      o = parseInt(mhttpdConfig().timezone);
+   }
+
+   d = new Date(d.getTime() + o * 3600 * 1000);
+
+   let s = d.toLocaleString("en-gb", {
+      timeZone: 'UTC',
+      hour12: false, day: 'numeric', month: 'short', year: 'numeric',
+      hour: 'numeric', minute: 'numeric', second: 'numeric'
+   });
+
+   if (o === 0)
+      s += " UTC";
+   else if (o > 0)
+      s += " UTC+"+o;
+   else
+      s += " UTC"+o;
+
+   return {
+      date: d,
+      string: s,
+      offset: o
+   };
+}
+
 function mhttpd_disable_button(button) {
    if (!button.disabled) {
       button.disabled = true;
@@ -644,13 +700,6 @@ function mhttpd_init(current_page, interval, callback) {
    url = mhttpd_getParameterByName("URL");
    if (url)
       mjsonrpc_set_url(url);
-
-   // retrieve timezone of server
-   mjsonrpc_get_timezone().then( function(rpc) {
-      serverTimezoneOffset = rpc.result;
-   }).catch(function (error) {
-      mjsonrpc_error_alert(error);
-   });
 
    // create header
    let h = document.getElementById("mheader");
@@ -1857,30 +1906,7 @@ function mhttpd_refresh() {
    mjsonrpc_send_request([req1, req2, req3, req4]).then(function (rpc) {
 
       // update time in header
-      let d = new Date();
-      let offset = 0;
-      if (mhttpdConfig().timezone === 'local') {
-         offset = -d.getTimezoneOffset() / 60;
-      } else if (mhttpdConfig().timezone === 'server') {
-         offset = serverTimezoneOffset / 3600;
-      } else {
-         offset = parseInt(mhttpdConfig().timezone);
-      }
-
-      d = new Date(d.getTime() + offset * 3600 * 1000);
-
-      let dstr = d.toLocaleString("en-gb", {
-         timeZone: 'UTC',
-         hour12: false, day: 'numeric', month: 'short', year: 'numeric',
-         hour: 'numeric', minute: 'numeric', second: 'numeric'
-      });
-
-      if (offset === 0)
-         dstr += " UTC";
-      else if (offset > 0)
-         dstr += " UTC+"+offset;
-      else
-         dstr += " UTC"+offset;
+      let dstr = mhttpd_get_display_time().string;
 
       if (document.getElementById("mheader_last_updated") !== undefined) {
          //mhttpd_set_innerHTML(document.getElementById("mheader_last_updated"), dstr);

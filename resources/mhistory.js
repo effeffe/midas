@@ -2668,51 +2668,64 @@ MhistoryGraph.prototype.drawVAxis = function (ctx, x1, y1, height, minor, major,
 };
 
 let options1 = {
+   timeZone: 'UTC',
    day: '2-digit', month: 'short', year: '2-digit',
    hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
 };
 
 let options2 = {
+   timeZone: 'UTC',
    day: '2-digit', month: 'short', year: '2-digit',
    hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
 let options3 = {
+   timeZone: 'UTC',
    day: '2-digit', month: 'short', year: '2-digit',
    hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
-let options4 = {day: '2-digit', month: 'short', year: '2-digit'};
+let options4 = {
+   timeZone: 'UTC', day: '2-digit',
+   month: 'short', year: '2-digit'
+};
 
-let options5 = {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'};
+let options5 = {
+   timeZone: 'UTC', hour12: false,
+   hour: '2-digit', minute: '2-digit', second: '2-digit'
+};
 
-let options6 = {hour12: false, hour: '2-digit', minute: '2-digit'};
+let options6 = {
+   timeZone: 'UTC', hour12: false, hour: '2-digit', minute: '2-digit'
+};
 
-let options7 = {hour12: false, hour: '2-digit', minute: '2-digit'};
+let options7 = {
+   timeZone: 'UTC', hour12: false, hour: '2-digit', minute: '2-digit'
+};
 
 let options8 = {
+   timeZone: 'UTC',
    day: '2-digit', month: 'short', year: '2-digit',
    hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
-let options9 = {day: '2-digit', month: 'short', year: '2-digit'};
+let options9 = {
+   timeZone: 'UTC', day: '2-digit', month: 'short', year: '2-digit'
+};
 
 function timeToLabel(sec, base, forceDate) {
-   let d = new Date(sec * 1000);
-   let options;
+   let d = mhttpd_get_display_time(sec).date;
 
    if (forceDate) {
       if (base < 60) {
-         options = options1;
+         return d.toLocaleTimeString('en-GB', options1);
       } else if (base < 600) {
-         options = options2;
+         return d.toLocaleTimeString('en-GB', options2);
       } else if (base < 3600 * 24) {
-         options = options3;
+         return d.toLocaleTimeString('en-GB', options3);
       } else {
-         options = options4;
+         return d.toLocaleTimeString('en-GB', options4);
       }
-
-      return d.toLocaleDateString('en-GB', options);
    }
 
    if (base < 60) {
@@ -2722,14 +2735,13 @@ function timeToLabel(sec, base, forceDate) {
    } else if (base < 3600 * 3) {
       return d.toLocaleTimeString('en-GB', options7);
    } else if (base < 3600 * 24) {
-      options = options8;
+      return d.toLocaleTimeString('en-GB', options8);
    } else {
-      options = options9;
+      return d.toLocaleTimeString('en-GB', options9);
    }
 
-   return d.toLocaleDateString('en-GB', options);
+   return;
 }
-
 
 MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, major,
                                               text, label, grid, xmin, xmax) {

@@ -1106,51 +1106,65 @@ MihistoryGraph.prototype.draw = function () {
 };
 
 let ioptions1 = {
+   timeZone: 'UTC',
    day: '2-digit', month: 'short', year: '2-digit',
    hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
 };
 
 let ioptions2 = {
+   timeZone: 'UTC',
    day: '2-digit', month: 'short', year: '2-digit',
    hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
 let ioptions3 = {
+   timeZone: 'UTC',
    day: '2-digit', month: 'short', year: '2-digit',
    hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
-let ioptions4 = {day: '2-digit', month: 'short', year: '2-digit'};
+let ioptions4 = {
+   timeZone: 'UTC', day: '2-digit',
+   month: 'short', year: '2-digit'
+};
 
-let ioptions5 = {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'};
+let ioptions5 = {
+   timeZone: 'UTC', hour12: false,
+   hour: '2-digit', minute: '2-digit', second: '2-digit'
+};
 
-let ioptions6 = {hour12: false, hour: '2-digit', minute: '2-digit'};
+let ioptions6 = {
+   timeZone: 'UTC', hour12: false, hour: '2-digit', minute: '2-digit'
+};
 
-let ioptions7 = {hour12: false, hour: '2-digit', minute: '2-digit'};
+let ioptions7 = {
+   timeZone: 'UTC', hour12: false, hour: '2-digit', minute: '2-digit'
+};
 
 let ioptions8 = {
+   timeZone: 'UTC',
    day: '2-digit', month: 'short', year: '2-digit',
    hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
-let ioptions9 = {day: '2-digit', month: 'short', year: '2-digit'};
+let ioptions9 = {
+   timeZone: 'UTC', day: '2-digit', month: 'short', year: '2-digit'
+};
 
-function timeToLabel(sec, base, forceDate) {
+function itimeToLabel(sec, base, forceDate) {
    let d = new Date(sec * 1000);
    let options;
 
    if (forceDate) {
       if (base < 60) {
-         options = ioptions1;
+         return d.toLocaleTimeString('en-GB', ioptions1);
       } else if (base < 600) {
-         options = ioptions2;
+         return d.toLocaleTimeString('en-GB', ioptions2);
       } else if (base < 3600 * 24) {
-         options = ioptions3;
+         return d.toLocaleTimeString('en-GB', ioptions3);
       } else {
-         options = ioptions4;
+         return d.toLocaleTimeString('en-GB', ioptions4);
       }
-
-      return d.toLocaleDateString('en-GB', options);
    }
 
    if (base < 60) {
@@ -1160,14 +1174,13 @@ function timeToLabel(sec, base, forceDate) {
    } else if (base < 3600 * 3) {
       return d.toLocaleTimeString('en-GB', ioptions7);
    } else if (base < 3600 * 24) {
-      options = ioptions8;
+      return d.toLocaleTimeString('en-GB', ioptions8);
    } else {
-      options = ioptions9;
+      return d.toLocaleTimeString('en-GB', ioptions9);
    }
 
-   return d.toLocaleDateString('en-GB', options);
+   return;
 }
-
 
 MihistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, major,
                                               text, label, xmin, xmax) {
@@ -1204,7 +1217,7 @@ MihistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, ma
    let label_dx = dx;
 
    do {
-      let str = timeToLabel(xmin, label_dx, forceDate);
+      let str = itimeToLabel(xmin, label_dx, forceDate);
       let maxwidth = ctx.measureText(str).width;
 
       /* increasing label_dx, if labels would overlap */
@@ -1256,7 +1269,7 @@ MihistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, ma
 
                // label
                if (label !== 0) {
-                  let str = timeToLabel(x_act, label_dx, forceDate);
+                  let str = itimeToLabel(x_act, label_dx, forceDate);
 
                   // if labels at edge, don't show them
                   let xl = xs - ctx.measureText(str).width / 2;
