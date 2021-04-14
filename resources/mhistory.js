@@ -2902,25 +2902,45 @@ MhistoryGraph.prototype.download = function (mode) {
    if (mode === "CSV") {
       filename += ".csv";
 
-      let data = "Time,";
+      let data = "";
       this.odb["Variables"].forEach(v => {
+         data += "Time,";
          data += v + ",";
       });
       data = data.slice(0, -1);
       data += '\n';
 
-      for (let i = 0; i < this.data[0].time.length; i++) {
-
-         let l = "";
-         if (this.data[0].time[i] > this.tMin && this.data[0].time[i] < this.tMax) {
-            l += this.data[0].time[i] + ",";
-            for (let di = 0; di < this.odb["Variables"].length; di++)
-               l += this.data[di].value[i] + ",";
-            l = l.slice(0, -1);
-            l += '\n';
-            data += l;
+      let maxlen = 0;
+      let nvar = this.odb["Variables"].length;
+      for (let index=0 ; index < nvar ; index++)
+         if (this.data[index].time.length > maxlen)
+            maxlen = this.data[index].time.length;
+      let index = [];
+      for (let di=0 ; di < nvar ; di++)
+         for (let i = 0; i < maxlen; i++) {
+            if (i < this.data[di].time.length &&
+               this.data[di].time[i] > this.tMin) {
+               index[di] = i;
+               break;
+            }
          }
 
+      for (let i = 0; i < maxlen; i++) {
+         let l = "";
+         for (let di = 0 ; di < nvar ; di++) {
+            if (index[di] < this.data[di].time.length &&
+               this.data[di].time[index[di]] > this.tMin && this.data[di].time[index[di]] < this.tMax) {
+               l += this.data[di].time[index[di]] + ",";
+               l += this.data[di].value[index[di]] + ",";
+            } else {
+               l += ",,";
+            }
+            index[di]++;
+         }
+         if (l.split(',').some(s => s)) { // don't add if only commas
+            l = l.slice(0, -1); // remove last comma
+            data += l + '\n';
+         }
       }
 
       let blob = new Blob([data], {type: "text/csv"});
