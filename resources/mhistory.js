@@ -2874,21 +2874,21 @@ MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, maj
 
 MhistoryGraph.prototype.download = function (mode) {
 
-   let leftDate = new Date(this.tMin * 1000);
-   let rightDate = new Date(this.tMax * 1000);
+   let leftDate =mhttpd_get_display_time(this.tMin).date;
+   let rightDate = mhttpd_get_display_time(this.tMax).date;
    let filename = this.group + "-" + this.panel + "-" +
       leftDate.getFullYear() +
-      ("0" + leftDate.getMonth() + 1).slice(-2) +
-      ("0" + leftDate.getDate()).slice(-2) + "-" +
-      ("0" + leftDate.getHours()).slice(-2) +
-      ("0" + leftDate.getMinutes()).slice(-2) +
-      ("0" + leftDate.getSeconds()).slice(-2) + "-" +
+      ("0" + leftDate.getUTCMonth() + 1).slice(-2) +
+      ("0" + leftDate.getUTCDate()).slice(-2) + "-" +
+      ("0" + leftDate.getUTCHours()).slice(-2) +
+      ("0" + leftDate.getUTCMinutes()).slice(-2) +
+      ("0" + leftDate.getUTCSeconds()).slice(-2) + "-" +
       rightDate.getFullYear() +
-      ("0" + rightDate.getMonth() + 1).slice(-2) +
-      ("0" + rightDate.getDate()).slice(-2) + "-" +
-      ("0" + rightDate.getHours()).slice(-2) +
-      ("0" + rightDate.getMinutes()).slice(-2) +
-      ("0" + rightDate.getSeconds()).slice(-2);
+      ("0" + rightDate.getUTCMonth() + 1).slice(-2) +
+      ("0" + rightDate.getUTCDate()).slice(-2) + "-" +
+      ("0" + rightDate.getUTCHours()).slice(-2) +
+      ("0" + rightDate.getUTCMinutes()).slice(-2) +
+      ("0" + rightDate.getUTCSeconds()).slice(-2);
 
    // use trick from FileSaver.js
    let a = document.getElementById('downloadHook');
