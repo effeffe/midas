@@ -1152,8 +1152,7 @@ let ioptions9 = {
 };
 
 function itimeToLabel(sec, base, forceDate) {
-   let d = new Date(sec * 1000);
-   let options;
+   let d = mhttpd_get_display_time(sec).date;
 
    if (forceDate) {
       if (base < 60) {
