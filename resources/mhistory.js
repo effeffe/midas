@@ -1103,6 +1103,10 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
          this.tMax -= delta/4;
          this.findMinMax();
          this.redraw(true);
+
+         if (this.callbacks.timeZoom !== undefined)
+            this.callbacks.timeZoom(this);
+
          e.preventDefault();
          return;
       }
@@ -1122,6 +1126,10 @@ MhistoryGraph.prototype.mouseEvent = function (e) {
             this.loadOldData();
             this.findMinMax();
             this.redraw(true);
+
+            if (this.callbacks.timeZoom !== undefined)
+               this.callbacks.timeZoom(this);
+
          } else
             dlgMessage("Warning", "Don't press the '-' too fast!", true, false);
          e.preventDefault();
@@ -1465,6 +1473,7 @@ MhistoryGraph.prototype.mouseWheelEvent = function (e) {
 
          if (this.callbacks.timeZoom !== undefined)
             this.callbacks.timeZoom(this);
+
       } else if (e.deltaX !== 0) {
 
          let dt = (this.tMax - this.tMin) / 1000 * e.deltaX;
