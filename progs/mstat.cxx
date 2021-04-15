@@ -15,10 +15,10 @@
 #include <fcntl.h>
 #include "midas.h"
 #include "msystem.h"
+#include <sstream>
 
-#define MAX_LINE         64
-#define LINE_LENGTH      85
-#define ALINE_LENGTH    256
+#define MAX_LINE        80
+#define LINE_LENGTH     80
 
 #if defined( OS_WINNT )
 #define ESC_FLAG 0
@@ -75,7 +75,7 @@ void compose_status(HNDLE hDB, HNDLE hKey)
 {
    BOOL atleastone_active;
    INT savej, j, ii, i, size;
-   char str[256], path[256];
+   char str[80], path[256];
    KEY key;
    HNDLE hSubkey;
    char strtmp[256];
@@ -90,7 +90,7 @@ void compose_status(HNDLE hDB, HNDLE hKey)
    {
 
       INT rs, rt;
-      char cs[256], stt[256], spt[256], ex[256];
+      char cs[80], stt[80], spt[80], ex[80], rev[256], rev1[256];
       DWORD tb, tsb;
 
       size = sizeof(rs);
@@ -125,13 +125,18 @@ void compose_status(HNDLE hDB, HNDLE hKey)
          strcpy(str, ctime(&full_time));
          str[24] = 0;
       }
-      if (active_flag)
-         sprintf(&(ststr[j++][0]), "*- MIDAS revision: %s - MIDAS status -- Alarm Checker active-------%s-*", cm_get_revision(), str);
-      else
-         sprintf(&(ststr[j++][0]), "*- MIDAS revision: %s - MIDAS status page -------------------------%s-*", cm_get_revision(), str);
-
+//      if (active_flag) {
+//         sprintf(&(ststr[j++][0]), "*- MIDAS revision: %s - MIDAS status -- Alarm Checker active-------*", cm_get_revision());
+//         j++; sprintf(&(ststr[j++][0]), "-%s-*", str);
+//      } else 
+      {
+         sprintf(rev1, "%s", cm_get_revision());
+         strcpy(rev, strstr(rev1, "midas"));
+         sprintf(&(ststr[j++][0]), "*- MIDAS Status Page  -%s ----------------------------*", str);
+         sprintf(&(ststr[j++][0]), "*- Revision  -%s---------*", rev);
+      }  
       sprintf(&(ststr[j][0]), "Experiment:%s", ex);
-      sprintf(&(ststr[j][23]), "Run#:%d", rn);
+      sprintf(&(ststr[j][20]), "Run#:%d", rn);
 
       /* PAA revisit the /Runinfo for run time display */
       /* state */
@@ -140,15 +145,15 @@ void compose_status(HNDLE hDB, HNDLE hKey)
             sprintf(&(ststr[j][35]), "Deferred_Stop");
          else {
             if (esc_flag)
-               sprintf(&(ststr[j][35]), "State:\033[1m%s\033[m", cs);
+               sprintf(&(ststr[j][33]), "State:\033[1m%s\033[m", cs);
             else
-               sprintf(&(ststr[j][36]), "State:%s", cs);
+               sprintf(&(ststr[j][34]), "State:%s", cs);
          }
       } else {
          if (rt == TR_START)
-            sprintf(&(ststr[j][36]), "Deferred_Start");
+            sprintf(&(ststr[j][34]), "Deferred_Start");
          else
-            sprintf(&(ststr[j][36]), "State:%s", cs);
+            sprintf(&(ststr[j][34]), "State:%s", cs);
       }
 
       /* time */
@@ -157,10 +162,10 @@ void compose_status(HNDLE hDB, HNDLE hKey)
          cm_time(&full_time);
          DWORD difftime = (DWORD) full_time - tb;
          if (esc_flag)
-            sprintf(&(ststr[j++][66]), "Run time :%02d:%02d:%02d",
+            sprintf(&(ststr[j++][60]), "Run time :%02d:%02d:%02d",
                     difftime / 3600, difftime % 3600 / 60, difftime % 60);
          else
-            sprintf(&(ststr[j++][54]), "     Run time :%02d:%02d:%02d",
+            sprintf(&(ststr[j++][48]), "     Run time :%02d:%02d:%02d",
                     difftime / 3600, difftime % 3600 / 60, difftime % 60);
       } else if (rs == STATE_STOPPED) {
          DWORD difftime;
@@ -169,7 +174,7 @@ void compose_status(HNDLE hDB, HNDLE hKey)
          else
             difftime = tsb - tb;
          if (esc_flag)
-            sprintf(&(ststr[j++][54]), "Full Run time :%02d:%02d:%02d",
+            sprintf(&(ststr[j++][53]), "Full Run time :%02d:%02d:%02d",
                     difftime / 3600, difftime % 3600 / 60, difftime % 60);
          else
             sprintf(&(ststr[j++][54]), "Full Run time :%02d:%02d:%02d",
@@ -182,7 +187,7 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       sprintf(&(ststr[j][0]), "Start time:%s", stt);
       ststr[++j][0] = '\0';
       ststr[++j][0] = '\0';
-   }                            /* --- run info --- */
+   }  /* --- run info --- */
 
 /* --------------------- Equipment tree -------------------------- */
    {
@@ -200,8 +205,8 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       if (db_find_key(hDB, 0, "/equipment", &hKey) == DB_SUCCESS) {
          sprintf(&(ststr[j][0]), "FE Equip.");
          sprintf(&(ststr[j][12]), "Node");
-         sprintf(&(ststr[j][30]), "Event Taken");
-         sprintf(&(ststr[j][45]), "Event Rate[/s]");
+         sprintf(&(ststr[j][30]), "Evts Taken");
+         sprintf(&(ststr[j][45]), "Evt Rate[/s]");
          sprintf(&(ststr[j++][60]), "Data Rate[Kb/s]");
          for (i = 0;; i++) {
             db_enum_key(hDB, hKey, i, &hSubkey);
@@ -302,16 +307,27 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       cm_msg_get_logfile(NULL, 0, &mesfile, NULL, NULL);
       size = sizeof(wd);
       db_get_value(hDB, 0, "/logger/write data", &wd, &size, TID_BOOL, TRUE);
-      sprintf(&ststr[j][0], "Logger Data dir: %s", datadir);
-      sprintf(&ststr[j++][45], "Message File: %s", mesfile.c_str());
+      if (strlen(datadir) < 20) {
+         sprintf(&ststr[j][0], "Logger Data dir: %s", datadir);
+      } else {
+         sprintf(&ststr[j][0], "Logger Data dir: %s", &datadir[strlen(datadir)-20]);
+      }
 
+      if (mesfile.length() > 20) {
+         std::stringstream tmp;
+         tmp << "..."+mesfile.substr(mesfile.length()-17);
+         std::string f = tmp.str();
+         sprintf(&ststr[j++][43], "Msg File: %s", f.c_str());
+      } else {
+         sprintf(&ststr[j++][43], "Msg File: %s", mesfile.c_str());
+      }
       /* check if dir exists */
       if (db_find_key(hDB, 0, "/logger/channels", &hKey) == DB_SUCCESS) {
          sprintf(&(ststr[j][0]), "Chan.");
          sprintf(&(ststr[j][8]), "Active");
          sprintf(&(ststr[j][15]), "Type");
-         sprintf(&(ststr[j][25]), "Filename");
-         sprintf(&(ststr[j][45]), "Events Taken");
+         sprintf(&(ststr[j][23]), "Filename");
+         sprintf(&(ststr[j][43]), "Events Taken");
          sprintf(&(ststr[j++][60]), "KBytes Taken");
          for (i = 0;; i++) {
             db_enum_key(hDB, hKey, i, &hSubkey);
@@ -358,9 +374,9 @@ void compose_status(HNDLE hDB, HNDLE hKey)
                      else
                         sprintf(&(ststr[j][15]), "(%s)", lstate);
                      sprintf(&(ststr[j][22]), "%s", ltype);
-                     sprintf(&(ststr[j][32]), "%s", lpath);
-                     sprintf(&(ststr[j][52]), "%.0f", levt);
-                     sprintf(&(ststr[j++][67]), "%9.2e", lbyt);
+                     sprintf(&(ststr[j][30]), "%s", lpath);
+                     sprintf(&(ststr[j][50]), "%.0f", levt);
+                     sprintf(&(ststr[j++][66]), "%9.2e", lbyt);
                   } else {      /* no esc */
 
                      sprintf(&(ststr[j][0]), "  %s", key.name);
@@ -369,9 +385,9 @@ void compose_status(HNDLE hDB, HNDLE hKey)
                      else
                         sprintf(&(ststr[j][8]), "(%s)", lstate);
                      sprintf(&(ststr[j][15]), "%s", ltype);
-                     sprintf(&(ststr[j][25]), "%s", lpath);
-                     sprintf(&(ststr[j][45]), "%.0f", levt);
-                     sprintf(&(ststr[j++][60]), "%9.2e", lbyt);
+                     sprintf(&(ststr[j][23]), "%s", lpath);
+                     sprintf(&(ststr[j][48]), "%.0f", levt);
+                     sprintf(&(ststr[j++][63]), "%9.2e", lbyt);
                   }
                } else {         /* not active */
 
@@ -430,14 +446,14 @@ void compose_status(HNDLE hDB, HNDLE hKey)
                   if (*tl == '\0')
                      sprintf(tl, "<empty>");
                   size = sizeof(cr);
-                  db_get_value(hDB, hlKey, "statistics/Copy progress [%]", &cr, &size,
-                               TID_FLOAT, TRUE);
+                  db_get_value(hDB, hlKey, "statistics/Copy progress (%)", &cr, &size,
+                               TID_DOUBLE, TRUE);
                   size = sizeof(nf);
                   db_get_value(hDB, hlKey, "statistics/Number of Files", &nf, &size,
                                TID_INT, TRUE);
                   size = sizeof(bs);
-                  db_get_value(hDB, hlKey, "statistics/Backup status [%]", &bs, &size,
-                               TID_FLOAT, TRUE);
+                  db_get_value(hDB, hlKey, "statistics/Backup status (%)", &bs, &size,
+                               TID_DOUBLE, TRUE);
                   size = sizeof(bn);
                   db_get_value(hDB, hlKey, "statistics/Backup file", bn, &size,
                                TID_STRING, TRUE);
@@ -471,7 +487,6 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       char clientn[256], clienth[256];
       char *pp, sdummy[64];
 
-
       ii = 0;
 
       sprintf(&(ststr[j][0]), "Clients:");
@@ -489,17 +504,17 @@ void compose_status(HNDLE hDB, HNDLE hKey)
          size = sizeof(clienth);
          sprintf(strtmp, "host");
          db_get_value(hDB, hSubkey, strtmp, clienth, &size, TID_STRING, TRUE);
-         if (ii > 2) {
+         if (ii > 1) {
             ii = 0;
             ststr[++j][0] = '\0';
          }
          memset(sdummy, 0, 64);
          pp = strchr(clienth, '.');
          if (pp != NULL)
-            sprintf(&(ststr[j][10 + 23 * ii]), "%s/%s", clientn,
+            sprintf(&(ststr[j][10 + 35 * ii]), "%s/%s", clientn,
                     strncpy(sdummy, clienth, pp - clienth));
          else
-            sprintf(&(ststr[j][10 + 23 * ii]), "%s/%s", clientn, clienth);
+            sprintf(&(ststr[j][10 + 35 * ii]), "%s/%s", clientn, clienth);
          ii++;
       }
       j++;
@@ -507,11 +522,11 @@ void compose_status(HNDLE hDB, HNDLE hKey)
 
    if (loop == 1)
       sprintf(ststr[j++],
-              "*- [!<cr>] to Exit --- [R<cr>] to Refresh -------------------- Delay:%2.i [sec]-*",
+              "*- [!] to Exit ------- [R] to Refresh ---------------------- Delay:%2.i [sec]-*",
               delta_time / 1000);
    else
       sprintf(ststr[j++],
-              "*------------------------------------------------------------------------------*");
+              "*---------------------------------------------------------------------------*");
 
    cur_max_line = j;
 
@@ -528,7 +543,7 @@ int main(int argc, char **argv)
    INT status, last_time = 0, file_mode;
    HNDLE hDB, hKey;
    char host_name[HOST_NAME_LENGTH], expt_name[NAME_LENGTH], str[32];
-   char svpath[256];
+   char svpath[256], strdis[80];
    signed char ch;
    INT fHandle, i, j = 0, last_max_line = 0;
    INT msg;
@@ -640,7 +655,8 @@ int main(int argc, char **argv)
 
             j = 0;
             while ((j < cur_max_line) && (ststr[j][0] != '\0')) {
-               ss_printf(0, j, "%s", ststr[j]);
+               strncpy(strdis, ststr[j], 80);
+               ss_printf(0, j, "%s", strdis);
                j++;
             }
          }
