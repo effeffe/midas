@@ -930,8 +930,45 @@ namespace midas {
                 "\" failed with status " + std::to_string(status));
    }
 
+   void recurse_del_keys_not_in_defaults(std::string path, HNDLE hDB, HNDLE hKey, midas::odb& default_odb) {
+      // Delete any subkeys that are not in the list of defaults.
+      KEY key;
+      db_get_link(hDB, hKey, &key);
+
+      if (key.type == TID_KEY) {
+         std::vector<std::string> to_delete;
+
+         for (int i = 0;; i++) {
+            HNDLE hSubKey;
+            int status = db_enum_link(hDB, hKey, i, &hSubKey);
+            if (status != DB_SUCCESS)
+               break;
+
+            KEY subKey;
+            db_get_link(hDB, hSubKey, &subKey);
+            std::string full_path = path + "/" + subKey.name;
+
+            if (!default_odb.is_subkey(subKey.name)) {
+               to_delete.push_back(subKey.name);
+
+               if (default_odb.get_debug()) {
+                  std::cout << "Deleting " << full_path << " as not in list of defaults" << std::endl;
+               }
+            } else if (key.type == TID_KEY) {
+               recurse_del_keys_not_in_defaults(full_path, hDB, hSubKey, default_odb[subKey.name]);
+            }
+         }
+
+         for (auto name : to_delete) {
+            HNDLE hSubKey;
+            db_find_link(hDB, hKey, name.c_str(), &hSubKey);
+            db_delete_key(hDB, hSubKey, FALSE);
+         }
+      }
+   }
+
    // write function with separated path and key name
-   void odb::connect(std::string path, std::string name, bool write_defaults) {
+   void odb::connect(std::string path, std::string name, bool write_defaults, bool delete_keys_not_in_defaults) {
       init_hdb();
 
       if (!name.empty())
@@ -943,10 +980,18 @@ namespace midas {
       bool key_exists = (status == DB_SUCCESS);
       bool created = false;
 
-      if (!key_exists || write_defaults)
+      if (key_exists && delete_keys_not_in_defaults) {
+         // Recurse down to delete keys as needed.
+         // We need to do this recursively BEFORE calling read/read_key for the first time
+         // to ensure that subdirectories get handled correctly.
+         recurse_del_keys_not_in_defaults(path, m_hDB, hKey, *this);
+      }
+
+      if (!key_exists || write_defaults) {
          created = write_key(path, write_defaults);
-      else
+      } else {
          read_key(path);
+      }
 
       // correct wrong parent ODB from initializer_list
       for (int i = 0; i < m_num_values; i++)
@@ -957,12 +1002,13 @@ namespace midas {
             m_data[i].get_odb().connect(get_full_path(), m_data[i].get_odb().get_name(), write_defaults);
       } else if (created || write_defaults) {
          write();
-      } else
+      } else {
          read();
+      }
    }
 
    // send key definitions and data with optional subkeys to certain path in ODB
-   void odb::connect(std::string str, bool write_defaults) {
+   void odb::connect(std::string str, bool write_defaults, bool delete_keys_not_in_defaults) {
       if (str[0] != '/')
          mthrow("connect(\"" + str + "\"): path must start with leading \"/\"");
 
@@ -976,7 +1022,7 @@ namespace midas {
          path = str.substr(0, str.find_last_of('/'));
       }
 
-      connect(path, name, write_defaults);
+      connect(path, name, write_defaults, delete_keys_not_in_defaults);
    }
 
    void odb::delete_key() {

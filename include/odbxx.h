@@ -1028,8 +1028,8 @@ namespace midas {
       static bool exists(std::string name);
 
 
-      void connect(std::string path, std::string name, bool write_defaults);
-      void connect(std::string str, bool write_defaults = false);
+      void connect(std::string path, std::string name, bool write_defaults, bool delete_keys_not_in_defaults = false);
+      void connect(std::string str, bool write_defaults = false, bool delete_keys_not_in_defaults = false);
       static bool is_connected_odb() { return m_connected_odb; }
 
       void read();

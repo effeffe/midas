@@ -93,7 +93,7 @@ int main() {
       sum += e;
    std::cout << "Sum should be 27: " << sum << std::endl;
 
-   // creat key from other key
+   // create key from other key
    midas::odb oi(o["Int32 Key"]);
    oi = 123;
 
@@ -130,8 +130,26 @@ int main() {
    // print whole sub-tree
    std::cout << o.print() << std::endl;
 
-   // dump whole subtree
+   // print whole subtree
    std::cout << o.dump() << std::endl;
+
+   // update structure - create keys if needed, keep existing values if key already exists,
+   // delete keys that are in ODB but not the list of defaults.
+   midas::odb o3 = {
+      {"Int32 Key", 456},
+      {"Bool Key", true},
+      {"New Bool Key", true},
+      {"Subdir", {
+               {"Int32 key", 135 },
+               {"Double Key", 1.5},
+               {"New Sub Bool Key", false}
+      }}
+   };
+   o3.connect("/Test/Settings", false, true);
+
+   // Print new structure
+   std::cout << "After changing structure with o3:" << std::endl;
+   std::cout << o3.print() << std::endl;
 
    // delete test key from ODB
    o.delete_key();
