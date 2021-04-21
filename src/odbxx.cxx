@@ -467,6 +467,10 @@ namespace midas {
                   m_data[i].get_odb().write_key(k, true);
                   m_data[i].get_odb().write();
                }
+               if (m_data[i].get_odb().get_tid() == TID_KEY) {
+                  // update subkey structure
+                  m_data[i].get_odb().read_key(k);
+               }
             }
          }
 
