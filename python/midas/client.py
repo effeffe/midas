@@ -1721,7 +1721,7 @@ class MidasClient:
             return midas.TID_DOUBLE
         if isinstance(value, ctypes.c_float):
             return midas.TID_FLOAT
-        if isinstance(value, str):
+        if isinstance(value, str) or (isinstance(value, ctypes.Array) and isinstance(value._type_(), ctypes.c_char)):
             return midas.TID_STRING
         if isinstance(value, dict):
             return midas.TID_KEY
