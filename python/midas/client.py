@@ -67,7 +67,7 @@ class MidasClient:
     * event_buffers (dict of {int: `ctypes.c_char_p`}) - Character buffers that
         have been opened, keyed by buffer handle.
     """
-    def __init__(self, client_name, host_name=None, expt_name=None):
+    def __init__(self, client_name, host_name=None, expt_name=None, daemon_flag=None):
         """
         Load the midas library, and connect to the chosen experiment.
         
@@ -81,6 +81,8 @@ class MidasClient:
             *  expt_name (str) - Which experiment to connect to on the server.
                 If None, it will be determined automatically from the 
                 MIDAS_EXPT_NAME environment variable.
+            * daemon_flag (None/int) - None means do not deamonize this process; 
+                0 means deamonize and close stdout; 1 means deamonize and keep stdout.
         """
         global _midas_connected, _midas_lib_loaded
         
@@ -111,7 +113,11 @@ class MidasClient:
             _midas_lib_loaded = midas.MidasLib(lib_path)
             
         self.name = client_name    
-        self.lib = _midas_lib_loaded 
+        self.lib = _midas_lib_loaded
+        
+        # Deamonize before we connect, or else the buffer handles etc will be associated with the wrong PID
+        if daemon_flag is not None:
+            self.lib.c_ss_daemon_init(daemon_flag)
         
         c_host_name = ctypes.create_string_buffer(32)
         c_expt_name = ctypes.create_string_buffer(32)

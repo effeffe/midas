@@ -1,6 +1,7 @@
 #include "midas_c_compat.h"
 #include "midas.h"
 #include "mrpc.h"
+#include "msystem.h"
 #include <string>
 #include "string.h"
 #include "stdlib.h"
@@ -393,4 +394,8 @@ INT c_rpc_is_remote(void) {
 
 INT c_rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, INT buf_size, INT async_flag, INT mode) {
    return rpc_send_event(buffer_handle, event, buf_size, async_flag, mode);
+}
+
+INT c_ss_daemon_init(BOOL keep_stdout) {
+   return ss_daemon_init(keep_stdout);
 }

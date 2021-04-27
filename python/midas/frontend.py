@@ -33,6 +33,7 @@ import sys
 frontend_index = None    # If run with the -i flag on the command-line. Populated by parse_args().
 cmd_line_hostname = None # If run with the -h flag on the command-line. Populated by parse_args().
 cmd_line_exptname = None # If run with the -e flag on the command-line. Populated by parse_args().
+daemon_flag = None       # None/0/1 for not daemon/-D/-O.
 args_parsed = False      # Whether parse_args() has been called or not.
 
 logger = logging.getLogger('midas')
@@ -43,6 +44,8 @@ parser.add_argument("-i", type=int, metavar="frontend_index")
 parser.add_argument("-h", type=str, metavar="host_name")
 parser.add_argument("-e", type=str, metavar="expt_name")
 parser.add_argument("-d", action="store_true", help="Debug")
+parser.add_argument("-D", action="store_true", help="Become a daemon")
+parser.add_argument("-O", action="store_true", help="Become a daemon but retain stdout")
 parser.add_argument('--help', action='help', help='Show this help message and exit')
 
 def parse_args():
@@ -52,6 +55,8 @@ def parse_args():
         * -h for the midas hostname (defaults to what's set by env vars)
         * -e for the midas expt name (defaults to what's set by env vars)
         * -d to enable debug logging
+        * -D to become a daemon
+        * -O to become a daemon but retain stdout
         
     If you want to support more arguments for your frontend, you can work on
     the global `parser` object and call add_argument() etc. For example:
@@ -72,7 +77,7 @@ def parse_args():
     Returns:
         The result of calling parser.parse_args()
     """
-    global frontend_index, cmd_line_hostname, cmd_line_exptname, args_parsed, parser
+    global frontend_index, cmd_line_hostname, cmd_line_exptname, args_parsed, parser, daemon_flag
     
     args = parser.parse_args()
     
@@ -86,6 +91,14 @@ def parse_args():
     frontend_index = args.i if args.i is not None else -1
     cmd_line_hostname = args.h
     cmd_line_exptname = args.e
+    daemon_flag = None
+    
+    if args.D and args.O:
+        raise ValueError("Only -D or -O may be specified, not both")
+    elif args.D:
+        daemon_flag = 0
+    elif args.O:
+        daemon_flag = 1
     
     logger.info("cmd_line_hostname: %s" % cmd_line_hostname)
     logger.info("cmd_line_exptname: %s" % cmd_line_exptname)
@@ -649,7 +662,7 @@ class FrontendBase:
             return
 
         logger.info("Initializing frontend %s" % frontend_name)
-        self.client = midas.client.MidasClient(frontend_name, cmd_line_hostname, cmd_line_exptname)
+        self.client = midas.client.MidasClient(frontend_name, cmd_line_hostname, cmd_line_exptname, daemon_flag)
         
         self.equipment = {}
         self.buffers = {}
@@ -764,7 +777,7 @@ class FrontendBase:
             raise RuntimeError("You must call __init__ for this frontend")
         
         self._open_buffers()
-        
+                
         print("Running...")
         
         while True:

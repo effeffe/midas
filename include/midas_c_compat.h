@@ -76,6 +76,7 @@ extern "C" {
    INT c_rpc_flush_event(void);
    INT c_rpc_is_remote(void);
    INT c_rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, INT buf_size, INT async_flag, INT mode);
+   INT c_ss_daemon_init(BOOL keep_stdout);
 }
 
 #endif
