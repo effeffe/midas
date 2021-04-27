@@ -448,7 +448,7 @@ class MidasClient:
                     new_midas_type = explicit_new_midas_type
                 else:
                     # Choose ODB type based on input (e.g. a dict means
-                    # we'll create a TID_KEY, an in means TID_INT etc)
+                    # we'll create a TID_KEY, an int means TID_INT etc)
                     new_midas_type = self._ctype_to_midas_type(contents)
                     
                 self.lib.c_db_create_key(self.hDB, 0, c_path_no_idx, new_midas_type)
@@ -635,7 +635,7 @@ class MidasClient:
                 * client (midas.client.MidasClient)
                 * path (str) - The ODB path that changed (possibly a child if you're watching
                     an entire ODB directory)
-                * index (int) - The array index that changed (or 0 if the entry that changed
+                * index (int/None) - The array index that changed (or None if the entry that changed
                     is not an array)
                 * odb_value (float/int/dict etc) - The new ODB value (the single element
                     that changed if you're watching an array)

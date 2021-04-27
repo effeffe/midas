@@ -123,7 +123,7 @@ def make_watch_callback(path, callback, client):
         * Arguments it should accept:
             * client (midas.client.MidasClient)
             * path (str) - The ODB path being watched
-            * index (int) - Array index that changed if watching an array
+            * index (int/None) - Array index that changed if watching an array
             * odb_value (float/int/dict etc) - The new ODB value
         * Value it should return:
             * Anything or nothing, we don't do anything with it 
@@ -150,6 +150,8 @@ def make_watch_callback(path, callback, client):
         
         if isinstance(odb_value, list):
             odb_value = odb_value[idx]
+        else:
+            idx = None
         
         try:
             callback(client, changed_path, idx, odb_value)
