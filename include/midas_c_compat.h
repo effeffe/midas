@@ -63,6 +63,7 @@ extern "C" {
    INT c_db_find_link(HNDLE hDB, HNDLE hKey, const char *key_name, HNDLE * subhKey);
    INT c_db_get_key(HNDLE hdb, HNDLE key_handle, KEY * key);
    INT c_db_get_link_data(HNDLE hdb, HNDLE key_handle, void *data, INT * buf_size, DWORD type);
+   INT c_db_get_parent(HNDLE hDB, HNDLE hKey, HNDLE * parenthKey);
    INT c_db_get_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, void *data, INT * size, DWORD type, BOOL create);
    INT c_db_open_record(HNDLE hdb, HNDLE hkey, void *ptr, INT rec_size, WORD access, void (*dispatcher) (INT, INT, void *), void *info);
    INT c_db_rename_key(HNDLE hDB, HNDLE hKey, const char *name);
@@ -72,6 +73,8 @@ extern "C" {
    INT c_db_set_num_values(HNDLE hDB, HNDLE hKey, INT num_values);
    INT c_db_set_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, const void *data, INT size, INT num_values, DWORD type);
    INT c_db_set_value_index(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const void *data, INT data_size, INT index, DWORD type, BOOL truncate);
+   INT c_db_unwatch(HNDLE hDB, HNDLE hKey);
+   INT c_db_watch(HNDLE hDB, HNDLE hKey, void (*dispatcher) (INT, INT, INT, void*), void* info);
    INT c_jrpc_client_call(HNDLE hconn, char* cmd, char* args, char* buf, int buf_length);
    INT c_rpc_flush_event(void);
    INT c_rpc_is_remote(void);

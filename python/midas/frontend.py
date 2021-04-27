@@ -282,7 +282,7 @@ class EquipmentBase:
                 
         if self.client.odb_exists(self.odb_settings_dir):
             self.settings = self.client.odb_get(self.odb_settings_dir)
-            self.client.odb_watch(self.odb_settings_dir, self._odb_settings_callback)
+            self.client.odb_watch(self.odb_settings_dir, self._odb_settings_callback, True)
         else:
             self.settings = None
         
@@ -322,11 +322,40 @@ class EquipmentBase:
         You MAY implement this function in your derived class if you want to be
         told when a variable in /Equipment/<xxx>/Settings has changed. 
         
+        If you want more fine-grained information about WHAT changed (not just
+        that some setting changed), implement `detailed_settings_changed_func()`
+        instead.
+        
+        * `settings_changed_func()` => High-level "something changed"
+        * `detailed_settings_changed_func()` => Low-level "this specific thing changed"
+        
         We will automatically update self.settings before calling this function,
         but you may want to implement this function to validate any settings
         the user has set, for example.
         
         It may return anything (we don't check it).
+        """
+        pass
+    
+    def detailed_settings_changed_func(self, path, idx, new_value):
+        """
+        You MAY implement this function in your derived class if you want to be
+        told when a variable in /Equipment/<xxx>/Settings has changed.
+        
+        If you don't care about what changed (just that any setting has changed),
+        implement `settings_changed_func()` instead,
+        
+        We will automatically update self.settings before calling this function,
+        but you may want to implement this function to validate any settings
+        the user has set, for example.
+        
+        It may return anything (we don't check it).
+        
+        Args:
+            * path (str) - The ODB path that changed
+            * idx (int) - If the entry is an array, the array element that changed
+            * new_value (int/float/str etc) - The new ODB value (the single array
+                element if it's an array that changed)
         """
         pass
     
@@ -501,7 +530,7 @@ class EquipmentBase:
             
         self.common = new_value
             
-    def _odb_settings_callback(self, client, path, new_value):
+    def _odb_settings_callback(self, client, path, idx, new_value):
         """
         Callback function we register to be told when /Equipment/<xxx>/Settings
         changes. The user should not override this function, but can override
@@ -513,8 +542,13 @@ class EquipmentBase:
             * new_value (dict) - The new /Settings values
         """
         logger.debug("User's settings have changed")
-        self.settings = new_value
+        self.settings = self.client.odb_get(self.odb_settings_dir)
+        
+        # High-level "something changed" function
         self.settings_changed_func()
+        
+        # Low-level "this thing changed" function
+        self.detailed_settings_changed_func(path, idx, new_value)
         
     def _is_event_limit_reached(self):
         """

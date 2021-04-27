@@ -52,7 +52,7 @@ class MyMultiPeriodicEquipment(midas.frontend.EquipmentBase):
         # /Equipment/MyMultiPeriodicEquipment_1/Settings etc. The settings can
         # be accessed at self.settings, and will automatically update if the 
         # ODB changes.
-        default_settings = {"Prescale factor": 10}
+        default_settings = {"Prescale factor": 10, "Some array": [1, 2, 3]}
         
         # We MUST call __init__ from the base class as part of our __init__!
         midas.frontend.EquipmentBase.__init__(self, client, equip_name, default_common, default_settings)
@@ -88,9 +88,28 @@ class MyMultiPeriodicEquipment(midas.frontend.EquipmentBase):
         /Equipment/MyMultiPeriodicEquipment_1/Settings have changed.
         self.settings is updated automatically, and has already changed
         by this time this function is called.
+        
+        In this version, you just get told that a setting has changed
+        (not specifically which setting has changed).
         """
-        self.client.msg("Prescale factor is now %d" % self.settings["Prescale factor"])
+        self.client.msg("High-level: Prescale factor is now %d" % self.settings["Prescale factor"])
+        self.client.msg("High-level: Some array is now %s" % self.settings["Some array"])
 
+    def detailed_settings_changed_func(self, path, idx, new_value):
+        """
+        You can define this function to be told about when the values in
+        /Equipment/MyMultiPeriodicEquipment_1/Settings have changed.
+        self.settings is updated automatically, and has already changed
+        by this time this function is called.
+        
+        In this version you get told which setting has changed (down to
+        specific array elements).
+        """
+        if path.find("Some array") != -1:
+            self.client.msg("Low-level: %s[%d] is now %s" % (path, idx, new_value))
+        else:
+            self.client.msg("Low-level: %s is now %s" % (path, new_value))
+            
 class MyMultiPolledEquipment(midas.frontend.EquipmentBase):
     """
     Here we're creating a "polled" equipment rather than a periodic one.

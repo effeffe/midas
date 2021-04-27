@@ -12,8 +12,12 @@ import midas
 import traceback
 import json
 
-# List of callback functions we've instantiated for watching ODB directories
-hotlink_callbacks = []
+# Callback functions we've instantiated for watching ODB records, keyed by ODB path
+hotlink_callbacks = {}
+
+# List of callback functions we've instantiated for watching ODB records where 
+# callback cares about array index, keyed by ODB path
+watch_callbacks = {}
 
 # List of callback functions we've instantated for watching run transitions
 transition_callbacks = []
@@ -24,9 +28,13 @@ deferred_transition_callbacks = []
 # List of callback functions we've instantated for RPC callbacks
 rpc_callbacks = []
 
-# Define the C style of the callback function we must pass to cm_open_record
+# Define the C style of the callback function we must pass to db_open_record
 # return void; args int (hDB) / int (hKey) / void* (info; unused).
 HOTLINK_FUNC_TYPE = ctypes.CFUNCTYPE(None, ctypes.c_int, ctypes.c_int, ctypes.c_void_p)
+
+# Define the C style of the callback function we must pass to db_watch
+# return void; args int (hDB) / int (hKey) / int (index) / void* (info; unused).
+WATCH_FUNC_TYPE = ctypes.CFUNCTYPE(None, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_void_p)
 
 # Define the C style of the callback function we must pass to cm_register_transition
 # return int (status); args int (run number) / char* (error message)
@@ -95,9 +103,63 @@ def make_hotlink_callback(path, callback, client):
             client.msg("Exception raised during callback on %s: %s" % (path, exception_message(e)), True)
         
     cb = HOTLINK_FUNC_TYPE(_wrapper)
-    hotlink_callbacks.append(cb)
+    hotlink_callbacks[path] = cb
     return cb
     
+def make_watch_callback(path, callback, client):
+    """
+    Create a callback function that can be passed to db_watch from the
+    midas C library.
+    
+    Args:
+        * path (str) - The ODB path that will be watched.
+        * callback (function) - See below.
+        * client (midas.client.MidasClient) - the client that's creating this.
+        
+    Returns:
+        * `WATCH_FUNC_TYPE`
+        
+    Python function (`callback`) details:
+        * Arguments it should accept:
+            * client (midas.client.MidasClient)
+            * path (str) - The ODB path being watched
+            * index (int) - Array index that changed if watching an array
+            * odb_value (float/int/dict etc) - The new ODB value
+        * Value it should return:
+            * Anything or nothing, we don't do anything with it 
+    """
+    
+    # We create a closure that tracks the path being watched and the
+    # client that created us. This means the python callback users 
+    # provide don't have to worry about hDB/hKey etc, and can just
+    # be told the new value etc.
+    def _wrapper(hDB, hKey, idx, info):
+        changed_path = ""
+        
+        while True:
+            k = client._odb_get_key_from_hkey(hKey)
+            
+            if k.parent_keylist == 0:
+                # Found the /root entry
+                break
+            
+            changed_path = "/" + k.name.decode("utf-8") + changed_path
+            hKey = client._odb_get_parent_hkey(hKey)
+        
+        odb_value = client.odb_get(changed_path, recurse_dir=True)
+        
+        if isinstance(odb_value, list):
+            odb_value = odb_value[idx]
+        
+        try:
+            callback(client, changed_path, idx, odb_value)
+        except Exception as e:
+            traceback.print_exc()
+            client.msg("Exception raised during callback on %s: %s" % (path, exception_message(e)), True)
+        
+    cb = WATCH_FUNC_TYPE(_wrapper)
+    watch_callbacks[path] = cb
+    return cb
 
 def make_transition_callback(callback, client):
     """
