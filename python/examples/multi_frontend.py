@@ -18,6 +18,7 @@ import midas
 import midas.frontend
 import midas.event
 import random
+import ctypes
 
 class MyMultiPeriodicEquipment(midas.frontend.EquipmentBase):
     """
@@ -52,7 +53,11 @@ class MyMultiPeriodicEquipment(midas.frontend.EquipmentBase):
         # /Equipment/MyMultiPeriodicEquipment_1/Settings etc. The settings can
         # be accessed at self.settings, and will automatically update if the 
         # ODB changes.
-        default_settings = {"Prescale factor": 10, "Some array": [1, 2, 3]}
+        default_settings = {"Prescale factor": 10, 
+                            "Some array": [1, 2, 3],
+                            "String array (specific size)": [ctypes.create_string_buffer(b"ABC", 32),
+                                                             ctypes.create_string_buffer(b"DEF", 32)],
+                            "String array (auto size)": ["uvw", "xyzzzz"]}
         
         # We MUST call __init__ from the base class as part of our __init__!
         midas.frontend.EquipmentBase.__init__(self, client, equip_name, default_common, default_settings)
@@ -105,7 +110,7 @@ class MyMultiPeriodicEquipment(midas.frontend.EquipmentBase):
         In this version you get told which setting has changed (down to
         specific array elements).
         """
-        if path.find("Some array") != -1:
+        if idx is not None:
             self.client.msg("Low-level: %s[%d] is now %s" % (path, idx, new_value))
         else:
             self.client.msg("Low-level: %s is now %s" % (path, new_value))
@@ -137,7 +142,28 @@ class MyMultiPolledEquipment(midas.frontend.EquipmentBase):
         
         midas.frontend.EquipmentBase.__init__(self, client, equip_name, default_common)
         
+        # Example of registering a callback function on an ODB value.
+        # The equipment Settings have pre-defined callbacks (settings_changed_func()
+        # and (detailed_settings_changed_func()), but you can register to watch other
+        # directories as well if you want.
+        # See the odb_watch() documentation for meaning of the 3rd argument (and
+        # why the 2 callbacks have different signatures).
+        self.client.odb_watch("/Logger/Data dir", self.data_dir_changed)
+        self.client.odb_watch("/WebServer/Host list", self.host_list_changed, True)
+        
         self.set_status("Initialized")
+        
+    def data_dir_changed(self, client, path, new_value):
+        """
+        Example callback for watching whether an ODB value changed.
+        """
+        print("%s is now %s" % (path, new_value))
+        
+    def host_list_changed(self, client, path, idx, new_value):
+        """
+        Example callback for watching whether an ODB value changed.
+        """
+        print("%s[%d] is now %s" % (path, idx, new_value))
         
     def poll_func(self):
         """
