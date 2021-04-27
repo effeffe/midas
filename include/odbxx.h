@@ -1030,6 +1030,7 @@ namespace midas {
 
       void connect(std::string path, std::string name, bool write_defaults, bool delete_keys_not_in_defaults = false);
       void connect(std::string str, bool write_defaults = false, bool delete_keys_not_in_defaults = false);
+      void connect_and_fix_structure(std::string path);
       static bool is_connected_odb() { return m_connected_odb; }
 
       void read();
@@ -1051,6 +1052,8 @@ namespace midas {
       int get_tid() { return m_tid; }
       int get_num_values() { return m_num_values; }
       std::string get_name() { return m_name; }
+
+      void fix_order(std::vector<std::string> target_subkey_order);
    };
 
    //---- midas::odb friend functions -------------------------------

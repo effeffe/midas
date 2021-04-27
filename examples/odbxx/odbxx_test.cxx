@@ -137,15 +137,16 @@ int main() {
    // delete keys that are in ODB but not the list of defaults.
    midas::odb o3 = {
       {"Int32 Key", 456},
-      {"Bool Key", true},
       {"New Bool Key", true},
+      {"String Array", {"Hello1", "Hello2", "Hello3"}},
+      {"Bool Key", true},
       {"Subdir", {
                {"Int32 key", 135 },
-               {"Double Key", 1.5},
-               {"New Sub Bool Key", false}
+               {"New Sub Bool Key", false},
+               {"Double Key", 1.5}
       }}
    };
-   o3.connect("/Test/Settings", false, true);
+   o3.connect_and_fix_structure("/Test/Settings");
 
    // Print new structure
    std::cout << "After changing structure with o3:" << std::endl;

@@ -10,6 +10,7 @@
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <map>
 #include <stdexcept>
 #include <initializer_list>
 #include <cstring>
@@ -967,6 +968,92 @@ namespace midas {
       }
    }
 
+   void recurse_get_defaults_order(std::string path, midas::odb& default_odb, std::map<std::string, std::vector<std::string> >& retval) {
+      for (midas::odb& sub : default_odb) {
+         if (sub.get_tid() == TID_KEY) {
+            recurse_get_defaults_order(path + "/" + sub.get_name(), sub, retval);
+         }
+
+         retval[path].push_back(sub.get_name());
+      }
+   }
+
+   void recurse_fix_order(midas::odb& default_odb, std::map<std::string, std::vector<std::string> >& user_order) {
+      std::string path = default_odb.get_full_path();
+
+      if (user_order.find(path) != user_order.end()) {
+         default_odb.fix_order(user_order[path]);
+      }
+
+      for (midas::odb& it : default_odb) {
+         if (it.get_tid() == TID_KEY) {
+            recurse_fix_order(it, user_order);
+         }
+      }
+   }
+
+   void odb::fix_order(std::vector<std::string> target_order) {
+      // Fix the order of ODB keys to match that specified in target_order.
+      // The in-ODB representation is simple, as we can just use db_reorder_key()
+      // on anything that's in the wrong place.
+      // The in-memory representation is a little trickier, but we just copy raw
+      // memory into a temporary array, so we don't have to delete/recreate the
+      // u_odb objects.
+      std::vector<std::string> curr_order;
+
+      if (get_subkeys(curr_order) <= 0) {
+         // Not a TID_KEY (or no keys)
+         return;
+      }
+
+      if (target_order.size() != curr_order.size() || target_order.size() != m_num_values) {
+         return;
+      }
+
+      HNDLE hKey = get_hkey();
+      bool force_order = false;
+
+      // Temporary location where we'll store in-memory u_odb objects in th
+      // correct order.
+      u_odb* new_m_data = new u_odb[m_num_values];
+
+      for (DWORD i = 0; i < m_num_values; i++) {
+         if (force_order || curr_order[i] != target_order[i]) {
+            force_order = true;
+            HNDLE hSubKey;
+
+            // Fix the order in the ODB
+            db_find_key(m_hDB, hKey, target_order[i].c_str(), &hSubKey);
+            db_reorder_key(m_hDB, hSubKey, i);
+         }
+
+         // Fix the order in memory
+         auto curr_it = std::find(curr_order.begin(), curr_order.end(), target_order[i]);
+
+         if (curr_it == curr_order.end()) {
+            // Logic error - bail to avoid doing any damage to the in-memory version.
+            delete[] new_m_data;
+            return;
+         }
+
+         int curr_idx = curr_it - curr_order.begin();
+         new_m_data[i] = m_data[curr_idx];
+      }
+
+      // Final update of the in-memory version so they are in the correct order
+      for (DWORD i = 0; i < m_num_values; i++) {
+         m_data[i] = new_m_data[i];
+
+         // Nullify pointers that point to the same object in
+         // m_data and new_m_data, so the underlying object doesn't
+         // get destroyed when we delete new_m_data.
+         new_m_data[i].set_string_ptr(nullptr);
+         new_m_data[i].set_odb(nullptr);
+      }
+
+      delete[] new_m_data;
+   }
+
    // write function with separated path and key name
    void odb::connect(std::string path, std::string name, bool write_defaults, bool delete_keys_not_in_defaults) {
       init_hdb();
@@ -1023,6 +1110,25 @@ namespace midas {
       }
 
       connect(path, name, write_defaults, delete_keys_not_in_defaults);
+   }
+
+   // shorthand for the same behavior as db_check_record:
+   // - keep values of keys that already exist with the correct type
+   // - add keys that user provided but aren't in ODB already
+   // - delete keys that are in ODB but not in user's settings
+   // - re-order ODB keys to match user's order
+   void odb::connect_and_fix_structure(std::string path) {
+      // Store the order the user specified.
+      // Need to do this recursively before calling connect(), as the first
+      // read() in that function merges user keys and existing keys.
+      std::map<std::string, std::vector<std::string> > user_order;
+      recurse_get_defaults_order(path, *this, user_order);
+
+      // Main connect() that adds/deletes/updates keys as needed.
+      connect(path, false, true);
+
+      // Fix order in ODB (and memory)
+      recurse_fix_order(*this, user_order);
    }
 
    void odb::delete_key() {
