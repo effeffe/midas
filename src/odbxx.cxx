@@ -1007,7 +1007,7 @@ namespace midas {
          return;
       }
 
-      if (target_order.size() != curr_order.size() || target_order.size() != m_num_values) {
+      if (target_order.size() != curr_order.size() || (int)target_order.size() != m_num_values) {
          return;
       }
 
@@ -1018,7 +1018,7 @@ namespace midas {
       // correct order.
       u_odb* new_m_data = new u_odb[m_num_values];
 
-      for (DWORD i = 0; i < m_num_values; i++) {
+      for (int i = 0; i < m_num_values; i++) {
          if (force_order || curr_order[i] != target_order[i]) {
             force_order = true;
             HNDLE hSubKey;
@@ -1042,7 +1042,7 @@ namespace midas {
       }
 
       // Final update of the in-memory version so they are in the correct order
-      for (DWORD i = 0; i < m_num_values; i++) {
+      for (int i = 0; i < m_num_values; i++) {
          m_data[i] = new_m_data[i];
 
          // Nullify pointers that point to the same object in
