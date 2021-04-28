@@ -12,6 +12,7 @@
 #include <sstream>
 #include <map>
 #include <stdexcept>
+#include <algorithm>
 #include <initializer_list>
 #include <cstring>
 #include <bitset>
