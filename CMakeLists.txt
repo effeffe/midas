@@ -76,6 +76,26 @@ if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mvodb/mvodb.cxx)
 endif()
 
 #
+# Check for midasio
+#
+if (NOT EXISTS ${PROJECT_SOURCE_DIR}/midasio/midasio.cxx)
+   message(FATAL_ERROR "\nError: 'midasio' submodule not found. Please install via\n"
+      "'git submodule update --init'\n"
+      "in midas root directory."
+   )
+endif()
+
+#
+# Check for manalyzer
+#
+if (NOT EXISTS ${PROJECT_SOURCE_DIR}/manalyzer/manalyzer.cxx)
+   message(FATAL_ERROR "\nError: 'manalyzer' submodule not found. Please install via\n"
+      "'git submodule update --init'\n"
+      "in midas root directory."
+   )
+endif()
+
+#
 # Check for mscb
 #
 if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mscb/src/mscb.cxx)
@@ -360,6 +380,8 @@ set(libsrc
    mvodb/midasodb
    mvodb/mxmlodb
    mvodb/mjsonodb
+   midasio/midasio
+   manalyzer/manalyzer
    src/json_paste
    src/mjsonrpc
    src/mjsonrpc_user
@@ -411,7 +433,7 @@ if (HAVE_MYSQL)
 endif()
 
 target_include_directories(objlib PUBLIC ${SYSINC_DIR})
-target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/mscb/include)
+target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/midasio ${PROJECT_SOURCE_DIR}/manalyzer ${PROJECT_SOURCE_DIR}/mscb/include)
 target_include_directories(objlib PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
 if (OPENSSL_FOUND)
    target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
