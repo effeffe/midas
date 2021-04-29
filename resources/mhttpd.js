@@ -932,7 +932,7 @@ function mhttpd_scan() {
    for (let i = 0; i < modbvalue.length; i++) {
       let o = modbvalue[i];
       let loading = "(Loading " + modbvalue[i].dataset.odbPath + " ...)";
-      if (o.dataset.odbEditable) {
+      if (parseInt(o.dataset.odbEditable)) {
 
          // add event handler if tag is editable
          let link = document.createElement('a');
@@ -1956,7 +1956,7 @@ function mhttpd_refresh() {
             if (mvalue === "")
                mvalue = "(empty)";
             let html = mhttpd_escape(mvalue);
-            if (modbvalue[i].dataset.odbEditable) {
+            if (parseInt(modbvalue[i].dataset.odbEditable)) {
                if (modbvalue[i].childNodes[0] === undefined) {
                   // element has not been scanned yet
                   mhttpd_scan();
