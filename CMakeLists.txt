@@ -453,7 +453,7 @@ if (CURL_FOUND)
 endif ()
 
 # midas include is public so all programs linking to libmidas will inherit this
-target_include_directories(midas PUBLIC ${SYSINC_DIR})
+target_include_directories(midas PUBLIC ${SYSINC_DIR} ${PROJECT_SOURCE_DIR}/manalyzer ${PROJECT_SOURCE_DIR}/midasio ${PROJECT_SOURCE_DIR}/mvodb)
 
 # library for mfe
 add_library(mfe src/mfe)
@@ -474,7 +474,16 @@ if (HAVE_ROOT)
    target_compile_options(rmana PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
 endif(HAVE_ROOT)
 
-install(TARGETS midas midas-shared midas-c-compat mfe mana rmana
+# library for manalyzer_main
+add_library(manalyzer_main manalyzer/manalyzer_main)
+target_include_directories(manalyzer_main PUBLIC ${SYSINC_DIR})
+target_include_directories(manalyzer_main PRIVATE ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/manalyzer ${PROJECT_SOURCE_DIR}/midasio ${PROJECT_SOURCE_DIR}/mvodb)
+if (HAVE_ROOT)
+   target_include_directories(manalyzer_main PUBLIC ${ROOT_INCLUDE_DIRS})
+   target_compile_options(manalyzer_main PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
+endif(HAVE_ROOT)
+
+install(TARGETS midas midas-shared midas-c-compat mfe mana rmana manalyzer_main
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
