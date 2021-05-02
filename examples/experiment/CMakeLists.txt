@@ -125,8 +125,8 @@ if (HAVE_ROOT)
    add_executable(manalyzer
       #analyzer.cxx
       adccalib_module.cxx
-      #adcsum.cxx
-      #scaler.cxx
+      adcsum_module.cxx
+      scaler_module.cxx
       )
 
    target_include_directories(manalyzer PUBLIC ${ROOT_INCLUDE_DIRS} ${INC_PATH})
