@@ -66,12 +66,17 @@ INT vxi11dev_init(HNDLE hKey, void **pinfo, INT nvars)
 
    /* CLINK */
    info->clink = (CLINK*)calloc(1, sizeof(CLINK));
+   cm_msg(MINFO, "vxi11dev_init", "vxi11 initialization with IP: %s", info->ip_address);
    status = FE_SUCCESS;
    if (!clink) {
       /* open connection */
-      clink = new CLINK;
-      if (vxi11_open_device(info->ip_address, clink) != 0) {
+      clink = new CLINK();
+      int ret = vxi11_open_device(info->ip_address, clink);
+      if (ret != 0) {
          status = FE_ERR_DRIVER;
+	 cm_msg(MERROR, "vxi11dev_init", "vxi11dev driver error: %d", ret);
+      } else {
+	cm_msg(MINFO, "vxi11dev_init", "vxi11dev initialized successfully.");
       }
    }
    info->clink = clink;
@@ -158,7 +163,12 @@ INT vxi11dev_set(VXI_INFO *info, INT channel, float value)
       sleep(3.0);
    }
    busy = true;
-   vxi11_send(info->clink, cmd);
+   long ret = vxi11_send(info->clink, cmd);
+   busy = false;
+   if (ret != 0) {
+     cm_msg(MINFO, "vxi11dev_set", "unusual return value in vxi11_send: %ld", ret);
+   }
+   
    busy = false;
       
    return FE_SUCCESS;
@@ -184,8 +194,11 @@ INT vxi11dev_get(VXI_INFO *info, INT channel, float *pvalue)
       sleep(3.0);
    }
    busy = true;
-   vxi11_send_and_receive(info->clink, cmd, buf, 256, VXI11_READ_TIMEOUT*10);
+   long ret = vxi11_send_and_receive(info->clink, cmd, buf, 256, VXI11_READ_TIMEOUT*10);
    busy = false;
+   if (ret != 0) {
+     cm_msg(MINFO, "vxi11dev_get", "unusual return value in vxi11_send_and_receive: %ld", ret);
+   }
    std::string buf_str = buf;
    int index =  buf_str.find('\n');
    if (index >= 0) {
