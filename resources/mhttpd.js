@@ -2359,6 +2359,8 @@ function mhttpd_message(msg, chat) {
    let lastChat = "";
    let lastChatT = 0;
    let lastT = 0;
+   let m = "";
+   let c = "";
 
    if (msg !== undefined) {
       lastMsg = msg[0].substr(msg[0].indexOf(" ") + 1);
@@ -2378,8 +2380,8 @@ function mhttpd_message(msg, chat) {
    }
 
    if (lastChatT > lastMsgT) {
-      let m = lastChat;
-      let c = "var(--mblue)";
+      m = lastChat;
+      c = "var(--mblue)";
       mType = "USER";
       talkTime = lastChatT;
       lastT = lastChatT;
