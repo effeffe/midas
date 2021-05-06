@@ -15105,7 +15105,7 @@ INT rpc_check_channels(void)
             continue;
          }
 
-         int64_t elapsed = ss_millitime() - sa->last_activity;
+         DWORD elapsed = ss_millitime() - sa->last_activity;
          //printf("rpc_check_channels: idx %d, watchdog_timeout %d, last_activity %d, elapsed %d\n", idx, sa->watchdog_timeout, sa->last_activity, elapsed);
 
          if (sa->watchdog_timeout && (elapsed > sa->watchdog_timeout)) {
