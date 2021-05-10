@@ -974,16 +974,19 @@ function mhttpd_scan() {
    // go through all name="modbselect" tags
    let modbselect = getMElements("modbselect");
    for (let i = 0; i < modbselect.length; i++) {
-      modbselect[i].onchange = function () {
-         if (this.dataset.validate !== undefined) {
-            let flag = eval(this.dataset.validate)(this.value, this);
-            if (!flag) {
-               mhttpd_refresh();
-               return;
+      modbselect[i].onchange = function (flag) {
+
+         if (flag !== true) { // flag === true if control changed by ODB update
+            if (this.dataset.validate !== undefined) {
+               let flag = eval(this.dataset.validate)(this.value, this);
+               if (!flag) {
+                  mhttpd_refresh();
+                  return;
+               }
             }
+            mjsonrpc_db_set_value(this.dataset.odbPath, this.value);
+            mhttpd_refresh();
          }
-         mjsonrpc_db_set_value(this.dataset.odbPath, this.value);
-         mhttpd_refresh();
       };
    }
 
@@ -2008,7 +2011,7 @@ function mhttpd_refresh() {
             if (j < modbselect[i].options.length) {
                modbselect[i].value = x.toString();
                if (modbselect[i].onchange !== null)
-                  modbselect[i].onchange();
+                  modbselect[i].onchange(true);
             } else {
                // if not, set blank
                if (modbselect[i].value !== "")
