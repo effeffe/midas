@@ -6099,7 +6099,29 @@ static BOOL bm_validate_rp(const char *who, const BUFFER_HEADER *pheader, int rp
    return TRUE;
 }
 
-static int bm_incr_rp_no_check(const BUFFER_HEADER *pheader, int rp, int total_size) {
+#if 0
+static FILE* gRpLog = NULL;
+#endif
+
+static int bm_incr_rp_no_check(const BUFFER_HEADER *pheader, int rp, int total_size)
+{
+#if 0
+   if (gRpLog == NULL) {
+      gRpLog = fopen("rp.log", "a");
+   }
+   if (gRpLog && (total_size < 16)) {
+      const char *pdata = (const char *) (pheader + 1);
+      const DWORD *pevent = (const DWORD*) (pdata + rp);
+      fprintf(gRpLog, "%s: rp %d, total_size %d, at rp 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x\n", pheader->name, rp, total_size,
+              pevent[0], pevent[1], pevent[2], pevent[3], pevent[4], pevent[5]);
+   }
+#endif
+
+   // these checks are already done before we come here.
+   // but we check again as last-ressort protection. K.O.
+   assert(total_size > 0);
+   assert(total_size >= sizeof(EVENT_HEADER));
+
    rp += total_size;
    if (rp >= pheader->size) {
       rp -= pheader->size;
@@ -8486,9 +8508,9 @@ static int bm_fill_read_cache_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, int t
    /* loop over all events in the buffer */
 
    while (1) {
-      EVENT_HEADER *pevent;
-      int event_size;
-      int total_size;
+      EVENT_HEADER *pevent = NULL;
+      int event_size = 3; // poison value
+      int total_size = 3; // poison value
 
       int status = bm_peek_buffer_locked(pbuf, pheader, pc, &pevent, &event_size, &total_size);
       if (status == BM_CORRUPTED) {
@@ -8513,6 +8535,8 @@ static int bm_fill_read_cache_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, int t
          }
          // make sure we wait for new event only once
          timeout_msec = BM_NO_WAIT;
+         // go back to bm_peek_buffer_locked
+         continue;
       }
 
       /* loop over all requests: if this event matches a request,
@@ -9630,7 +9654,7 @@ static INT bm_receive_event_rpc(INT buffer_handle, void *buf, int *buf_size, EVE
 
       status = rpc_call(RPC_BM_RECEIVE_EVENT, buffer_handle, xbuf, &zbuf_size, xtimeout_msec);
       
-      printf("bm_receive_event_rpc: handle %d, timeout %d, status %d, size %d in, %d out, via RPC_BM_RECEIVE_EVENT\n", buffer_handle, xtimeout_msec, status, xbuf_size, zbuf_size);
+      //printf("bm_receive_event_rpc: handle %d, timeout %d, status %d, size %d in, %d out, via RPC_BM_RECEIVE_EVENT\n", buffer_handle, xtimeout_msec, status, xbuf_size, zbuf_size);
 
       if (status == BM_ASYNC_RETURN) {
          if (timeout_msec == BM_WAIT) {
