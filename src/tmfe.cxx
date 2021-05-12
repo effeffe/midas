@@ -471,6 +471,37 @@ void TMFrontend::FePollMidas(double sleep_sec)
    }
 }
 
+void TMFE::Yield(double sleep_sec)
+{
+   double now = GetTime();
+   //double sleep_start = now;
+   double sleep_end = now + sleep_sec;
+
+   while (!fShutdownRequested) {
+      now = GetTime();
+
+      double sleep_time = sleep_end - now;
+      int s = 0;
+      if (sleep_time > 0)
+         s = 1 + sleep_time*1000.0;
+
+      //printf("now %f, sleep_end %f, s %d\n", now, sleep_end, s);
+      
+      int status = cm_yield(s);
+      
+      if (status == RPC_SHUTDOWN || status == SS_ABORT) {
+         fShutdownRequested = true;
+         fprintf(stderr, "TMFE::Yield: cm_yield(%d) status %d, shutdown requested...\n", s, status);
+      }
+
+      now = GetTime();
+      if (now >= sleep_end)
+         break;
+   }
+
+   //printf("TMFE::Yield: msec %d, actual %f msec\n", msec, (now - sleep_start) * 1000.0);
+}
+
 void TMFE::MidasPeriodicTasks()
 {
    cm_periodic_tasks();

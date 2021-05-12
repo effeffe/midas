@@ -405,7 +405,7 @@ public: // run control
 public:
    TMFeResult SetWatchdogSec(int sec);
 
-   void PollMidas(int millisec);
+   void Yield(double sleep_sec);
    void MidasPeriodicTasks();
 
    TMFeResult TriggerAlarm(const char* name, const char* message, const char* aclass);
