@@ -4352,13 +4352,15 @@ INT ss_suspend(INT millisec, INT msg)
             else if (msg == 0)
                millisec = 0;
 
-            /* event channel */
-            sock = (*_ss_server_acceptions)[i]->event_sock;
+            if (msg == 0 && msg != MSG_BM) {
+               /* event channel */
+               sock = (*_ss_server_acceptions)[i]->event_sock;
 
-            if (!sock)
-               continue;
-
-            FD_SET(sock, &readfds);
+               if (!sock)
+                  continue;
+               
+               FD_SET(sock, &readfds);
+            }
          }
       }
 
@@ -4425,10 +4427,13 @@ INT ss_suspend(INT millisec, INT msg)
             //printf("rpc index %d, socket %d, hostname \'%s\', progname \'%s\'\n", i, sock, _suspend_struct[idx].server_acception[i].host_name, _suspend_struct[idx].server_acception[i].prog_name);
 
             if (recv_tcp_check(sock) || FD_ISSET(sock, &readfds)) {
-               if (msg != 0) {
+               //printf("ss_suspend: msg %d\n", msg);
+               if (msg != 0 && msg != MSG_BM) {
                   status = ss_socket_check(sock);
                } else {
+                  //printf("ss_suspend: rpc_server_receive_rpc() call!\n");
                   status = rpc_server_receive_rpc(i, (*_ss_server_acceptions)[i]);
+                  //printf("ss_suspend: rpc_server_receive_rpc() status %d\n", status);
                }
                (*_ss_server_acceptions)[i]->last_activity = ss_millitime();
 
@@ -4448,7 +4453,9 @@ INT ss_suspend(INT millisec, INT msg)
                if (msg != 0) {
                   status = ss_socket_check(sock);
                } else {
+                  //printf("ss_suspend: rpc_server_receive_event() call!\n");
                   status = rpc_server_receive_event(i, (*_ss_server_acceptions)[i]);
+                  //printf("ss_suspend: rpc_server_receive_event() status %d\n", status);
                }
                (*_ss_server_acceptions)[i]->last_activity = ss_millitime();
 
