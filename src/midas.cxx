@@ -13698,8 +13698,6 @@ int recv_event_server_realloc(INT idx, char **pbuffer, int *pbuffer_size)
 \********************************************************************/
 {
    RPC_SERVER_ACCEPTION *psa = rpc_get_server_acception(idx);
-   psa->ev_write_ptr = 0;
-   psa->ev_read_ptr = 0;
 
    int sock = psa->event_sock;
 
@@ -13814,35 +13812,6 @@ int recv_event_server_realloc(INT idx, char **pbuffer, int *pbuffer_size)
    }
 
    return bufsize;
-}
-
-
-/********************************************************************/
-INT recv_event_check(int sock)
-/********************************************************************\
-
-  Routine: recv_event_check
-
-  Purpose: Check if in TCP event receive buffer associated with sock
-           is some data. Called by ss_suspend.
-
-  Input:
-    INT   sock               TCP receive socket
-
-  Output:
-    none
-
-  Function value:
-    INT   count              Number of bytes remaining in TCP buffer
-
-\********************************************************************/
-{
-   /* figure out to which connection socket belongs */
-   for (unsigned idx = 0; idx < _server_acceptions.size(); idx++)
-      if (_server_acceptions[idx] && _server_acceptions[idx]->event_sock == sock) {
-         return _server_acceptions[idx]->ev_write_ptr - _server_acceptions[idx]->ev_read_ptr;
-      }
-   return 0;
 }
 
 

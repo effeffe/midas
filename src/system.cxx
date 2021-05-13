@@ -4331,13 +4331,7 @@ INT ss_suspend(INT millisec, INT msg)
             if (!sock)
                continue;
 
-            /* watch server socket if no data in cache */
-            if (recv_event_check(sock) == 0)
-               FD_SET(sock, &readfds);
-            /* set timeout to zero if data in cache (-> just quick check IPC)
-               and not called from inside bm_send_event (-> wait for IPC) */
-            else if (msg == 0)
-               millisec = 0;
+            FD_SET(sock, &readfds);
          }
       }
 
@@ -4419,7 +4413,7 @@ INT ss_suspend(INT millisec, INT msg)
             if (!sock)
                continue;
 
-            if (recv_event_check(sock) || FD_ISSET(sock, &readfds)) {
+            if (FD_ISSET(sock, &readfds)) {
                status = rpc_server_receive(i, sock, msg != 0);
                (*_ss_server_acceptions)[i]->last_activity = ss_millitime();
 

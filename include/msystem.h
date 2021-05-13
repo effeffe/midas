@@ -354,10 +354,8 @@ typedef struct {
    DWORD last_activity = 0;         /*  time of last recv       */
    INT convert_flags = 0;           /*  convertion flags        */
    char *net_buffer = NULL;         /*  TCP cache buffer        */
-   char *ev_net_buffer = NULL;
    INT net_buffer_size = 0;         /*  size of TCP cache       */
    INT write_ptr=0, read_ptr=0, misalign=0;   /* pointers for cache */
-   INT ev_write_ptr=0, ev_read_ptr=0, ev_misalign=0;
    HNDLE odb_handle = 0;            /*  handle to online datab. */
    HNDLE client_handle = 0;         /*  client key handle .     */
 
@@ -373,14 +371,10 @@ typedef struct {
       last_activity = 0;
       convert_flags = 0;
       net_buffer = NULL;
-      ev_net_buffer = NULL;
       net_buffer_size = 0;
       write_ptr = 0;
       read_ptr = 0;
       misalign = 0;
-      ev_write_ptr = 0;
-      ev_read_ptr = 0;
-      ev_misalign = 0;
       odb_handle = 0;
       client_handle = 0;
    }
@@ -562,7 +556,6 @@ typedef struct {
    INT rpc_client_dispatch(int sock);
    INT EXPRT rpc_get_convert_flags(void);
    INT recv_tcp_check(int sock);
-   INT recv_event_check(int sock);
    INT rpc_deregister_functions(void);
    INT rpc_check_channels(void);
    void EXPRT rpc_client_check(void);
