@@ -4203,6 +4203,33 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
    return return_status;
 }
 
+static int ss_socket_check(int sock)
+{
+   // copied from the old rpc_server_receive()
+
+   /* only check if TCP connection is broken */
+
+   char test_buffer[256];
+#ifdef OS_WINNT
+   int n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK);
+#else
+   int n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK | MSG_DONTWAIT);
+   
+   /* check if we caught a signal */
+   if ((n_received == -1) && (errno == EAGAIN))
+      return SS_SUCCESS;
+#endif
+   
+   if (n_received == -1) {
+      cm_msg(MERROR, "ss_socket_check", "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", (int) sizeof(test_buffer), n_received, errno, strerror(errno));
+   }
+   
+   if (n_received <= 0)
+      return SS_ABORT;
+   
+   return SS_SUCCESS;
+}
+
 /*------------------------------------------------------------------*/
 INT ss_suspend(INT millisec, INT msg)
 /********************************************************************\
@@ -4398,7 +4425,11 @@ INT ss_suspend(INT millisec, INT msg)
             //printf("rpc index %d, socket %d, hostname \'%s\', progname \'%s\'\n", i, sock, _suspend_struct[idx].server_acception[i].host_name, _suspend_struct[idx].server_acception[i].prog_name);
 
             if (recv_tcp_check(sock) || FD_ISSET(sock, &readfds)) {
-               status = rpc_server_receive(i, sock, msg != 0);
+               if (msg != 0) {
+                  status = ss_socket_check(sock);
+               } else {
+                  status = rpc_server_receive_rpc(i, (*_ss_server_acceptions)[i]);
+               }
                (*_ss_server_acceptions)[i]->last_activity = ss_millitime();
 
                if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
@@ -4414,7 +4445,11 @@ INT ss_suspend(INT millisec, INT msg)
                continue;
 
             if (FD_ISSET(sock, &readfds)) {
-               status = rpc_server_receive(i, sock, msg != 0);
+               if (msg != 0) {
+                  status = ss_socket_check(sock);
+               } else {
+                  status = rpc_server_receive_event(i, (*_ss_server_acceptions)[i]);
+               }
                (*_ss_server_acceptions)[i]->last_activity = ss_millitime();
 
                if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)

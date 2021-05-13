@@ -15142,6 +15142,7 @@ INT rpc_server_loop(void)
    return RPC_SUCCESS;
 }
 
+#if 0
 /********************************************************************/
 INT rpc_server_receive(INT idx, int sock, BOOL check)
 /********************************************************************\
@@ -15341,7 +15342,243 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
    return status;
 }
+#endif
 
+/********************************************************************/
+INT rpc_server_receive_rpc(int idx, RPC_SERVER_ACCEPTION* sa)
+/********************************************************************\
+
+  Routine: rpc_server_receive_rpc
+
+  Purpose: Receive rpc commands and execute them. Close the connection
+           if client has broken TCP pipe.
+
+  Function value:
+    RPC_SUCCESS             Successful completion
+    RPC_EXCEED_BUFFER       Not enough memeory to allocate buffer
+    SS_EXIT                 Server connection was closed
+    SS_ABORT                Server connection was broken
+
+\********************************************************************/
+{
+   int status = 0;
+   int remaining = 0;
+
+   char *buf = NULL;
+   int bufsize = 0;
+   
+   do {
+      int n_received = recv_net_command_realloc(idx, &buf, &bufsize, &remaining);
+      
+      if (n_received <= 0) {
+         status = SS_ABORT;
+         cm_msg(MERROR, "rpc_server_receive_rpc", "recv_net_command() returned %d, abort", n_received);
+         goto error;
+      }
+      
+      status = rpc_execute(sa->recv_sock, buf, sa->convert_flags);
+      
+      if (status == SS_ABORT) {
+         cm_msg(MERROR, "rpc_server_receive_rpc", "rpc_execute() returned %d, abort", status);
+         goto error;
+      }
+      
+         if (status == SS_EXIT || status == RPC_SHUTDOWN) {
+            if (rpc_is_mserver())
+               rpc_debug_printf("Connection to %s:%s closed\n", sa->host_name.c_str(), sa->prog_name.c_str());
+            goto exit;
+         }
+         
+   } while (remaining);
+   
+   if (buf) {
+      free(buf);
+      buf = NULL;
+      bufsize = 0;
+   }
+
+   return RPC_SUCCESS;
+
+   error:
+
+   {
+      char str[80];
+      strlcpy(str, sa->host_name.c_str(), sizeof(str));
+      if (strchr(str, '.'))
+         *strchr(str, '.') = 0;
+      cm_msg(MTALK, "rpc_server_receive_rpc", "Program \'%s\' on host \'%s\' aborted", sa->prog_name.c_str(), str);
+   }
+
+   exit:
+
+   cm_msg_flush_buffer();
+
+   /* disconnect from experiment as MIDAS server */
+   if (rpc_is_mserver()) {
+      HNDLE hDB, hKey;
+
+      cm_get_experiment_database(&hDB, &hKey);
+
+      /* only disconnect from experiment if previously connected.
+         Necessary for pure RPC servers (RPC_SRVR) */
+      if (hDB) {
+         bm_close_all_buffers();
+         cm_delete_client_info(hDB, 0);
+         db_close_all_databases();
+
+         rpc_deregister_functions();
+
+         cm_set_experiment_database(0, 0);
+
+#if 0
+         if (_msg_mutex)
+            ss_mutex_delete(_msg_mutex);
+         _msg_mutex = 0;
+
+         if (_msg_rb)
+            rb_delete(_msg_rb);
+         _msg_rb = 0;
+#endif
+      }
+   }
+
+   bool is_mserver = sa->is_mserver;
+
+   sa->close();
+
+   /* signal caller a shutdonw */
+   if (status == RPC_SHUTDOWN)
+      return status;
+
+   /* only the mserver should stop on server connection closure */
+   if (!is_mserver) {
+      return SS_SUCCESS;
+   }
+
+   return status;
+}
+
+/********************************************************************/
+INT rpc_server_receive_event(int idx, RPC_SERVER_ACCEPTION* sa)
+/********************************************************************\
+
+  Routine: rpc_server_receive_event
+
+  Purpose: Receive event and dispatch it
+
+  Function value:
+    RPC_SUCCESS             Successful completion
+    RPC_EXCEED_BUFFER       Not enough memeory to allocate buffer
+    SS_EXIT                 Server connection was closed
+    SS_ABORT                Server connection was broken
+
+\********************************************************************/
+{
+   int status = 0;
+
+   DWORD start_time = ss_millitime();
+
+   char *buf = NULL;
+   int bufsize = 0;
+   
+   do {
+      int n_received = recv_event_server_realloc(idx, &buf, &bufsize);
+      
+      if (n_received < 0) {
+         status = SS_ABORT;
+         cm_msg(MERROR, "rpc_server_receive_event", "recv_event_server_realloc() returned %d, abort", n_received);
+         goto error;
+      }
+      
+      if (n_received == 0) {
+         // no more data in the tcp socket
+         break;
+      }
+      
+      /* send event to buffer */
+      INT *pbh = (INT *) buf;
+      EVENT_HEADER *pevent = (EVENT_HEADER *) (pbh + 1);
+      
+      status = bm_send_event(*pbh, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
+      
+      if (status == SS_ABORT) {
+         cm_msg(MERROR, "rpc_server_receive_event", "bm_send_event() returned %d (SS_ABORT), abort", status);
+         goto error;
+      }
+      
+      if (status != BM_SUCCESS) {
+         cm_msg(MERROR, "rpc_server_receive_event", "bm_send_event() returned %d, mserver dropped this event", status);
+      }
+      
+      /* repeat for maximum 0.5 sec */
+   } while (ss_millitime() - start_time < 500);
+   
+   if (buf) {
+      free(buf);
+      buf = NULL;
+      bufsize = 0;
+   }
+
+   return RPC_SUCCESS;
+
+   error:
+
+   {
+      char str[80];
+      strlcpy(str, sa->host_name.c_str(), sizeof(str));
+      if (strchr(str, '.'))
+         *strchr(str, '.') = 0;
+      cm_msg(MTALK, "rpc_server_receive_event", "Program \'%s\' on host \'%s\' aborted", sa->prog_name.c_str(), str);
+   }
+
+   exit:
+
+   cm_msg_flush_buffer();
+
+   /* disconnect from experiment as MIDAS server */
+   if (rpc_is_mserver()) {
+      HNDLE hDB, hKey;
+
+      cm_get_experiment_database(&hDB, &hKey);
+
+      /* only disconnect from experiment if previously connected.
+         Necessary for pure RPC servers (RPC_SRVR) */
+      if (hDB) {
+         bm_close_all_buffers();
+         cm_delete_client_info(hDB, 0);
+         db_close_all_databases();
+
+         rpc_deregister_functions();
+
+         cm_set_experiment_database(0, 0);
+
+#if 0
+         if (_msg_mutex)
+            ss_mutex_delete(_msg_mutex);
+         _msg_mutex = 0;
+
+         if (_msg_rb)
+            rb_delete(_msg_rb);
+         _msg_rb = 0;
+#endif
+      }
+   }
+
+   bool is_mserver = sa->is_mserver;
+
+   sa->close();
+
+   /* signal caller a shutdonw */
+   if (status == RPC_SHUTDOWN)
+      return status;
+
+   /* only the mserver should stop on server connection closure */
+   if (!is_mserver) {
+      return SS_SUCCESS;
+   }
+
+   return status;
+}
 
 /********************************************************************/
 INT rpc_server_shutdown(void)

@@ -549,7 +549,8 @@ typedef struct {
    /*---- rpc functions -----*/
    INT rpc_register_listener(int port, RPC_HANDLER func, int *plsock, int *pport);
    RPC_LIST EXPRT *rpc_get_internal_list(INT flag);
-   INT rpc_server_receive(INT idx, int sock, BOOL check);
+   INT rpc_server_receive_rpc(int idx, RPC_SERVER_ACCEPTION* sa);
+   INT rpc_server_receive_event(int idx, RPC_SERVER_ACCEPTION* sa);
    INT rpc_server_callback(struct callback_addr *callback);
    INT EXPRT rpc_server_accept(int sock);
    INT rpc_client_accept(int sock);
