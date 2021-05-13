@@ -15216,10 +15216,9 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
          return SS_SUCCESS;
 #endif
 
-      if (n_received == -1)
-         cm_msg(MERROR, "rpc_server_receive",
-                "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", (int) sizeof(test_buffer),
-                n_received, errno, strerror(errno));
+      if (n_received == -1) {
+         cm_msg(MERROR, "rpc_server_receive", "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", (int) sizeof(test_buffer), n_received, errno, strerror(errno));
+      }
 
       if (n_received <= 0)
          return SS_ABORT;
@@ -15292,8 +15291,15 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
             EVENT_HEADER *pevent = (EVENT_HEADER *) (pbh + 1);
 
             status = bm_send_event(*pbh, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
-            if (status != BM_SUCCESS)
-               cm_msg(MERROR, "rpc_server_receive", "bm_send_event() returned %d", status);
+
+            if (status == SS_ABORT) {
+               cm_msg(MERROR, "rpc_server_receive", "bm_send_event() returned %d (SS_ABORT), abort", status);
+               goto error;
+            }
+            
+            if (status != BM_SUCCESS) {
+               cm_msg(MERROR, "rpc_server_receive", "bm_send_event() returned %d, mserver dropped this event", status);
+            }
 
             /* repeat for maximum 0.5 sec */
          } while (ss_millitime() - start_time < 500);
