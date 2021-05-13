@@ -185,9 +185,6 @@ static EVENT_HANDLER *_msg_dispatch = NULL;
 static REQUEST_LIST *_request_list;
 static INT _request_list_entries = 0;
 
-static EVENT_HEADER *_event_buffer;
-static INT _event_buffer_size = 0;
-
 static char *_tcp_buffer = NULL;
 static INT _tcp_wp = 0;
 static INT _tcp_rp = 0;
@@ -3112,13 +3109,6 @@ INT cm_disconnect_experiment(void) {
 
    //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after deleting message ring buffer");
    //cm_msg_flush_buffer();
-
-   /* free memory buffers */
-   if (_event_buffer_size > 0) {
-      M_FREE(_event_buffer);
-      _event_buffer = NULL;
-      _event_buffer_size = 0;
-   }
 
    if (_tcp_buffer != NULL) {
       M_FREE(_tcp_buffer);
@@ -10224,13 +10214,15 @@ INT bm_poll_event()
 
 \********************************************************************/
 {
-   INT status, size;
+   INT status;
    DWORD start_time;
    BOOL dispatched_something = FALSE;
 
    //printf("bm_poll_event!\n");
 
    start_time = ss_millitime();
+
+   std::vector<char> vec;
 
    /* loop over all requests */
    int request_id;
@@ -10240,23 +10232,14 @@ INT bm_poll_event()
          continue;
 
       do {
-         if (_event_buffer_size == 0) {
-            int size = _bm_max_event_size + sizeof(EVENT_HEADER);
-            _event_buffer = (EVENT_HEADER *) M_MALLOC(size);
-            if (!_event_buffer) {
-               cm_msg(MERROR, "bm_poll_event", "not enough memory to allocate event buffer of size %d", size);
-               return SS_ABORT;
-            }
-            _event_buffer_size = size;
-            //printf("bm_poll: allocated event buffer size %d, max_event_size %d\n", size, _bm_max_event_size);
-         }
          /* receive event */
-         size = _event_buffer_size;
-         status = bm_receive_event(_request_list[request_id].buffer_handle, _event_buffer, &size, BM_NO_WAIT);
+         status = bm_receive_event(_request_list[request_id].buffer_handle, &vec, BM_NO_WAIT);
+
+         //printf("bm_poll_event: request_id %d, buffer_handle %d, bm_receive_event(BM_NO_WAIT) status %d, vec size %d, capacity %d\n", request_id, _request_list[request_id].buffer_handle, status, (int)vec.size(), (int)vec.capacity());
 
          /* call user function if successful */
          if (status == BM_SUCCESS) {
-            bm_dispatch_event(_request_list[request_id].buffer_handle, _event_buffer);
+            bm_dispatch_event(_request_list[request_id].buffer_handle, (EVENT_HEADER*)vec.data());
             dispatched_something = TRUE;
          }
 
@@ -10266,9 +10249,7 @@ INT bm_poll_event()
 
          /* break if corrupted event buffer */
          if (status == BM_TRUNCATED) {
-            cm_msg(MERROR, "bm_poll_event",
-                   "received event was truncated, buffer size %d is too small, see messages and increase /Experiment/MAX_EVENT_SIZE in ODB",
-                   _event_buffer_size);
+            cm_msg(MERROR, "bm_poll_event", "received event was truncated, buffer size %d is too small, see messages and increase /Experiment/MAX_EVENT_SIZE in ODB", (int)vec.size());
          }
 
          /* break if corrupted event buffer */
