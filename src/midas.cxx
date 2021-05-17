@@ -185,10 +185,10 @@ static EVENT_HANDLER *_msg_dispatch = NULL;
 static REQUEST_LIST *_request_list;
 static INT _request_list_entries = 0;
 
-static char *_tcp_buffer = NULL;
-static INT _tcp_wp = 0;
-static INT _tcp_rp = 0;
-static INT _tcp_sock = 0;
+//static char *_tcp_buffer = NULL;
+//static INT _tcp_wp = 0;
+//static INT _tcp_rp = 0;
+//static INT _tcp_sock = 0;
 
 static MUTEX_T *_mutex_rpc = NULL; // mutex to protect RPC calls
 
@@ -3109,11 +3109,6 @@ INT cm_disconnect_experiment(void) {
 
    //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after deleting message ring buffer");
    //cm_msg_flush_buffer();
-
-   if (_tcp_buffer != NULL) {
-      M_FREE(_tcp_buffer);
-      _tcp_buffer = NULL;
-   }
 
    //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after disconnect is completed");
    //cm_msg_flush_buffer();
@@ -7564,17 +7559,19 @@ static INT bm_get_buffer(const char *who, int buffer_handle, BUFFER **pbuf) {
 static void bm_lock_buffer(BUFFER *pbuf) {
    // NB: locking order: 1st buffer mutex, 2nd buffer semaphore. Unlock in reverse order.
 
+   //if (pbuf->locked) {
+   //   fprintf(stderr, "double lock, abort!\n");
+   //   abort();
+   //}
+
    if (pbuf->buffer_mutex)
       ss_mutex_wait_for(pbuf->buffer_mutex, _bm_mutex_timeout);
 
    int status = ss_semaphore_wait_for(pbuf->semaphore, _bm_lock_timeout);
 
    if (status != SS_SUCCESS) {
-      cm_msg(MERROR, "bm_lock_buffer", "Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...",
-             pbuf->buffer_header->name, status);
-      fprintf(stderr,
-              "bm_lock_buffer: Error: Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...\n",
-              pbuf->buffer_header->name, status);
+      cm_msg(MERROR, "bm_lock_buffer", "Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...", pbuf->buffer_header->name, status);
+      fprintf(stderr, "bm_lock_buffer: Error: Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...\n", pbuf->buffer_header->name, status);
       abort();
       /* DOES NOT RETURN */
    }
@@ -9429,6 +9426,7 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
          /* somebody emptied the cache while we were inside bm_wait_for_free_space */
          if (pbuf->write_cache_mutex)
             ss_mutex_release(pbuf->write_cache_mutex);
+         bm_unlock_buffer(pbuf); // this unlock one was missing. K.O. May 2021
          return BM_SUCCESS;
       }
 
@@ -13066,179 +13064,8 @@ Fast send_event routine which bypasses the RPC layer and
 */
 INT rpc_send_event(INT buffer_handle, const EVENT_HEADER *pevent, int unused, INT async_flag, INT mode)
 {
-   const DWORD MAX_DATA_SIZE = (0x7FFFFFF0 - 16); // event size computations are not 32-bit clean, limit event size to 2GB. K.O.
-   const DWORD data_size = pevent->data_size; // 32-bit unsigned value
-
-   if (data_size == 0) {
-      cm_msg(MERROR, "rpc_send_event", "invalid event data size zero");
-      return BM_INVALID_SIZE;
-   }
-
-   if (data_size > MAX_DATA_SIZE) {
-      cm_msg(MERROR, "rpc_send_event", "invalid event data size %d (0x%x) maximum is %d (0x%x)", data_size, data_size, MAX_DATA_SIZE, MAX_DATA_SIZE);
-      return BM_INVALID_SIZE;
-   }
-
-   const int event_size = sizeof(EVENT_HEADER) + data_size;
-
-   /* round up total_size to next DWORD boundary */
-   const int total_size = ALIGN8(event_size);
-
-   //printf("rpc_send_event: pevent %p, data_size %d, event_size %d, buf_size %d\n", pevent, data_size, event_size, unused);
-
-   INT i;
-   NET_COMMAND *nc;
-   unsigned long flag;
-   BOOL would_block = 0;
-
-   int sock = -1;
-
-   if (mode == 0)
-      sock = _server_connection.send_sock;
-   else
-      sock = _server_connection.event_sock;
-
-   _tcp_sock = sock; // remember socket for rpc_flush_event()
-
-   if (!rpc_is_remote())
-      return bm_send_event(buffer_handle, pevent, unused, async_flag);
-
-   /* init network buffer */
-   if (!_tcp_buffer)
-      _tcp_buffer = (char *) M_MALLOC(NET_TCP_SIZE);
-   if (!_tcp_buffer) {
-      cm_msg(MERROR, "rpc_send_event", "not enough memory to allocate network buffer");
-      return RPC_EXCEED_BUFFER;
-   }
-
-   /* check if not enough space in TCP buffer */
-   if (total_size + 4 * 8 + sizeof(NET_COMMAND_HEADER) >= (DWORD) (_opt_tcp_size - _tcp_wp)
-       && _tcp_wp != _tcp_rp) {
-      /* set socket to nonblocking IO */
-      if (async_flag == BM_NO_WAIT) {
-         flag = 1;
-#ifdef OS_VXWORKS
-         ioctlsocket(sock, FIONBIO, (int) &flag);
-#else
-         ioctlsocket(sock, FIONBIO, &flag);
-#endif
-      }
-
-      i = send_tcp(sock, _tcp_buffer + _tcp_rp, _tcp_wp - _tcp_rp, 0);
-
-      //printf("rpc_send_event: send %d\n", _tcp_wp-_tcp_rp);
-
-      if (i < 0)
-#ifdef OS_WINNT
-         would_block = (WSAGetLastError() == WSAEWOULDBLOCK);
-#else
-         would_block = (errno == EWOULDBLOCK);
-#endif
-
-      /* set socket back to blocking IO */
-      if (async_flag == BM_NO_WAIT) {
-         flag = 0;
-#ifdef OS_VXWORKS
-         ioctlsocket(sock, FIONBIO, (int) &flag);
-#else
-         ioctlsocket(sock, FIONBIO, &flag);
-#endif
-      }
-
-      /* increment read pointer */
-      if (i > 0)
-         _tcp_rp += i;
-
-      /* check if whole buffer is sent */
-      if (_tcp_rp == _tcp_wp)
-         _tcp_rp = _tcp_wp = 0;
-
-      if (i < 0 && !would_block) {
-         cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
-         return RPC_NET_ERROR;
-      }
-
-      /* return if buffer is not emptied */
-      if (_tcp_wp > 0)
-         return BM_ASYNC_RETURN;
-   }
-
-   if (mode == 0) {
-      nc = (NET_COMMAND *) (_tcp_buffer + _tcp_wp);
-      nc->header.routine_id = RPC_BM_SEND_EVENT | RPC_NO_REPLY;
-      nc->header.param_size = 4 * 8 + total_size;
-
-      /* assemble parameters manually */
-      *((INT *) (&nc->param[0])) = buffer_handle;
-      *((INT *) (&nc->param[8])) = event_size;
-
-      /* send events larger than optimal buffer size directly */
-      if (total_size + 4 * 8 + sizeof(NET_COMMAND_HEADER) >= (DWORD) _opt_tcp_size) {
-         /* send header */
-         i = send_tcp(sock, _tcp_buffer + _tcp_wp, sizeof(NET_COMMAND_HEADER) + 16, 0);
-         if (i <= 0) {
-            cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
-            return RPC_NET_ERROR;
-         }
-
-         /* send data */
-         i = send_tcp(sock, (char *) pevent, total_size, 0);
-         if (i <= 0) {
-            cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
-            return RPC_NET_ERROR;
-         }
-
-         /* send last two parameters */
-         *((INT *) (&nc->param[0])) = event_size;
-         *((INT *) (&nc->param[8])) = 0;
-         i = send_tcp(sock, &nc->param[0], 16, 0);
-         if (i <= 0) {
-            cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
-            return RPC_NET_ERROR;
-         }
-      } else {
-         /* copy event */
-         memcpy(&nc->param[16], pevent, event_size);
-
-         /* last two parameters (event_size and async_flag */
-         *((INT *) (&nc->param[16 + total_size])) = event_size;
-         *((INT *) (&nc->param[24 + total_size])) = 0;
-
-         _tcp_wp += nc->header.param_size + sizeof(NET_COMMAND_HEADER);
-      }
-
-   } else {
-
-      /* send events larger than optimal buffer size directly */
-      if (total_size + 4 * 8 + sizeof(INT) >= (DWORD) _opt_tcp_size) {
-         /* send buffer */
-         //printf("rpc_send_event: send %d (bh)\n", (int)sizeof(INT));
-         i = send_tcp(sock, (char *) &buffer_handle, sizeof(INT), 0);
-         if (i <= 0) {
-            cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
-            return RPC_NET_ERROR;
-         }
-
-         /* send data */
-         //printf("rpc_send_event: send %d (aligned_buf_size)\n", aligned_buf_size);
-         i = send_tcp(sock, (char *) pevent, total_size, 0);
-         if (i <= 0) {
-            cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
-            return RPC_NET_ERROR;
-         }
-      } else {
-         /* copy event */
-         *((INT *) (_tcp_buffer + _tcp_wp)) = buffer_handle;
-         _tcp_wp += sizeof(INT);
-         memcpy(_tcp_buffer + _tcp_wp, pevent, event_size);
-
-         _tcp_wp += total_size;
-      }
-   }
-
-   return RPC_SUCCESS;
+   return rpc_send_event1(buffer_handle, pevent);
 }
-
 
 /********************************************************************/
 /**
@@ -13270,18 +13097,26 @@ INT rpc_send_event1(INT buffer_handle, const EVENT_HEADER *pevent)
    /* round up total_size to next DWORD boundary */
    const int total_size = ALIGN8(event_size);
 
-   printf("rpc_send_event1: pevent %p, data_size %d, event_size %d, total_size %d\n", pevent, data_size, event_size, total_size);
+   // protect non-atomic access to _server_connection.event_sock. K.O.
+   
+   static std::mutex gMutex;
+   std::lock_guard<std::mutex> guard(gMutex);
 
-   int status;
+   printf("rpc_send_event1: pevent %p, data_size %d, event_size %d, total_size %d\n", pevent, data_size, event_size, total_size);
 
    if (_server_connection.event_sock == 0) {
       return RPC_NO_CONNECTION;
    }
 
-   // protect non-atomic access to _server_connection.event_sock. K.O.
-   
-   static std::mutex gMutex;
-   std::lock_guard<std::mutex> guard(gMutex);
+   //
+   // event socket wire protocol: (see also rpc_server_receive_event() and recv_event_server_realloc())
+   //
+   // 4 bytes of buffer handle
+   // 16 bytes of event header, includes data_size
+   // ALIGN8(data_size) bytes of event data
+   // 
+
+   int status;
 
    /* send buffer */
    status = ss_write_tcp(_server_connection.event_sock, (const char *) &buffer_handle, sizeof(INT));
@@ -13367,28 +13202,6 @@ Send event residing in the TCP cache buffer filled by
 @return RPC_SUCCESS, RPC_NET_ERROR
 */
 INT rpc_flush_event() {
-   if (!rpc_is_remote())
-      return RPC_SUCCESS;
-
-   /* return if rpc_send_event was not called */
-   if (!_tcp_buffer || _tcp_wp == 0)
-      return RPC_SUCCESS;
-
-   /* empty TCP buffer */
-   if (_tcp_wp > 0) {
-      int to_send = _tcp_wp - _tcp_rp;
-      //printf("rpc_flush_event: send %d\n", to_send);
-      int i = send_tcp(_tcp_sock, _tcp_buffer + _tcp_rp, to_send, 0);
-
-      if (i != to_send) {
-         cm_msg(MERROR, "rpc_flush_event", "send_tcp(%d) returned %d, errno %d (%s)", to_send, i, errno,
-                strerror(errno));
-         return RPC_NET_ERROR;
-      }
-   }
-
-   _tcp_rp = _tcp_wp = 0;
-
    return RPC_SUCCESS;
 }
 
