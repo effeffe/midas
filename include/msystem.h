@@ -30,6 +30,7 @@ The Midas System include file
 
 #include "midasinc.h"
 #include <string> // std::string
+#include <mutex>  // std::mutex
 
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
@@ -327,6 +328,7 @@ typedef struct {
    int send_sock;               /*  tcp send socket         */
    int recv_sock;               /*  tcp receive socket      */
    int event_sock;              /*  event socket            */
+   std::mutex event_sock_mutex; /*  protect event socket against multithreaded access */
    INT remote_hw_type;          /*  remote hardware type    */
    INT rpc_timeout;             /*  in milliseconds         */
 
@@ -561,8 +563,6 @@ typedef struct {
    INT rpc_check_channels(void);
    void EXPRT rpc_client_check(void);
    INT rpc_server_disconnect(void);
-   int EXPRT rpc_get_send_sock(void);
-   int EXPRT rpc_get_event_sock(void);
    INT EXPRT rpc_set_opt_tcp_size(INT tcp_size);
    INT EXPRT rpc_get_opt_tcp_size(void);
    INT EXPRT rpc_set_mserver_path(const char *mserver_path);

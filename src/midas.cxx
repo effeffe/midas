@@ -11885,8 +11885,7 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    flag = 2 * 1024 * 1024;
    status = setsockopt(_server_connection.event_sock, SOL_SOCKET, SO_SNDBUF, (char *) &flag, sizeof(flag));
    if (status != 0)
-      cm_msg(MERROR, "rpc_server_connect", "cannot setsockopt(SOL_SOCKET, SO_SNDBUF), errno %d (%s)", errno,
-             strerror(errno));
+      cm_msg(MERROR, "rpc_server_connect", "cannot setsockopt(SOL_SOCKET, SO_SNDBUF), errno %d (%s)", errno, strerror(errno));
 
    /* send local computer info */
    std::string local_prog_name = rpc_get_name();
@@ -12027,6 +12026,10 @@ INT rpc_server_disconnect()
    closesocket(_server_connection.send_sock);
    closesocket(_server_connection.recv_sock);
    closesocket(_server_connection.event_sock);
+
+   _server_connection.send_sock = 0;
+   _server_connection.recv_sock = 0;
+   _server_connection.event_sock = 0;
 
    _server_connection.clear();
 
@@ -13099,8 +13102,7 @@ INT rpc_send_event1(INT buffer_handle, const EVENT_HEADER *pevent)
 
    // protect non-atomic access to _server_connection.event_sock. K.O.
    
-   static std::mutex gMutex;
-   std::lock_guard<std::mutex> guard(gMutex);
+   std::lock_guard<std::mutex> guard(_server_connection.event_sock_mutex);
 
    printf("rpc_send_event1: pevent %p, data_size %d, event_size %d, total_size %d\n", pevent, data_size, event_size, total_size);
 
@@ -13138,60 +13140,6 @@ INT rpc_send_event1(INT buffer_handle, const EVENT_HEADER *pevent)
 
    return RPC_SUCCESS;
 }
-
-
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
-
-/********************************************************************/
-int rpc_get_send_sock()
-/********************************************************************\
-
-  Routine: rpc_get_send_sock
-
-  Purpose: Return send socket to MIDAS server. Used by MFE.C for
-           optimized event sending.
-
-  Input:
-    none
-
-  Output:
-    none
-
-  Function value:
-    int    socket
-
-\********************************************************************/
-{
-   return _server_connection.send_sock;
-}
-
-
-/********************************************************************/
-int rpc_get_event_sock()
-/********************************************************************\
-
-  Routine: rpc_get_event_sock
-
-  Purpose: Return event send socket to MIDAS server. Used by MFE.C for
-           optimized event sending.
-
-  Input:
-    none
-
-  Output:
-    none
-
-  Function value:
-    int    socket
-
-\********************************************************************/
-{
-   return _server_connection.event_sock;
-}
-
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
 /********************************************************************/
 /**
