@@ -1042,6 +1042,7 @@ namespace midas {
       void print(std::string &s, int indent);
       void dump(std::string &s, int indent);
       void delete_key();
+      int size();
       void resize(int size);
       void watch(std::function<void(midas::odb &)> f);
       void unwatch();

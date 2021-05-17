@@ -219,6 +219,11 @@ namespace midas {
       return str;
    }
 
+   // Return size of ODB key
+   int odb::size() {
+      return m_num_values;
+   }
+
    // Resize an ODB key
    void odb::resize(int size) {
       resize_mdata(size);

@@ -79,6 +79,7 @@ int main() {
    i = o["Int Array"][1];     // read from array element
    o["Int Array"].resize(5);  // resize array
    o["Int Array"]++;          // increment all values of array
+   std::cout << "Arrays size is " << o["Int Array"].size() << std::endl;
 
    // test with a string vector
    std::vector<std::string> sv;
