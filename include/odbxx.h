@@ -353,6 +353,7 @@ namespace midas {
       AUTO_REFRESH_WRITE,
       PRESERVE_STRING_SIZE,
       AUTO_CREATE,
+      AUTO_ENLARGE_ARRAY,
       DIRTY,
       DELETED
    };
@@ -772,9 +773,17 @@ namespace midas {
 
       // overload index operator for arrays
       u_odb &operator[](int index) {
-         if (index < 0 || index >= m_num_values)
-            throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" +
-                                    get_full_path() + "[0..." + std::to_string(m_num_values - 1) + "]\"");
+         if (index < 0)
+            throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" + get_full_path() + "[0..." + std::to_string(m_num_values - 1) + "]\"");
+
+         if (index >= m_num_values) {
+            if (is_auto_enlarge_array()) {
+               resize_mdata(index+1);
+               write(index);
+            } else {
+               throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" + get_full_path() + "[0..." + std::to_string(m_num_values - 1) + "]\"");
+            }
+         }
 
          if (is_auto_refresh_read())
             read(index);
@@ -1018,6 +1027,12 @@ namespace midas {
       bool is_auto_create() const { return m_flags[odb_flags::AUTO_CREATE]; }
       void set_auto_create(bool f) {
          m_flags[odb_flags::AUTO_CREATE] = f;
+         set_flags_recursively(get_flags());
+      }
+
+      bool is_auto_enlarge_array() const { return m_flags[odb_flags::AUTO_ENLARGE_ARRAY]; }
+      void set_auto_enlarge_array(bool f) {
+         m_flags[odb_flags::AUTO_ENLARGE_ARRAY] = f;
          set_flags_recursively(get_flags());
       }
 
