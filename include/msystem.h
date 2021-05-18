@@ -552,7 +552,7 @@ typedef struct {
    INT rpc_register_listener(int port, RPC_HANDLER func, int *plsock, int *pport);
    RPC_LIST EXPRT *rpc_get_internal_list(INT flag);
    INT rpc_server_receive_rpc(int idx, RPC_SERVER_ACCEPTION* sa);
-   INT rpc_server_receive_event(int idx, RPC_SERVER_ACCEPTION* sa);
+   INT rpc_server_receive_event(int idx, RPC_SERVER_ACCEPTION* sa, int timeout_msec);
    INT rpc_server_callback(struct callback_addr *callback);
    INT EXPRT rpc_server_accept(int sock);
    INT rpc_client_accept(int sock);
@@ -631,6 +631,10 @@ typedef struct {
    INT EXPRT recv_string(int sock, char *buffer, DWORD buffer_size, INT flags);
    INT EXPRT ss_socket_wait(int sock, int millisec);
    INT EXPRT ss_recv_net_command(int sock, DWORD* routine_id, DWORD* param_size, char **param_ptr, int timeout_ms);
+
+   /*---- mserver event socket ----*/
+   bool ss_event_socket_has_data();
+   int  rpc_flush_event_socket(int timeout_msec);
 
    /** @} */
 

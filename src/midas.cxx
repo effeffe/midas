@@ -13104,7 +13104,7 @@ INT rpc_send_event1(INT buffer_handle, const EVENT_HEADER *pevent)
    
    std::lock_guard<std::mutex> guard(_server_connection.event_sock_mutex);
 
-   printf("rpc_send_event1: pevent %p, data_size %d, event_size %d, total_size %d\n", pevent, data_size, event_size, total_size);
+   printf("rpc_send_event1: pevent %p, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", pevent, pevent->event_id, pevent->serial_number, data_size, event_size, total_size);
 
    if (_server_connection.event_sock == 0) {
       return RPC_NO_CONNECTION;
@@ -13572,7 +13572,7 @@ static int recv_event_server_realloc(INT idx, RPC_SERVER_ACCEPTION* psa, char **
    int event_size = pevent->data_size + sizeof(EVENT_HEADER);
    int total_size = ALIGN8(event_size);
 
-   printf("recv_event_server: buffer_handle %d, event_id 0x%04x, data_size %d, event_size %d, total_size %d\n", *pbh, pevent->event_id, pevent->data_size, event_size, total_size);
+   printf("recv_event_server: buffer_handle %d, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", *pbh, pevent->event_id, pevent->serial_number, pevent->data_size, event_size, total_size);
 
    if (pevent->data_size == 0) {
       for (int i=0; i<5; i++) {
@@ -14962,208 +14962,6 @@ INT rpc_server_loop(void)
    return RPC_SUCCESS;
 }
 
-#if 0
-/********************************************************************/
-INT rpc_server_receive(INT idx, int sock, BOOL check)
-/********************************************************************\
-
-  Routine: rpc_server_receive
-
-  Purpose: Receive rpc commands and execute them. Close the connection
-           if client has broken TCP pipe.
-
-  Input:
-    INT    idx              Index to _server_acception structure in-
-                            dicating which connection got data.
-    int    sock             Socket which got data
-    BOOL   check            If TRUE, only check if connection is
-                            broken. This may be called via
-                            bm_receive_event/ss_suspend(..,MSG_BM)
-
-  Output:
-    none
-
-  Function value:
-    RPC_SUCCESS             Successful completion
-    RPC_EXCEED_BUFFER       Not enough memeory to allocate buffer
-    SS_EXIT                 Server connection was closed
-    SS_ABORT                Server connection was broken
-
-\********************************************************************/
-{
-   INT status;
-
-   /* only check if TCP connection is broken */
-   if (check) {
-      char test_buffer[256];
-#ifdef OS_WINNT
-      int n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK);
-#else
-      int n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK | MSG_DONTWAIT);
-
-      /* check if we caught a signal */
-      if ((n_received == -1) && (errno == EAGAIN))
-         return SS_SUCCESS;
-#endif
-
-      if (n_received == -1) {
-         cm_msg(MERROR, "rpc_server_receive", "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", (int) sizeof(test_buffer), n_received, errno, strerror(errno));
-      }
-
-      if (n_received <= 0)
-         return SS_ABORT;
-
-      return SS_SUCCESS;
-   }
-
-   RPC_SERVER_ACCEPTION* sa = rpc_get_server_acception(idx);
-
-   /* receive command */
-   if (sock == sa->recv_sock) {
-      int remaining = 0;
-
-      char *buf = NULL;
-      int bufsize = 0;
-
-      do {
-         int n_received = recv_net_command_realloc(idx, &buf, &bufsize, &remaining);
-
-         if (n_received <= 0) {
-            status = SS_ABORT;
-            cm_msg(MERROR, "rpc_server_receive", "recv_net_command() returned %d, abort", n_received);
-            goto error;
-         }
-
-         status = rpc_execute(sa->recv_sock, buf, sa->convert_flags);
-
-         if (status == SS_ABORT) {
-            cm_msg(MERROR, "rpc_server_receive", "rpc_execute() returned %d, abort", status);
-            goto error;
-         }
-
-         if (status == SS_EXIT || status == RPC_SHUTDOWN) {
-            if (rpc_is_mserver())
-               rpc_debug_printf("Connection to %s:%s closed\n", sa->host_name.c_str(), sa->prog_name.c_str());
-            goto exit;
-         }
-
-      } while (remaining);
-
-      if (buf) {
-         free(buf);
-         buf = NULL;
-         bufsize = 0;
-      }
-   } else {
-      /* receive event */
-      if (sock == sa->event_sock) {
-         DWORD start_time = ss_millitime();
-
-         char *buf = NULL;
-         int bufsize = 0;
-
-         do {
-            int n_received = recv_event_server_realloc(idx, sa, &buf, &bufsize);
-
-            if (n_received < 0) {
-               status = SS_ABORT;
-               cm_msg(MERROR, "rpc_server_receive", "recv_event_server() returned %d, abort", n_received);
-               goto error;
-            }
-
-            if (n_received == 0) {
-               // no more data in the tcp socket
-               break;
-            }
-
-            /* send event to buffer */
-            INT *pbh = (INT *) buf;
-            EVENT_HEADER *pevent = (EVENT_HEADER *) (pbh + 1);
-
-            status = bm_send_event(*pbh, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
-
-            if (status == SS_ABORT) {
-               cm_msg(MERROR, "rpc_server_receive", "bm_send_event() returned %d (SS_ABORT), abort", status);
-               goto error;
-            }
-            
-            if (status != BM_SUCCESS) {
-               cm_msg(MERROR, "rpc_server_receive", "bm_send_event() returned %d, mserver dropped this event", status);
-            }
-
-            /* repeat for maximum 0.5 sec */
-         } while (ss_millitime() - start_time < 500);
-
-         if (buf) {
-            free(buf);
-            buf = NULL;
-            bufsize = 0;
-         }
-      }
-   }
-
-   return RPC_SUCCESS;
-
-   error:
-
-   {
-      char str[80];
-      strlcpy(str, sa->host_name.c_str(), sizeof(str));
-      if (strchr(str, '.'))
-         *strchr(str, '.') = 0;
-      cm_msg(MTALK, "rpc_server_receive", "Program \'%s\' on host \'%s\' aborted", sa->prog_name.c_str(), str);
-   }
-
-   exit:
-
-   cm_msg_flush_buffer();
-
-   /* disconnect from experiment as MIDAS server */
-   if (rpc_is_mserver()) {
-      HNDLE hDB, hKey;
-
-      cm_get_experiment_database(&hDB, &hKey);
-
-      /* only disconnect from experiment if previously connected.
-         Necessary for pure RPC servers (RPC_SRVR) */
-      if (hDB) {
-         bm_close_all_buffers();
-         cm_delete_client_info(hDB, 0);
-         db_close_all_databases();
-
-         rpc_deregister_functions();
-
-         cm_set_experiment_database(0, 0);
-
-#if 0
-         if (_msg_mutex)
-            ss_mutex_delete(_msg_mutex);
-         _msg_mutex = 0;
-
-         if (_msg_rb)
-            rb_delete(_msg_rb);
-         _msg_rb = 0;
-#endif
-      }
-   }
-
-   bool is_mserver = sa->is_mserver;
-
-   sa->close();
-
-   /* signal caller a shutdonw */
-   if (status == RPC_SHUTDOWN)
-      return status;
-
-   /* only the mserver should stop on server connection closure */
-   if (!is_mserver) {
-      return SS_SUCCESS;
-   }
-
-   return status;
-}
-#endif
-
 /********************************************************************/
 INT rpc_server_receive_rpc(int idx, RPC_SERVER_ACCEPTION* sa)
 /********************************************************************\
@@ -15279,7 +15077,7 @@ INT rpc_server_receive_rpc(int idx, RPC_SERVER_ACCEPTION* sa)
 }
 
 /********************************************************************/
-INT rpc_server_receive_event(int idx, RPC_SERVER_ACCEPTION* sa)
+INT rpc_server_receive_event(int idx, RPC_SERVER_ACCEPTION* sa, int timeout_msec)
 /********************************************************************\
 
   Routine: rpc_server_receive_event
@@ -15298,47 +15096,89 @@ INT rpc_server_receive_event(int idx, RPC_SERVER_ACCEPTION* sa)
 
    DWORD start_time = ss_millitime();
 
-   char *buf = NULL;
-   int bufsize = 0;
+   //
+   // THIS IS NOT THREAD SAFE!!!
+   //
+   // IT IS ONLY USED BY THE MSERVER
+   // MSERVER IS SINGLE-THREADED!!!
+   //
+
+   static char *xbuf = NULL;
+   static int   xbufsize = 0;
+   static bool  xbufempty = true;
+
+   // short cut
+   if (sa == NULL && xbufempty)
+      return RPC_SUCCESS;
+
+   static bool  recurse = false;
+
+   if (recurse) {
+      cm_msg(MERROR, "rpc_server_receive_event", "internal error: called recursively");
+      // do not do anything if we are called recursively
+      // via recursive ss_suspend() or otherwise. K.O.
+      if (xbufempty)
+         return RPC_SUCCESS;
+      else
+         return BM_ASYNC_RETURN;
+   }
+
+   recurse = true;
    
    do {
-      int n_received = recv_event_server_realloc(idx, sa, &buf, &bufsize);
+      if (xbufempty && sa) {
+         int n_received = recv_event_server_realloc(idx, sa, &xbuf, &xbufsize);
       
-      if (n_received < 0) {
-         status = SS_ABORT;
-         cm_msg(MERROR, "rpc_server_receive_event", "recv_event_server_realloc() returned %d, abort", n_received);
-         goto error;
+         if (n_received < 0) {
+            status = SS_ABORT;
+            cm_msg(MERROR, "rpc_server_receive_event", "recv_event_server_realloc() returned %d, abort", n_received);
+            goto error;
+         }
+
+         if (n_received == 0) {
+            // no more data in the tcp socket
+            recurse = false;
+            return RPC_SUCCESS;
+         }
+
+         xbufempty = false;
       }
-      
-      if (n_received == 0) {
-         // no more data in the tcp socket
-         break;
+
+      if (xbufempty) {
+         // no event in xbuf buffer
+         recurse = false;
+         return RPC_SUCCESS;
       }
-      
+
       /* send event to buffer */
-      INT *pbh = (INT *) buf;
+      INT *pbh = (INT *) xbuf;
       EVENT_HEADER *pevent = (EVENT_HEADER *) (pbh + 1);
       
-      status = bm_send_event(*pbh, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
+      status = bm_send_event(*pbh, pevent, pevent->data_size + sizeof(EVENT_HEADER), timeout_msec);
+
+      printf("rpc_server_receiv: buffer_handle %d, event_id 0x%04x, serial 0x%08x, data_size %d, status %d\n", *pbh, pevent->event_id, pevent->serial_number, pevent->data_size, status);
       
       if (status == SS_ABORT) {
-         cm_msg(MERROR, "rpc_server_receive_event", "bm_send_event() returned %d (SS_ABORT), abort", status);
+         cm_msg(MERROR, "rpc_server_receive_event", "bm_send_event() error %d (SS_ABORT), abort", status);
          goto error;
+      }
+      
+      if (status == BM_ASYNC_RETURN) {
+         //cm_msg(MERROR, "rpc_server_receive_event", "bm_send_event() error %d, event buffer is full", status);
+         recurse = false;
+         return status;
       }
       
       if (status != BM_SUCCESS) {
-         cm_msg(MERROR, "rpc_server_receive_event", "bm_send_event() returned %d, mserver dropped this event", status);
+         cm_msg(MERROR, "rpc_server_receive_event", "bm_send_event() error %d, mserver dropped this event", status);
       }
       
+      xbufempty = true;
+
       /* repeat for maximum 0.5 sec */
    } while (ss_millitime() - start_time < 500);
    
-   if (buf) {
-      free(buf);
-      buf = NULL;
-      bufsize = 0;
-   }
-
+   recurse = false;
    return RPC_SUCCESS;
 
    error:
@@ -15398,6 +15238,54 @@ INT rpc_server_receive_event(int idx, RPC_SERVER_ACCEPTION* sa)
    }
 
    return status;
+}
+
+
+/********************************************************************/
+int rpc_flush_event_socket(int timeout_msec)
+/********************************************************************\
+
+  Routine: rpc_flush_event_socket
+
+  Purpose: Receive and en-buffer events from the mserver event socket
+
+  Function value:
+    BM_SUCCESS              Event socket is empty, all data was read an en-buffered
+    BM_ASYNC_RETURN         Event socket has unread data or event buffer is full and rpc_server_receive_event() has an un-buffered event.
+    SS_EXIT                 Server connection was closed
+    SS_ABORT                Server connection was broken
+
+\********************************************************************/
+{
+   bool has_data = ss_event_socket_has_data();
+   
+   //printf("ss_event_socket_has_data() returned %d\n", has_data);
+
+   if (has_data) {
+      if (timeout_msec == BM_NO_WAIT) {
+         return BM_ASYNC_RETURN;
+      } else if (timeout_msec == BM_WAIT) {
+         return BM_ASYNC_RETURN;
+      } else {
+         int status = ss_suspend(timeout_msec, MSG_BM);
+         if (status == SS_ABORT || status == SS_EXIT)
+            return status;
+         return BM_ASYNC_RETURN;
+      }
+   }
+
+   int status = rpc_server_receive_event(0, NULL, timeout_msec);
+   
+   //printf("rpc_server_receive_event() status %d\n", status);
+
+   if (status == BM_ASYNC_RETURN) {
+      return BM_ASYNC_RETURN;
+   }
+
+   if (status == SS_ABORT || status == SS_EXIT)
+      return status;
+   
+   return BM_SUCCESS;
 }
 
 /********************************************************************/

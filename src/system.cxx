@@ -4230,6 +4230,28 @@ static int ss_socket_check(int sock)
    return SS_SUCCESS;
 }
 
+bool ss_event_socket_has_data()
+{
+   if (_ss_server_acceptions) {
+      for (unsigned i = 0; i < _ss_server_acceptions->size(); i++) {
+         /* event channel */
+         int sock = (*_ss_server_acceptions)[i]->event_sock;
+
+         if (!sock)
+            continue;
+
+         /* check for buffered event */
+         int status = ss_socket_wait(sock, 1);
+
+         if (status == SS_SUCCESS)
+            return true;
+      }
+   }
+   
+   /* no event socket or no data in event socket */
+   return false;
+}
+
 /*------------------------------------------------------------------*/
 INT ss_suspend(INT millisec, INT msg)
 /********************************************************************\
@@ -4358,8 +4380,17 @@ INT ss_suspend(INT millisec, INT msg)
 
                if (!sock)
                   continue;
-               
-               FD_SET(sock, &readfds);
+
+               /* check for buffered event */
+               status = rpc_server_receive_event(0, NULL, BM_NO_WAIT);
+
+               if (status == BM_ASYNC_RETURN) {
+                  /* event buffer is full and rpc_server_receive_event() is holding on
+                   * to an event it cannot get rid of. Do not read more events from
+                   * the event socket, they have nowhere to go. K.O. */
+               } else if (status == RPC_SUCCESS) {
+                  FD_SET(sock, &readfds);
+               }
             }
          }
       }
@@ -4454,7 +4485,7 @@ INT ss_suspend(INT millisec, INT msg)
                   status = ss_socket_check(sock);
                } else {
                   //printf("ss_suspend: rpc_server_receive_event() call!\n");
-                  status = rpc_server_receive_event(i, (*_ss_server_acceptions)[i]);
+                  status = rpc_server_receive_event(i, (*_ss_server_acceptions)[i], BM_NO_WAIT);
                   //printf("ss_suspend: rpc_server_receive_event() status %d\n", status);
                }
                (*_ss_server_acceptions)[i]->last_activity = ss_millitime();
