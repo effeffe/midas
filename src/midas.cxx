@@ -9349,7 +9349,7 @@ This function should be used if events in the write cache
 should be visible to the consumers immediately. It should be called at the
 end of each run, otherwise events could be kept in the write buffer and will
 flow to the data of the next run.
-@param buffer_handle Buffer handle obtained via bm_open_buffer()
+@param buffer_handle Buffer handle obtained via bm_open_buffer() or 0 to flush data in the mserver event socket
 @param timeout_msec Timeout waiting for free space in the event buffer.
 If BM_WAIT, wait forever. If BM_NO_WAIT, the function returns
 immediately with a value of BM_ASYNC_RETURN without writing the cache.
