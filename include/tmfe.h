@@ -122,7 +122,7 @@ public:
 public:
    TMEventBuffer(TMFE* mfe); // ctor
    ~TMEventBuffer(); // dtor
-   TMFeResult OpenBuffer(const char* bufname, size_t bufsize);
+   TMFeResult OpenBuffer(const char* bufname, size_t bufsize = 0);
    TMFeResult CloseBuffer();
    TMFeResult SetCacheSize(size_t read_cache_size, size_t write_cache_size);
    TMFeResult AddRequest(int event_id, int trigger_mask, const char* sampling_type_string);
