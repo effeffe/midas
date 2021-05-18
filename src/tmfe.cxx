@@ -148,6 +148,332 @@ TMFeResult TMFE::Disconnect()
    return TMFeOk();
 }
 
+/////////////////////////////////////////////////////////
+//            event buffer functions
+/////////////////////////////////////////////////////////
+
+TMEventBuffer::TMEventBuffer(TMFE* mfe) // ctor
+{
+   assert(mfe != NULL);
+   fMfe = mfe;
+};
+
+TMEventBuffer::~TMEventBuffer() // dtor
+{
+   CloseBuffer();
+
+   // poison all pointers
+   fMfe = NULL;
+};
+
+TMFeResult TMEventBuffer::OpenBuffer(const char* bufname, size_t bufsize)
+{
+   if (fBufHandle) {
+      return TMFeErrorMessage(msprintf("Event buffer \"%s\" is already open", fBufName.c_str()));
+   }
+   
+   fBufName = bufname;
+
+   if (bufsize == 0)
+      bufsize = DEFAULT_BUFFER_SIZE;
+
+   int status = bm_open_buffer(fBufName.c_str(), bufsize, &fBufHandle);
+
+   if (status != BM_SUCCESS && status != BM_CREATED) {
+      return TMFeMidasError(msprintf("Cannot open event buffer \"%s\"", fBufName.c_str()), "bm_open_buffer", status);
+   }
+
+   fBufSize = 0;
+   fBufMaxEventSize = 0;
+
+   uint32_t buf_size = 0;
+   uint32_t max_event_size = 0;
+
+   fMfe->fOdbRoot->RU32("Experiment/MAX_EVENT_SIZE", &max_event_size);
+   fMfe->fOdbRoot->RU32((std::string("Experiment/Buffer Sizes/") + bufname).c_str(), &buf_size);
+
+   if (buf_size > 0) {
+      // limit event size to half the buffer size, so we can buffer two events
+      int xmax_event_size = buf_size / 2;
+      // add extra margin
+      if (xmax_event_size > 1024)
+         xmax_event_size -= 1024;
+      if (max_event_size > xmax_event_size)
+         max_event_size = xmax_event_size;
+   }
+
+   fBufSize = buf_size;
+   fBufMaxEventSize = max_event_size;
+
+   if (fBufSize == 0) {
+      return TMFeErrorMessage(msprintf("Cannot get buffer size for event buffer \"%s\"", fBufName.c_str()));
+   }
+
+   if (fBufMaxEventSize == 0) {
+      return TMFeErrorMessage(msprintf("Cannot get MAX_EVENT_SIZE for event buffer \"%s\"", fBufName.c_str()));
+   }
+
+   printf("TMEventBuffer::OpenBuffer: Buffer \"%s\" size %d, max event size %d\n", fBufName.c_str(), (int)fBufSize, (int)fBufMaxEventSize);
+
+   return TMFeOk();
+}
+
+TMFeResult TMEventBuffer::CloseBuffer()
+{
+   if (!fBufHandle)
+      return TMFeOk();
+   
+   fBufRequests.clear(); // no need to cancel individual requests, they are gone after we close the buffer
+   
+   int status = bm_close_buffer(fBufHandle);
+   
+   if (status != BM_SUCCESS) {
+      fBufHandle = 0;
+      return TMFeMidasError(msprintf("Cannot close event buffer \"%s\"", fBufName.c_str()), "bm_close_buffer", status);
+   }
+   
+   fBufHandle = 0;
+   fBufSize = 0;
+   fBufMaxEventSize = 0;
+   fBufReadCacheSize = 0;
+   fBufWriteCacheSize = 0;
+   
+   return TMFeOk();
+}
+
+TMFeResult TMEventBuffer::SetCacheSize(size_t read_cache_size, size_t write_cache_size)
+{
+   int status = bm_set_cache_size(fBufHandle, read_cache_size, write_cache_size);
+   
+   if (status != BM_SUCCESS) {
+      return TMFeMidasError(msprintf("Cannot set event buffer \"%s\" cache sizes: read %d, write %d", fBufName.c_str(), (int)read_cache_size, (int)write_cache_size), "bm_set_cache_size", status);
+   }
+
+   fBufReadCacheSize = read_cache_size;
+   fBufWriteCacheSize = write_cache_size;
+   
+   return TMFeOk();
+}
+
+TMFeResult TMEventBuffer::AddRequest(int event_id, int trigger_mask, const char* sampling_type_string)
+{
+   if (!fBufHandle) {
+      return TMFeErrorMessage(msprintf("AddRequest: Error: Event buffer \"%s\" is not open", fBufName.c_str()));
+   }
+
+   int sampling_type = 0;
+   
+   if (strcmp(sampling_type_string, "GET_ALL")==0) {
+      sampling_type = GET_ALL;
+   } else if (strcmp(sampling_type_string, "GET_NONBLOCKING")==0) {
+      sampling_type = GET_NONBLOCKING;
+   } else if (strcmp(sampling_type_string, "GET_RECENT")==0) {
+      sampling_type = GET_RECENT;
+   } else {
+      sampling_type = GET_ALL;
+   }
+   
+   int request_id = 0;
+      
+   int status = bm_request_event(fBufHandle, event_id, trigger_mask, sampling_type, &request_id, NULL);
+   
+   if (status != BM_SUCCESS) {
+      return TMFeMidasError(msprintf("Cannot make event request on buffer \"%s\"", fBufName.c_str()), "bm_request_event", status);
+   }
+   
+   fBufRequests.push_back(request_id);
+   
+   return TMFeOk();
+}
+
+TMFeResult TMEventBuffer::ReceiveEvent(std::vector<char> *e, int timeout_msec)
+{
+   if (!fBufHandle) {
+      return TMFeErrorMessage(msprintf("ReceiveEvent: Error: Event buffer \"%s\" is not open", fBufName.c_str()));
+   }
+
+   assert(e != NULL);
+   
+   e->resize(0);
+   
+   int status = bm_receive_event(fBufHandle, e, timeout_msec);
+   
+   if (status == BM_ASYNC_RETURN) {
+      return TMFeOk();
+   }
+   
+   if (status != BM_SUCCESS) {
+      return TMFeMidasError(msprintf("Cannot receive event on buffer \"%s\"", fBufName.c_str()), "bm_receive_event", status);
+   }
+   
+   return TMFeOk();
+}
+
+TMFeResult TMEventBuffer::SendEvent(const char *e)
+{
+   const EVENT_HEADER *pevent = (const EVENT_HEADER*)e;
+   
+   if (rpc_is_remote()) {
+      //double t0 = TMFE::GetTime();
+      int status = rpc_send_event1(fBufHandle, pevent);
+      if (status != RPC_SUCCESS) {
+         return TMFeMidasError("TMEventBuffer::SendEvent: Cannot send event", "rpc_send_event1", status);
+      }
+      //double t1 = TMFE::GetTime();
+      //printf("rpc_send_event time %f\n", t1-t0);
+   } else {
+      int status = bm_send_event(fBufHandle, pevent, sizeof(EVENT_HEADER) + pevent->data_size, BM_WAIT);
+      if (status == BM_CORRUPTED) {
+         fMfe->Msg(MERROR, "TMEventBuffer::SendEvent", "Cannot send event to buffer \"%s\": bm_send_event() returned %d, event buffer is corrupted, shutting down the frontend", fBufName.c_str(), status);
+         fMfe->fShutdownRequested = true;
+         return TMFeMidasError("Cannot send event, event buffer is corrupted, shutting down the frontend", "bm_send_event", status);
+      } else if (status != BM_SUCCESS) {
+         fMfe->Msg(MERROR, "TMEventBuffer::SendEvent", "Cannot send event to buffer \"%s\": bm_send_event() returned %d", fBufName.c_str(), status);
+         return TMFeMidasError("Cannot send event", "bm_send_event", status);
+      }
+   }
+
+   return TMFeOk();
+}
+
+TMFeResult TMEventBuffer::SendEvent(const std::vector<char> *e)
+{
+#warning WRITEME!
+}
+
+TMFeResult TMEventBuffer::FlushCache(bool wait)
+{
+   if (!fBufHandle)
+      return TMFeOk();
+   
+   int flag = BM_NO_WAIT;
+   if (wait)
+      flag = BM_WAIT;
+   
+   /* flush of event socket in no-wait mode does nothing */
+   if (wait && rpc_is_remote()) {
+      int status = bm_flush_cache(0, flag);
+
+      //printf("bm_flush_cache(0,%d) status %d\n", flag, status);
+
+      if (status == BM_SUCCESS) {
+         // nothing
+      } else if (status == BM_ASYNC_RETURN) {
+         // nothing
+      } else {
+         return TMFeMidasError("Cannot flush mserver event socket", "bm_flush_cache", status);
+      }
+   }
+
+   int status = bm_flush_cache(fBufHandle, flag);
+
+   //printf("bm_flush_cache(%d,%d) status %d\n", fBufHandle, flag, status);
+
+   if (status == BM_SUCCESS) {
+      // nothing
+   } else if (status == BM_ASYNC_RETURN) {
+      // nothing
+   } else {
+      return TMFeMidasError(msprintf("Cannot flush event buffer \"%s\"", fBufName.c_str()).c_str(), "bm_flush_cache", status);
+   }
+
+   return TMFeOk();
+}
+
+TMFeResult TMFE::EventBufferOpen(TMEventBuffer** pbuf, const char* bufname, size_t bufsize)
+{
+   assert(pbuf != NULL);
+   assert(bufname != NULL);
+   
+   std::lock_guard<std::mutex> guard(fEventBuffersMutex);
+
+   for (auto b : fEventBuffers) {
+      if (!b)
+         continue;
+
+      if (b->fBufName == bufname) {
+         *pbuf = b;
+         if (bufsize != 0 && bufsize > b->fBufSize) {
+            Msg(MERROR, "TMFE::EventBufferOpen", "Event buffer \"%s\" size %d is smaller than requested size %d", b->fBufName.c_str(), (int)b->fBufSize, (int)bufsize);
+         }
+         return TMFeOk();
+      }
+   }
+
+   TMEventBuffer *b = new TMEventBuffer(this);
+
+   fEventBuffers.push_back(b);
+
+   *pbuf = b;
+
+   TMFeResult r = b->OpenBuffer(bufname, bufsize);
+
+   if (r.error_flag) {
+      return r;
+   }
+
+   return TMFeOk();
+}
+
+TMFeResult TMFE::EventBufferFlushCacheAll(bool wait)
+{
+   int flag = BM_NO_WAIT;
+   if (wait)
+      flag = BM_WAIT;
+
+   /* flush of event socket in no-wait mode does nothing */
+   if (wait && rpc_is_remote()) {
+      int status = bm_flush_cache(0, flag);
+
+      //printf("bm_flush_cache(0,%d) status %d\n", flag, status);
+
+      if (status == BM_SUCCESS) {
+         // nothing
+      } else if (status == BM_ASYNC_RETURN) {
+         // nothing
+      } else {
+         return TMFeMidasError("Cannot flush mserver event socket", "bm_flush_cache", status);
+      }
+   }
+
+   std::lock_guard<std::mutex> guard(fEventBuffersMutex);
+
+   for (auto b : fEventBuffers) {
+      if (!b)
+         continue;
+
+      TMFeResult r = b->FlushCache(wait);
+
+      if (r.error_flag)
+         return r;
+   }
+
+   return TMFeOk();
+}
+
+TMFeResult TMFE::EventBufferCloseAll()
+{
+   std::lock_guard<std::mutex> guard(fEventBuffersMutex);
+
+   for (auto b : fEventBuffers) {
+      if (!b)
+         continue;
+      TMFeResult r = b->CloseBuffer();
+      if (r.error_flag)
+         return r;
+
+      delete b;
+   }
+
+   fEventBuffers.clear();
+
+   return TMFeOk();
+}
+
+/////////////////////////////////////////////////////////
+//            equipment functions
+/////////////////////////////////////////////////////////
+
 double TMFrontend::FePeriodicTasks()
 {
    double now = TMFE::GetTime();
@@ -215,17 +541,8 @@ double TMFrontend::FePeriodicTasks()
 
    // flush write cache
    if ((fFeFlushWriteCachePeriodSec > 0) && (now >= fFeFlushWriteCacheNextCallTime)) {
-      for (auto eq : fFeEquipments) {
-         if (!eq)
-            continue;
-         if (!eq->fEqConfEnabled)
-            continue;
-         
-         eq->EqFlushWriteCache();
-      }
-
+      fMfe->EventBufferFlushCacheAll(false);
       fFeFlushWriteCacheNextCallTime = now + fFeFlushWriteCachePeriodSec;
-
       if (fFeFlushWriteCacheNextCallTime < next_periodic)
          next_periodic = fFeFlushWriteCacheNextCallTime;
    }
@@ -816,8 +1133,13 @@ public:
          if (!eq->fEqConfEnabled)
             continue;
          eq->EqWriteStatistics();
-         eq->EqFlushWriteCache(true);
       }
+
+      TMFeResult r = fFe->fMfe->EventBufferFlushCacheAll();
+
+      if (r.error_flag)
+         return r;
+
       return TMFeOk();
    }
 };
@@ -891,7 +1213,7 @@ static INT tr_stop(INT run_number, char *errstr)
    }
 
    mfe->fStateRunning = false;
-   
+
    if (result.error_flag) {
       strlcpy(errstr, result.error_message.c_str(), TRANSITION_ERROR_STRING_LENGTH);
       return FE_ERR_DRIVER;
@@ -1131,16 +1453,19 @@ void TMFrontend::FeDeleteEquipments()
 {
    // NOTE: this is thread-safe: we do not modify the fEquipments object. K.O.
    // NOTE: this is not thread-safe, we will race against ourselves and do multiple delete of fEquipents[i]. K.O.
-   
+
    // NOTE: should not use range-based for() loop, it uses an iterator and it not thread-safe. K.O.
    for (unsigned i=0; i<fFeEquipments.size(); i++) {
       if (!fFeEquipments[i])
          continue;
-      //printf("delete equipment [%s]\n", fEquipments[i]->fName.c_str());
+      //printf("delete equipment [%s]\n", fFeEquipments[i]->fEqName.c_str());
       fMfe->RemoveRpcHandler(fFeEquipments[i]);
       delete fFeEquipments[i];
       fFeEquipments[i] = NULL;
    }
+
+   fMfe->EventBufferFlushCacheAll();
+   fMfe->EventBufferCloseAll();
 }
 
 TMFeResult TMFrontend::FeAddEquipment(TMFeEquipment* eq)
@@ -1218,6 +1543,7 @@ TMFeEquipment::~TMFeEquipment() // dtor
    // free data and poison pointers
    fMfe = NULL;
    fFe  = NULL;
+   fEqEventBuffer = NULL;
 }
 
 TMFeResult TMFeEquipment::EqInit(const std::vector<std::string>& args)
@@ -1387,42 +1713,49 @@ TMFeResult TMFeEquipment::EqPostInit()
    uint32_t odb_max_event_size = DEFAULT_MAX_EVENT_SIZE;
    fMfe->fOdbRoot->RU32("Experiment/MAX_EVENT_SIZE", &odb_max_event_size, true);
 
-   fEqMaxEventSize = odb_max_event_size;
+   if (fEqConfMaxEventSize == 0) {
+      fEqConfMaxEventSize = odb_max_event_size;
+   } else if (fEqConfMaxEventSize > odb_max_event_size) {
+      fMfe->Msg(MERROR, "TMFeEquipment::EqPostInit", "Equipment \"%s\" requested event size %d is bigger than ODB MAX_EVENT_SIZE %d", fEqName.c_str(), (int)fEqConfMaxEventSize, odb_max_event_size);
+      fEqConfMaxEventSize = odb_max_event_size;
+   }
 
    if (!fEqConfBuffer.empty()) {
-      int status = bm_open_buffer(fEqConfBuffer.c_str(), DEFAULT_BUFFER_SIZE, &fEqBufferHandle);
+      TMFeResult r = fMfe->EventBufferOpen(&fEqEventBuffer, fEqConfBuffer.c_str(), fEqConfBufferSize);
 
-      if (status != BM_SUCCESS && status != BM_CREATED) {
-         return TMFeMidasError(msprintf("Cannot open event buffer \"%s\"", fEqConfBuffer.c_str()), "bm_open_buffer", status);
-      }
+      if (r.error_flag)
+         return r;
 
-      uint32_t buffer_size = 0;
-      fMfe->fOdbRoot->RU32(std::string("Experiment/Buffer Sizes/" + fEqConfBuffer).c_str(), &buffer_size);
+      assert(fEqEventBuffer != NULL);
 
-      if (buffer_size > 0) {
-         fEqBufferSize = buffer_size;
-
-         // in bm_send_event(), maximum event size is the event buffer size,
-         // here, we half it, to make sure we can buffer at least 2 events. K.O.
-
-         uint32_t buffer_max_event_size = buffer_size/2;
-      
-         if (buffer_max_event_size < fEqMaxEventSize) {
-            fEqMaxEventSize = buffer_max_event_size;
-         }
+      if (fEqConfMaxEventSize > fEqEventBuffer->fBufMaxEventSize) {
+         fMfe->Msg(MERROR, "TMFeEquipment::EqPostInit", "Equipment \"%s\" requested event size %d is bigger than event buffer \"%s\" max event size %d", fEqName.c_str(), (int)fEqConfMaxEventSize, fEqEventBuffer->fBufName.c_str(), (int)fEqEventBuffer->fBufMaxEventSize);
+         fEqConfMaxEventSize = fEqEventBuffer->fBufMaxEventSize;
       }
 
       if (fEqConfWriteCacheSize > 0) {
-         status = bm_set_cache_size(fEqBufferHandle, 0, fEqConfWriteCacheSize);
+         if (fEqEventBuffer->fBufWriteCacheSize == 0) {
+            r = fEqEventBuffer->SetCacheSize(0, fEqConfWriteCacheSize);
 
-         if (status != BM_SUCCESS) {
-            return TMFeMidasError(msprintf("Cannot set event buffer \"%s\" cache size to %d", fEqConfBuffer.c_str(), fEqConfWriteCacheSize), "bm_set_cache_size", status);
+            if (r.error_flag)
+               return r;
+         } else if (fEqConfWriteCacheSize < fEqEventBuffer->fBufWriteCacheSize) {
+            fMfe->Msg(MERROR, "TMFeEquipment::EqPostInit", "Equipment \"%s\" requested write cache size %d for buffer \"%s\" is smaller then already set write cache size %d, ignoring it", fEqName.c_str(), (int)fEqConfWriteCacheSize, fEqEventBuffer->fBufName.c_str(), (int)fEqEventBuffer->fBufWriteCacheSize);
+         } else if (fEqConfWriteCacheSize == fEqEventBuffer->fBufWriteCacheSize) {
+            // do nothing
+         } else {
+            fMfe->Msg(MERROR, "TMFeEquipment::EqPostInit", "Equipment \"%s\" requested write cache size %d for buffer \"%s\" is different from already set write cache size %d", fEqName.c_str(), (int)fEqConfWriteCacheSize, fEqEventBuffer->fBufName.c_str(), (int)fEqEventBuffer->fBufWriteCacheSize);
+         
+            r = fEqEventBuffer->SetCacheSize(0, fEqConfWriteCacheSize);
+            
+            if (r.error_flag)
+               return r;
          }
       }
    }
 
    if (TMFE::gfVerbose)
-      printf("TMFeEquipment::EqPostInit: Equipment \"%s\", max event size: %d, max event size in ODB: %d, event buffer \"%s\" size: %d\n", fEqName.c_str(), (int)fEqMaxEventSize, (int)odb_max_event_size, fEqConfBuffer.c_str(), (int)fEqBufferSize);
+      printf("TMFeEquipment::EqPostInit: Equipment \"%s\", max event size: %d\n", fEqName.c_str(), (int)fEqConfMaxEventSize);
 
    // update ODB common
 
@@ -1525,32 +1858,17 @@ TMFeResult TMFeEquipment::EqSendEvent(const char* event, bool write_to_odb)
    
    fEqSerial++;
 
-   if (fEqBufferHandle == 0) {
+   if (fEqEventBuffer == NULL) {
       return TMFeOk();
    }
 
    EVENT_HEADER* pevent = (EVENT_HEADER*)event;
    pevent->data_size = BkSize(event);
 
-   if (rpc_is_remote()) {
-      //double t0 = TMFE::GetTime();
-      int status = rpc_send_event1(fEqBufferHandle, pevent);
-      if (status != RPC_SUCCESS) {
-         return TMFeMidasError("Cannot send event", "rpc_send_event1", status);
-      }
-      //double t1 = TMFE::GetTime();
-      //printf("rpc_send_event time %f\n", t1-t0);
-   } else {
-      int status = bm_send_event(fEqBufferHandle, pevent, sizeof(EVENT_HEADER) + pevent->data_size, BM_WAIT);
-      if (status == BM_CORRUPTED) {
-         fMfe->Msg(MERROR, "TMFeEquipment::EqSendData", "Cannot send event to buffer \"%s\": bm_send_event() returned %d, event buffer is corrupted, shutting down the frontend", fEqConfBuffer.c_str(), status);
-         fMfe->fShutdownRequested = true;
-         return TMFeMidasError("Cannot send event, event buffer is corrupted, shutting down the frontend", "bm_send_event", status);
-      } else if (status != BM_SUCCESS) {
-         fMfe->Msg(MERROR, "TMFeEquipment::EqSendData", "Cannot send event to buffer \"%s\": bm_send_event() returned %d", fEqConfBuffer.c_str(), status);
-         return TMFeMidasError("Cannot send event", "bm_send_event", status);
-      }
-   }
+   TMFeResult r = fEqEventBuffer->SendEvent(event);
+
+   if (r.error_flag)
+      return r;
 
    fEqStatEvents += 1;
    fEqStatBytes  += sizeof(EVENT_HEADER) + pevent->data_size;
@@ -1570,38 +1888,6 @@ TMFeResult TMFeEquipment::EqSendEvent(const char* event, bool write_to_odb)
             fMfe->fRunStopRequested = true;
          }
       }
-   }
-
-   return TMFeOk();
-}
-
-TMFeResult TMFeEquipment::EqFlushWriteCache(bool wait_for_flush)
-{
-   // we only call bm_flush_cache(), it is thread-safe. K.O.
-   //std::lock_guard<std::mutex> guard(fEqMutex);
-
-   if (fEqBufferHandle == 0) {
-      return TMFeOk();
-   }
-
-   int flag = BM_NO_WAIT;
-   if (wait_for_flush)
-      flag = BM_WAIT;
-
-   if (TMFE::gfVerbose)
-      printf("TMFeEquipment::EqFlushWriteCache: flush write cache for equipment [%s] buffer [%s]\n", fEqName.c_str(), fEqConfBuffer.c_str());
-
-   int status = bm_flush_cache(fEqBufferHandle, flag);
-
-   if (status == BM_CORRUPTED) {
-      fMfe->Msg(MERROR, "TMFeEquipment::EqFlushWriteCache", "Cannot flush write cache on buffer \"%s\": bm_flush_cache() returned %d, event buffer is corrupted, shutting down the frontend", fEqConfBuffer.c_str(), status);
-      fMfe->fShutdownRequested = true;
-      return TMFeMidasError("Cannot flush write cache, event buffer is corrupted, shutting down the frontend", "bm_flush_buffer", status);
-   } else if (status == BM_ASYNC_RETURN) {
-      // cannot flush cache. event buffer is full or congested?
-   } else if (status != BM_SUCCESS) {
-      fMfe->Msg(MERROR, "TMFeEquipment::EqFlushWriteCache", "Cannot flush write cache on buffer \"%s\": bm_flush_cache() returned %d", fEqConfBuffer.c_str(), status);
-      return TMFeMidasError("Cannot flush write cache", "bm_flush_cache", status);
    }
 
    return TMFeOk();
