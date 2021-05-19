@@ -343,24 +343,15 @@ TMFeResult TMEventBuffer::SendEvent(const std::vector<std::vector<char>>& e)
 
 TMFeResult TMEventBuffer::SendEvent(int sg_n, const char* const sg_ptr[], const size_t sg_len[])
 {
-   if (rpc_is_remote()) {
-      //double t0 = TMFE::GetTime();
-      int status = rpc_send_event_sg(fBufHandle, sg_n, sg_ptr, sg_len);
-      if (status != RPC_SUCCESS) {
-         return TMFeMidasError("TMEventBuffer::SendEvent: Cannot send event", "rpc_send_event2", status);
-      }
-      //double t1 = TMFE::GetTime();
-      //printf("rpc_send_event time %f\n", t1-t0);
-   } else {
-      int status = bm_send_event_sg(fBufHandle, sg_n, sg_ptr, sg_len, BM_WAIT);
-      if (status == BM_CORRUPTED) {
-         fMfe->Msg(MERROR, "TMEventBuffer::SendEvent", "Cannot send event to buffer \"%s\": bm_send_event() returned %d, event buffer is corrupted, shutting down the frontend", fBufName.c_str(), status);
-         fMfe->fShutdownRequested = true;
-         return TMFeMidasError("Cannot send event, event buffer is corrupted, shutting down the frontend", "bm_send_event", status);
-      } else if (status != BM_SUCCESS) {
-         fMfe->Msg(MERROR, "TMEventBuffer::SendEvent", "Cannot send event to buffer \"%s\": bm_send_event() returned %d", fBufName.c_str(), status);
-         return TMFeMidasError("Cannot send event", "bm_send_event", status);
-      }
+   int status = bm_send_event_sg(fBufHandle, sg_n, sg_ptr, sg_len, BM_WAIT);
+
+   if (status == BM_CORRUPTED) {
+      fMfe->Msg(MERROR, "TMEventBuffer::SendEvent", "Cannot send event to buffer \"%s\": bm_send_event() returned %d, event buffer is corrupted, shutting down the frontend", fBufName.c_str(), status);
+      fMfe->fShutdownRequested = true;
+      return TMFeMidasError("Cannot send event, event buffer is corrupted, shutting down the frontend", "bm_send_event", status);
+   } else if (status != BM_SUCCESS) {
+      fMfe->Msg(MERROR, "TMEventBuffer::SendEvent", "Cannot send event to buffer \"%s\": bm_send_event() returned %d", fBufName.c_str(), status);
+      return TMFeMidasError("Cannot send event", "bm_send_event", status);
    }
 
    return TMFeOk();
