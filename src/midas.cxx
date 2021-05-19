@@ -8455,7 +8455,7 @@ static void bm_read_from_buffer_locked(const BUFFER_HEADER *pheader, int rp, std
       /* event is splitted */
       int size = pheader->size - rp;
       vecptr->assign(pdata + rp, pdata + rp + size);
-      vecptr->assign(pdata, pdata + event_size - size);
+      vecptr->insert(vecptr->end(), pdata, pdata + event_size - size);
    }
 }
 
@@ -8952,14 +8952,20 @@ static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, 
    return BM_SUCCESS;
 }
 
-static void bm_write_to_buffer_locked(BUFFER_HEADER *pheader, const void *pevent, int event_size, int total_size) {
+static void bm_write_to_buffer_locked(BUFFER_HEADER *pheader, int sg_n, const char* const sg_ptr[], const size_t sg_len[], size_t total_size)
+{
    char *pdata = (char *) (pheader + 1);
 
    //int old_write_pointer = pheader->write_pointer;
 
    /* new event fits into the remaining space? */
    if (pheader->write_pointer + total_size <= pheader->size) {
-      memcpy(pdata + pheader->write_pointer, pevent, event_size);
+      //memcpy(pdata + pheader->write_pointer, pevent, event_size);
+      char* wptr = pdata + pheader->write_pointer;
+      for (int i=0; i<sg_n; i++) {
+         memcpy(wptr, sg_ptr[i], sg_len[i]);
+         wptr += sg_len[i];
+      }
       pheader->write_pointer = pheader->write_pointer + total_size;
       assert(pheader->write_pointer <= pheader->size);
       /* remaining space is smaller than size of an event header? */
@@ -8972,10 +8978,55 @@ static void bm_write_to_buffer_locked(BUFFER_HEADER *pheader, const void *pevent
       }
    } else {
       /* split event */
-      int size = pheader->size - pheader->write_pointer;
+      size_t size = pheader->size - pheader->write_pointer;
 
-      memcpy(pdata + pheader->write_pointer, pevent, size);
-      memcpy(pdata, ((const char *) pevent) + size, event_size - size);
+      //printf("split: wp %d, size %d, avail %d\n", pheader->write_pointer, pheader->size, size);
+
+      //memcpy(pdata + pheader->write_pointer, pevent, size);
+      //memcpy(pdata, ((const char *) pevent) + size, event_size - size);
+
+      char* wptr = pdata + pheader->write_pointer;
+      size_t count = 0;
+
+      // copy first part
+
+      int i = 0;
+      for (; i<sg_n; i++) {
+         if (count + sg_len[i] > size)
+            break;
+         memcpy(wptr, sg_ptr[i], sg_len[i]);
+         wptr  += sg_len[i];
+         count += sg_len[i];
+      }
+
+      //printf("wptr %d, count %d\n", wptr-pdata, count);
+
+      // split segment
+
+      size_t first = size - count;
+      size_t second = sg_len[i] - first;
+      assert(first + second == sg_len[i]);
+      assert(count + first == size);
+      
+      //printf("first %d, second %d\n", first, second);
+      
+      memcpy(wptr, sg_ptr[i], first);
+      wptr = pdata + 0;
+      count += first;
+      memcpy(wptr, sg_ptr[i] + first, second);
+      wptr  += second;
+      count += second;
+      i++;
+
+      // copy remaining
+
+      for (; i<sg_n; i++) {
+         memcpy(wptr, sg_ptr[i], sg_len[i]);
+         wptr  += sg_len[i];
+         count += sg_len[i];
+      }
+
+      //printf("wptr %d, count %d\n", wptr-pdata, count);
 
       //printf("bm_write_to_buffer_locked: wrap wp %d -> %d. buffer size %d, available %d, wrote %d, remaining %d, event size %d, total size %d\n", pheader->write_pointer, total_size-size, pheader->size, pheader->size-pheader->write_pointer, size, pheader->size - (pheader->write_pointer+size), event_size, total_size);
 
@@ -9015,6 +9066,7 @@ static void bm_notify_reader_locked(BUFFER_HEADER *pheader, BUFFER_CLIENT *pc, i
 
 #endif // LOCAL_ROUTINES
 
+#if 0
 INT bm_send_event_rpc(INT buffer_handle, const EVENT_HEADER *pevent, int event_size, int timeout_msec)
 {
    //printf("bm_send_event_rpc: handle %d, size %d, timeout %d\n", buffer_handle, event_size, timeout_msec);
@@ -9071,6 +9123,34 @@ INT bm_send_event_rpc(INT buffer_handle, const EVENT_HEADER *pevent, int event_s
       }
    }
 }
+#endif
+
+INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, int unused, int timeout_msec)
+{
+   const DWORD MAX_DATA_SIZE = (0x7FFFFFF0 - 16); // event size computations are not 32-bit clean, limit event size to 2GB. K.O.
+   const DWORD data_size = pevent->data_size; // 32-bit unsigned value
+
+   if (data_size == 0) {
+      cm_msg(MERROR, "bm_send_event", "invalid event data size zero");
+      return BM_INVALID_SIZE;
+   }
+
+   if (data_size > MAX_DATA_SIZE) {
+      cm_msg(MERROR, "bm_send_event", "invalid event data size %d (0x%x) maximum is %d (0x%x)", data_size, data_size, MAX_DATA_SIZE, MAX_DATA_SIZE);
+      return BM_INVALID_SIZE;
+   }
+
+   const size_t event_size = sizeof(EVENT_HEADER) + data_size;
+
+   //printf("bm_send_event: pevent %p, data_size %d, event_size %d, buf_size %d\n", pevent, data_size, event_size, unused);
+
+   if (rpc_is_remote()) {
+      //return bm_send_event_rpc(buffer_handle, pevent, event_size, timeout_msec);
+      return rpc_send_event2(buffer_handle, 1, (char**)&pevent, &event_size);
+   } else {
+      return bm_send_event(buffer_handle, 1, (char**)&pevent, &event_size, timeout_msec);
+   }
+}
 
 /********************************************************************/
 /**
@@ -9122,8 +9202,28 @@ BM_NO_MEMORY   Event is too large for network buffer or event buffer.
 One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
 and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
-INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, int unused, int timeout_msec)
+int bm_send_event(int buffer_handle, int sg_n, const char* const sg_ptr[], const size_t sg_len[], int timeout_msec)
 {
+   if (rpc_is_remote())
+      return rpc_send_event2(buffer_handle, sg_n, sg_ptr, sg_len);
+
+   if (sg_n < 1) {
+      cm_msg(MERROR, "bm_send_event", "invalid sg_n %d", sg_n);
+      return BM_INVALID_SIZE;
+   }
+
+   if (sg_ptr[0] == NULL) {
+      cm_msg(MERROR, "bm_send_event", "invalid sg_ptr[0] is NULL");
+      return BM_INVALID_SIZE;
+   }
+
+   if (sg_len[0] < sizeof(EVENT_HEADER)) {
+      cm_msg(MERROR, "bm_send_event", "invalid sg_len[0] value %d is smaller than event header size %d", (int)sg_len[0], (int)sizeof(EVENT_HEADER));
+      return BM_INVALID_SIZE;
+   }
+
+   const EVENT_HEADER* pevent = (const EVENT_HEADER*)sg_ptr[0];
+   
    const DWORD MAX_DATA_SIZE = (0x7FFFFFF0 - 16); // event size computations are not 32-bit clean, limit event size to 2GB. K.O.
    const DWORD data_size = pevent->data_size; // 32-bit unsigned value
 
@@ -9137,12 +9237,20 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, int unused, int
       return BM_INVALID_SIZE;
    }
 
-   const int event_size = sizeof(EVENT_HEADER) + data_size;
+   const size_t event_size = sizeof(EVENT_HEADER) + data_size;
+   const size_t total_size = ALIGN8(event_size);
 
-   //printf("bm_send_event: pevent %p, data_size %d, event_size %d, buf_size %d\n", pevent, data_size, event_size, unused);
+   size_t count = 0;
+   for (int i=0; i<sg_n; i++) {
+      count += sg_len[i];
+   }
 
-   if (rpc_is_remote())
-      return bm_send_event_rpc(buffer_handle, pevent, event_size, timeout_msec);
+   if (count != event_size) {
+      cm_msg(MERROR, "bm_send_event", "data size mismatch: event data_size %d, event_size %d not same as sum of sg_len %d", (int)data_size, (int)event_size, (int)count);
+      return BM_INVALID_SIZE;
+   }
+
+   printf("bm_send_event: pevent %p, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", pevent, pevent->event_id, pevent->serial_number, (int)pevent->data_size, (int)event_size, (int)total_size);
 
 #ifdef LOCAL_ROUTINES
    {
@@ -9161,7 +9269,7 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, int unused, int
       }
 
       /* round up total_size to next DWORD boundary */
-      int total_size = ALIGN8(event_size);
+      //int total_size = ALIGN8(event_size);
 
       /* NB: !!!the write cache is not thread-safe!!! */
 
@@ -9189,8 +9297,13 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, int unused, int
             /* write this event into the write cache, if it fits */
             if (pbuf->write_cache_wp + total_size <= pbuf->write_cache_size) {
                //printf("bm_send_event: write %d/%d to cache size %d, wp %d\n", event_size, total_size, pbuf->write_cache_size, pbuf->write_cache_wp);
-
-               memcpy(pbuf->write_cache + pbuf->write_cache_wp, pevent, event_size);
+               
+               char* wptr = pbuf->write_cache + pbuf->write_cache_wp;
+               
+               for (int i=0; i<sg_n; i++) {
+                  memcpy(wptr, sg_ptr[i], sg_len[i]);
+                  wptr += sg_len[i];
+               }
 
                pbuf->write_cache_wp += total_size;
 
@@ -9224,8 +9337,7 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, int unused, int
       /* check if buffer is large enough */
       if (total_size >= pheader->size) {
          bm_unlock_buffer(pbuf);
-         cm_msg(MERROR, "bm_send_event", "total event size (%d) larger than size (%d) of buffer \'%s\'", total_size,
-                pheader->size, pheader->name);
+         cm_msg(MERROR, "bm_send_event", "total event size (%d) larger than size (%d) of buffer \'%s\'", (int)total_size, pheader->size, pheader->name);
          return BM_NO_MEMORY;
       }
 
@@ -9245,7 +9357,7 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, int unused, int
 
       int old_write_pointer = pheader->write_pointer;
 
-      bm_write_to_buffer_locked(pheader, pevent, event_size, total_size);
+      bm_write_to_buffer_locked(pheader, sg_n, sg_ptr, sg_len, total_size);
 
       /* write pointer was incremented, but there should
        * always be some free space in the buffer and the
@@ -9453,8 +9565,8 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
 #endif
 
          const EVENT_HEADER *pevent = (const EVENT_HEADER *) (pbuf->write_cache + rp);
-         int event_size = (pevent->data_size + sizeof(EVENT_HEADER));
-         int total_size = ALIGN8(event_size);
+         size_t event_size = (pevent->data_size + sizeof(EVENT_HEADER));
+         size_t total_size = ALIGN8(event_size);
 
 #if 0
          printf("bm_flush_cache: cache size %d, wp %d, rp %d, event data_size %d, event_size %d, total_size %d\n",
@@ -9469,7 +9581,7 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
          assert(total_size >= (int) sizeof(EVENT_HEADER));
          assert(total_size <= pheader->size);
 
-         bm_write_to_buffer_locked(pheader, pevent, event_size, total_size);
+         bm_write_to_buffer_locked(pheader, 1, (char**)&pevent, &event_size, total_size);
 
          pbuf->count_sent += 1;
          pbuf->bytes_sent += total_size;
@@ -13072,8 +13184,7 @@ INT rpc_send_event(INT buffer_handle, const EVENT_HEADER *pevent, int unused, IN
 
 /********************************************************************/
 /**
-Fast send_event routine which bypasses the RPC layer and
-           sends the event directly at the TCP level.
+Send event to mserver using the event socket connection, bypassing the RPC layer
 @param buffer_handle      Handle of the buffer to send the event to.
                           Must be obtained via bm_open_buffer.
 @param event              Pointer to event header
@@ -13082,29 +13193,60 @@ Fast send_event routine which bypasses the RPC layer and
 */
 INT rpc_send_event1(INT buffer_handle, const EVENT_HEADER *pevent)
 {
+   const size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
+   return rpc_send_event2(buffer_handle, 1, (char**)&pevent, &event_size);
+}
+
+INT rpc_send_event2(INT buffer_handle, int sg_n, const char* const sg_ptr[], const size_t sg_len[])
+{
+   if (sg_n < 1) {
+      cm_msg(MERROR, "rpc_send_event2", "invalid sg_n %d", sg_n);
+      return BM_INVALID_SIZE;
+   }
+
+   if (sg_ptr[0] == NULL) {
+      cm_msg(MERROR, "rpc_send_event2", "invalid sg_ptr[0] is NULL");
+      return BM_INVALID_SIZE;
+   }
+
+   if (sg_len[0] < sizeof(EVENT_HEADER)) {
+      cm_msg(MERROR, "rpc_send_event2", "invalid sg_len[0] value %d is smaller than event header size %d", (int)sg_len[0], (int)sizeof(EVENT_HEADER));
+      return BM_INVALID_SIZE;
+   }
+
+   const EVENT_HEADER* pevent = (const EVENT_HEADER*)sg_ptr[0];
+   
    const DWORD MAX_DATA_SIZE = (0x7FFFFFF0 - 16); // event size computations are not 32-bit clean, limit event size to 2GB. K.O.
    const DWORD data_size = pevent->data_size; // 32-bit unsigned value
 
    if (data_size == 0) {
-      cm_msg(MERROR, "rpc_send_event1", "invalid event data size zero");
+      cm_msg(MERROR, "rpc_send_event2", "invalid event data size zero");
       return BM_INVALID_SIZE;
    }
 
    if (data_size > MAX_DATA_SIZE) {
-      cm_msg(MERROR, "rpc_send_event1", "invalid event data size %d (0x%x) maximum is %d (0x%x)", data_size, data_size, MAX_DATA_SIZE, MAX_DATA_SIZE);
+      cm_msg(MERROR, "rpc_send_event2", "invalid event data size %d (0x%x) maximum is %d (0x%x)", data_size, data_size, MAX_DATA_SIZE, MAX_DATA_SIZE);
       return BM_INVALID_SIZE;
    }
 
-   const int event_size = sizeof(EVENT_HEADER) + data_size;
+   const size_t event_size = sizeof(EVENT_HEADER) + data_size;
+   const size_t total_size = ALIGN8(event_size);
 
-   /* round up total_size to next DWORD boundary */
-   const int total_size = ALIGN8(event_size);
+   size_t count = 0;
+   for (int i=0; i<sg_n; i++) {
+      count += sg_len[i];
+   }
+
+   if (count != event_size) {
+      cm_msg(MERROR, "rpc_send_event2", "data size mismatch: event data_size %d, event_size %d not same as sum of sg_len %d", (int)data_size, (int)event_size, (int)count);
+      return BM_INVALID_SIZE;
+   }
 
    // protect non-atomic access to _server_connection.event_sock. K.O.
    
    std::lock_guard<std::mutex> guard(_server_connection.event_sock_mutex);
 
-   printf("rpc_send_event1: pevent %p, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", pevent, pevent->event_id, pevent->serial_number, data_size, event_size, total_size);
+   printf("rpc_send_event2: pevent %p, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", pevent, pevent->event_id, pevent->serial_number, (int)data_size, (int)event_size, (int)total_size);
 
    if (_server_connection.event_sock == 0) {
       return RPC_NO_CONNECTION;
@@ -13120,22 +13262,44 @@ INT rpc_send_event1(INT buffer_handle, const EVENT_HEADER *pevent)
 
    int status;
 
-   /* send buffer */
-   status = ss_write_tcp(_server_connection.event_sock, (const char *) &buffer_handle, sizeof(INT));
+   /* send buffer handle */
+
+   assert(sizeof(DWORD) == 4);
+   DWORD bh_buf = buffer_handle;
+   
+   status = ss_write_tcp(_server_connection.event_sock, (const char *) &bh_buf, sizeof(DWORD));
    if (status != SS_SUCCESS) {
       closesocket(_server_connection.event_sock);
       _server_connection.event_sock = 0;
-      cm_msg(MERROR, "rpc_send_event1", "ss_write_tcp(buffer handle) failed, event socket is now closed");
+      cm_msg(MERROR, "rpc_send_event2", "ss_write_tcp(buffer handle) failed, event socket is now closed");
       return RPC_NET_ERROR;
    }
 
    /* send data */
-   status = ss_write_tcp(_server_connection.event_sock, (const char *) pevent, total_size);
-   if (status != SS_SUCCESS) {
-      closesocket(_server_connection.event_sock);
-      _server_connection.event_sock = 0;
-      cm_msg(MERROR, "rpc_send_event1", "ss_write_tcp(event data) failed, event socket is now closed");
-      return RPC_NET_ERROR;
+
+   for (int i=0; i<sg_n; i++) {
+      status = ss_write_tcp(_server_connection.event_sock, sg_ptr[i], sg_len[i]);
+      if (status != SS_SUCCESS) {
+         closesocket(_server_connection.event_sock);
+         _server_connection.event_sock = 0;
+         cm_msg(MERROR, "rpc_send_event2", "ss_write_tcp(event data) failed, event socket is now closed");
+         return RPC_NET_ERROR;
+      }
+   }
+
+   /* send padding */
+
+   if (count < total_size) {
+      char padding[8] = { 0,0,0,0,0,0,0,0 };
+      size_t padlen = total_size - count;
+      assert(padlen < 8);
+      status = ss_write_tcp(_server_connection.event_sock, padding, padlen);
+      if (status != SS_SUCCESS) {
+         closesocket(_server_connection.event_sock);
+         _server_connection.event_sock = 0;
+         cm_msg(MERROR, "rpc_send_event2", "ss_write_tcp(padding) failed, event socket is now closed");
+         return RPC_NET_ERROR;
+      }
    }
 
    return RPC_SUCCESS;
