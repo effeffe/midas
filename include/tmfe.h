@@ -128,8 +128,8 @@ public:
    TMFeResult AddRequest(int event_id, int trigger_mask, const char* sampling_type_string);
    TMFeResult ReceiveEvent(std::vector<char> *e, int timeout_msec = 0); // thread-safe
    TMFeResult SendEvent(const char *e);
-   TMFeResult SendEvent(const std::vector<char> *e);
-   TMFeResult SendEvent(const std::vector<std::vector<char>> *e);
+   TMFeResult SendEvent(const std::vector<char>& e);
+   TMFeResult SendEvent(const std::vector<std::vector<char>>& e);
    TMFeResult SendEvent(int sg_n, const char* const sg_ptr[], const size_t sg_len[]);
    TMFeResult FlushCache(bool wait = true);
 
@@ -288,8 +288,8 @@ public: // temporary event composition methods, to bre replaced by the "event ob
 
 public: // thread-safe methods
    TMFeResult EqSendEvent(const char* pevent, bool write_to_odb = true);
-   TMFeResult EqSendEvent(const std::vector<char>* pevent, bool write_to_odb = true);
-   TMFeResult EqSendEvent(const std::vector<std::vector<char>>* pevent, bool write_to_odb = true);
+   TMFeResult EqSendEvent(const std::vector<char>& event, bool write_to_odb = true);
+   TMFeResult EqSendEvent(const std::vector<std::vector<char>>& event, bool write_to_odb = true);
    TMFeResult EqSendEvent(int sg_n, const char* sg_ptr[], const size_t sg_len[], bool write_to_odb = true);
    TMFeResult EqWriteEventToOdb(const char* pevent);
    TMFeResult EqZeroStatistics();
