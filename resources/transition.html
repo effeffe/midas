@@ -290,7 +290,9 @@
          e.childNodes[3].className = "mred mbox";
       }
       
-      if (client.error.length > 0) {
+      if (!client.error) {
+         e.childNodes[4].innerHTML = "";
+      } else if (client.error.length > 0) {
          e.childNodes[4].innerHTML = client.error;
       } else if (client.waiting_for_client.length > 0) {
          e.childNodes[4].innerHTML = "Waiting for " + client.waiting_for_client;
