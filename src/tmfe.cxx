@@ -312,17 +312,47 @@ TMFeResult TMEventBuffer::ReceiveEvent(std::vector<char> *e, int timeout_msec)
 TMFeResult TMEventBuffer::SendEvent(const char *e)
 {
    const EVENT_HEADER *pevent = (const EVENT_HEADER*)e;
-   
+   const size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
+   //const size_t total_size = ALIGN8(event_size);
+   return SendEvent(1, &e, &event_size);
+}
+
+TMFeResult TMEventBuffer::SendEvent(const std::vector<char> *e)
+{
+   const EVENT_HEADER *pevent = (const EVENT_HEADER*)e;
+   const size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
+   //const size_t total_size = ALIGN8(event_size);
+   if (e->size() != event_size) {
+      return TMFeErrorMessage(msprintf("Cannot send event, size mismatch: vector size %d, data_size %d, event_size %d", (int)e->size(), (int)pevent->data_size, (int)event_size).c_str());
+   }
+
+   return SendEvent(1, (char**)&pevent, &event_size);
+}
+
+TMFeResult TMEventBuffer::SendEvent(const std::vector<std::vector<char>> *e)
+{
+   int sg_n = e->size();
+   const char* sg_ptr[sg_n];
+   size_t sg_len[sg_n];
+   for (size_t i=0; i<sg_n; i++) {
+      sg_ptr[i] = (*e)[i].data();
+      sg_len[i] = (*e)[i].size();
+   }
+   return SendEvent(sg_n, sg_ptr, sg_len);
+}
+
+TMFeResult TMEventBuffer::SendEvent(int sg_n, const char* const sg_ptr[], const size_t sg_len[])
+{
    if (rpc_is_remote()) {
       //double t0 = TMFE::GetTime();
-      int status = rpc_send_event1(fBufHandle, pevent);
+      int status = rpc_send_event2(fBufHandle, sg_n, sg_ptr, sg_len);
       if (status != RPC_SUCCESS) {
-         return TMFeMidasError("TMEventBuffer::SendEvent: Cannot send event", "rpc_send_event1", status);
+         return TMFeMidasError("TMEventBuffer::SendEvent: Cannot send event", "rpc_send_event2", status);
       }
       //double t1 = TMFE::GetTime();
       //printf("rpc_send_event time %f\n", t1-t0);
    } else {
-      int status = bm_send_event(fBufHandle, pevent, sizeof(EVENT_HEADER) + pevent->data_size, BM_WAIT);
+      int status = bm_send_event(fBufHandle, sg_n, sg_ptr, sg_len, BM_WAIT);
       if (status == BM_CORRUPTED) {
          fMfe->Msg(MERROR, "TMEventBuffer::SendEvent", "Cannot send event to buffer \"%s\": bm_send_event() returned %d, event buffer is corrupted, shutting down the frontend", fBufName.c_str(), status);
          fMfe->fShutdownRequested = true;
@@ -334,11 +364,6 @@ TMFeResult TMEventBuffer::SendEvent(const char *e)
    }
 
    return TMFeOk();
-}
-
-TMFeResult TMEventBuffer::SendEvent(const std::vector<char> *e)
-{
-#warning WRITEME!
 }
 
 TMFeResult TMEventBuffer::FlushCache(bool wait)
