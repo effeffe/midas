@@ -6105,7 +6105,7 @@ static int bm_incr_rp_no_check(const BUFFER_HEADER *pheader, int rp, int total_s
    // these checks are already done before we come here.
    // but we check again as last-ressort protection. K.O.
    assert(total_size > 0);
-   assert(total_size >= sizeof(EVENT_HEADER));
+   assert(total_size >= (int)sizeof(EVENT_HEADER));
 
    rp += total_size;
    if (rp >= pheader->size) {
@@ -8878,7 +8878,7 @@ static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, 
    } else if (timeout_msec == BM_WAIT) {
       // default sleep time
    } else {
-      if (sleep_time > timeout_msec)
+      if (sleep_time > (DWORD)timeout_msec)
          sleep_time = timeout_msec;
    }
 
@@ -8959,7 +8959,7 @@ static void bm_write_to_buffer_locked(BUFFER_HEADER *pheader, int sg_n, const ch
    //int old_write_pointer = pheader->write_pointer;
 
    /* new event fits into the remaining space? */
-   if (pheader->write_pointer + total_size <= pheader->size) {
+   if ((size_t)pheader->write_pointer + total_size <= (size_t)pheader->size) {
       //memcpy(pdata + pheader->write_pointer, pevent, event_size);
       char* wptr = pdata + pheader->write_pointer;
       for (int i=0; i<sg_n; i++) {
@@ -9164,7 +9164,7 @@ int bm_send_event_vec(int buffer_handle, const std::vector<std::vector<char>>& e
    int sg_n = event.size();
    const char* sg_ptr[sg_n];
    size_t sg_len[sg_n];
-   for (size_t i=0; i<sg_n; i++) {
+   for (int i=0; i<sg_n; i++) {
       sg_ptr[i] = event[i].data();
       sg_len[i] = event[i].size();
    }
@@ -9301,7 +9301,7 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
             int status = BM_SUCCESS;
 
             /* if this event does not fit into the write cache, flush the write cache */
-            if (pbuf->write_cache_wp + total_size > pbuf->write_cache_size) {
+            if ((size_t)pbuf->write_cache_wp + total_size > (size_t)pbuf->write_cache_size) {
                //printf("bm_send_event: write %d/%d but cache is full, size %d, wp %d\n", event_size, total_size, pbuf->write_cache_size, pbuf->write_cache_wp);
                if (pbuf->write_cache_mutex)
                   ss_mutex_release(pbuf->write_cache_mutex);
@@ -9314,7 +9314,7 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
             }
 
             /* write this event into the write cache, if it fits */
-            if (pbuf->write_cache_wp + total_size <= pbuf->write_cache_size) {
+            if ((size_t)pbuf->write_cache_wp + total_size <= (size_t)pbuf->write_cache_size) {
                //printf("bm_send_event: write %d/%d to cache size %d, wp %d\n", event_size, total_size, pbuf->write_cache_size, pbuf->write_cache_wp);
                
                char* wptr = pbuf->write_cache + pbuf->write_cache_wp;
@@ -9354,7 +9354,7 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
 #endif
 
       /* check if buffer is large enough */
-      if (total_size >= pheader->size) {
+      if (total_size >= (size_t)pheader->size) {
          bm_unlock_buffer(pbuf);
          cm_msg(MERROR, "bm_send_event", "total event size (%d) larger than size (%d) of buffer \'%s\'", (int)total_size, pheader->size, pheader->name);
          return BM_NO_MEMORY;
@@ -9456,7 +9456,7 @@ static int bm_flush_cache_rpc(int buffer_handle, int timeout_msec)
 
             DWORD remain = time_end - now;
 
-            if (remain < xtimeout_msec) {
+            if (remain < (DWORD)xtimeout_msec) {
                xtimeout_msec = remain;
             }
 
@@ -9597,8 +9597,8 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
                 total_size);
 #endif
 
-         assert(total_size >= (int) sizeof(EVENT_HEADER));
-         assert(total_size <= pheader->size);
+         assert(total_size >= sizeof(EVENT_HEADER));
+         assert(total_size <= (size_t)pheader->size);
 
          bm_write_to_buffer_locked(pheader, 1, (char**)&pevent, &event_size, total_size);
 
@@ -9949,7 +9949,7 @@ static INT bm_receive_event_rpc(INT buffer_handle, void *buf, int *buf_size, EVE
 
             DWORD remain = time_end - now;
 
-            if (remain < xtimeout_msec) {
+            if (remain < (DWORD)xtimeout_msec) {
                xtimeout_msec = remain;
             }
 
@@ -15566,7 +15566,7 @@ INT rpc_check_channels(void)
          DWORD elapsed = ss_millitime() - sa->last_activity;
          //printf("rpc_check_channels: idx %d, watchdog_timeout %d, last_activity %d, elapsed %d\n", idx, sa->watchdog_timeout, sa->last_activity, elapsed);
 
-         if (sa->watchdog_timeout && (elapsed > sa->watchdog_timeout)) {
+         if (sa->watchdog_timeout && (elapsed > (DWORD)sa->watchdog_timeout)) {
          
             //printf("rpc_check_channels: send watchdog message to %s on %s\n", sa->prog_name.c_str(), sa->host_name.c_str());
 
