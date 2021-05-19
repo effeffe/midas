@@ -9269,7 +9269,7 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
       return BM_INVALID_SIZE;
    }
 
-   printf("bm_send_event: pevent %p, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", pevent, pevent->event_id, pevent->serial_number, (int)pevent->data_size, (int)event_size, (int)total_size);
+   //printf("bm_send_event_sg: pevent %p, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", pevent, pevent->event_id, pevent->serial_number, (int)pevent->data_size, (int)event_size, (int)total_size);
 
 #ifdef LOCAL_ROUTINES
    {
@@ -13265,7 +13265,7 @@ INT rpc_send_event_sg(INT buffer_handle, int sg_n, const char* const sg_ptr[], c
    
    std::lock_guard<std::mutex> guard(_server_connection.event_sock_mutex);
 
-   printf("rpc_send_event_sg: pevent %p, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", pevent, pevent->event_id, pevent->serial_number, (int)data_size, (int)event_size, (int)total_size);
+   //printf("rpc_send_event_sg: pevent %p, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", pevent, pevent->event_id, pevent->serial_number, (int)data_size, (int)event_size, (int)total_size);
 
    if (_server_connection.event_sock == 0) {
       return RPC_NO_CONNECTION;
@@ -13755,7 +13755,7 @@ static int recv_event_server_realloc(INT idx, RPC_SERVER_ACCEPTION* psa, char **
    int event_size = pevent->data_size + sizeof(EVENT_HEADER);
    int total_size = ALIGN8(event_size);
 
-   printf("recv_event_server: buffer_handle %d, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", *pbh, pevent->event_id, pevent->serial_number, pevent->data_size, event_size, total_size);
+   //printf("recv_event_server: buffer_handle %d, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", *pbh, pevent->event_id, pevent->serial_number, pevent->data_size, event_size, total_size);
 
    if (pevent->data_size == 0) {
       for (int i=0; i<5; i++) {
@@ -15339,7 +15339,7 @@ INT rpc_server_receive_event(int idx, RPC_SERVER_ACCEPTION* sa, int timeout_msec
       
       status = bm_send_event(*pbh, pevent, pevent->data_size + sizeof(EVENT_HEADER), timeout_msec);
 
-      printf("rpc_server_receiv: buffer_handle %d, event_id 0x%04x, serial 0x%08x, data_size %d, status %d\n", *pbh, pevent->event_id, pevent->serial_number, pevent->data_size, status);
+      //printf("rpc_server_receiv: buffer_handle %d, event_id 0x%04x, serial 0x%08x, data_size %d, status %d\n", *pbh, pevent->event_id, pevent->serial_number, pevent->data_size, status);
       
       if (status == SS_ABORT) {
          cm_msg(MERROR, "rpc_server_receive_event", "bm_send_event() error %d (SS_ABORT), abort", status);
