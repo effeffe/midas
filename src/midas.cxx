@@ -9146,10 +9146,29 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, int unused, int
 
    if (rpc_is_remote()) {
       //return bm_send_event_rpc(buffer_handle, pevent, event_size, timeout_msec);
-      return rpc_send_event2(buffer_handle, 1, (char**)&pevent, &event_size);
+      return rpc_send_event_sg(buffer_handle, 1, (char**)&pevent, &event_size);
    } else {
-      return bm_send_event(buffer_handle, 1, (char**)&pevent, &event_size, timeout_msec);
+      return bm_send_event_sg(buffer_handle, 1, (char**)&pevent, &event_size, timeout_msec);
    }
+}
+
+int bm_send_event_vec(int buffer_handle, const std::vector<char>& event, int timeout_msec)
+{
+   const char* cptr = event.data();
+   size_t clen = event.size();
+   return bm_send_event_sg(buffer_handle, 1, &cptr, &clen, timeout_msec);
+}
+
+int bm_send_event_vec(int buffer_handle, const std::vector<std::vector<char>>& event, int timeout_msec)
+{
+   int sg_n = event.size();
+   const char* sg_ptr[sg_n];
+   size_t sg_len[sg_n];
+   for (size_t i=0; i<sg_n; i++) {
+      sg_ptr[i] = event[i].data();
+      sg_len[i] = event[i].size();
+   }
+   return bm_send_event_sg(buffer_handle, sg_n, sg_ptr, sg_len, timeout_msec);
 }
 
 /********************************************************************/
@@ -9202,10 +9221,10 @@ BM_NO_MEMORY   Event is too large for network buffer or event buffer.
 One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
 and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
-int bm_send_event(int buffer_handle, int sg_n, const char* const sg_ptr[], const size_t sg_len[], int timeout_msec)
+int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], const size_t sg_len[], int timeout_msec)
 {
    if (rpc_is_remote())
-      return rpc_send_event2(buffer_handle, sg_n, sg_ptr, sg_len);
+      return rpc_send_event_sg(buffer_handle, sg_n, sg_ptr, sg_len);
 
    if (sg_n < 1) {
       cm_msg(MERROR, "bm_send_event", "invalid sg_n %d", sg_n);
@@ -10196,7 +10215,7 @@ main()
 @return BM_SUCCESS, BM_INVALID_HANDLE <br>
 BM_ASYNC_RETURN No event available
 */
-INT bm_receive_event(INT buffer_handle, std::vector<char> *pvec, int timeout_msec) {
+INT bm_receive_event_vec(INT buffer_handle, std::vector<char> *pvec, int timeout_msec) {
    if (rpc_is_remote()) {
       return bm_receive_event_rpc(buffer_handle, NULL, NULL, NULL, pvec, timeout_msec);
    }
@@ -10206,7 +10225,7 @@ INT bm_receive_event(INT buffer_handle, std::vector<char> *pvec, int timeout_mse
 
       BUFFER *pbuf;
 
-      status = bm_get_buffer("bm_receive_event", buffer_handle, &pbuf);
+      status = bm_get_buffer("bm_receive_event_vec", buffer_handle, &pbuf);
 
       if (status != BM_SUCCESS)
          return status;
@@ -10501,7 +10520,7 @@ INT bm_poll_event()
 
       do {
          /* receive event */
-         status = bm_receive_event(_request_list[request_id].buffer_handle, &vec, BM_NO_WAIT);
+         status = bm_receive_event_vec(_request_list[request_id].buffer_handle, &vec, BM_NO_WAIT);
 
          //printf("bm_poll_event: request_id %d, buffer_handle %d, bm_receive_event(BM_NO_WAIT) status %d, vec size %d, capacity %d\n", request_id, _request_list[request_id].buffer_handle, status, (int)vec.size(), (int)vec.capacity());
 
@@ -13194,23 +13213,23 @@ Send event to mserver using the event socket connection, bypassing the RPC layer
 INT rpc_send_event1(INT buffer_handle, const EVENT_HEADER *pevent)
 {
    const size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
-   return rpc_send_event2(buffer_handle, 1, (char**)&pevent, &event_size);
+   return rpc_send_event_sg(buffer_handle, 1, (char**)&pevent, &event_size);
 }
 
-INT rpc_send_event2(INT buffer_handle, int sg_n, const char* const sg_ptr[], const size_t sg_len[])
+INT rpc_send_event_sg(INT buffer_handle, int sg_n, const char* const sg_ptr[], const size_t sg_len[])
 {
    if (sg_n < 1) {
-      cm_msg(MERROR, "rpc_send_event2", "invalid sg_n %d", sg_n);
+      cm_msg(MERROR, "rpc_send_event_sg", "invalid sg_n %d", sg_n);
       return BM_INVALID_SIZE;
    }
 
    if (sg_ptr[0] == NULL) {
-      cm_msg(MERROR, "rpc_send_event2", "invalid sg_ptr[0] is NULL");
+      cm_msg(MERROR, "rpc_send_event_sg", "invalid sg_ptr[0] is NULL");
       return BM_INVALID_SIZE;
    }
 
    if (sg_len[0] < sizeof(EVENT_HEADER)) {
-      cm_msg(MERROR, "rpc_send_event2", "invalid sg_len[0] value %d is smaller than event header size %d", (int)sg_len[0], (int)sizeof(EVENT_HEADER));
+      cm_msg(MERROR, "rpc_send_event_sg", "invalid sg_len[0] value %d is smaller than event header size %d", (int)sg_len[0], (int)sizeof(EVENT_HEADER));
       return BM_INVALID_SIZE;
    }
 
@@ -13220,12 +13239,12 @@ INT rpc_send_event2(INT buffer_handle, int sg_n, const char* const sg_ptr[], con
    const DWORD data_size = pevent->data_size; // 32-bit unsigned value
 
    if (data_size == 0) {
-      cm_msg(MERROR, "rpc_send_event2", "invalid event data size zero");
+      cm_msg(MERROR, "rpc_send_event_sg", "invalid event data size zero");
       return BM_INVALID_SIZE;
    }
 
    if (data_size > MAX_DATA_SIZE) {
-      cm_msg(MERROR, "rpc_send_event2", "invalid event data size %d (0x%x) maximum is %d (0x%x)", data_size, data_size, MAX_DATA_SIZE, MAX_DATA_SIZE);
+      cm_msg(MERROR, "rpc_send_event_sg", "invalid event data size %d (0x%x) maximum is %d (0x%x)", data_size, data_size, MAX_DATA_SIZE, MAX_DATA_SIZE);
       return BM_INVALID_SIZE;
    }
 
@@ -13238,7 +13257,7 @@ INT rpc_send_event2(INT buffer_handle, int sg_n, const char* const sg_ptr[], con
    }
 
    if (count != event_size) {
-      cm_msg(MERROR, "rpc_send_event2", "data size mismatch: event data_size %d, event_size %d not same as sum of sg_len %d", (int)data_size, (int)event_size, (int)count);
+      cm_msg(MERROR, "rpc_send_event_sg", "data size mismatch: event data_size %d, event_size %d not same as sum of sg_len %d", (int)data_size, (int)event_size, (int)count);
       return BM_INVALID_SIZE;
    }
 
@@ -13246,7 +13265,7 @@ INT rpc_send_event2(INT buffer_handle, int sg_n, const char* const sg_ptr[], con
    
    std::lock_guard<std::mutex> guard(_server_connection.event_sock_mutex);
 
-   printf("rpc_send_event2: pevent %p, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", pevent, pevent->event_id, pevent->serial_number, (int)data_size, (int)event_size, (int)total_size);
+   printf("rpc_send_event_sg: pevent %p, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", pevent, pevent->event_id, pevent->serial_number, (int)data_size, (int)event_size, (int)total_size);
 
    if (_server_connection.event_sock == 0) {
       return RPC_NO_CONNECTION;
@@ -13271,7 +13290,7 @@ INT rpc_send_event2(INT buffer_handle, int sg_n, const char* const sg_ptr[], con
    if (status != SS_SUCCESS) {
       closesocket(_server_connection.event_sock);
       _server_connection.event_sock = 0;
-      cm_msg(MERROR, "rpc_send_event2", "ss_write_tcp(buffer handle) failed, event socket is now closed");
+      cm_msg(MERROR, "rpc_send_event_sg", "ss_write_tcp(buffer handle) failed, event socket is now closed");
       return RPC_NET_ERROR;
    }
 
@@ -13282,7 +13301,7 @@ INT rpc_send_event2(INT buffer_handle, int sg_n, const char* const sg_ptr[], con
       if (status != SS_SUCCESS) {
          closesocket(_server_connection.event_sock);
          _server_connection.event_sock = 0;
-         cm_msg(MERROR, "rpc_send_event2", "ss_write_tcp(event data) failed, event socket is now closed");
+         cm_msg(MERROR, "rpc_send_event_sg", "ss_write_tcp(event data) failed, event socket is now closed");
          return RPC_NET_ERROR;
       }
    }
@@ -13297,7 +13316,7 @@ INT rpc_send_event2(INT buffer_handle, int sg_n, const char* const sg_ptr[], con
       if (status != SS_SUCCESS) {
          closesocket(_server_connection.event_sock);
          _server_connection.event_sock = 0;
-         cm_msg(MERROR, "rpc_send_event2", "ss_write_tcp(padding) failed, event socket is now closed");
+         cm_msg(MERROR, "rpc_send_event_sg", "ss_write_tcp(padding) failed, event socket is now closed");
          return RPC_NET_ERROR;
       }
    }
