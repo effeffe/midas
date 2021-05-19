@@ -130,7 +130,7 @@ public:
    TMFeResult SendEvent(const char *e);
    TMFeResult SendEvent(const std::vector<char> *e);
    TMFeResult SendEvent(const std::vector<std::vector<char>> *e);
-   TMFeResult SendEvent(int sg_n, const char* sg_ptr[], const size_t sg_len[]);
+   TMFeResult SendEvent(int sg_n, const char* const sg_ptr[], const size_t sg_len[]);
    TMFeResult FlushCache(bool wait = true);
 
 public: // internal state, user can read but should not write these variables
