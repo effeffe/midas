@@ -111,6 +111,35 @@ class TMFrontend;
 class TMFrontendRpcHelper;
 class MVOdb;
 
+class TMEventBuffer
+{
+public:
+   TMFE*       fMfe = NULL;
+   std::string fBufName;
+   size_t      fBufSize = 0; // buffer size
+   size_t      fBufMaxEventSize = 0; // buffer max event size
+
+public:
+   TMEventBuffer(TMFE* mfe); // ctor
+   ~TMEventBuffer(); // dtor
+   TMFeResult OpenBuffer(const char* bufname, size_t bufsize = 0);
+   TMFeResult CloseBuffer();
+   TMFeResult SetCacheSize(size_t read_cache_size, size_t write_cache_size);
+   TMFeResult AddRequest(int event_id, int trigger_mask, const char* sampling_type_string);
+   TMFeResult ReceiveEvent(std::vector<char> *e, int timeout_msec = 0); // thread-safe
+   TMFeResult SendEvent(const char *e);
+   TMFeResult SendEvent(const std::vector<char>& e);
+   TMFeResult SendEvent(const std::vector<std::vector<char>>& e);
+   TMFeResult SendEvent(int sg_n, const char* const sg_ptr[], const size_t sg_len[]);
+   TMFeResult FlushCache(bool wait = true);
+
+public: // internal state, user can read but should not write these variables
+   int    fBufHandle = 0; // bm_open_buffer() handle
+   size_t fBufReadCacheSize = 0;
+   size_t fBufWriteCacheSize = 0;
+   std::vector<int> fBufRequests;
+};
+
 class TMFeRpcHandlerInterface
 {
  public:
@@ -128,7 +157,7 @@ public: // general configuration, should not be changed by user
    std::string fEqName;
    std::string fEqFilename;
 
-public: // equipment configuration
+public: // equipment configuration stored in ODB Common
 
    bool        fEqConfEnableRpc      = true;
    bool        fEqConfEnablePeriodic = true;
@@ -156,10 +185,14 @@ public: // equipment configuration
    //std::string Status;
    //std::string StatusColor;
 
-   bool   fEqConfReadOnlyWhenRunning  = true; // RO_RUNNING
-   bool   fEqConfWriteEventsToOdb     = false; // RO_ODB
-   double fEqConfPeriodStatisticsSec  = 1.0; // period for updating ODB statistics
+public: // equipment configuration not in ODB Common
+
+   bool   fEqConfReadOnlyWhenRunning  = true;   // RO_RUNNING
+   bool   fEqConfWriteEventsToOdb     = false;  // RO_ODB
+   double fEqConfPeriodStatisticsSec  = 1.0;    // period for updating ODB statistics
    double fEqConfPollSleepSec         = 0.000100; // shortest sleep for linux is 50-6-70 microseconds
+   size_t fEqConfMaxEventSize         = 0;      // requested maximum event size
+   size_t fEqConfBufferSize           = 0;      // requested event buffer size
 
 public: // multithread lock
    std::mutex  fEqMutex;
@@ -176,9 +209,10 @@ public: // connection to ODB
    MVOdb* fOdbEqStatistics = NULL; ///< ODB Equipment/EQNAME/Statistics
 
 public: // connection to event buffer
-   size_t fEqBufferSize = 0;
-   size_t fEqMaxEventSize = 0;
-   int    fEqBufferHandle = 0;
+   //size_t fEqBufferSize = 0;
+   //size_t fEqMaxEventSize = 0;
+   //int    fEqBufferHandle = 0;
+   TMEventBuffer* fEqEventBuffer = NULL; // pointer to buffer entry inside TMFE
    int    fEqSerial = 0;
 
 public: // statistics
@@ -254,7 +288,9 @@ public: // temporary event composition methods, to bre replaced by the "event ob
 
 public: // thread-safe methods
    TMFeResult EqSendEvent(const char* pevent, bool write_to_odb = true);
-   TMFeResult EqFlushWriteCache(bool wait_for_flush = false);
+   TMFeResult EqSendEvent(const std::vector<char>& event, bool write_to_odb = true);
+   TMFeResult EqSendEvent(const std::vector<std::vector<char>>& event, bool write_to_odb = true);
+   TMFeResult EqSendEvent(int sg_n, const char* sg_ptr[], const size_t sg_len[], bool write_to_odb = true);
    TMFeResult EqWriteEventToOdb(const char* pevent);
    TMFeResult EqZeroStatistics();
    TMFeResult EqWriteStatistics();
@@ -395,6 +431,15 @@ public: // RPC thread methods, thread-safe
    void StartRpcThread();
    void StopRpcThread();
 
+public: // event buffer data
+   std::mutex                  fEventBuffersMutex;
+   std::vector<TMEventBuffer*> fEventBuffers;
+
+public: // event buffer methods, thread-safe
+   TMFeResult EventBufferOpen(TMEventBuffer** pbuf, const char* bufname, size_t bufsize = 0); // factory method
+   TMFeResult EventBufferFlushCacheAll(bool wait = true);
+   TMFeResult EventBufferCloseAll();
+
 public: // run control
    bool   fRunStopRequested = false; ///< run stop was requested by equipment
    double fRunStartTime = 0; ///< start a new run at this time
@@ -405,7 +450,7 @@ public: // run control
 public:
    TMFeResult SetWatchdogSec(int sec);
 
-   void PollMidas(int millisec);
+   void Yield(double sleep_sec);
    void MidasPeriodicTasks();
 
    TMFeResult TriggerAlarm(const char* name, const char* message, const char* aclass);

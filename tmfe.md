@@ -80,6 +80,8 @@ Some equipment configuration has no ODB Common equivalents:
 * bool fEqConfWriteEventsToOdb - write events sent by this equipment to ODB, if history is enabled, mlogger writes them to the history (stored in "Common/Read on" bit RO_ODB)
 * double fEqConfPeriodStatisticsSec - period in seconds for updating /Equipment/EQNAME/Statistics
 * double fEqConfPollSleepPeriodSec - short sleep in the poll loop. default is 100 usec. shortest sleep in linux is 50-60 usec. set to 0 for 100% CPU-busy poll loop.
+* size_t fEqConfMaxEventSize - requested and current maximum event size (typically half of event buffer size), value 0 will use default vaiue from ODB /Experiment/MAX_EVENT_SIZE
+* size_t fEqConfBufferSize - requested event buffer size, value 0 will use the default size from midas.h
 
 The initial equipment info object is created and initialized by the user, see example at struct EqInfoEverything in tmfe_example_everything.cxx.
 
@@ -219,7 +221,7 @@ TBI, TBW
 
 ### Variables provided by the framework
 
-Important variables provided by the framework:
+Important and useful variables provided by the framework:
 
 * fMfe->Msg() - midas info, log and error messages
 * fMfe->fProgramName - current MIDAS program name
@@ -234,14 +236,16 @@ Important variables provided by the framework:
 
 * fFe->fFeIndex - frontend index for indexed equipments
 
+* fFe->fEventBuffer->fBufName - name of current event buffer
+* fFe->fEventBuffer->fBufSize - size of current event buffer
+* fFe->fEventBuffer->fBufMaxEventSize - maximum event size accepted by the event buffer
+
 * fEqName - equipment name
 * fEqConfXXX - equipment configuration (see above)
 * fOdbEq - ODB directory /Equipment/EQNAME
 * fOdbEqSettings - ODB directory /Equipment/EQNAME/Settings
 * fOdbEqVariables - ODB directory /Equipment/EQNAME/Variables
 * fOdbEqStatistics - ODB directory /Equipment/EQNAME/Statistics
-* fEqBufferSize - size of current event buffer
-* fEqMaxEventSize - current maximum event size (typically half of event buffer size)
 * EqSetStatus() - set equipment status string on the midas status page
 
 ### Creating and sending events

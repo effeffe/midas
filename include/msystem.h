@@ -30,6 +30,7 @@ The Midas System include file
 
 #include "midasinc.h"
 #include <string> // std::string
+#include <mutex>  // std::mutex
 
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
@@ -327,6 +328,7 @@ typedef struct {
    int send_sock;               /*  tcp send socket         */
    int recv_sock;               /*  tcp receive socket      */
    int event_sock;              /*  event socket            */
+   std::mutex event_sock_mutex; /*  protect event socket against multithreaded access */
    INT remote_hw_type;          /*  remote hardware type    */
    INT rpc_timeout;             /*  in milliseconds         */
 
@@ -354,10 +356,8 @@ typedef struct {
    DWORD last_activity = 0;         /*  time of last recv       */
    INT convert_flags = 0;           /*  convertion flags        */
    char *net_buffer = NULL;         /*  TCP cache buffer        */
-   char *ev_net_buffer = NULL;
    INT net_buffer_size = 0;         /*  size of TCP cache       */
    INT write_ptr=0, read_ptr=0, misalign=0;   /* pointers for cache */
-   INT ev_write_ptr=0, ev_read_ptr=0, ev_misalign=0;
    HNDLE odb_handle = 0;            /*  handle to online datab. */
    HNDLE client_handle = 0;         /*  client key handle .     */
 
@@ -373,14 +373,10 @@ typedef struct {
       last_activity = 0;
       convert_flags = 0;
       net_buffer = NULL;
-      ev_net_buffer = NULL;
       net_buffer_size = 0;
       write_ptr = 0;
       read_ptr = 0;
       misalign = 0;
-      ev_write_ptr = 0;
-      ev_read_ptr = 0;
-      ev_misalign = 0;
       odb_handle = 0;
       client_handle = 0;
    }
@@ -555,20 +551,18 @@ typedef struct {
    /*---- rpc functions -----*/
    INT rpc_register_listener(int port, RPC_HANDLER func, int *plsock, int *pport);
    RPC_LIST EXPRT *rpc_get_internal_list(INT flag);
-   INT rpc_server_receive(INT idx, int sock, BOOL check);
+   INT rpc_server_receive_rpc(int idx, RPC_SERVER_ACCEPTION* sa);
+   INT rpc_server_receive_event(int idx, RPC_SERVER_ACCEPTION* sa, int timeout_msec);
    INT rpc_server_callback(struct callback_addr *callback);
    INT EXPRT rpc_server_accept(int sock);
    INT rpc_client_accept(int sock);
    INT rpc_client_dispatch(int sock);
    INT EXPRT rpc_get_convert_flags(void);
    INT recv_tcp_check(int sock);
-   INT recv_event_check(int sock);
    INT rpc_deregister_functions(void);
    INT rpc_check_channels(void);
    void EXPRT rpc_client_check(void);
    INT rpc_server_disconnect(void);
-   int EXPRT rpc_get_send_sock(void);
-   int EXPRT rpc_get_event_sock(void);
    INT EXPRT rpc_set_opt_tcp_size(INT tcp_size);
    INT EXPRT rpc_get_opt_tcp_size(void);
    INT EXPRT rpc_set_mserver_path(const char *mserver_path);
@@ -637,6 +631,10 @@ typedef struct {
    INT EXPRT recv_string(int sock, char *buffer, DWORD buffer_size, INT flags);
    INT EXPRT ss_socket_wait(int sock, int millisec);
    INT EXPRT ss_recv_net_command(int sock, DWORD* routine_id, DWORD* param_size, char **param_ptr, int timeout_ms);
+
+   /*---- mserver event socket ----*/
+   bool ss_event_socket_has_data();
+   int  rpc_flush_event_socket(int timeout_msec);
 
    /** @} */
 

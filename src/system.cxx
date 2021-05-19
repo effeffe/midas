@@ -4203,6 +4203,55 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
    return return_status;
 }
 
+static int ss_socket_check(int sock)
+{
+   // copied from the old rpc_server_receive()
+
+   /* only check if TCP connection is broken */
+
+   char test_buffer[256];
+#ifdef OS_WINNT
+   int n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK);
+#else
+   int n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK | MSG_DONTWAIT);
+   
+   /* check if we caught a signal */
+   if ((n_received == -1) && (errno == EAGAIN))
+      return SS_SUCCESS;
+#endif
+   
+   if (n_received == -1) {
+      cm_msg(MERROR, "ss_socket_check", "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", (int) sizeof(test_buffer), n_received, errno, strerror(errno));
+   }
+   
+   if (n_received <= 0)
+      return SS_ABORT;
+   
+   return SS_SUCCESS;
+}
+
+bool ss_event_socket_has_data()
+{
+   if (_ss_server_acceptions) {
+      for (unsigned i = 0; i < _ss_server_acceptions->size(); i++) {
+         /* event channel */
+         int sock = (*_ss_server_acceptions)[i]->event_sock;
+
+         if (!sock)
+            continue;
+
+         /* check for buffered event */
+         int status = ss_socket_wait(sock, 1);
+
+         if (status == SS_SUCCESS)
+            return true;
+      }
+   }
+   
+   /* no event socket or no data in event socket */
+   return false;
+}
+
 /*------------------------------------------------------------------*/
 INT ss_suspend(INT millisec, INT msg)
 /********************************************************************\
@@ -4325,19 +4374,24 @@ INT ss_suspend(INT millisec, INT msg)
             else if (msg == 0)
                millisec = 0;
 
-            /* event channel */
-            sock = (*_ss_server_acceptions)[i]->event_sock;
+            if (msg == 0 && msg != MSG_BM) {
+               /* event channel */
+               sock = (*_ss_server_acceptions)[i]->event_sock;
 
-            if (!sock)
-               continue;
+               if (!sock)
+                  continue;
 
-            /* watch server socket if no data in cache */
-            if (recv_event_check(sock) == 0)
-               FD_SET(sock, &readfds);
-            /* set timeout to zero if data in cache (-> just quick check IPC)
-               and not called from inside bm_send_event (-> wait for IPC) */
-            else if (msg == 0)
-               millisec = 0;
+               /* check for buffered event */
+               status = rpc_server_receive_event(0, NULL, BM_NO_WAIT);
+
+               if (status == BM_ASYNC_RETURN) {
+                  /* event buffer is full and rpc_server_receive_event() is holding on
+                   * to an event it cannot get rid of. Do not read more events from
+                   * the event socket, they have nowhere to go. K.O. */
+               } else if (status == RPC_SUCCESS) {
+                  FD_SET(sock, &readfds);
+               }
+            }
          }
       }
 
@@ -4404,7 +4458,14 @@ INT ss_suspend(INT millisec, INT msg)
             //printf("rpc index %d, socket %d, hostname \'%s\', progname \'%s\'\n", i, sock, _suspend_struct[idx].server_acception[i].host_name, _suspend_struct[idx].server_acception[i].prog_name);
 
             if (recv_tcp_check(sock) || FD_ISSET(sock, &readfds)) {
-               status = rpc_server_receive(i, sock, msg != 0);
+               //printf("ss_suspend: msg %d\n", msg);
+               if (msg != 0 && msg != MSG_BM) {
+                  status = ss_socket_check(sock);
+               } else {
+                  //printf("ss_suspend: rpc_server_receive_rpc() call!\n");
+                  status = rpc_server_receive_rpc(i, (*_ss_server_acceptions)[i]);
+                  //printf("ss_suspend: rpc_server_receive_rpc() status %d\n", status);
+               }
                (*_ss_server_acceptions)[i]->last_activity = ss_millitime();
 
                if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
@@ -4419,8 +4480,14 @@ INT ss_suspend(INT millisec, INT msg)
             if (!sock)
                continue;
 
-            if (recv_event_check(sock) || FD_ISSET(sock, &readfds)) {
-               status = rpc_server_receive(i, sock, msg != 0);
+            if (FD_ISSET(sock, &readfds)) {
+               if (msg != 0) {
+                  status = ss_socket_check(sock);
+               } else {
+                  //printf("ss_suspend: rpc_server_receive_event() call!\n");
+                  status = rpc_server_receive_event(i, (*_ss_server_acceptions)[i], BM_NO_WAIT);
+                  //printf("ss_suspend: rpc_server_receive_event() status %d\n", status);
+               }
                (*_ss_server_acceptions)[i]->last_activity = ss_millitime();
 
                if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)

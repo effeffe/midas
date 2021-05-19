@@ -1795,12 +1795,18 @@ Data conversion flags */
                                   INT request_id);
    INT EXPRT bm_remove_event_request(INT buffer_handle, INT request_id);
    INT EXPRT bm_delete_request(INT request_id);
-   INT EXPRT bm_send_event(INT buffer_handle, const EVENT_HEADER* event, INT buf_size, INT async_flag);
-   INT EXPRT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT async_flag);
+   INT EXPRT bm_send_event(INT buffer_handle, const EVENT_HEADER* event, int unused, int timeout_msec);
+#define HAVE_BM_SEND_EVENT_VEC 1
+   INT EXPRT bm_send_event_vec(INT buffer_handle, const std::vector<char>& event, int timeout_msec);
+   INT EXPRT bm_send_event_vec(INT buffer_handle, const std::vector<std::vector<char>>& event, int timeout_msec);
+   INT EXPRT bm_send_event_sg(INT buffer_handle, int sg_n, const char* const sg_ptr[], const size_t sg_len[], int timeout_msec);
+   INT EXPRT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, int timeout_msec);
+#define HAVE_BM_RECEIVE_EVENT_VEC 1
+   INT EXPRT bm_receive_event_vec(INT buffer_handle, std::vector<char> *event, int timeout_msec);
 #define HAVE_BM_RECEIVE_EVENT_ALLOC 1
-   INT EXPRT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER** ppevent, INT async_flag);
+   INT EXPRT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER** ppevent, int timeout_msec);
    INT EXPRT bm_skip_event(INT buffer_handle);
-   INT EXPRT bm_flush_cache(INT buffer_handle, INT async_flag);
+   INT EXPRT bm_flush_cache(INT buffer_handle, int timeout_msec);
    INT EXPRT bm_poll_event(void);
    INT EXPRT bm_empty_buffers(void);
    INT EXPRT bm_check_buffers(void);
@@ -1970,10 +1976,11 @@ Data conversion flags */
    INT EXPRT rpc_client_connect(const char *host_name, INT midas_port, const char *client_name, HNDLE * hConnection);
    INT EXPRT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown);
 
-   INT EXPRT rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, INT buf_size, INT async_flag, INT mode);
+   INT EXPRT rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, int unused, INT async_flag, INT mode);
    INT EXPRT rpc_flush_event(void);
 
    INT EXPRT rpc_send_event1(INT buffer_handle, const EVENT_HEADER *event);
+   INT EXPRT rpc_send_event_sg(INT buffer_handle, int sg_n, const char* const sg_ptr[], const size_t sg_len[]);
 
    void EXPRT rpc_get_convert_flags(INT * convert_flags);
    void EXPRT rpc_convert_single(void *data, INT tid, INT flags, INT convert_flags);

@@ -185,13 +185,10 @@ static EVENT_HANDLER *_msg_dispatch = NULL;
 static REQUEST_LIST *_request_list;
 static INT _request_list_entries = 0;
 
-static EVENT_HEADER *_event_buffer;
-static INT _event_buffer_size = 0;
-
-static char *_tcp_buffer = NULL;
-static INT _tcp_wp = 0;
-static INT _tcp_rp = 0;
-static INT _tcp_sock = 0;
+//static char *_tcp_buffer = NULL;
+//static INT _tcp_wp = 0;
+//static INT _tcp_rp = 0;
+//static INT _tcp_sock = 0;
 
 static MUTEX_T *_mutex_rpc = NULL; // mutex to protect RPC calls
 
@@ -3113,18 +3110,6 @@ INT cm_disconnect_experiment(void) {
    //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after deleting message ring buffer");
    //cm_msg_flush_buffer();
 
-   /* free memory buffers */
-   if (_event_buffer_size > 0) {
-      M_FREE(_event_buffer);
-      _event_buffer = NULL;
-      _event_buffer_size = 0;
-   }
-
-   if (_tcp_buffer != NULL) {
-      M_FREE(_tcp_buffer);
-      _tcp_buffer = NULL;
-   }
-
    //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after disconnect is completed");
    //cm_msg_flush_buffer();
 
@@ -5527,34 +5512,38 @@ should call this function periodically, every 1 or 2 seconds.
 @return CM_SUCCESS
 */
 INT cm_periodic_tasks() {
-   static DWORD alarm_last_checked = 0;
-   DWORD now = ss_time();
+   static DWORD alarm_last_checked_sec = 0;
+   DWORD now_sec = ss_time();
 
    DWORD now_millitime = ss_millitime();
    static DWORD last_millitime = 0;
    DWORD tdiff_millitime = now_millitime - last_millitime;
+   const DWORD kPeriod = 1000;
    if (last_millitime == 0) {
       last_millitime = now_millitime;
-      tdiff_millitime = 0;
+      tdiff_millitime = kPeriod; // make sure first time we come here we do something.
    }
+
+   //printf("cm_periodic_tasks! tdiff_millitime %d\n", (int)tdiff_millitime);
 
    //if (now_millitime < last_millitime) {
    //   printf("millitime wraparound 0x%08x -> 0x%08x\n", last_millitime, now_millitime);
    //}
 
    /* check alarms once every 10 seconds */
-   if (now - alarm_last_checked > 10) {
+   if (now_sec - alarm_last_checked_sec > 10) {
       al_check();
-      alarm_last_checked = now;
+      alarm_last_checked_sec = now_sec;
    }
 
    /* run periodic checks previously done by cm_watchdog */
 
-   if (tdiff_millitime > 1000) {
+   if (tdiff_millitime >= kPeriod) {
       BOOL wrong_interval = FALSE;
       if (tdiff_millitime > 60000)
          wrong_interval = TRUE;
-      // printf("millitime %u, diff %u, wrong_interval %d\n", now_millitime, tdiff_millitime, wrong_interval);
+
+      //printf("millitime %u, diff %u, wrong_interval %d\n", now_millitime, tdiff_millitime, wrong_interval);
 
       bm_cleanup("cm_periodic_tasks", now_millitime, wrong_interval);
       db_cleanup("cm_periodic_tasks", now_millitime, wrong_interval);
@@ -6095,7 +6084,29 @@ static BOOL bm_validate_rp(const char *who, const BUFFER_HEADER *pheader, int rp
    return TRUE;
 }
 
-static int bm_incr_rp_no_check(const BUFFER_HEADER *pheader, int rp, int total_size) {
+#if 0
+static FILE* gRpLog = NULL;
+#endif
+
+static int bm_incr_rp_no_check(const BUFFER_HEADER *pheader, int rp, int total_size)
+{
+#if 0
+   if (gRpLog == NULL) {
+      gRpLog = fopen("rp.log", "a");
+   }
+   if (gRpLog && (total_size < 16)) {
+      const char *pdata = (const char *) (pheader + 1);
+      const DWORD *pevent = (const DWORD*) (pdata + rp);
+      fprintf(gRpLog, "%s: rp %d, total_size %d, at rp 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x\n", pheader->name, rp, total_size,
+              pevent[0], pevent[1], pevent[2], pevent[3], pevent[4], pevent[5]);
+   }
+#endif
+
+   // these checks are already done before we come here.
+   // but we check again as last-ressort protection. K.O.
+   assert(total_size > 0);
+   assert(total_size >= sizeof(EVENT_HEADER));
+
    rp += total_size;
    if (rp >= pheader->size) {
       rp -= pheader->size;
@@ -6752,6 +6763,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
       ss_mutex_create(&pbuf->read_cache_mutex, FALSE);
 
       bm_clear_buffer_statistics(hDB, pbuf);
+      bm_write_buffer_statistics_to_odb(hDB, pbuf, true);
 
       *buffer_handle = (handle + 1);
 
@@ -6947,7 +6959,11 @@ INT bm_write_statistics_to_odb(void) {
       HNDLE hDB;
 
       status = cm_get_experiment_database(&hDB, NULL);
-      assert(status == DB_SUCCESS);
+
+      if (status != CM_SUCCESS) {
+         //printf("bm_write_statistics_to_odb: cannot get ODB handle!\n");
+         return BM_SUCCESS;
+      }
 
       int i;
       for (i = 0; i < _buffer_entries; i++) {
@@ -7543,17 +7559,19 @@ static INT bm_get_buffer(const char *who, int buffer_handle, BUFFER **pbuf) {
 static void bm_lock_buffer(BUFFER *pbuf) {
    // NB: locking order: 1st buffer mutex, 2nd buffer semaphore. Unlock in reverse order.
 
+   //if (pbuf->locked) {
+   //   fprintf(stderr, "double lock, abort!\n");
+   //   abort();
+   //}
+
    if (pbuf->buffer_mutex)
       ss_mutex_wait_for(pbuf->buffer_mutex, _bm_mutex_timeout);
 
    int status = ss_semaphore_wait_for(pbuf->semaphore, _bm_lock_timeout);
 
    if (status != SS_SUCCESS) {
-      cm_msg(MERROR, "bm_lock_buffer", "Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...",
-             pbuf->buffer_header->name, status);
-      fprintf(stderr,
-              "bm_lock_buffer: Error: Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...\n",
-              pbuf->buffer_header->name, status);
+      cm_msg(MERROR, "bm_lock_buffer", "Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...", pbuf->buffer_header->name, status);
+      fprintf(stderr, "bm_lock_buffer: Error: Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...\n", pbuf->buffer_header->name, status);
       abort();
       /* DOES NOT RETURN */
    }
@@ -8371,21 +8389,19 @@ static int bm_peek_buffer_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, BUFFER_CL
    if (pc->read_pointer == pheader->write_pointer) {
       /* no more events buffered for this client */
       if (!pc->read_wait) {
-         //printf("bm_peek_buffer: buffer [%s] client [%s], set read_wait!\n", pheader->name, pc->name);
+         //printf("bm_peek_buffer_locked: buffer [%s] client [%s], set read_wait!\n", pheader->name, pc->name);
          pc->read_wait = TRUE;
       }
       return BM_ASYNC_RETURN;
    }
 
    if (pc->read_wait) {
-      //printf("bm_peek_buffer: buffer [%s] client [%s], clear read_wait!\n", pheader->name, pc->name);
+      //printf("bm_peek_buffer_locked: buffer [%s] client [%s], clear read_wait!\n", pheader->name, pc->name);
       pc->read_wait = FALSE;
    }
 
    if ((pc->read_pointer < 0) || (pc->read_pointer >= pheader->size)) {
-      cm_msg(MERROR, "bm_peek_buffer",
-             "event buffer \"%s\" is corrupted: client \"%s\" read pointer %d is invalid. buffer read pointer %d, write pointer %d, size %d",
-             pheader->name, pc->name, pc->read_pointer, pheader->read_pointer, pheader->write_pointer, pheader->size);
+      cm_msg(MERROR, "bm_peek_buffer_locked", "event buffer \"%s\" is corrupted: client \"%s\" read pointer %d is invalid. buffer read pointer %d, write pointer %d, size %d", pheader->name, pc->name, pc->read_pointer, pheader->read_pointer, pheader->write_pointer, pheader->size);
       return BM_CORRUPTED;
    }
 
@@ -8396,10 +8412,7 @@ static int bm_peek_buffer_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, BUFFER_CL
    int total_size = ALIGN8(event_size);
 
    if ((total_size <= 0) || (total_size > pheader->size)) {
-      cm_msg(MERROR, "bm_peek_buffer",
-             "event buffer \"%s\" is corrupted: client \"%s\" read pointer %d points to invalid event: data_size %d, event_size %d, total_size %d. buffer size: %d, read_pointer: %d, write_pointer: %d",
-             pheader->name, pc->name, pc->read_pointer, pevent->data_size, event_size, total_size, pheader->size,
-             pheader->read_pointer, pheader->write_pointer);
+      cm_msg(MERROR, "bm_peek_buffer_locked", "event buffer \"%s\" is corrupted: client \"%s\" read pointer %d points to invalid event: data_size %d, event_size %d, total_size %d. buffer size: %d, read_pointer: %d, write_pointer: %d", pheader->name, pc->name, pc->read_pointer, pevent->data_size, event_size, total_size, pheader->size, pheader->read_pointer, pheader->write_pointer);
       return BM_CORRUPTED;
    }
 
@@ -8416,8 +8429,9 @@ static int bm_peek_buffer_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, BUFFER_CL
    return BM_SUCCESS;
 }
 
-static void bm_read_from_buffer_locked(BUFFER_HEADER *pheader, int rp, char *buf, int event_size) {
-   char *pdata = (char *) (pheader + 1);
+static void bm_read_from_buffer_locked(const BUFFER_HEADER *pheader, int rp, char *buf, int event_size)
+{
+   const char *pdata = (const char *) (pheader + 1);
 
    if (rp + event_size <= pheader->size) {
       /* copy event to cache */
@@ -8427,6 +8441,21 @@ static void bm_read_from_buffer_locked(BUFFER_HEADER *pheader, int rp, char *buf
       int size = pheader->size - rp;
       memcpy(buf, pdata + rp, size);
       memcpy(buf + size, pdata, event_size - size);
+   }
+}
+
+static void bm_read_from_buffer_locked(const BUFFER_HEADER *pheader, int rp, std::vector<char> *vecptr, int event_size)
+{
+   const char *pdata = (const char *) (pheader + 1);
+
+   if (rp + event_size <= pheader->size) {
+      /* copy event to cache */
+      vecptr->assign(pdata + rp, pdata + rp + event_size);
+   } else {
+      /* event is splitted */
+      int size = pheader->size - rp;
+      vecptr->assign(pdata + rp, pdata + rp + size);
+      vecptr->insert(vecptr->end(), pdata, pdata + event_size - size);
    }
 }
 
@@ -8454,29 +8483,28 @@ static BOOL bm_check_requests(const BUFFER_CLIENT *pc, const EVENT_HEADER *peven
    return is_requested;
 }
 
-static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, BUFFER_CLIENT *pc, int async_flag,
-                                          BOOL unlock_read_cache);
+static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, BUFFER_CLIENT *pc, int timeout_msec, BOOL unlock_read_cache);
 
-static int bm_fill_read_cache_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, int async_flag) {
+static int bm_fill_read_cache_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, int timeout_msec) {
    BUFFER_CLIENT *pc = bm_get_my_client(pbuf, pheader);
    BOOL need_wakeup = FALSE;
    int count_events = 0;
 
-   //printf("bm_fill_read_cache: [%s] async %d, size %d, rp %d, wp %d\n", pheader->name, async_flag, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp);
+   //printf("bm_fill_read_cache: [%s] timeout %d, size %d, rp %d, wp %d\n", pheader->name, timeout_msec, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp);
 
    /* loop over all events in the buffer */
 
    while (1) {
-      EVENT_HEADER *pevent;
-      int event_size;
-      int total_size;
+      EVENT_HEADER *pevent = NULL;
+      int event_size = 3; // poison value
+      int total_size = 3; // poison value
 
       int status = bm_peek_buffer_locked(pbuf, pheader, pc, &pevent, &event_size, &total_size);
       if (status == BM_CORRUPTED) {
          return status;
       } else if (status != BM_SUCCESS) {
          /* event buffer is empty */
-         if (async_flag == BM_NO_WAIT) {
+         if (timeout_msec == BM_NO_WAIT) {
             if (need_wakeup)
                bm_wakeup_producers_locked(pheader, pc);
             //printf("bm_fill_read_cache: [%s] async %d, size %d, rp %d, wp %d, events %d, buffer is empty\n", pheader->name, async_flag, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp, count_events);
@@ -8486,14 +8514,16 @@ static int bm_fill_read_cache_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, int a
             }
             return BM_SUCCESS;
          }
-         int status = bm_wait_for_more_events_locked(pbuf, pheader, pc, async_flag, TRUE);
+         int status = bm_wait_for_more_events_locked(pbuf, pheader, pc, timeout_msec, TRUE);
          if (status != BM_SUCCESS) {
             // we only come here with SS_ABORT & co
             //printf("bm_fill_read_cache: [%s] async %d, size %d, rp %d, wp %d, events %d, bm_wait_for_more_events() status %d\n", pheader->name, async_flag, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp, count_events, status);
             return status;
          }
          // make sure we wait for new event only once
-         async_flag = BM_NO_WAIT;
+         timeout_msec = BM_NO_WAIT;
+         // go back to bm_peek_buffer_locked
+         continue;
       }
 
       /* loop over all requests: if this event matches a request,
@@ -8542,7 +8572,8 @@ static void bm_convert_event_header(EVENT_HEADER *pevent, int convert_flags) {
    }
 }
 
-static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int async_flag, int requested_space) {
+static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int timeout_msec, int requested_space)
+{
    int status;
    BUFFER_HEADER *pheader = pbuf->buffer_header;
    char *pdata = (char *) (pheader + 1);
@@ -8557,7 +8588,10 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int as
    if (requested_space >= pheader->size)
       return BM_NO_MEMORY;
 
-   DWORD blocking_time = 0;
+   DWORD time_start = ss_millitime();
+   DWORD time_end = time_start + timeout_msec;
+
+   //DWORD blocking_time = 0;
    int blocking_loops = 0;
    int blocking_client_index = -1;
    char blocking_client_name[NAME_LENGTH];
@@ -8571,9 +8605,7 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int as
          if (free <= 0)
             free += pheader->size;
 
-#if 0
-         printf("bm_wait_for_free_space: buffer pointers: read: %d, write: %d, free space: %d, bufsize: %d, event size: %d\n", pheader->read_pointer, pheader->write_pointer, free, pheader->size, requested_space);
-#endif
+         //printf("bm_wait_for_free_space: buffer pointers: read: %d, write: %d, free space: %d, bufsize: %d, event size: %d, timeout %d\n", pheader->read_pointer, pheader->write_pointer, free, pheader->size, requested_space, timeout_msec);
 
          if (requested_space < free) { /* note the '<' to avoid 100% filling */
             //if (blocking_loops) {
@@ -8593,6 +8625,10 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int as
                   pbuf->client_time_write_wait[iclient] += wait_time;
                }
             }
+
+            //if (blocking_loops > 0) {
+            //   printf("bm_wait_for_free_space: buffer pointers: read: %d, write: %d, free space: %d, bufsize: %d, event size: %d, timeout %d, found space after %d waits\n", pheader->read_pointer, pheader->write_pointer, free, pheader->size, requested_space, timeout_msec, blocking_loops);
+            //}
 
             return BM_SUCCESS;
          }
@@ -8674,9 +8710,13 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int as
          if (blocking_client >= 0) {
             blocking_client_index = blocking_client;
             strlcpy(blocking_client_name, pheader->client[blocking_client].name, sizeof(blocking_client_name));
-            if (!blocking_time) {
-               blocking_time = ss_millitime();
-            }
+            //if (!blocking_time) {
+            //   blocking_time = ss_millitime();
+            //}
+
+            //printf("bm_wait_for_free_space: buffer pointers: read: %d, write: %d, free space: %d, bufsize: %d, event size: %d, timeout %d, must wait for more space!\n", pheader->read_pointer, pheader->write_pointer, free, pheader->size, requested_space, timeout_msec);
+
+            // from this "break" we go into timeout check and sleep/wait.
             break;
          }
 
@@ -8714,9 +8754,32 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int as
          pbuf->wait_client_index = blocking_client_index;
       }
 
-      /* return now in ASYNC mode */
-      if (async_flag == BM_NO_WAIT)
+      DWORD now = ss_millitime();
+
+      //printf("bm_wait_for_free_space: start 0x%08x, now 0x%08x, end 0x%08x, timeout %d, wait %d\n", time_start, now, time_end, timeout_msec, time_end - now);
+
+      int sleep_time_msec = 1000;
+
+      if (timeout_msec == BM_WAIT) {
+         // wait forever
+      } else if (timeout_msec == BM_NO_WAIT) {
+         // no wait
          return BM_ASYNC_RETURN;
+      } else {
+         // check timeout
+         if (now >= time_end) {
+            // timeout!
+            return BM_ASYNC_RETURN;
+         }
+
+         sleep_time_msec = time_end - now;
+
+         if (sleep_time_msec <= 0) {
+            sleep_time_msec = 10;
+         } else if (sleep_time_msec > 1000) {
+            sleep_time_msec = 1000;
+         }
+      }
 
       ss_suspend_get_buffer_port(ss_gettid(), &pc->port);
 
@@ -8725,8 +8788,7 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int as
       //printf("bm_wait_for_free_space: blocking client \"%s\"\n", blocking_client_name);
 
 #ifdef DEBUG_MSG
-      cm_msg(MDEBUG, "Send sleep: rp=%d, wp=%d, level=%1.1lf",
-             pheader->read_pointer, pheader->write_pointer, 100 - 100.0 * size / pheader->size);
+      cm_msg(MDEBUG, "Send sleep: rp=%d, wp=%d, level=%1.1lf", pheader->read_pointer, pheader->write_pointer, 100 - 100.0 * size / pheader->size);
 #endif
 
       ///* signal other clients wait mode */
@@ -8734,9 +8796,9 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int as
       //if (idx >= 0)
       //   pheader->client[idx].write_wait = requested_space;
 
-      bm_cleanup("bm_wait_for_free_space", ss_millitime(), FALSE);
+      //bm_cleanup("bm_wait_for_free_space", ss_millitime(), FALSE);
 
-      status = ss_suspend(1000, MSG_BM);
+      status = ss_suspend(sleep_time_msec, MSG_BM);
 
       /* make sure we do sleep in this loop:
        * if we are the mserver receiving data on the event
@@ -8745,8 +8807,21 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int as
        * call rpc_server_receive() (recursively, we already *are* in
        * rpc_server_receive()) and return without sleeping. Result
        * is a busy loop waiting for free space in data buffer */
-      if (status != SS_TIMEOUT)
-         ss_sleep(10);
+
+      /* update May 2021: ss_suspend(MSG_BM) no longer looks at
+       * the event socket, and should sleep now, so this sleep below
+       * maybe is not needed now. but for safety, I keep it. K.O. */
+
+      if (status != SS_TIMEOUT) {
+         //printf("ss_suspend: status %d\n", status);
+         ss_sleep(1);
+      }
+
+      /* we may be stuck in this loop for an arbitrary long time,
+       * depending on how other buffer clients read the accumulated data
+       * so we should update all the timeouts & etc. K.O. */
+
+      cm_periodic_tasks();
 
       bm_lock_buffer(pbuf);
 
@@ -8771,21 +8846,22 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int as
       }
 
 #ifdef DEBUG_MSG
-      cm_msg(MDEBUG, "Send woke up: rp=%d, wp=%d, level=%1.1lf",
-             pheader->read_pointer, pheader->write_pointer, 100 - 100.0 * size / pheader->size);
+      cm_msg(MDEBUG, "Send woke up: rp=%d, wp=%d, level=%1.1lf", pheader->read_pointer, pheader->write_pointer, 100 - 100.0 * size / pheader->size);
 #endif
 
    }
 }
 
-static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, BUFFER_CLIENT *pc, int async_flag, BOOL unlock_read_cache)
+static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, BUFFER_CLIENT *pc, int timeout_msec, BOOL unlock_read_cache)
 {
+   //printf("bm_wait_for_more_events_locked: [%s] timeout %d\n", pheader->name, timeout_msec);
+   
    if (pc->read_pointer != pheader->write_pointer) {
       // buffer has data
       return BM_SUCCESS;
    }
 
-   if (async_flag == BM_NO_WAIT) {
+   if (timeout_msec == BM_NO_WAIT) {
       /* event buffer is empty and we are told to not wait */
       if (!pc->read_wait) {
          //printf("bm_wait_for_more_events: buffer [%s] client [%s] set read_wait in BM_NO_WAIT!\n", pheader->name, pc->name);
@@ -8794,6 +8870,20 @@ static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, 
       return BM_ASYNC_RETURN;
    }
 
+   DWORD time_start = ss_millitime();
+   DWORD time_wait  = time_start + timeout_msec;
+   DWORD sleep_time = 1000;
+   if (timeout_msec == BM_NO_WAIT) {
+      // default sleep time
+   } else if (timeout_msec == BM_WAIT) {
+      // default sleep time
+   } else {
+      if (sleep_time > timeout_msec)
+         sleep_time = timeout_msec;
+   }
+
+   //printf("time start 0x%08x, end 0x%08x, sleep %d\n", time_start, time_wait, sleep_time);
+
    while (pc->read_pointer == pheader->write_pointer) {
       /* wait until there is data in the buffer (write pointer moves) */
 
@@ -8801,6 +8891,8 @@ static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, 
          //printf("bm_wait_for_more_events: buffer [%s] client [%s] set read_wait!\n", pheader->name, pc->name);
          pc->read_wait = TRUE;
       }
+
+      pc->last_activity = ss_millitime();
 
       ss_suspend_get_buffer_port(ss_gettid(), &pc->port);
 
@@ -8812,7 +8904,24 @@ static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, 
          if (pbuf->read_cache_mutex)
             ss_mutex_release(pbuf->read_cache_mutex);
 
-      int status = ss_suspend(1000, MSG_BM);
+      int status = ss_suspend(sleep_time, MSG_BM);
+
+      if (timeout_msec == BM_NO_WAIT) {
+         // return immediately
+      } else if (timeout_msec == BM_WAIT) {
+         // wait forever
+      } else {
+         DWORD now = ss_millitime();
+         //printf("check timeout: now 0x%08x, end 0x%08x, diff %d\n", now, time_wait, time_wait - now);
+         if (now >= time_wait) {
+            timeout_msec = BM_NO_WAIT; // cause immediate return
+         } else {
+            sleep_time = time_wait - now;
+            if (sleep_time > 1000)
+               sleep_time = 1000;
+            //printf("time start 0x%08x, now 0x%08x, end 0x%08x, sleep %d\n", time_start, now, time_wait, sleep_time);
+         }
+      }
 
       // NB: locking order is: 1st read cache lock, 2nd buffer lock, unlock in reverse order
 
@@ -8830,6 +8939,9 @@ static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, 
       /* return if TCP connection broken */
       if (status == SS_ABORT)
          return SS_ABORT;
+
+      if (timeout_msec == BM_NO_WAIT)
+         return BM_ASYNC_RETURN;
    }
 
    if (pc->read_wait) {
@@ -8840,14 +8952,20 @@ static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, 
    return BM_SUCCESS;
 }
 
-static void bm_write_to_buffer_locked(BUFFER_HEADER *pheader, const void *pevent, int event_size, int total_size) {
+static void bm_write_to_buffer_locked(BUFFER_HEADER *pheader, int sg_n, const char* const sg_ptr[], const size_t sg_len[], size_t total_size)
+{
    char *pdata = (char *) (pheader + 1);
 
    //int old_write_pointer = pheader->write_pointer;
 
    /* new event fits into the remaining space? */
    if (pheader->write_pointer + total_size <= pheader->size) {
-      memcpy(pdata + pheader->write_pointer, pevent, event_size);
+      //memcpy(pdata + pheader->write_pointer, pevent, event_size);
+      char* wptr = pdata + pheader->write_pointer;
+      for (int i=0; i<sg_n; i++) {
+         memcpy(wptr, sg_ptr[i], sg_len[i]);
+         wptr += sg_len[i];
+      }
       pheader->write_pointer = pheader->write_pointer + total_size;
       assert(pheader->write_pointer <= pheader->size);
       /* remaining space is smaller than size of an event header? */
@@ -8860,10 +8978,55 @@ static void bm_write_to_buffer_locked(BUFFER_HEADER *pheader, const void *pevent
       }
    } else {
       /* split event */
-      int size = pheader->size - pheader->write_pointer;
+      size_t size = pheader->size - pheader->write_pointer;
 
-      memcpy(pdata + pheader->write_pointer, pevent, size);
-      memcpy(pdata, ((const char *) pevent) + size, event_size - size);
+      //printf("split: wp %d, size %d, avail %d\n", pheader->write_pointer, pheader->size, size);
+
+      //memcpy(pdata + pheader->write_pointer, pevent, size);
+      //memcpy(pdata, ((const char *) pevent) + size, event_size - size);
+
+      char* wptr = pdata + pheader->write_pointer;
+      size_t count = 0;
+
+      // copy first part
+
+      int i = 0;
+      for (; i<sg_n; i++) {
+         if (count + sg_len[i] > size)
+            break;
+         memcpy(wptr, sg_ptr[i], sg_len[i]);
+         wptr  += sg_len[i];
+         count += sg_len[i];
+      }
+
+      //printf("wptr %d, count %d\n", wptr-pdata, count);
+
+      // split segment
+
+      size_t first = size - count;
+      size_t second = sg_len[i] - first;
+      assert(first + second == sg_len[i]);
+      assert(count + first == size);
+      
+      //printf("first %d, second %d\n", first, second);
+      
+      memcpy(wptr, sg_ptr[i], first);
+      wptr = pdata + 0;
+      count += first;
+      memcpy(wptr, sg_ptr[i] + first, second);
+      wptr  += second;
+      count += second;
+      i++;
+
+      // copy remaining
+
+      for (; i<sg_n; i++) {
+         memcpy(wptr, sg_ptr[i], sg_len[i]);
+         wptr  += sg_len[i];
+         count += sg_len[i];
+      }
+
+      //printf("wptr %d, count %d\n", wptr-pdata, count);
 
       //printf("bm_write_to_buffer_locked: wrap wp %d -> %d. buffer size %d, available %d, wrote %d, remaining %d, event size %d, total size %d\n", pheader->write_pointer, total_size-size, pheader->size, pheader->size-pheader->write_pointer, size, pheader->size - (pheader->write_pointer+size), event_size, total_size);
 
@@ -8902,6 +9065,111 @@ static void bm_notify_reader_locked(BUFFER_HEADER *pheader, BUFFER_CLIENT *pc, i
 }
 
 #endif // LOCAL_ROUTINES
+
+#if 0
+INT bm_send_event_rpc(INT buffer_handle, const EVENT_HEADER *pevent, int event_size, int timeout_msec)
+{
+   //printf("bm_send_event_rpc: handle %d, size %d, timeout %d\n", buffer_handle, event_size, timeout_msec);
+
+   DWORD time_start = ss_millitime();
+   DWORD time_end = time_start + timeout_msec;
+   
+   int xtimeout_msec = timeout_msec;
+
+   while (1) {
+      if (timeout_msec == BM_WAIT) {
+         xtimeout_msec = 1000;
+      } else if (timeout_msec == BM_NO_WAIT) {
+         xtimeout_msec = BM_NO_WAIT;
+      } else {
+         if (xtimeout_msec > 1000) {
+            xtimeout_msec = 1000;
+         }
+      }
+   
+      int status = rpc_call(RPC_BM_SEND_EVENT, buffer_handle, pevent, event_size, xtimeout_msec);
+
+      //printf("bm_send_event_rpc: handle %d, size %d, timeout %d, status %d\n", buffer_handle, event_size, xtimeout_msec, status);
+
+      if (status == BM_ASYNC_RETURN) {
+         if (timeout_msec == BM_WAIT) {
+            // BM_WAIT means wait forever
+            continue;
+         } else if (timeout_msec == BM_NO_WAIT) {
+            // BM_NO_WAIT means do not wait
+            return status;
+         } else {
+            DWORD now = ss_millitime();
+            if (now >= time_end) {
+               // timeout, return BM_ASYNC_RETURN
+               return status;
+            }
+
+            DWORD remain = time_end - now;
+
+            if (remain < xtimeout_msec) {
+               xtimeout_msec = remain;
+            }
+
+            // keep asking for event...
+            continue;
+         }
+      } else if (status == BM_SUCCESS) {
+         // success, return BM_SUCCESS
+         return status;
+      } else {
+         // error
+         return status;
+      }
+   }
+}
+#endif
+
+INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, int unused, int timeout_msec)
+{
+   const DWORD MAX_DATA_SIZE = (0x7FFFFFF0 - 16); // event size computations are not 32-bit clean, limit event size to 2GB. K.O.
+   const DWORD data_size = pevent->data_size; // 32-bit unsigned value
+
+   if (data_size == 0) {
+      cm_msg(MERROR, "bm_send_event", "invalid event data size zero");
+      return BM_INVALID_SIZE;
+   }
+
+   if (data_size > MAX_DATA_SIZE) {
+      cm_msg(MERROR, "bm_send_event", "invalid event data size %d (0x%x) maximum is %d (0x%x)", data_size, data_size, MAX_DATA_SIZE, MAX_DATA_SIZE);
+      return BM_INVALID_SIZE;
+   }
+
+   const size_t event_size = sizeof(EVENT_HEADER) + data_size;
+
+   //printf("bm_send_event: pevent %p, data_size %d, event_size %d, buf_size %d\n", pevent, data_size, event_size, unused);
+
+   if (rpc_is_remote()) {
+      //return bm_send_event_rpc(buffer_handle, pevent, event_size, timeout_msec);
+      return rpc_send_event_sg(buffer_handle, 1, (char**)&pevent, &event_size);
+   } else {
+      return bm_send_event_sg(buffer_handle, 1, (char**)&pevent, &event_size, timeout_msec);
+   }
+}
+
+int bm_send_event_vec(int buffer_handle, const std::vector<char>& event, int timeout_msec)
+{
+   const char* cptr = event.data();
+   size_t clen = event.size();
+   return bm_send_event_sg(buffer_handle, 1, &cptr, &clen, timeout_msec);
+}
+
+int bm_send_event_vec(int buffer_handle, const std::vector<std::vector<char>>& event, int timeout_msec)
+{
+   int sg_n = event.size();
+   const char* sg_ptr[sg_n];
+   size_t sg_len[sg_n];
+   for (size_t i=0; i<sg_n; i++) {
+      sg_ptr[i] = event[i].data();
+      sg_len[i] = event[i].size();
+   }
+   return bm_send_event_sg(buffer_handle, sg_n, sg_ptr, sg_len, timeout_msec);
+}
 
 /********************************************************************/
 /**
@@ -8943,19 +9211,38 @@ main()
 @param buffer_handle Buffer handle obtained via bm_open_buffer()
 @param source Address of event buffer
 @param buf_size Size of event including event header in bytes
-@param async_flag Synchronous/asynchronous flag. If BM_WAIT, the function
-blocks if the buffer has not enough free space to receive the event.
+@param timeout_msec Timeout waiting for free space in the event buffer. If BM_WAIT, wait forever.
 If BM_NO_WAIT, the function returns immediately with a
 value of BM_ASYNC_RETURN without writing the event to the buffer
 @return BM_SUCCESS, BM_INVALID_HANDLE, BM_INVALID_PARAM<br>
-BM_ASYNC_RETURN Routine called with async_flag == BM_NO_WAIT and
+BM_ASYNC_RETURN Routine called with timeout_msec == BM_NO_WAIT and
 buffer has not enough space to receive event<br>
 BM_NO_MEMORY   Event is too large for network buffer or event buffer.
 One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
 and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
-INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, INT unused, INT async_flag) {
+int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], const size_t sg_len[], int timeout_msec)
+{
+   if (rpc_is_remote())
+      return rpc_send_event_sg(buffer_handle, sg_n, sg_ptr, sg_len);
 
+   if (sg_n < 1) {
+      cm_msg(MERROR, "bm_send_event", "invalid sg_n %d", sg_n);
+      return BM_INVALID_SIZE;
+   }
+
+   if (sg_ptr[0] == NULL) {
+      cm_msg(MERROR, "bm_send_event", "invalid sg_ptr[0] is NULL");
+      return BM_INVALID_SIZE;
+   }
+
+   if (sg_len[0] < sizeof(EVENT_HEADER)) {
+      cm_msg(MERROR, "bm_send_event", "invalid sg_len[0] value %d is smaller than event header size %d", (int)sg_len[0], (int)sizeof(EVENT_HEADER));
+      return BM_INVALID_SIZE;
+   }
+
+   const EVENT_HEADER* pevent = (const EVENT_HEADER*)sg_ptr[0];
+   
    const DWORD MAX_DATA_SIZE = (0x7FFFFFF0 - 16); // event size computations are not 32-bit clean, limit event size to 2GB. K.O.
    const DWORD data_size = pevent->data_size; // 32-bit unsigned value
 
@@ -8969,12 +9256,20 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, INT unused, INT
       return BM_INVALID_SIZE;
    }
 
-   const int event_size = sizeof(EVENT_HEADER) + data_size;
+   const size_t event_size = sizeof(EVENT_HEADER) + data_size;
+   const size_t total_size = ALIGN8(event_size);
 
-   //printf("bm_send_event: pevent %p, data_size %d, event_size %d, buf_size %d\n", pevent, data_size, event_size, unused);
+   size_t count = 0;
+   for (int i=0; i<sg_n; i++) {
+      count += sg_len[i];
+   }
 
-   if (rpc_is_remote())
-      return rpc_call(RPC_BM_SEND_EVENT, buffer_handle, pevent, event_size, async_flag);
+   if (count != event_size) {
+      cm_msg(MERROR, "bm_send_event", "data size mismatch: event data_size %d, event_size %d not same as sum of sg_len %d", (int)data_size, (int)event_size, (int)count);
+      return BM_INVALID_SIZE;
+   }
+
+   //printf("bm_send_event_sg: pevent %p, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", pevent, pevent->event_id, pevent->serial_number, (int)pevent->data_size, (int)event_size, (int)total_size);
 
 #ifdef LOCAL_ROUTINES
    {
@@ -8993,7 +9288,7 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, INT unused, INT
       }
 
       /* round up total_size to next DWORD boundary */
-      int total_size = ALIGN8(event_size);
+      //int total_size = ALIGN8(event_size);
 
       /* NB: !!!the write cache is not thread-safe!!! */
 
@@ -9010,7 +9305,7 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, INT unused, INT
                //printf("bm_send_event: write %d/%d but cache is full, size %d, wp %d\n", event_size, total_size, pbuf->write_cache_size, pbuf->write_cache_wp);
                if (pbuf->write_cache_mutex)
                   ss_mutex_release(pbuf->write_cache_mutex);
-               status = bm_flush_cache(buffer_handle, async_flag);
+               status = bm_flush_cache(buffer_handle, timeout_msec);
                if (status != BM_SUCCESS) {
                   return status;
                }
@@ -9021,8 +9316,13 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, INT unused, INT
             /* write this event into the write cache, if it fits */
             if (pbuf->write_cache_wp + total_size <= pbuf->write_cache_size) {
                //printf("bm_send_event: write %d/%d to cache size %d, wp %d\n", event_size, total_size, pbuf->write_cache_size, pbuf->write_cache_wp);
-
-               memcpy(pbuf->write_cache + pbuf->write_cache_wp, pevent, event_size);
+               
+               char* wptr = pbuf->write_cache + pbuf->write_cache_wp;
+               
+               for (int i=0; i<sg_n; i++) {
+                  memcpy(wptr, sg_ptr[i], sg_len[i]);
+                  wptr += sg_len[i];
+               }
 
                pbuf->write_cache_wp += total_size;
 
@@ -9056,12 +9356,11 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, INT unused, INT
       /* check if buffer is large enough */
       if (total_size >= pheader->size) {
          bm_unlock_buffer(pbuf);
-         cm_msg(MERROR, "bm_send_event", "total event size (%d) larger than size (%d) of buffer \'%s\'", total_size,
-                pheader->size, pheader->name);
+         cm_msg(MERROR, "bm_send_event", "total event size (%d) larger than size (%d) of buffer \'%s\'", (int)total_size, pheader->size, pheader->name);
          return BM_NO_MEMORY;
       }
 
-      status = bm_wait_for_free_space_locked(buffer_handle, pbuf, async_flag, total_size);
+      status = bm_wait_for_free_space_locked(buffer_handle, pbuf, timeout_msec, total_size);
       if (status != BM_SUCCESS) {
          bm_unlock_buffer(pbuf);
          return status;
@@ -9077,7 +9376,7 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, INT unused, INT
 
       int old_write_pointer = pheader->write_pointer;
 
-      bm_write_to_buffer_locked(pheader, pevent, event_size, total_size);
+      bm_write_to_buffer_locked(pheader, sg_n, sg_ptr, sg_len, total_size);
 
       /* write pointer was incremented, but there should
        * always be some free space in the buffer and the
@@ -9117,6 +9416,63 @@ INT bm_send_event(INT buffer_handle, const EVENT_HEADER *pevent, INT unused, INT
    return BM_SUCCESS;
 }
 
+static int bm_flush_cache_rpc(int buffer_handle, int timeout_msec)
+{
+   //printf("bm_flush_cache_rpc: handle %d, timeout %d\n", buffer_handle, timeout_msec);
+
+   DWORD time_start = ss_millitime();
+   DWORD time_end = time_start + timeout_msec;
+   
+   int xtimeout_msec = timeout_msec;
+
+   while (1) {
+      if (timeout_msec == BM_WAIT) {
+         xtimeout_msec = 1000;
+      } else if (timeout_msec == BM_NO_WAIT) {
+         xtimeout_msec = BM_NO_WAIT;
+      } else {
+         if (xtimeout_msec > 1000) {
+            xtimeout_msec = 1000;
+         }
+      }
+
+      int status = rpc_call(RPC_BM_FLUSH_CACHE, buffer_handle, xtimeout_msec);
+      
+      //printf("bm_flush_cache_rpc: handle %d, timeout %d, status %d\n", buffer_handle, xtimeout_msec, status);
+
+      if (status == BM_ASYNC_RETURN) {
+         if (timeout_msec == BM_WAIT) {
+            // BM_WAIT means wait forever
+            continue;
+         } else if (timeout_msec == BM_NO_WAIT) {
+            // BM_NO_WAIT means do not wait
+            return status;
+         } else {
+            DWORD now = ss_millitime();
+            if (now >= time_end) {
+               // timeout, return BM_ASYNC_RETURN
+               return status;
+            }
+
+            DWORD remain = time_end - now;
+
+            if (remain < xtimeout_msec) {
+               xtimeout_msec = remain;
+            }
+
+            // keep asking for event...
+            continue;
+         }
+      } else if (status == BM_SUCCESS) {
+         // success, return BM_SUCCESS
+         return status;
+      } else {
+         // error
+         return status;
+      }
+   }
+}
+
 /********************************************************************/
 /**
 Empty write cache.
@@ -9124,10 +9480,9 @@ This function should be used if events in the write cache
 should be visible to the consumers immediately. It should be called at the
 end of each run, otherwise events could be kept in the write buffer and will
 flow to the data of the next run.
-@param buffer_handle Buffer handle obtained via bm_open_buffer()
-@param async_flag Synchronous/asynchronous flag.
-If BM_WAIT, the function blocks if the buffer has not
-enough free space to receive the full cache. If BM_NO_WAIT, the function returns
+@param buffer_handle Buffer handle obtained via bm_open_buffer() or 0 to flush data in the mserver event socket
+@param timeout_msec Timeout waiting for free space in the event buffer.
+If BM_WAIT, wait forever. If BM_NO_WAIT, the function returns
 immediately with a value of BM_ASYNC_RETURN without writing the cache.
 @return BM_SUCCESS, BM_INVALID_HANDLE<br>
 BM_ASYNC_RETURN Routine called with async_flag == BM_NO_WAIT
@@ -9136,9 +9491,11 @@ BM_NO_MEMORY Event is too large for network buffer or event buffer.
 One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
 and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
-INT bm_flush_cache(INT buffer_handle, INT async_flag) {
-   if (rpc_is_remote())
-      return rpc_call(RPC_BM_FLUSH_CACHE, buffer_handle, async_flag);
+INT bm_flush_cache(int buffer_handle, int timeout_msec)
+{
+   if (rpc_is_remote()) {
+      return bm_flush_cache_rpc(buffer_handle, timeout_msec);
+   }
 
 #ifdef LOCAL_ROUTINES
    {
@@ -9179,7 +9536,7 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag) {
       }
 #endif
 
-      status = bm_wait_for_free_space_locked(buffer_handle, pbuf, async_flag, pbuf->write_cache_wp);
+      status = bm_wait_for_free_space_locked(buffer_handle, pbuf, timeout_msec, pbuf->write_cache_wp);
       if (status != BM_SUCCESS) {
          bm_unlock_buffer(pbuf);
          return status;
@@ -9200,6 +9557,7 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag) {
          /* somebody emptied the cache while we were inside bm_wait_for_free_space */
          if (pbuf->write_cache_mutex)
             ss_mutex_release(pbuf->write_cache_mutex);
+         bm_unlock_buffer(pbuf); // this unlock one was missing. K.O. May 2021
          return BM_SUCCESS;
       }
 
@@ -9226,8 +9584,8 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag) {
 #endif
 
          const EVENT_HEADER *pevent = (const EVENT_HEADER *) (pbuf->write_cache + rp);
-         int event_size = (pevent->data_size + sizeof(EVENT_HEADER));
-         int total_size = ALIGN8(event_size);
+         size_t event_size = (pevent->data_size + sizeof(EVENT_HEADER));
+         size_t total_size = ALIGN8(event_size);
 
 #if 0
          printf("bm_flush_cache: cache size %d, wp %d, rp %d, event data_size %d, event_size %d, total_size %d\n",
@@ -9242,7 +9600,7 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag) {
          assert(total_size >= (int) sizeof(EVENT_HEADER));
          assert(total_size <= pheader->size);
 
-         bm_write_to_buffer_locked(pheader, pevent, event_size, total_size);
+         bm_write_to_buffer_locked(pheader, 1, (char**)&pevent, &event_size, total_size);
 
          pbuf->count_sent += 1;
          pbuf->bytes_sent += total_size;
@@ -9324,8 +9682,7 @@ INT bm_flush_cache(INT buffer_handle, INT async_flag) {
 
 #ifdef LOCAL_ROUTINES
 
-static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *buf, INT *buf_size, INT async_flag,
-                          int convert_flags, BOOL dispatch) {
+static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *buf, INT *buf_size, std::vector<char> *vecptr, int timeout_msec, int convert_flags, BOOL dispatch) {
    INT status = BM_SUCCESS;
 
    int max_size = 0;
@@ -9336,7 +9693,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
 
    BUFFER_HEADER *pheader = pbuf->buffer_header;
 
-   //printf("bm_read_buffer: [%s] async %d, conv %d, ptr %p, buf %p, disp %d\n", pheader->name, async_flag, convert_flags, bufptr, buf, dispatch);
+   //printf("bm_read_buffer: [%s] timeout %d, conv %d, ptr %p, buf %p, disp %d\n", pheader->name, timeout_msec, convert_flags, bufptr, buf, dispatch);
 
    BOOL locked = FALSE;
 
@@ -9349,7 +9706,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
       if (pbuf->read_cache_wp == 0) {
          bm_lock_buffer(pbuf);
          locked = TRUE;
-         status = bm_fill_read_cache_locked(pbuf, pheader, async_flag);
+         status = bm_fill_read_cache_locked(pbuf, pheader, timeout_msec);
          if (status != BM_SUCCESS) {
             bm_unlock_buffer(pbuf);
             if (pbuf->read_cache_mutex)
@@ -9370,9 +9727,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
          status = BM_SUCCESS;
          if (buf) {
             if (event_size > max_size) {
-               cm_msg(MERROR, "bm_read_buffer",
-                      "buffer size %d is smaller than event size %d, event truncated. buffer \"%s\"", max_size,
-                      event_size, pheader->name);
+               cm_msg(MERROR, "bm_read_buffer", "buffer size %d is smaller than event size %d, event truncated. buffer \"%s\"", max_size, event_size, pheader->name);
                event_size = max_size;
                status = BM_TRUNCATED;
             }
@@ -9385,11 +9740,14 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
             if (convert_flags) {
                bm_convert_event_header((EVENT_HEADER *) buf, convert_flags);
             }
-         }
-         if (bufptr) {
+         } else if (bufptr) {
             *bufptr = malloc(event_size);
             memcpy(*bufptr, pevent, event_size);
             status = BM_SUCCESS;
+         } else if (vecptr) {
+            vecptr->resize(0);
+            char* cptr = (char*)pevent;
+            vecptr->assign(cptr, cptr+event_size);
          }
          bm_incr_read_cache(pbuf, total_size);
          if (pbuf->read_cache_mutex)
@@ -9419,7 +9777,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
    while (1) {
       /* loop over events in the event buffer */
 
-      status = bm_wait_for_more_events_locked(pbuf, pheader, pc, async_flag, FALSE);
+      status = bm_wait_for_more_events_locked(pbuf, pheader, pc, timeout_msec, FALSE);
 
       if (status != BM_SUCCESS) {
          bm_unlock_buffer(pbuf);
@@ -9469,14 +9827,14 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
 
             pbuf->count_read++;
             pbuf->bytes_read += event_size;
-         }
-
-         if (dispatch || bufptr) {
+         } else if (dispatch || bufptr) {
             assert(event_buffer == NULL); // make sure we only come here once
             event_buffer = (EVENT_HEADER *) malloc(event_size);
-
             bm_read_from_buffer_locked(pheader, pc->read_pointer, (char *) event_buffer, event_size);
-
+            pbuf->count_read++;
+            pbuf->bytes_read += event_size;
+         } else if (vecptr) {
+            bm_read_from_buffer_locked(pheader, pc->read_pointer, vecptr, event_size);
             pbuf->count_read++;
             pbuf->bytes_read += event_size;
          }
@@ -9526,6 +9884,114 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
 }
 
 #endif
+
+static INT bm_receive_event_rpc(INT buffer_handle, void *buf, int *buf_size, EVENT_HEADER** ppevent, std::vector<char>* pvec, int timeout_msec)
+{
+   //printf("bm_receive_event_rpc: handle %d, buf %p, pevent %p, pvec %p, timeout %d, max_event_size %d\n", buffer_handle, buf, ppevent, pvec, timeout_msec, _bm_max_event_size);
+
+   assert(_bm_max_event_size > sizeof(EVENT_HEADER));
+
+   void *xbuf = NULL;
+   int xbuf_size = 0;
+
+   if (buf) {
+      xbuf = buf;
+      xbuf_size = *buf_size;
+   } else if (ppevent) {
+      *ppevent = (EVENT_HEADER*)malloc(_bm_max_event_size);
+      xbuf_size = _bm_max_event_size;
+   } else if (pvec) {
+      pvec->resize(_bm_max_event_size);
+      xbuf = pvec->data();
+      xbuf_size = pvec->size();
+   } else {
+      assert(!"incorrect call to bm_receivent_event_rpc()");
+   }
+
+   int status;
+   DWORD time_start = ss_millitime();
+   DWORD time_end = time_start + timeout_msec;
+   
+   int xtimeout_msec = timeout_msec;
+
+   int zbuf_size = xbuf_size;
+
+   while (1) {
+      if (timeout_msec == BM_WAIT) {
+         xtimeout_msec = 1000;
+      } else if (timeout_msec == BM_NO_WAIT) {
+         xtimeout_msec = BM_NO_WAIT;
+      } else {
+         if (xtimeout_msec > 1000) {
+            xtimeout_msec = 1000;
+         }
+      }
+
+      zbuf_size = xbuf_size;
+
+      status = rpc_call(RPC_BM_RECEIVE_EVENT, buffer_handle, xbuf, &zbuf_size, xtimeout_msec);
+      
+      //printf("bm_receive_event_rpc: handle %d, timeout %d, status %d, size %d in, %d out, via RPC_BM_RECEIVE_EVENT\n", buffer_handle, xtimeout_msec, status, xbuf_size, zbuf_size);
+
+      if (status == BM_ASYNC_RETURN) {
+         if (timeout_msec == BM_WAIT) {
+            // BM_WAIT means wait forever
+            continue;
+         } else if (timeout_msec == BM_NO_WAIT) {
+            // BM_NO_WAIT means do not wait
+            break;
+         } else {
+            DWORD now = ss_millitime();
+            if (now >= time_end) {
+               // timeout, return BM_ASYNC_RETURN
+               break;
+            }
+
+            DWORD remain = time_end - now;
+
+            if (remain < xtimeout_msec) {
+               xtimeout_msec = remain;
+            }
+
+            // keep asking for event...
+            continue;
+         }
+      } else if (status == BM_SUCCESS) {
+         // success, return BM_SUCCESS
+         break;
+      }
+
+      // RPC error
+         
+      if (buf) {
+         *buf_size = 0;
+      } else if (ppevent) {
+         free(*ppevent);
+         *ppevent = NULL;
+      } else if (pvec) {
+         pvec->resize(0);
+      } else {
+         assert(!"incorrect call to bm_receivent_event_rpc()");
+      }
+      
+      return status;
+   }
+
+   // status is BM_SUCCESS or BM_ASYNC_RETURN
+
+   if (buf) {
+      *buf_size = zbuf_size;
+   } else if (ppevent) {
+      // nothing to do
+      // ppevent = realloc(ppevent, xbuf_size); // shrink memory allocation
+   } else if (pvec) {
+      pvec->resize(zbuf_size);
+   } else {
+      assert(!"incorrect call to bm_receivent_event_rpc()");
+   }
+
+   return status;
+}
 
 /********************************************************************/
 /**
@@ -9580,34 +10046,16 @@ main()
 @param destination destination address where event is written to
 @param buf_size size of destination buffer on input, size of event plus
 header on return.
-@param async_flag Synchronous/asynchronous flag. If BM_WAIT, the function
-blocks if no event is available. If BM_NO_WAIT, the function returns immediately
-with a value of BM_ASYNC_RETURN without receiving any event.
+@param timeout_msec Wait so many millisecond for new data. Special values: BM_WAIT: wait forever, BM_NO_WAIT: do not wait, return BM_ASYNC_RETURN if no data is immediately available
 @return BM_SUCCESS, BM_INVALID_HANDLE <br>
 BM_TRUNCATED   The event is larger than the destination buffer and was
                therefore truncated <br>
 BM_ASYNC_RETURN No event available
 */
-INT bm_receive_event(INT buffer_handle, void *destination, INT *buf_size, INT async_flag) {
+INT bm_receive_event(INT buffer_handle, void *destination, INT *buf_size, int timeout_msec) {
    //printf("bm_receive_event: handle %d, async %d\n", buffer_handle, async_flag);
-
    if (rpc_is_remote()) {
-      int status, old_timeout = 0;
-
-      if (!async_flag) {
-         old_timeout = rpc_get_option(-1, RPC_OTIMEOUT);
-         rpc_set_option(-1, RPC_OTIMEOUT, 0);
-      }
-
-      status = rpc_call(RPC_BM_RECEIVE_EVENT, buffer_handle, destination, buf_size, async_flag);
-
-      if (!async_flag) {
-         rpc_set_option(-1, RPC_OTIMEOUT, old_timeout);
-      }
-
-      //printf("bm_receive_event: handle %d, async %d, status %d, size %d, via RPC_BM_RECEIVE_EVENT\n", buffer_handle, async_flag, status, *buf_size);
-
-      return status;
+      return bm_receive_event_rpc(buffer_handle, destination, buf_size, NULL, NULL, timeout_msec);
    }
 #ifdef LOCAL_ROUTINES
    {
@@ -9622,7 +10070,7 @@ INT bm_receive_event(INT buffer_handle, void *destination, INT *buf_size, INT as
 
       int convert_flags = rpc_get_convert_flags();
 
-      status = bm_read_buffer(pbuf, buffer_handle, NULL, destination, buf_size, async_flag, convert_flags, FALSE);
+      status = bm_read_buffer(pbuf, buffer_handle, NULL, destination, buf_size, NULL, timeout_msec, convert_flags, FALSE);
       //printf("bm_receive_event: handle %d, async %d, status %d, size %d\n", buffer_handle, async_flag, status, *buf_size);
       return status;
    }
@@ -9683,31 +10131,13 @@ main()
 \endcode
 @param buffer_handle buffer handle
 @param ppevent pointer to the received event pointer, event pointer should be free()ed to avoid memory leak
-@param async_flag Synchronous/asynchronous flag. If BM_WAIT, the function
-blocks if no event is available. If BM_NO_WAIT, the function returns immediately
-with a value of BM_ASYNC_RETURN without receiving any event.
+@param timeout_msec Wait so many millisecond for new data. Special values: BM_WAIT: wait forever, BM_NO_WAIT: do not wait, return BM_ASYNC_RETURN if no data is immediately available
 @return BM_SUCCESS, BM_INVALID_HANDLE <br>
 BM_ASYNC_RETURN No event available
 */
-INT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER **ppevent, INT async_flag) {
+INT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER **ppevent, int timeout_msec) {
    if (rpc_is_remote()) {
-      // nice try!
-      abort();
-#if 0
-      int status, old_timeout = 0;
-
-      if (!async_flag) {
-         old_timeout = rpc_get_option(-1, RPC_OTIMEOUT);
-         rpc_set_option(-1, RPC_OTIMEOUT, 0);
-      }
-
-      status = rpc_call(RPC_BM_RECEIVE_EVENT, buffer_handle, destination, buf_size, async_flag);
-
-      if (!async_flag) {
-         rpc_set_option(-1, RPC_OTIMEOUT, old_timeout);
-      }
-      return status;
-#endif
+      return bm_receive_event_rpc(buffer_handle, NULL, NULL, ppevent, NULL, timeout_msec);
    }
 #ifdef LOCAL_ROUTINES
    {
@@ -9722,10 +10152,89 @@ INT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER **ppevent, INT async_
 
       int convert_flags = rpc_get_convert_flags();
 
-      return bm_read_buffer(pbuf, buffer_handle, (void **) ppevent, NULL, NULL, async_flag, convert_flags, FALSE);
+      return bm_read_buffer(pbuf, buffer_handle, (void **) ppevent, NULL, NULL, NULL, timeout_msec, convert_flags, FALSE);
    }
 #else                           /* LOCAL_ROUTINES */
 
+   return BM_SUCCESS;
+#endif
+}
+
+/********************************************************************/
+/**
+Receives events directly.
+This function is an alternative way to receive events without
+a main loop.
+
+It can be used in analysis systems which actively receive events,
+rather than using callbacks. A analysis package could for example contain its own
+command line interface. A command
+like "receive 1000 events" could make it necessary to call bm_receive_event()
+1000 times in a row to receive these events and then return back to the
+command line prompt.
+The according bm_request_event() call contains NULL as the
+callback routine to indicate that bm_receive_event() is called to receive
+events.
+\code
+#include <stdio.h>
+#include "midas.h"
+void process_event(EVENT_HEADER *pheader)
+{
+ printf("Received event #%d\r",
+ pheader->serial_number);
+}
+main()
+{
+  INT status, request_id;
+  HNDLE hbuf;
+  char event_buffer[1000];
+  status = cm_connect_experiment("", "Sample",
+  "Simple Analyzer", NULL);
+  if (status != CM_SUCCESS)
+   return 1;
+  bm_open_buffer(EVENT_BUFFER_NAME, DEFAULT_BUFFER_SIZE, &hbuf);
+  bm_request_event(hbuf, 1, TRIGGER_ALL, GET_ALL, request_id, NULL);
+
+  do
+  {
+   size = sizeof(event_buffer);
+   status = bm_receive_event(hbuf, event_buffer, &size, BM_NO_WAIT);
+  if (status == CM_SUCCESS)
+   process_event((EVENT_HEADER *) event_buffer);
+   <...do something else...>
+   status = cm_yield(0);
+  } while (status != RPC_SHUTDOWN &&
+  status != SS_ABORT);
+  cm_disconnect_experiment();
+  return 0;
+}
+\endcode
+@param buffer_handle buffer handle
+@param ppevent pointer to the received event pointer, event pointer should be free()ed to avoid memory leak
+@param timeout_msec Wait so many millisecond for new data. Special values: BM_WAIT: wait forever, BM_NO_WAIT: do not wait, return BM_ASYNC_RETURN if no data is immediately available
+@return BM_SUCCESS, BM_INVALID_HANDLE <br>
+BM_ASYNC_RETURN No event available
+*/
+INT bm_receive_event_vec(INT buffer_handle, std::vector<char> *pvec, int timeout_msec) {
+   if (rpc_is_remote()) {
+      return bm_receive_event_rpc(buffer_handle, NULL, NULL, NULL, pvec, timeout_msec);
+   }
+#ifdef LOCAL_ROUTINES
+   {
+      INT status = BM_SUCCESS;
+
+      BUFFER *pbuf;
+
+      status = bm_get_buffer("bm_receive_event_vec", buffer_handle, &pbuf);
+
+      if (status != BM_SUCCESS)
+         return status;
+
+      int convert_flags = rpc_get_convert_flags();
+
+      return bm_read_buffer(pbuf, buffer_handle, NULL, NULL, NULL, pvec, timeout_msec, convert_flags, FALSE);
+   }
+#else /* LOCAL_ROUTINES */
    return BM_SUCCESS;
 #endif
 }
@@ -9792,7 +10301,7 @@ static INT bm_push_buffer(BUFFER *pbuf, int buffer_handle) {
    if (!pbuf->callback)
       return BM_SUCCESS;
 
-   return bm_read_buffer(pbuf, buffer_handle, NULL, NULL, NULL, BM_NO_WAIT, 0, TRUE);
+   return bm_read_buffer(pbuf, buffer_handle, NULL, NULL, NULL, NULL, BM_NO_WAIT, 0, TRUE);
 }
 
 /********************************************************************/
@@ -9992,13 +10501,15 @@ INT bm_poll_event()
 
 \********************************************************************/
 {
-   INT status, size;
+   INT status;
    DWORD start_time;
    BOOL dispatched_something = FALSE;
 
    //printf("bm_poll_event!\n");
 
    start_time = ss_millitime();
+
+   std::vector<char> vec;
 
    /* loop over all requests */
    int request_id;
@@ -10008,23 +10519,14 @@ INT bm_poll_event()
          continue;
 
       do {
-         if (_event_buffer_size == 0) {
-            int size = _bm_max_event_size + sizeof(EVENT_HEADER);
-            _event_buffer = (EVENT_HEADER *) M_MALLOC(size);
-            if (!_event_buffer) {
-               cm_msg(MERROR, "bm_poll_event", "not enough memory to allocate event buffer of size %d", size);
-               return SS_ABORT;
-            }
-            _event_buffer_size = size;
-            //printf("bm_poll: allocated event buffer size %d, max_event_size %d\n", size, _bm_max_event_size);
-         }
          /* receive event */
-         size = _event_buffer_size;
-         status = bm_receive_event(_request_list[request_id].buffer_handle, _event_buffer, &size, BM_NO_WAIT);
+         status = bm_receive_event_vec(_request_list[request_id].buffer_handle, &vec, BM_NO_WAIT);
+
+         //printf("bm_poll_event: request_id %d, buffer_handle %d, bm_receive_event(BM_NO_WAIT) status %d, vec size %d, capacity %d\n", request_id, _request_list[request_id].buffer_handle, status, (int)vec.size(), (int)vec.capacity());
 
          /* call user function if successful */
          if (status == BM_SUCCESS) {
-            bm_dispatch_event(_request_list[request_id].buffer_handle, _event_buffer);
+            bm_dispatch_event(_request_list[request_id].buffer_handle, (EVENT_HEADER*)vec.data());
             dispatched_something = TRUE;
          }
 
@@ -10034,9 +10536,7 @@ INT bm_poll_event()
 
          /* break if corrupted event buffer */
          if (status == BM_TRUNCATED) {
-            cm_msg(MERROR, "bm_poll_event",
-                   "received event was truncated, buffer size %d is too small, see messages and increase /Experiment/MAX_EVENT_SIZE in ODB",
-                   _event_buffer_size);
+            cm_msg(MERROR, "bm_poll_event", "received event was truncated, buffer size %d is too small, see messages and increase /Experiment/MAX_EVENT_SIZE in ODB", (int)vec.size());
          }
 
          /* break if corrupted event buffer */
@@ -10552,20 +11052,17 @@ void rpc_convert_data(void *data, INT tid, INT flags, INT total_size, INT conver
 
 \********************************************************************/
 {
-   INT i, n, single_size;
-   char *p;
-
    /* convert array */
    if (flags & (RPC_FIXARRAY | RPC_VARARRAY)) {
-      single_size = tid_size[tid];
+      int single_size = rpc_tid_size(tid);
       /* don't convert TID_ARRAY & TID_STRUCT */
       if (single_size == 0)
          return;
 
-      n = total_size / single_size;
+      int n = total_size / single_size;
 
-      for (i = 0; i < n; i++) {
-         p = (char *) data + (i * single_size);
+      for (int i = 0; i < n; i++) {
+         char* p = (char *) data + (i * single_size);
          rpc_convert_single(p, tid, flags, convert_flags);
       }
    } else {
@@ -11519,8 +12016,7 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
    flag = 2 * 1024 * 1024;
    status = setsockopt(_server_connection.event_sock, SOL_SOCKET, SO_SNDBUF, (char *) &flag, sizeof(flag));
    if (status != 0)
-      cm_msg(MERROR, "rpc_server_connect", "cannot setsockopt(SOL_SOCKET, SO_SNDBUF), errno %d (%s)", errno,
-             strerror(errno));
+      cm_msg(MERROR, "rpc_server_connect", "cannot setsockopt(SOL_SOCKET, SO_SNDBUF), errno %d (%s)", errno, strerror(errno));
 
    /* send local computer info */
    std::string local_prog_name = rpc_get_name();
@@ -11661,6 +12157,10 @@ INT rpc_server_disconnect()
    closesocket(_server_connection.send_sock);
    closesocket(_server_connection.recv_sock);
    closesocket(_server_connection.event_sock);
+
+   _server_connection.send_sock = 0;
+   _server_connection.recv_sock = 0;
+   _server_connection.event_sock = 0;
 
    _server_connection.clear();
 
@@ -12146,9 +12646,9 @@ static void rpc_call_encode(va_list& ap, int idx, const char* rpc_name, NET_COMM
          int arg_size = 0;
 
          if (bpointer)
-            arg_size = tid_size[tid];
+            arg_size = rpc_tid_size(tid);
          else
-            arg_size = tid_size[arg_type];
+            arg_size = rpc_tid_size(arg_type);
 
          /* for strings, the argument size depends on the string length */
          if (tid == TID_STRING || tid == TID_LINK)
@@ -12260,7 +12760,7 @@ static int rpc_call_decode(va_list& ap, int idx, const char* rpc_name, const cha
          }
 
          tid = rpc_list[idx].param[i].tid;
-         int arg_size = tid_size[tid];
+         int arg_size = rpc_tid_size(tid);
 
          if (tid == TID_STRING || tid == TID_LINK)
             arg_size = strlen((char *) (param_ptr)) + 1;
@@ -12696,262 +13196,133 @@ Fast send_event routine which bypasses the RPC layer and
 @return BM_INVALID_PARAM, BM_ASYNC_RETURN, RPC_SUCCESS, RPC_NET_ERROR,
         RPC_NO_CONNECTION, RPC_EXCEED_BUFFER
 */
-INT rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, INT buf_size, INT async_flag, INT mode) {
-   INT i;
-   NET_COMMAND *nc;
-   unsigned long flag;
-   BOOL would_block = 0;
-
-   DWORD aligned_buf_size = ALIGN8(buf_size);
-
-   int sock = -1;
-
-   if (mode == 0)
-      sock = _server_connection.send_sock;
-   else
-      sock = _server_connection.event_sock;
-
-   _tcp_sock = sock; // remember socket for rpc_flush_event()
-
-   if ((INT) aligned_buf_size != (INT) (ALIGN8(event->data_size + sizeof(EVENT_HEADER)))) {
-      cm_msg(MERROR, "rpc_send_event", "event size mismatch");
-      return BM_INVALID_PARAM;
-   }
-
-   if (!rpc_is_remote())
-      return bm_send_event(buffer_handle, event, buf_size, async_flag);
-
-   /* init network buffer */
-   if (!_tcp_buffer)
-      _tcp_buffer = (char *) M_MALLOC(NET_TCP_SIZE);
-   if (!_tcp_buffer) {
-      cm_msg(MERROR, "rpc_send_event", "not enough memory to allocate network buffer");
-      return RPC_EXCEED_BUFFER;
-   }
-
-   /* check if not enough space in TCP buffer */
-   if (aligned_buf_size + 4 * 8 + sizeof(NET_COMMAND_HEADER) >= (DWORD) (_opt_tcp_size - _tcp_wp)
-       && _tcp_wp != _tcp_rp) {
-      /* set socket to nonblocking IO */
-      if (async_flag == BM_NO_WAIT) {
-         flag = 1;
-#ifdef OS_VXWORKS
-         ioctlsocket(sock, FIONBIO, (int) &flag);
-#else
-         ioctlsocket(sock, FIONBIO, &flag);
-#endif
-      }
-
-      i = send_tcp(sock, _tcp_buffer + _tcp_rp, _tcp_wp - _tcp_rp, 0);
-
-      //printf("rpc_send_event: send %d\n", _tcp_wp-_tcp_rp);
-
-      if (i < 0)
-#ifdef OS_WINNT
-         would_block = (WSAGetLastError() == WSAEWOULDBLOCK);
-#else
-         would_block = (errno == EWOULDBLOCK);
-#endif
-
-      /* set socket back to blocking IO */
-      if (async_flag == BM_NO_WAIT) {
-         flag = 0;
-#ifdef OS_VXWORKS
-         ioctlsocket(sock, FIONBIO, (int) &flag);
-#else
-         ioctlsocket(sock, FIONBIO, &flag);
-#endif
-      }
-
-      /* increment read pointer */
-      if (i > 0)
-         _tcp_rp += i;
-
-      /* check if whole buffer is sent */
-      if (_tcp_rp == _tcp_wp)
-         _tcp_rp = _tcp_wp = 0;
-
-      if (i < 0 && !would_block) {
-         cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
-         return RPC_NET_ERROR;
-      }
-
-      /* return if buffer is not emptied */
-      if (_tcp_wp > 0)
-         return BM_ASYNC_RETURN;
-   }
-
-   if (mode == 0) {
-      nc = (NET_COMMAND *) (_tcp_buffer + _tcp_wp);
-      nc->header.routine_id = RPC_BM_SEND_EVENT | RPC_NO_REPLY;
-      nc->header.param_size = 4 * 8 + aligned_buf_size;
-
-      /* assemble parameters manually */
-      *((INT *) (&nc->param[0])) = buffer_handle;
-      *((INT *) (&nc->param[8])) = buf_size;
-
-      /* send events larger than optimal buffer size directly */
-      if (aligned_buf_size + 4 * 8 + sizeof(NET_COMMAND_HEADER) >= (DWORD) _opt_tcp_size) {
-         /* send header */
-         i = send_tcp(sock, _tcp_buffer + _tcp_wp, sizeof(NET_COMMAND_HEADER) + 16, 0);
-         if (i <= 0) {
-            cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
-            return RPC_NET_ERROR;
-         }
-
-         /* send data */
-         i = send_tcp(sock, (char *) event, aligned_buf_size, 0);
-         if (i <= 0) {
-            cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
-            return RPC_NET_ERROR;
-         }
-
-         /* send last two parameters */
-         *((INT *) (&nc->param[0])) = buf_size;
-         *((INT *) (&nc->param[8])) = 0;
-         i = send_tcp(sock, &nc->param[0], 16, 0);
-         if (i <= 0) {
-            cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
-            return RPC_NET_ERROR;
-         }
-      } else {
-         /* copy event */
-         memcpy(&nc->param[16], event, buf_size);
-
-         /* last two parameters (buf_size and async_flag */
-         *((INT *) (&nc->param[16 + aligned_buf_size])) = buf_size;
-         *((INT *) (&nc->param[24 + aligned_buf_size])) = 0;
-
-         _tcp_wp += nc->header.param_size + sizeof(NET_COMMAND_HEADER);
-      }
-
-   } else {
-
-      /* send events larger than optimal buffer size directly */
-      if (aligned_buf_size + 4 * 8 + sizeof(INT) >= (DWORD) _opt_tcp_size) {
-         /* send buffer */
-         //printf("rpc_send_event: send %d (bh)\n", (int)sizeof(INT));
-         i = send_tcp(sock, (char *) &buffer_handle, sizeof(INT), 0);
-         if (i <= 0) {
-            cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
-            return RPC_NET_ERROR;
-         }
-
-         /* send data */
-         //printf("rpc_send_event: send %d (aligned_buf_size)\n", aligned_buf_size);
-         i = send_tcp(sock, (char *) event, aligned_buf_size, 0);
-         if (i <= 0) {
-            cm_msg(MERROR, "rpc_send_event", "send_tcp() failed, return code = %d", i);
-            return RPC_NET_ERROR;
-         }
-      } else {
-         /* copy event */
-         *((INT *) (_tcp_buffer + _tcp_wp)) = buffer_handle;
-         _tcp_wp += sizeof(INT);
-         memcpy(_tcp_buffer + _tcp_wp, event, buf_size);
-
-         _tcp_wp += aligned_buf_size;
-      }
-   }
-
-   return RPC_SUCCESS;
+INT rpc_send_event(INT buffer_handle, const EVENT_HEADER *pevent, int unused, INT async_flag, INT mode)
+{
+   return rpc_send_event1(buffer_handle, pevent);
 }
-
 
 /********************************************************************/
 /**
-Fast send_event routine which bypasses the RPC layer and
-           sends the event directly at the TCP level.
+Send event to mserver using the event socket connection, bypassing the RPC layer
 @param buffer_handle      Handle of the buffer to send the event to.
                           Must be obtained via bm_open_buffer.
 @param event              Pointer to event header
 
 @return RPC_SUCCESS, RPC_NET_ERROR, RPC_NO_CONNECTION
 */
-INT rpc_send_event1(INT buffer_handle, const EVENT_HEADER *event)
+INT rpc_send_event1(INT buffer_handle, const EVENT_HEADER *pevent)
 {
-   int status;
+   const size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
+   return rpc_send_event_sg(buffer_handle, 1, (char**)&pevent, &event_size);
+}
+
+INT rpc_send_event_sg(INT buffer_handle, int sg_n, const char* const sg_ptr[], const size_t sg_len[])
+{
+   if (sg_n < 1) {
+      cm_msg(MERROR, "rpc_send_event_sg", "invalid sg_n %d", sg_n);
+      return BM_INVALID_SIZE;
+   }
+
+   if (sg_ptr[0] == NULL) {
+      cm_msg(MERROR, "rpc_send_event_sg", "invalid sg_ptr[0] is NULL");
+      return BM_INVALID_SIZE;
+   }
+
+   if (sg_len[0] < sizeof(EVENT_HEADER)) {
+      cm_msg(MERROR, "rpc_send_event_sg", "invalid sg_len[0] value %d is smaller than event header size %d", (int)sg_len[0], (int)sizeof(EVENT_HEADER));
+      return BM_INVALID_SIZE;
+   }
+
+   const EVENT_HEADER* pevent = (const EVENT_HEADER*)sg_ptr[0];
+   
+   const DWORD MAX_DATA_SIZE = (0x7FFFFFF0 - 16); // event size computations are not 32-bit clean, limit event size to 2GB. K.O.
+   const DWORD data_size = pevent->data_size; // 32-bit unsigned value
+
+   if (data_size == 0) {
+      cm_msg(MERROR, "rpc_send_event_sg", "invalid event data size zero");
+      return BM_INVALID_SIZE;
+   }
+
+   if (data_size > MAX_DATA_SIZE) {
+      cm_msg(MERROR, "rpc_send_event_sg", "invalid event data size %d (0x%x) maximum is %d (0x%x)", data_size, data_size, MAX_DATA_SIZE, MAX_DATA_SIZE);
+      return BM_INVALID_SIZE;
+   }
+
+   const size_t event_size = sizeof(EVENT_HEADER) + data_size;
+   const size_t total_size = ALIGN8(event_size);
+
+   size_t count = 0;
+   for (int i=0; i<sg_n; i++) {
+      count += sg_len[i];
+   }
+
+   if (count != event_size) {
+      cm_msg(MERROR, "rpc_send_event_sg", "data size mismatch: event data_size %d, event_size %d not same as sum of sg_len %d", (int)data_size, (int)event_size, (int)count);
+      return BM_INVALID_SIZE;
+   }
+
+   // protect non-atomic access to _server_connection.event_sock. K.O.
+   
+   std::lock_guard<std::mutex> guard(_server_connection.event_sock_mutex);
+
+   //printf("rpc_send_event_sg: pevent %p, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", pevent, pevent->event_id, pevent->serial_number, (int)data_size, (int)event_size, (int)total_size);
 
    if (_server_connection.event_sock == 0) {
       return RPC_NO_CONNECTION;
    }
 
-   /* send buffer */
-   status = ss_write_tcp(_server_connection.event_sock, (const char *) &buffer_handle, sizeof(INT));
+   //
+   // event socket wire protocol: (see also rpc_server_receive_event() and recv_event_server_realloc())
+   //
+   // 4 bytes of buffer handle
+   // 16 bytes of event header, includes data_size
+   // ALIGN8(data_size) bytes of event data
+   // 
+
+   int status;
+
+   /* send buffer handle */
+
+   assert(sizeof(DWORD) == 4);
+   DWORD bh_buf = buffer_handle;
+   
+   status = ss_write_tcp(_server_connection.event_sock, (const char *) &bh_buf, sizeof(DWORD));
    if (status != SS_SUCCESS) {
       closesocket(_server_connection.event_sock);
       _server_connection.event_sock = 0;
-      cm_msg(MERROR, "rpc_send_event1", "ss_write_tcp(buffer handle) failed, event socket is now closed");
+      cm_msg(MERROR, "rpc_send_event_sg", "ss_write_tcp(buffer handle) failed, event socket is now closed");
       return RPC_NET_ERROR;
    }
 
-   size_t event_size = ALIGN8(event->data_size + sizeof(EVENT_HEADER));
-          
    /* send data */
-   status = ss_write_tcp(_server_connection.event_sock, (const char *) event, event_size);
-   if (status != SS_SUCCESS) {
-      closesocket(_server_connection.event_sock);
-      _server_connection.event_sock = 0;
-      cm_msg(MERROR, "rpc_send_event1", "send_tcp(event data) failed, event socket is now closed");
-      return RPC_NET_ERROR;
+
+   for (int i=0; i<sg_n; i++) {
+      status = ss_write_tcp(_server_connection.event_sock, sg_ptr[i], sg_len[i]);
+      if (status != SS_SUCCESS) {
+         closesocket(_server_connection.event_sock);
+         _server_connection.event_sock = 0;
+         cm_msg(MERROR, "rpc_send_event_sg", "ss_write_tcp(event data) failed, event socket is now closed");
+         return RPC_NET_ERROR;
+      }
+   }
+
+   /* send padding */
+
+   if (count < total_size) {
+      char padding[8] = { 0,0,0,0,0,0,0,0 };
+      size_t padlen = total_size - count;
+      assert(padlen < 8);
+      status = ss_write_tcp(_server_connection.event_sock, padding, padlen);
+      if (status != SS_SUCCESS) {
+         closesocket(_server_connection.event_sock);
+         _server_connection.event_sock = 0;
+         cm_msg(MERROR, "rpc_send_event_sg", "ss_write_tcp(padding) failed, event socket is now closed");
+         return RPC_NET_ERROR;
+      }
    }
 
    return RPC_SUCCESS;
 }
-
-
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
-
-/********************************************************************/
-int rpc_get_send_sock()
-/********************************************************************\
-
-  Routine: rpc_get_send_sock
-
-  Purpose: Return send socket to MIDAS server. Used by MFE.C for
-           optimized event sending.
-
-  Input:
-    none
-
-  Output:
-    none
-
-  Function value:
-    int    socket
-
-\********************************************************************/
-{
-   return _server_connection.send_sock;
-}
-
-
-/********************************************************************/
-int rpc_get_event_sock()
-/********************************************************************\
-
-  Routine: rpc_get_event_sock
-
-  Purpose: Return event send socket to MIDAS server. Used by MFE.C for
-           optimized event sending.
-
-  Input:
-    none
-
-  Output:
-    none
-
-  Function value:
-    int    socket
-
-\********************************************************************/
-{
-   return _server_connection.event_sock;
-}
-
-/**dox***************************************************************/
-#endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
 /********************************************************************/
 /**
@@ -12962,28 +13333,6 @@ Send event residing in the TCP cache buffer filled by
 @return RPC_SUCCESS, RPC_NET_ERROR
 */
 INT rpc_flush_event() {
-   if (!rpc_is_remote())
-      return RPC_SUCCESS;
-
-   /* return if rpc_send_event was not called */
-   if (!_tcp_buffer || _tcp_wp == 0)
-      return RPC_SUCCESS;
-
-   /* empty TCP buffer */
-   if (_tcp_wp > 0) {
-      int to_send = _tcp_wp - _tcp_rp;
-      //printf("rpc_flush_event: send %d\n", to_send);
-      int i = send_tcp(_tcp_sock, _tcp_buffer + _tcp_rp, to_send, 0);
-
-      if (i != to_send) {
-         cm_msg(MERROR, "rpc_flush_event", "send_tcp(%d) returned %d, errno %d (%s)", to_send, i, errno,
-                strerror(errno));
-         return RPC_NET_ERROR;
-      }
-   }
-
-   _tcp_rp = _tcp_wp = 0;
-
    return RPC_SUCCESS;
 }
 
@@ -13319,7 +13668,7 @@ INT recv_tcp_check(int sock)
 
 
 /********************************************************************/
-int recv_event_server_realloc(INT idx, char **pbuffer, int *pbuffer_size)
+static int recv_event_server_realloc(INT idx, RPC_SERVER_ACCEPTION* psa, char **pbuffer, int *pbuffer_size)
 /********************************************************************\
 
   Routine: recv_event_server_realloc
@@ -13342,10 +13691,6 @@ int recv_event_server_realloc(INT idx, char **pbuffer, int *pbuffer_size)
 
 \********************************************************************/
 {
-   RPC_SERVER_ACCEPTION *psa = rpc_get_server_acception(idx);
-   psa->ev_write_ptr = 0;
-   psa->ev_read_ptr = 0;
-
    int sock = psa->event_sock;
 
    //printf("recv_event_server: idx %d, buffer %p, buffer_size %d\n", idx, buffer, buffer_size);
@@ -13410,6 +13755,15 @@ int recv_event_server_realloc(INT idx, char **pbuffer, int *pbuffer_size)
    int event_size = pevent->data_size + sizeof(EVENT_HEADER);
    int total_size = ALIGN8(event_size);
 
+   //printf("recv_event_server: buffer_handle %d, event_id 0x%04x, serial 0x%08x, data_size %d, event_size %d, total_size %d\n", *pbh, pevent->event_id, pevent->serial_number, pevent->data_size, event_size, total_size);
+
+   if (pevent->data_size == 0) {
+      for (int i=0; i<5; i++) {
+         printf("recv_event_server: header[%d]: 0x%08x\n", i, pbh[i]);
+      }
+      abort();
+   }
+
    /* check for sane event size */
    if (event_size <= 0 || total_size <= 0) {
       cm_msg(MERROR, "recv_event_server",
@@ -13450,44 +13804,17 @@ int recv_event_server_realloc(INT idx, char **pbuffer, int *pbuffer_size)
    int to_read = sizeof(INT) + total_size - header_size;
    int rptr = header_size;
 
-   int drd = recv_tcp2(sock, (*pbuffer) + rptr, to_read, 0);
+   if (to_read > 0) {
+      int drd = recv_tcp2(sock, (*pbuffer) + rptr, to_read, 0);
 
-   /* abort if connection broken */
-   if (drd <= 0) {
-      cm_msg(MERROR, "recv_event_server", "recv_tcp2(data) returned %d instead of %d", drd, to_read);
-      return -1;
+      /* abort if connection broken */
+      if (drd <= 0) {
+         cm_msg(MERROR, "recv_event_server", "recv_tcp2(data) returned %d instead of %d", drd, to_read);
+         return -1;
+      }
    }
 
    return bufsize;
-}
-
-
-/********************************************************************/
-INT recv_event_check(int sock)
-/********************************************************************\
-
-  Routine: recv_event_check
-
-  Purpose: Check if in TCP event receive buffer associated with sock
-           is some data. Called by ss_suspend.
-
-  Input:
-    INT   sock               TCP receive socket
-
-  Output:
-    none
-
-  Function value:
-    INT   count              Number of bytes remaining in TCP buffer
-
-\********************************************************************/
-{
-   /* figure out to which connection socket belongs */
-   for (unsigned idx = 0; idx < _server_acceptions.size(); idx++)
-      if (_server_acceptions[idx] && _server_acceptions[idx]->event_sock == sock) {
-         return _server_acceptions[idx]->ev_write_ptr - _server_acceptions[idx]->ev_read_ptr;
-      }
-   return 0;
 }
 
 
@@ -13777,7 +14104,7 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
       flags = rpc_list[idx].param[i].flags;
 
       if (flags & RPC_IN) {
-         param_size = ALIGN8(tid_size[tid]);
+         param_size = ALIGN8(rpc_tid_size(tid));
 
          if (tid == TID_STRING || tid == TID_LINK)
             param_size = ALIGN8(1 + strlen((char *) (in_param_ptr)));
@@ -13802,7 +14129,7 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
             if (flags & RPC_VARARRAY)
                rpc_convert_data(in_param_ptr, tid, flags, param_size, convert_flags);
             else
-               rpc_convert_data(in_param_ptr, tid, flags, rpc_list[idx].param[i].n * tid_size[tid],
+               rpc_convert_data(in_param_ptr, tid, flags, rpc_list[idx].param[i].n * rpc_tid_size(tid),
                                 convert_flags);
          }
 
@@ -13822,7 +14149,7 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
       }
 
       if (flags & RPC_OUT) {
-         param_size = ALIGN8(tid_size[tid]);
+         param_size = ALIGN8(rpc_tid_size(tid));
 
          if (flags & RPC_VARARRAY || tid == TID_STRING) {
 
@@ -13937,7 +14264,7 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
       if (rpc_list[idx].param[i].flags & RPC_OUT) {
          tid = rpc_list[idx].param[i].tid;
          flags = rpc_list[idx].param[i].flags;
-         param_size = ALIGN8(tid_size[tid]);
+         param_size = ALIGN8(rpc_tid_size(tid));
 
          if (tid == TID_STRING) {
             max_size = *((INT *) out_param_ptr);
@@ -13982,7 +14309,7 @@ INT rpc_execute(INT sock, char *buffer, INT convert_flags)
             else
                rpc_convert_data(out_param_ptr, tid,
                                 rpc_list[idx].param[i].flags | RPC_OUTGOING,
-                                rpc_list[idx].param[i].n * tid_size[tid], convert_flags);
+                                rpc_list[idx].param[i].n * rpc_tid_size(tid), convert_flags);
          }
 
          out_param_ptr += param_size;
@@ -14819,24 +15146,13 @@ INT rpc_server_loop(void)
 }
 
 /********************************************************************/
-INT rpc_server_receive(INT idx, int sock, BOOL check)
+INT rpc_server_receive_rpc(int idx, RPC_SERVER_ACCEPTION* sa)
 /********************************************************************\
 
-  Routine: rpc_server_receive
+  Routine: rpc_server_receive_rpc
 
   Purpose: Receive rpc commands and execute them. Close the connection
            if client has broken TCP pipe.
-
-  Input:
-    INT    idx              Index to _server_acception structure in-
-                            dicating which connection got data.
-    int    sock             Socket which got data
-    BOOL   check            If TRUE, only check if connection is
-                            broken. This may be called via
-                            bm_receive_event/ss_suspend(..,MSG_BM)
-
-  Output:
-    none
 
   Function value:
     RPC_SUCCESS             Successful completion
@@ -14846,109 +15162,40 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
 
 \********************************************************************/
 {
-   INT status;
+   int status = 0;
+   int remaining = 0;
 
-   /* only check if TCP connection is broken */
-   if (check) {
-      char test_buffer[256];
-#ifdef OS_WINNT
-      int n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK);
-#else
-      int n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK | MSG_DONTWAIT);
-
-      /* check if we caught a signal */
-      if ((n_received == -1) && (errno == EAGAIN))
-         return SS_SUCCESS;
-#endif
-
-      if (n_received == -1)
-         cm_msg(MERROR, "rpc_server_receive",
-                "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", (int) sizeof(test_buffer),
-                n_received, errno, strerror(errno));
-
-      if (n_received <= 0)
-         return SS_ABORT;
-
-      return SS_SUCCESS;
-   }
-
-   RPC_SERVER_ACCEPTION* sa = rpc_get_server_acception(idx);
-
-   /* receive command */
-   if (sock == sa->recv_sock) {
-      int remaining = 0;
-
-      char *buf = NULL;
-      int bufsize = 0;
-
-      do {
-         int n_received = recv_net_command_realloc(idx, &buf, &bufsize, &remaining);
-
-         if (n_received <= 0) {
-            status = SS_ABORT;
-            cm_msg(MERROR, "rpc_server_receive", "recv_net_command() returned %d, abort", n_received);
-            goto error;
-         }
-
-         status = rpc_execute(sa->recv_sock, buf, sa->convert_flags);
-
-         if (status == SS_ABORT) {
-            cm_msg(MERROR, "rpc_server_receive", "rpc_execute() returned %d, abort", status);
-            goto error;
-         }
-
+   char *buf = NULL;
+   int bufsize = 0;
+   
+   do {
+      int n_received = recv_net_command_realloc(idx, &buf, &bufsize, &remaining);
+      
+      if (n_received <= 0) {
+         status = SS_ABORT;
+         cm_msg(MERROR, "rpc_server_receive_rpc", "recv_net_command() returned %d, abort", n_received);
+         goto error;
+      }
+      
+      status = rpc_execute(sa->recv_sock, buf, sa->convert_flags);
+      
+      if (status == SS_ABORT) {
+         cm_msg(MERROR, "rpc_server_receive_rpc", "rpc_execute() returned %d, abort", status);
+         goto error;
+      }
+      
          if (status == SS_EXIT || status == RPC_SHUTDOWN) {
             if (rpc_is_mserver())
                rpc_debug_printf("Connection to %s:%s closed\n", sa->host_name.c_str(), sa->prog_name.c_str());
             goto exit;
          }
-
-      } while (remaining);
-
-      if (buf) {
-         free(buf);
-         buf = NULL;
-         bufsize = 0;
-      }
-   } else {
-      /* receive event */
-      if (sock == sa->event_sock) {
-         DWORD start_time = ss_millitime();
-
-         char *buf = NULL;
-         int bufsize = 0;
-
-         do {
-            int n_received = recv_event_server_realloc(idx, &buf, &bufsize);
-
-            if (n_received < 0) {
-               status = SS_ABORT;
-               cm_msg(MERROR, "rpc_server_receive", "recv_event_server() returned %d, abort", n_received);
-               goto error;
-            }
-
-            if (n_received == 0) {
-               // no more data in the tcp socket
-               break;
-            }
-
-            /* send event to buffer */
-            INT *pbh = (INT *) buf;
-            EVENT_HEADER *pevent = (EVENT_HEADER *) (pbh + 1);
-
-            status = bm_send_event(*pbh, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
-            if (status != BM_SUCCESS)
-               cm_msg(MERROR, "rpc_server_receive", "bm_send_event() returned %d", status);
-
-            /* repeat for maximum 0.5 sec */
-         } while (ss_millitime() - start_time < 500);
-
-         if (buf) {
-            free(buf);
-            buf = NULL;
-            bufsize = 0;
-         }
-      }
+         
+   } while (remaining);
+   
+   if (buf) {
+      free(buf);
+      buf = NULL;
+      bufsize = 0;
    }
 
    return RPC_SUCCESS;
@@ -14960,7 +15207,7 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
       strlcpy(str, sa->host_name.c_str(), sizeof(str));
       if (strchr(str, '.'))
          *strchr(str, '.') = 0;
-      cm_msg(MTALK, "rpc_server_receive", "Program \'%s\' on host \'%s\' aborted", sa->prog_name.c_str(), str);
+      cm_msg(MTALK, "rpc_server_receive_rpc", "Program \'%s\' on host \'%s\' aborted", sa->prog_name.c_str(), str);
    }
 
    exit:
@@ -15012,6 +15259,217 @@ INT rpc_server_receive(INT idx, int sock, BOOL check)
    return status;
 }
 
+/********************************************************************/
+INT rpc_server_receive_event(int idx, RPC_SERVER_ACCEPTION* sa, int timeout_msec)
+/********************************************************************\
+
+  Routine: rpc_server_receive_event
+
+  Purpose: Receive event and dispatch it
+
+  Function value:
+    RPC_SUCCESS             Successful completion
+    RPC_EXCEED_BUFFER       Not enough memeory to allocate buffer
+    SS_EXIT                 Server connection was closed
+    SS_ABORT                Server connection was broken
+
+\********************************************************************/
+{
+   int status = 0;
+
+   DWORD start_time = ss_millitime();
+
+   //
+   // THIS IS NOT THREAD SAFE!!!
+   //
+   // IT IS ONLY USED BY THE MSERVER
+   // MSERVER IS SINGLE-THREADED!!!
+   //
+
+   static char *xbuf = NULL;
+   static int   xbufsize = 0;
+   static bool  xbufempty = true;
+
+   // short cut
+   if (sa == NULL && xbufempty)
+      return RPC_SUCCESS;
+
+   static bool  recurse = false;
+
+   if (recurse) {
+      cm_msg(MERROR, "rpc_server_receive_event", "internal error: called recursively");
+      // do not do anything if we are called recursively
+      // via recursive ss_suspend() or otherwise. K.O.
+      if (xbufempty)
+         return RPC_SUCCESS;
+      else
+         return BM_ASYNC_RETURN;
+   }
+
+   recurse = true;
+   
+   do {
+      if (xbufempty && sa) {
+         int n_received = recv_event_server_realloc(idx, sa, &xbuf, &xbufsize);
+      
+         if (n_received < 0) {
+            status = SS_ABORT;
+            cm_msg(MERROR, "rpc_server_receive_event", "recv_event_server_realloc() returned %d, abort", n_received);
+            goto error;
+         }
+
+         if (n_received == 0) {
+            // no more data in the tcp socket
+            recurse = false;
+            return RPC_SUCCESS;
+         }
+
+         xbufempty = false;
+      }
+
+      if (xbufempty) {
+         // no event in xbuf buffer
+         recurse = false;
+         return RPC_SUCCESS;
+      }
+
+      /* send event to buffer */
+      INT *pbh = (INT *) xbuf;
+      EVENT_HEADER *pevent = (EVENT_HEADER *) (pbh + 1);
+      
+      status = bm_send_event(*pbh, pevent, pevent->data_size + sizeof(EVENT_HEADER), timeout_msec);
+
+      //printf("rpc_server_receiv: buffer_handle %d, event_id 0x%04x, serial 0x%08x, data_size %d, status %d\n", *pbh, pevent->event_id, pevent->serial_number, pevent->data_size, status);
+      
+      if (status == SS_ABORT) {
+         cm_msg(MERROR, "rpc_server_receive_event", "bm_send_event() error %d (SS_ABORT), abort", status);
+         goto error;
+      }
+      
+      if (status == BM_ASYNC_RETURN) {
+         //cm_msg(MERROR, "rpc_server_receive_event", "bm_send_event() error %d, event buffer is full", status);
+         recurse = false;
+         return status;
+      }
+      
+      if (status != BM_SUCCESS) {
+         cm_msg(MERROR, "rpc_server_receive_event", "bm_send_event() error %d, mserver dropped this event", status);
+      }
+      
+      xbufempty = true;
+
+      /* repeat for maximum 0.5 sec */
+   } while (ss_millitime() - start_time < 500);
+   
+   recurse = false;
+   return RPC_SUCCESS;
+
+   error:
+
+   {
+      char str[80];
+      strlcpy(str, sa->host_name.c_str(), sizeof(str));
+      if (strchr(str, '.'))
+         *strchr(str, '.') = 0;
+      cm_msg(MTALK, "rpc_server_receive_event", "Program \'%s\' on host \'%s\' aborted", sa->prog_name.c_str(), str);
+   }
+
+   //exit:
+
+   cm_msg_flush_buffer();
+
+   /* disconnect from experiment as MIDAS server */
+   if (rpc_is_mserver()) {
+      HNDLE hDB, hKey;
+
+      cm_get_experiment_database(&hDB, &hKey);
+
+      /* only disconnect from experiment if previously connected.
+         Necessary for pure RPC servers (RPC_SRVR) */
+      if (hDB) {
+         bm_close_all_buffers();
+         cm_delete_client_info(hDB, 0);
+         db_close_all_databases();
+
+         rpc_deregister_functions();
+
+         cm_set_experiment_database(0, 0);
+
+#if 0
+         if (_msg_mutex)
+            ss_mutex_delete(_msg_mutex);
+         _msg_mutex = 0;
+
+         if (_msg_rb)
+            rb_delete(_msg_rb);
+         _msg_rb = 0;
+#endif
+      }
+   }
+
+   bool is_mserver = sa->is_mserver;
+
+   sa->close();
+
+   /* signal caller a shutdonw */
+   if (status == RPC_SHUTDOWN)
+      return status;
+
+   /* only the mserver should stop on server connection closure */
+   if (!is_mserver) {
+      return SS_SUCCESS;
+   }
+
+   return status;
+}
+
+
+/********************************************************************/
+int rpc_flush_event_socket(int timeout_msec)
+/********************************************************************\
+
+  Routine: rpc_flush_event_socket
+
+  Purpose: Receive and en-buffer events from the mserver event socket
+
+  Function value:
+    BM_SUCCESS              Event socket is empty, all data was read an en-buffered
+    BM_ASYNC_RETURN         Event socket has unread data or event buffer is full and rpc_server_receive_event() has an un-buffered event.
+    SS_EXIT                 Server connection was closed
+    SS_ABORT                Server connection was broken
+
+\********************************************************************/
+{
+   bool has_data = ss_event_socket_has_data();
+   
+   //printf("ss_event_socket_has_data() returned %d\n", has_data);
+
+   if (has_data) {
+      if (timeout_msec == BM_NO_WAIT) {
+         return BM_ASYNC_RETURN;
+      } else if (timeout_msec == BM_WAIT) {
+         return BM_ASYNC_RETURN;
+      } else {
+         int status = ss_suspend(timeout_msec, MSG_BM);
+         if (status == SS_ABORT || status == SS_EXIT)
+            return status;
+         return BM_ASYNC_RETURN;
+      }
+   }
+
+   int status = rpc_server_receive_event(0, NULL, timeout_msec);
+   
+   //printf("rpc_server_receive_event() status %d\n", status);
+
+   if (status == BM_ASYNC_RETURN) {
+      return BM_ASYNC_RETURN;
+   }
+
+   if (status == SS_ABORT || status == SS_EXIT)
+      return status;
+   
+   return BM_SUCCESS;
+}
 
 /********************************************************************/
 INT rpc_server_shutdown(void)

@@ -45,9 +45,9 @@ public:
    
    void HandlePeriodic()
    {
-      char event[fEqMaxEventSize];
+      char event[fEqConfMaxEventSize];
 
-      ComposeEvent(event, fEqMaxEventSize);
+      ComposeEvent(event, fEqConfMaxEventSize);
       
       char* pbh = event + sizeof(EVENT_HEADER);
       

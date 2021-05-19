@@ -501,10 +501,12 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       break;
 
    case RPC_BM_CLOSE_BUFFER:
+      //printf("RPC_BM_CLOSE_BUFFER(%d)!\n", CINT(0));
       status = bm_close_buffer(CINT(0));
       break;
 
    case RPC_BM_CLOSE_ALL_BUFFERS:
+      //printf("RPC_BM_CLOSE_ALL_BUFFERS!\n");
       status = bm_close_all_buffers();
       break;
 
@@ -573,7 +575,12 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       break;
 
    case RPC_BM_FLUSH_CACHE:
-      status = bm_flush_cache(CINT(0), CINT(1));
+      //printf("RPC_BM_FLUSH_CACHE(%d,%d)!\n", CINT(0), CINT(1));
+      if (CINT(0) == 0) {
+         status = rpc_flush_event_socket(CINT(1));
+      } else {
+         status = bm_flush_cache(CINT(0), CINT(1));
+      }
       break;
 
    case RPC_BM_MARK_READ_WAITING:
@@ -832,6 +839,10 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
 
       /* exit functions */
    case RPC_ID_EXIT:
+      //printf("RPC_ID_EXIT!\n");
+      status = RPC_SUCCESS;
+      break;
+
    case RPC_ID_SHUTDOWN:
       status = RPC_SUCCESS;
       break;
