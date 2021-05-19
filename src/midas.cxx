@@ -13198,7 +13198,11 @@ Fast send_event routine which bypasses the RPC layer and
 */
 INT rpc_send_event(INT buffer_handle, const EVENT_HEADER *pevent, int unused, INT async_flag, INT mode)
 {
-   return rpc_send_event1(buffer_handle, pevent);
+   if (rpc_is_remote()) {
+      return rpc_send_event1(buffer_handle, pevent);
+   } else {
+      return bm_send_event(buffer_handle, pevent, unused, async_flag);
+   }
 }
 
 /********************************************************************/
