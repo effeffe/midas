@@ -296,7 +296,7 @@ TMFeResult TMEventBuffer::ReceiveEvent(std::vector<char> *e, int timeout_msec)
    
    e->resize(0);
    
-   int status = bm_receive_event(fBufHandle, e, timeout_msec);
+   int status = bm_receive_event_vec(fBufHandle, e, timeout_msec);
    
    if (status == BM_ASYNC_RETURN) {
       return TMFeOk();
@@ -345,14 +345,14 @@ TMFeResult TMEventBuffer::SendEvent(int sg_n, const char* const sg_ptr[], const 
 {
    if (rpc_is_remote()) {
       //double t0 = TMFE::GetTime();
-      int status = rpc_send_event2(fBufHandle, sg_n, sg_ptr, sg_len);
+      int status = rpc_send_event_sg(fBufHandle, sg_n, sg_ptr, sg_len);
       if (status != RPC_SUCCESS) {
          return TMFeMidasError("TMEventBuffer::SendEvent: Cannot send event", "rpc_send_event2", status);
       }
       //double t1 = TMFE::GetTime();
       //printf("rpc_send_event time %f\n", t1-t0);
    } else {
-      int status = bm_send_event(fBufHandle, sg_n, sg_ptr, sg_len, BM_WAIT);
+      int status = bm_send_event_sg(fBufHandle, sg_n, sg_ptr, sg_len, BM_WAIT);
       if (status == BM_CORRUPTED) {
          fMfe->Msg(MERROR, "TMEventBuffer::SendEvent", "Cannot send event to buffer \"%s\": bm_send_event() returned %d, event buffer is corrupted, shutting down the frontend", fBufName.c_str(), status);
          fMfe->fShutdownRequested = true;
