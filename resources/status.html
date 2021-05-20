@@ -127,6 +127,7 @@
 
 <script>
    var update_timer_id;
+   let previous_equipment_names = [];
 
    //pre-define some html codes for different tables/rows
 
@@ -139,7 +140,7 @@
    function set_if_changed(id, text) {
       var e = document.getElementById(id);
       if (e) {
-         if (e.innerHTML != text) {
+         if (e.innerHTML != text) { // !== does not work here!
             e.innerHTML = text;
          }
       }
@@ -148,14 +149,22 @@
    function set_class_if_changed(id, cname) {
       var e = document.getElementById(id);
       if (e) {
-         if (e.className != cname) {
+         if (e.className != cname) { // !== does not work here!
             e.className = cname;
          }
       }
    }
 
-   function callback(rpc, alarm, loggerBool, lastMessage, equipmentNames, equipmentStatData, equipmentCommonData
-   ) {
+   function set_bg_if_changed(id, color) {
+      var e = document.getElementById(id);
+      if (e) {
+         if (e.style.backgroundColor != color) { // !== does not work here!
+            e.style.backgroundColor = color;
+         }
+      }
+   }
+
+   function callback(rpc, alarm, loggerBool, lastMessage, equipmentNames, equipmentStatData, equipmentCommonData) {
       // define all json data here
       var experimentItemsJson = rpc.data[0];
       var logChannelJson = rpc.data[1];
@@ -409,91 +418,125 @@
             return;
          }
 
-         if (equipmentNames.length != document.getElementsByClassName("equipmentRow").length) {
+         if (equipmentNames.length != previous_equipment_names.length) {
             document.getElementById("equipmentList").innerHTML = equipmentTableHtml;
+            //console.log("Reset equipment table: " + equipmentNames.length + " vs " + previous_equipment_names.length);
+            previous_equipment_names = equipmentNames;
          }
 
          for (var i = 0; i < equipmentNames.length; i++) {
+            let eqn = equipmentNames[i];
+            let eqid = "equipment_" + eqn;
+            let e = document.getElementById(eqid);
+            if (!e) {
+               e = document.createElement("tr");
+               e.id = eqid;
 
+               var s;
+
+               s = document.createElement("td");
+               s.id = eqid + "_name";
+               s.align = "center";
+               s.innerHTML = "<a href=\"?cmd=eqtable&amp;eq="+encodeURIComponent(eqn)+"\">"+eqn+"</a>";
+               e.appendChild(s);
+
+               s = document.createElement("td");
+               s.id = eqid + "_status";
+               s.align = "center";
+               e.appendChild(s);
+
+               s = document.createElement("td");
+               s.id = eqid + "_events";
+               s.align = "center";
+               e.appendChild(s);
+
+               s = document.createElement("td");
+               s.id = eqid + "_eps";
+               s.align = "center";
+               e.appendChild(s);
+
+               s = document.createElement("td");
+               s.id = eqid + "_bps";
+               s.align = "center";
+               e.appendChild(s);
+
+               document.getElementById("equipmentList").appendChild(e);
+            }
+             
             try {
-               var statusItem = document.createElement("td");
-               statusItem.align = "center";
-               mhttpd_set_innerHTML(statusItem, equipmentCommonData[i]["status"]);
 
-               if (equipmentCommonData[i]["enabled"]) {
+               let eqc = equipmentCommonData[i];
 
-                  if (equipmentCommonData[i]["frontend name"].length > 0 &&
-                     !clientExists(clients, equipmentCommonData[i]["frontend name"])) {
-                     mhttpd_set_innerHTML(statusItem, "Frontend stopped");
-                     mhttpd_set_className(statusItem, "redLight");
-                  } else {
-                     if (equipmentCommonData[i]["status"].length < 1) {
-                        mhttpd_set_innerHTML(statusItem, equipmentCommonData[i]["frontend name"] + "@" + equipmentCommonData[i]["frontend host"]);
-                        mhttpd_set_className(statusItem, "greenLight");
-                     } else {
-                        mhttpd_set_innerHTML(statusItem, equipmentCommonData[i]["status"]);
-                        if (equipmentCommonData[i]["status color"].indexOf("Light") != -1)
-                           mhttpd_set_className(statusItem, equipmentCommonData[i]["status color"]);
-                        else {
-                           mhttpd_set_className(statusItem, "Light");
-                           statusItem.style.backgroundColor = equipmentCommonData[i]["status color"];
-                        }
-                     }
-                  }
-               } else {
-                  mhttpd_set_innerHTML(statusItem, "Disabled");
-                  mhttpd_set_className(statusItem, "yellowLight");
+               if (!eqc) {
+                  continue;
                }
 
-               var eventsNum = equipmentStatData[i]["events sent"];
-               if (equipmentStatData[i]["events sent"] > 1E9) {
-                  eventsNum = (equipmentStatData[i]["events sent"] / 1E9).toFixed(3) + "G";
-               } else if (equipmentStatData[i]["events sent"] > 1E6) {
-                  eventsNum = (equipmentStatData[i]["events sent"] / 1E6).toFixed(3) + "M";
+               let status_text = "";
+               let status_class = "";
+               let status_bg = "";
+
+               if (!eqc["enabled"]) {
+                  status_text = "Disabled";
+                  status_class = "yellowLight";
+               } else if (eqc["frontend name"].length > 0 &&
+                   !clientExists(clients, eqc["frontend name"])) {
+                  status_text = "Frontend stopped";
+                  status_class = "redLight";
+               } else if (eqc["status"].length < 1) {
+                  status_text = eqc["frontend name"] + "@" + eqc["frontend host"];
+                  status_class = "greenLight";
+               } else {
+                  status_text = eqc["status"];
+                  if (eqc["status color"].indexOf("Light") != -1) {
+                      status_class = eqc["status color"];
+                  } else {
+                      status_class = "Light";
+                      status_bg = eqc["status color"];
+                  }
                }
 
                var className = "equipmentRow";
                var unhidden = document.getElementById("hide").innerText === "-";
-               if (equipmentCommonData[i]["hidden"]) {
+               if (eqc["hidden"]) {
                   className += " hiddenEquip";
                }
 
                var style_display;
-               if (equipmentCommonData[i]["hidden"] && !unhidden)
+               if (eqc["hidden"] && !unhidden)
                   style_display = "none";
                else
                   style_display = "table-row";
 
-               var mb = equipmentStatData[i]["kbytes per sec."] / 1000.0;
-               var html = "<td align=\"center\"><a href=\"?cmd=eqtable&amp;eq=" +
-                  equipmentNames[i] +
-                  "\">" +
-                  equipmentNames[i] +
-                  "</a></td>" +
-                  statusItem.outerHTML +
-                  "<td align=\"center\">" +
-                  eventsNum +
-                  "</td>" +
-                  "<td align=\"center\">" +
-                  equipmentStatData[i]["events per sec."].toFixed(1) +
-                  "</td>" +
-                  "<td align=\"center\">" +
-                  mb.toFixed(3) +
-                  "</td>";
+               let eventsNum = 0;
+               let mb = 0;
+               let eps = 0;
 
-               var e = document.getElementById(equipmentNames[i] + "equipment");
-               if (!e) {
-                  var equipmentRow = document.createElement("tr");
-                  equipmentRow.id = equipmentNames[i] + "equipment";
-                  equipmentRow.style.display = style_display;
-                  equipmentRow.className = className;
-                  equipmentRow.innerHTML = html;
-                  document.getElementById("equipmentList").appendChild(equipmentRow);
-               } else {
-                  mhttpd_set_innerHTML(e, html);
-                  mhttpd_set_style_display(e, style_display);
-                  mhttpd_set_className(e, className);
+               let eqs = equipmentStatData[i];
+
+               if (eqs) {
+                   eventsNum = eqs["events sent"];
+                   if (eventsNum > 1E9) {
+                       eventsNum = (eventsNum / 1E9).toFixed(3) + "G";
+                   } else if (eventsNum > 1E6) {
+                       eventsNum = (eventsNum / 1E6).toFixed(3) + "M";
+                   } else {
+                       eventsNum = eventsNum.toFixed(0);
+                   }
+                   
+                   mb = eqs["kbytes per sec."] / 1000.0;
+                   eps = eqs["events per sec."];
                }
+
+               set_if_changed(eqid + "_status", status_text);
+               set_class_if_changed(eqid + "_status", status_class);
+               set_bg_if_changed(eqid + "_status", status_bg);
+                set_if_changed(eqid + "_events", eventsNum);
+               set_if_changed(eqid + "_eps", eps.toFixed(1));
+               set_if_changed(eqid + "_bps", mb.toFixed(3));
+
+               mhttpd_set_style_display(e, style_display);
+               mhttpd_set_className(e, className);
+               //console.log("eq " + eqn + " AAA " + eventsNum);
             } catch (err) {
                // invalid ODB equipment entry: just skip equipment
                console.log("Error: Equipment \"" + equipmentNames[i] + "\" has invalid ODB structure");
