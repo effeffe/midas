@@ -7317,6 +7317,196 @@ void ss_stack_history_dump(char *filename)
 
 #endif
 
+// Method to check if a given string is valid UTF-8.  Returns 1 if it is.
+// This method was taken from stackoverflow user Christoph, specifically
+// http://stackoverflow.com/questions/1031645/how-to-detect-utf-8-in-plain-c
+bool ss_is_valid_utf8(const char * string)
+{
+   assert(string);
+
+   // FIXME: this function over-reads the input array. K.O. May 2021
+
+   const unsigned char * bytes = (const unsigned char *)string;
+   while(*bytes) {
+      if( (// ASCII
+           // use bytes[0] <= 0x7F to allow ASCII control characters
+           bytes[0] == 0x09 ||
+           bytes[0] == 0x0A ||
+           bytes[0] == 0x0D ||
+           (0x20 <= bytes[0] && bytes[0] <= 0x7E)
+           )
+          ) {
+         bytes += 1;
+         continue;
+      }
+      
+      if( (// non-overlong 2-byte
+           (0xC2 <= bytes[0] && bytes[0] <= 0xDF) &&
+           (0x80 <= bytes[1] && bytes[1] <= 0xBF)
+           )
+          ) {
+         bytes += 2;
+         continue;
+      }
+      
+      if( (// excluding overlongs
+           bytes[0] == 0xE0 &&
+           (0xA0 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+           ) ||
+          (// straight 3-byte
+           ((0xE1 <= bytes[0] && bytes[0] <= 0xEC) ||
+            bytes[0] == 0xEE ||
+            bytes[0] == 0xEF) &&
+           (0x80 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+           ) ||
+          (// excluding surrogates
+           bytes[0] == 0xED &&
+           (0x80 <= bytes[1] && bytes[1] <= 0x9F) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+           )
+          ) {
+         bytes += 3;
+         continue;
+      }
+      
+      if( (// planes 1-3
+           bytes[0] == 0xF0 &&
+           (0x90 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+           (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+           ) ||
+          (// planes 4-15
+           (0xF1 <= bytes[0] && bytes[0] <= 0xF3) &&
+           (0x80 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+           (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+           ) ||
+          (// plane 16
+           bytes[0] == 0xF4 &&
+           (0x80 <= bytes[1] && bytes[1] <= 0x8F) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+           (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+           )
+          ) {
+         bytes += 4;
+         continue;
+      }
+      
+      //printf("ss_is_valid_utf8(): string [%s], not utf8 at offset %d, byte %d, [%s]\n", string, (int)((char*)bytes-(char*)string), (int)(0xFF&bytes[0]), bytes);
+      //abort();
+      
+      return false;
+   }
+
+   return true;
+}
+
+bool ss_repair_utf8(char* string)
+{
+   assert(string);
+
+   bool modified = false;
+
+   //std::string original = string;
+
+   // FIXME: this function over-reads the input array. K.O. May 2021
+
+   unsigned char * bytes = (unsigned char *)string;
+   while(*bytes) {
+      if( (// ASCII
+           // use bytes[0] <= 0x7F to allow ASCII control characters
+           bytes[0] == 0x09 ||
+           bytes[0] == 0x0A ||
+           bytes[0] == 0x0D ||
+           (0x20 <= bytes[0] && bytes[0] <= 0x7E)
+           )
+          ) {
+         bytes += 1;
+         continue;
+      }
+      
+      if( (// non-overlong 2-byte
+           (0xC2 <= bytes[0] && bytes[0] <= 0xDF) &&
+           (0x80 <= bytes[1] && bytes[1] <= 0xBF)
+           )
+          ) {
+         bytes += 2;
+         continue;
+      }
+      
+      if( (// excluding overlongs
+           bytes[0] == 0xE0 &&
+           (0xA0 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+           ) ||
+          (// straight 3-byte
+           ((0xE1 <= bytes[0] && bytes[0] <= 0xEC) ||
+            bytes[0] == 0xEE ||
+            bytes[0] == 0xEF) &&
+           (0x80 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+           ) ||
+          (// excluding surrogates
+           bytes[0] == 0xED &&
+           (0x80 <= bytes[1] && bytes[1] <= 0x9F) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+           )
+          ) {
+         bytes += 3;
+         continue;
+      }
+      
+      if( (// planes 1-3
+           bytes[0] == 0xF0 &&
+           (0x90 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+           (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+           ) ||
+          (// planes 4-15
+           (0xF1 <= bytes[0] && bytes[0] <= 0xF3) &&
+           (0x80 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+           (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+           ) ||
+          (// plane 16
+           bytes[0] == 0xF4 &&
+           (0x80 <= bytes[1] && bytes[1] <= 0x8F) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+           (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+           )
+          ) {
+         bytes += 4;
+         continue;
+      }
+
+      if (bytes[0] == 0) // end of string
+         break;
+
+      bytes[0] = '?';
+      bytes += 1;
+
+      modified = true;
+   }
+
+   //if (modified) {
+   //   printf("ss_repair_utf8(): invalid UTF8 string [%s] changed to [%s]\n", original.c_str(), string);
+   //} else {
+   //   //printf("ss_repair_utf8(): string [%s] is ok\n", string);
+   //}
+      
+   return modified;
+}
+
+bool ss_repair_utf8(std::string& s)
+{
+   // C++11 std::string data() is same as c_str(), NUL-terminated.
+   // C++17 std::string data() is not "const".
+   // https://en.cppreference.com/w/cpp/string/basic_string/data
+   return ss_repair_utf8((char*)s.data()); // FIXME: C++17 or newer, do not need to drop the "const". K.O. May 2021
+}
+
 /** @} *//* end of msfunctionc */
 /* emacs
  * Local Variables:

@@ -2047,6 +2047,11 @@ Data conversion flags */
    double EXPRT ss_disk_size(const char *path);
    int EXPRT ss_file_copy(const char *src, const char *dst, bool append = false);
 
+   /*---- UTF8 unicode ----*/
+   bool ss_is_valid_utf8(const char* s);
+   bool ss_repair_utf8(char* s);
+   bool ss_repair_utf8(std::string& s);
+
 /** @} */
 
    /*---- ELog functions ----*/
