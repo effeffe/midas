@@ -705,6 +705,7 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
                
                status = db_copy_json_index(hDB, hkey, list[i], &buf, &bufsize, &end);
                if (status == DB_SUCCESS) {
+                  ss_repair_utf8(buf);
                   ddresult->AddToArray(MJsonNode::MakeJSON(buf));
                   ssresult->AddToArray(MJsonNode::MakeInt(status));
                } else {
@@ -728,6 +729,7 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
             
             status = db_copy_json_index(hDB, hkey, list[0], &buf, &bufsize, &end);
             if (status == DB_SUCCESS) {
+               ss_repair_utf8(buf);
                dresult->AddToArray(MJsonNode::MakeJSON(buf));
                sresult->AddToArray(MJsonNode::MakeInt(status));
                tresult->AddToArray(MJsonNode::MakeInt(key.type));
@@ -751,6 +753,7 @@ static MJsonNode* js_db_get_values(const MJsonNode* params)
                                       omit_last_written, omit_old_timestamp, preserve_case);
 
          if (status == DB_SUCCESS) {
+            ss_repair_utf8(buf);
             dresult->AddToArray(MJsonNode::MakeJSON(buf));
             sresult->AddToArray(MJsonNode::MakeInt(status));
             tresult->AddToArray(MJsonNode::MakeInt(key.type));
@@ -823,6 +826,7 @@ static MJsonNode* js_db_ls(const MJsonNode* params)
       status = db_copy_json_ls(hDB, hkey, &buf, &bufsize, &end);
 
       if (status == DB_SUCCESS) {
+         ss_repair_utf8(buf);
          dresult->AddToArray(MJsonNode::MakeJSON(buf));
          sresult->AddToArray(MJsonNode::MakeInt(status));
       } else {
@@ -877,6 +881,7 @@ static MJsonNode* js_db_copy(const MJsonNode* params)
       status = db_copy_json_save(hDB, hkey, &buf, &bufsize, &end);
 
       if (status == DB_SUCCESS) {
+         ss_repair_utf8(buf);
          dresult->AddToArray(MJsonNode::MakeJSON(buf));
          sresult->AddToArray(MJsonNode::MakeInt(status));
       } else {
@@ -1252,6 +1257,7 @@ static MJsonNode* js_db_key(const MJsonNode* params)
 
       jkey->AddToObject("type", MJsonNode::MakeInt(key.type));
       jkey->AddToObject("num_values", MJsonNode::MakeInt(key.num_values));
+      ss_repair_utf8(key.name);
       jkey->AddToObject("name", MJsonNode::MakeString(key.name));
       jkey->AddToObject("total_size", MJsonNode::MakeInt(key.total_size));
       jkey->AddToObject("item_size", MJsonNode::MakeInt(key.item_size));
@@ -1426,6 +1432,7 @@ static MJsonNode* js_cm_msg_facilities(const MJsonNode* params)
    MJsonNode* facilities = MJsonNode::MakeArray();
 
    for (unsigned i=0; i<list.size(); i++) {
+      ss_repair_utf8(list[i]);
       facilities->AddToArray(MJsonNode::MakeString(list[i].c_str()));
    }
 
@@ -1497,6 +1504,7 @@ static MJsonNode* js_cm_msg_retrieve(const MJsonNode* params)
    result->AddToObject("num_messages", MJsonNode::MakeInt(num_messages));
 
    if (messages) {
+      ss_repair_utf8(messages);
       result->AddToObject("messages", MJsonNode::MakeString(messages));
       free(messages);
       messages = NULL;
@@ -1610,6 +1618,7 @@ static MJsonNode* js_hs_get_active_events(const MJsonNode* params)
    MJsonNode* events = MJsonNode::MakeArray();
 
    for (unsigned i=0; i<list.size(); i++) {
+      ss_repair_utf8(list[i]);
       events->AddToArray(MJsonNode::MakeString(list[i].c_str()));
    }
 
@@ -1706,6 +1715,7 @@ static MJsonNode* js_hs_get_channels(const MJsonNode* params)
          status = db_get_key(hDB, hKey, &key);
 
          if (status == DB_SUCCESS) {
+            ss_repair_utf8(key.name);
             channels->AddToArray(MJsonNode::MakeString(key.name));
          }
       }
@@ -1748,6 +1758,7 @@ static MJsonNode* js_hs_get_events(const MJsonNode* params)
    int status = mh->hs_get_events(time, &list);
 
    for (unsigned i=0; i<list.size(); i++) {
+      ss_repair_utf8(list[i]);
       events->AddToArray(MJsonNode::MakeString(list[i].c_str()));
    }
 
@@ -1835,11 +1846,13 @@ static MJsonNode* js_hs_get_tags(const MJsonNode* params)
       const char* event_name = event_names[i].c_str();
       std::vector<TAG> tags;
       int status = mh->hs_get_tags(event_name, time, &tags);
+      //ss_repair_utf8(event_name); redundant!
       o->AddToObject("name", MJsonNode::MakeString(event_name));
       o->AddToObject("status", MJsonNode::MakeInt(status));
       MJsonNode *ta = MJsonNode::MakeArray();
       for (unsigned j=0; j<tags.size(); j++) {
          MJsonNode* to = MJsonNode::MakeObject();
+         ss_repair_utf8(tags[j].name);
          to->AddToObject("name", MJsonNode::MakeString(tags[j].name));
          to->AddToObject("type", MJsonNode::MakeInt(tags[j].type));
          if (tags[j].n_data != 1) {
@@ -2664,6 +2677,7 @@ static MJsonNode* js_hs_image_retrieve(const MJsonNode* params) {
 
    for (int i=0 ; i<(int)vtime.size() ; i++) {
       tj->AddToArray(MJsonNode::MakeInt(vtime[i]));
+      ss_repair_utf8(vfilename[i]);
       fj->AddToArray(MJsonNode::MakeString(vfilename[i].c_str()));
    }
    MJsonNode* data = MJsonNode::MakeObject();
@@ -3071,6 +3085,7 @@ static MJsonNode* jrpc(const MJsonNode* params)
       return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
    }
 
+   ss_repair_utf8(buf);
    MJsonNode* reply = MJsonNode::MakeString(buf);
    free(buf);
    
@@ -3131,6 +3146,7 @@ static MJsonNode* js_cm_transition(const MJsonNode* params)
 
    result->AddToObject("status", MJsonNode::MakeInt(status));
    if (strlen(error_str) > 0) {
+      ss_repair_utf8(error_str);
       result->AddToObject("error_string", MJsonNode::MakeString(error_str));
    }
    return mjsonrpc_make_result(result);
@@ -3266,7 +3282,8 @@ static MJsonNode* get_alarms(const MJsonNode* params)
       strcpy(alarm_class, "Alarm");
       size = sizeof(alarm_class);
       status = db_get_value(hDB, hsubkey, "Alarm Class", alarm_class, &size, TID_STRING, TRUE);
-         
+
+      ss_repair_utf8(alarm_class);
       a->AddToObject("class", MJsonNode::MakeString(alarm_class));
 
       int atype = 0;
@@ -3286,6 +3303,7 @@ static MJsonNode* get_alarms(const MJsonNode* params)
          status = db_get_value(hDB, 0, str, bgcol, &size, TID_STRING, TRUE);
       }
          
+      ss_repair_utf8(bgcol);
       a->AddToObject("bgcolor", MJsonNode::MakeString(bgcol));
 
       char fgcol[256];
@@ -3297,6 +3315,7 @@ static MJsonNode* get_alarms(const MJsonNode* params)
          status = db_get_value(hDB, 0, str, fgcol, &size, TID_STRING, TRUE);
       }
          
+      ss_repair_utf8(fgcol);
       a->AddToObject("fgcolor", MJsonNode::MakeString(fgcol));
 
       char msg[256];
@@ -3304,6 +3323,7 @@ static MJsonNode* get_alarms(const MJsonNode* params)
       size = sizeof(msg);
       status = db_get_value(hDB, hsubkey, "Alarm Message", msg, &size, TID_STRING, TRUE);
          
+      ss_repair_utf8(msg);
       a->AddToObject("message", MJsonNode::MakeString(msg));
 
       char cond[256];
@@ -3311,6 +3331,7 @@ static MJsonNode* get_alarms(const MJsonNode* params)
       size = sizeof(cond);
       status = db_get_value(hDB, hsubkey, "Condition", cond, &size, TID_STRING, TRUE);
 
+      ss_repair_utf8(cond);
       a->AddToObject("condition", MJsonNode::MakeString(cond));
 
       char show_to_user[256];
@@ -3326,16 +3347,19 @@ static MJsonNode* get_alarms(const MJsonNode* params)
          // check for array overflow by sprintf()
          assert(strlen(show_to_user) + 1 < sizeof(show_to_user));
 
+         ss_repair_utf8(value_str);
          a->AddToObject("evaluated_value", MJsonNode::MakeString(value_str));
       } else
          strlcpy(show_to_user, msg, sizeof(show_to_user));
       
+      ss_repair_utf8(show_to_user);
       a->AddToObject("show_to_user", MJsonNode::MakeString(show_to_user));
 
       str[0] = 0;
       size = sizeof(str);
       status = db_get_value(hDB, hsubkey, "Time triggered first", str, &size, TID_STRING, TRUE);
 
+      ss_repair_utf8(str);
       a->AddToObject("time_triggered_first", MJsonNode::MakeString(str));
 
       if (atype == AT_PERIODIC) {
@@ -3359,6 +3383,7 @@ static MJsonNode* get_alarms(const MJsonNode* params)
          if (!snext)
             snext = "<invalid time>";
 
+         //ss_repair_utf8(snext); redundant!
          a->AddToObject("periodic_next_time", MJsonNode::MakeString(snext));
       }
 
@@ -3436,6 +3461,7 @@ static MJsonNode* js_seq_list_files(const MJsonNode* params)
    for (int i=0 ; i<n ; i++) {
       if (flist[i*MAX_STRING_LENGTH] != '.') {
          //printf("subdir %d: [%s]\n", i, flist+i*MAX_STRING_LENGTH);
+         ss_repair_utf8(flist+i*MAX_STRING_LENGTH);
          s->AddToArray(MJsonNode::MakeString(flist+i*MAX_STRING_LENGTH));
       }
    }
@@ -3447,6 +3473,7 @@ static MJsonNode* js_seq_list_files(const MJsonNode* params)
    for (int i=0 ; i<n ; i++) {
       //printf("file %d: [%s]\n", i, flist+i*MAX_STRING_LENGTH);
       MJsonNode* o = MJsonNode::MakeObject();
+      ss_repair_utf8(flist+i*MAX_STRING_LENGTH);
       o->AddToObject("filename", MJsonNode::MakeString(flist+i*MAX_STRING_LENGTH));
       o->AddToObject("description", MJsonNode::MakeString("description"));
       f->AddToArray(o);
@@ -3499,6 +3526,7 @@ static MJsonNode* js_seq_list_files(const MJsonNode* params)
 
    MJsonNode* r = MJsonNode::MakeObject();
    r->AddToObject("status", MJsonNode::MakeInt(SUCCESS));
+   ss_repair_utf8(path);
    r->AddToObject("path", MJsonNode::MakeString(path.c_str()));
    r->AddToObject("subdirs", s);
    r->AddToObject("files", f);
@@ -3557,6 +3585,7 @@ static MJsonNode* js_seq_save_script(const MJsonNode* params)
       status = SS_FILE_ERROR;
       char errstr[256];
       sprintf(errstr, "fopen() errno %d (%s)", errno, strerror(errno));
+      ss_repair_utf8(errstr);
       return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "error", MJsonNode::MakeString(errstr));
    }
 
@@ -3568,6 +3597,7 @@ static MJsonNode* js_seq_save_script(const MJsonNode* params)
    status = CM_SUCCESS;
    std::string errstr = "no error";
 
+   //ss_repair_utf8(errstr); redundant!
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status), "error", MJsonNode::MakeString(errstr.c_str()));
 }
 
