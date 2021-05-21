@@ -3364,9 +3364,9 @@ int db_create_key_wlocked(DATABASE_HEADER* pheader, KEY* parentKey, const char *
             strlcpy(pkey->name, name, sizeof(pkey->name));
             pkey->parent_keylist = (POINTER_T) pkeylist - (POINTER_T) pheader;
             
-            /* zero data */
-            if (type != TID_STRING && type != TID_LINK) {
-               pkey->item_size = rpc_tid_size(type);
+            /* allocate data */
+            pkey->item_size = rpc_tid_size(type);
+            if (pkey->item_size > 0) {
                void* data = malloc_data(pheader, pkey->item_size);
                if (data == NULL) {
                   pkey->total_size = 0;
