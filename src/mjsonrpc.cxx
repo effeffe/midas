@@ -2728,19 +2728,32 @@ static MJsonNode* js_el_retrieve(const MJsonNode* params)
    MJsonNode* msg = MJsonNode::MakeObject();
 
    if (status == EL_SUCCESS) {
+      ss_repair_utf8(xtag);
       msg->AddToObject("tag", MJsonNode::MakeString(xtag));
+      ss_repair_utf8(date);
       msg->AddToObject("date", MJsonNode::MakeString(date));
       msg->AddToObject("run", MJsonNode::MakeInt(run));
+      ss_repair_utf8(author);
       msg->AddToObject("author", MJsonNode::MakeString(author));
+      ss_repair_utf8(type);
       msg->AddToObject("type", MJsonNode::MakeString(type));
+      ss_repair_utf8(system);
       msg->AddToObject("system", MJsonNode::MakeString(system));
+      ss_repair_utf8(subject);
       msg->AddToObject("subject", MJsonNode::MakeString(subject));
+      ss_repair_utf8(text);
       msg->AddToObject("text", MJsonNode::MakeString(text));
+      ss_repair_utf8(orig_tag);
       msg->AddToObject("orig_tag", MJsonNode::MakeString(orig_tag));
+      ss_repair_utf8(reply_tag);
       msg->AddToObject("reply_tag", MJsonNode::MakeString(reply_tag));
+      ss_repair_utf8(attachment[0]);
       msg->AddToObject("attachment0", MJsonNode::MakeString(attachment[0]));
+      ss_repair_utf8(attachment[1]);
       msg->AddToObject("attachment1", MJsonNode::MakeString(attachment[1]));
+      ss_repair_utf8(attachment[2]);
       msg->AddToObject("attachment2", MJsonNode::MakeString(attachment[2]));
+      ss_repair_utf8(encoding);
       msg->AddToObject("encoding", MJsonNode::MakeString(encoding));
    }
 
@@ -2984,19 +2997,32 @@ static MJsonNode* js_el_query(const MJsonNode* params)
 
          MJsonNode* msg = MJsonNode::MakeObject();
          
+         ss_repair_utf8(this_tag);
          msg->AddToObject("tag", MJsonNode::MakeString(this_tag.c_str()));
+         ss_repair_utf8(date);
          msg->AddToObject("date", MJsonNode::MakeString(date));
          msg->AddToObject("run", MJsonNode::MakeInt(run));
+         ss_repair_utf8(author);
          msg->AddToObject("author", MJsonNode::MakeString(author));
+         ss_repair_utf8(type);
          msg->AddToObject("type", MJsonNode::MakeString(type));
+         ss_repair_utf8(system);
          msg->AddToObject("system", MJsonNode::MakeString(system));
+         ss_repair_utf8(subject);
          msg->AddToObject("subject", MJsonNode::MakeString(subject));
+         ss_repair_utf8(text);
          msg->AddToObject("text", MJsonNode::MakeString(text));
+         ss_repair_utf8(orig_tag);
          msg->AddToObject("orig_tag", MJsonNode::MakeString(orig_tag));
+         ss_repair_utf8(reply_tag);
          msg->AddToObject("reply_tag", MJsonNode::MakeString(reply_tag));
+         ss_repair_utf8(attachment[0]);
          msg->AddToObject("attachment0", MJsonNode::MakeString(attachment[0]));
+         ss_repair_utf8(attachment[1]);
          msg->AddToObject("attachment1", MJsonNode::MakeString(attachment[1]));
+         ss_repair_utf8(attachment[2]);
          msg->AddToObject("attachment2", MJsonNode::MakeString(attachment[2]));
+         ss_repair_utf8(encoding);
          msg->AddToObject("encoding", MJsonNode::MakeString(encoding));
 
          msg_array->AddToArray(msg);
