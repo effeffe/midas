@@ -2293,7 +2293,7 @@ function mhttpd_close_message() {
 function mhttpd_fit_message(m) {
    let d = document.getElementById("mheader_message");
    let cross = "&nbsp;&nbsp;&nbsp;<span style=\"cursor: pointer;\" onclick=\"mhttpd_close_message();\">&#9587;</span>";
-   let link1 = "<span style=\"cursor: pointer;\" onclick=\"window.location.href='&quot;'?cmd=Messages&quot;\">";
+   let link1 = "<span style=\"cursor: pointer;\" onclick=\"window.location.href='?cmd=Messages'\">";
    let link2 = "</span>";
    d.style.display = "inline-block";
 
