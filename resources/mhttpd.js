@@ -415,6 +415,10 @@ function mhttpd_get_display_time(sec) {
    else
       d = new Date();
    let o = 0;
+
+   if (mhttpdConfig().timezone === undefined)
+      mhttpdConfigSet('timezone', 'local');
+
    if (mhttpdConfig().timezone === 'local') {
       o = -d.getTimezoneOffset() / 60;
    } else if (mhttpdConfig().timezone === 'server') {
