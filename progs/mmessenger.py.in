@@ -1,0 +1,139 @@
+#!@Python3_EXECUTABLE@
+
+#CMake will set the path to python3 above
+
+import midas.client
+import requests
+
+"""
+JTK McKenna
+
+A simple program that connects to a midas experiment, and sends HTTP 
+requests messages (to discord, mattermost and or slack) via webhook
+
+"""
+
+MT_MAP = {}
+MT_MAP[midas.MT_ERROR] = "MT_ERROR"
+MT_MAP[midas.MT_INFO] = "MT_INFO"
+MT_MAP[midas.MT_DEBUG] = "MT_DEBUG"
+MT_MAP[midas.MT_USER] = "MT_USER"
+MT_MAP[midas.MT_LOG] = "MT_LOG"
+MT_MAP[midas.MT_TALK] = "MT_TALK"
+MT_MAP[midas.MT_CALL] = "MT_CALL"
+
+ExperimentName = ""
+
+
+def PostToDiscord(MsgType, message):
+    if len(discord[MT_MAP[MsgType]]):
+        discord_message = {
+            'content': message.decode('UTF-8'),
+            'username': ExperimentName
+        }
+        result = requests.post(
+            discord[MT_MAP[MsgType]], json=discord_message)
+        try:
+            result.raise_for_status()
+        except requests.exceptions.HTTPError as err:
+            print('Discord webhook error: %s' % err)
+        else:
+            print('Discord webhook response: %s' % result.status_code)
+
+
+def PostToMattermost(MsgType, message):
+    if len(mattermost[MT_MAP[MsgType]]):
+        mattermost_message = {
+            "text": message.decode('UTF-8'),
+            'username': ExperimentName
+        }
+        result = requests.post(
+            mattermost[MT_MAP[MsgType]], json=mattermost_message)
+        try:
+            result.raise_for_status()
+        except requests.exceptions.HTTPError as err:
+            print('mattermost webhook error: %s' % err)
+        else:
+            print('mattermost webhook response: %s' % result.status_code)
+
+
+def PostToSlack(MsgType, message):
+    if len(slack[MT_MAP[MsgType]]):
+        #Username is imbedded into the slack app, so can't be given here
+        slack_message = {
+            "text": message.decode('UTF-8')
+        }
+        result = requests.post(
+            slack[MT_MAP[MsgType]], json=slack_message)
+        try:
+            result.raise_for_status()
+        except requests.exceptions.HTTPError as err:
+            print('slack webhook error: %s' % err)
+        else:
+            print('slack webhook response: %s' % result.status_code)
+
+
+if __name__ == "__main__":
+    client = midas.client.MidasClient("mmessenger")
+
+    # Messages will be posted as being from the experiment name (except slack which cannot set username)
+    ExperimentName = client.odb_get("/Experiment/Name")
+
+    # Setup ODB paths for Discord, Mattermost and slack (they they dont already exist)
+    for service in [ "Discord", "Mattermost", "Slack" ]:
+        for key in [ "MT_ERROR", "MT_INFO", "MT_DEBUG", "MT_USER", "MT_LOG", "MT_TALK", "MT_CALL" ]:
+            odb_path = "/MIDASMessenger/" + service + "/WebHooks/" + key
+            if not client.odb_exists(odb_path):
+                client.odb_set(odb_path,"")
+    
+    discord = {}
+    mattermost = {}
+    slack = {}
+    # Load all webhook links in ODB
+    for key in [ "MT_ERROR", "MT_INFO", "MT_DEBUG", "MT_USER", "MT_LOG", "MT_TALK", "MT_CALL" ]:
+        discord[key]    = client.odb_get("/MIDASMessenger/" + "Discord" + "/WebHooks/" + key)
+        mattermost[key] = client.odb_get("/MIDASMessenger/" + "Mattermost" + "/WebHooks/" + key)
+        slack[key]      = client.odb_get("/MIDASMessenger/" + "Slack" + "/WebHooks/" + key)
+
+    # Define which buffer we want to listen for events on (SYSTEM is the 
+    # main midas buffer).
+    buffer_handle = client.open_event_buffer("SYSMSG")
+
+    # Request events from this buffer that match certain criteria. In this
+    # case we will only be told about events with an "event ID" of 14.
+    request_id = client.register_event_request(buffer_handle)
+
+    while True:
+        # If there's an event ready, `event` will contain a `midas.event.Event`
+        # object. If not, it will be None. If you want to block waiting for an
+        # event to arrive, you could set async_flag to False.
+        event = client.receive_event(buffer_handle, async_flag=True)
+        
+        if event is not None:
+            # Print some information to screen about this event.
+            bank_names = ", ".join(b.name for b in event.banks)
+            #if event.header.trigger_mask == midas.MT_TALK:
+            print("Received event with timestamp %s containing banks %s" % (event.header.timestamp, bank_names))
+            if event.header.is_msg_event():
+                message = event.non_bank_data[0:event.header.event_data_size_bytes - midas.event.event_header_size - 1]
+                print(str(message))
+
+                for MsgType in [midas.MT_ERROR, midas.MT_INFO, midas.MT_DEBUG, midas.MT_USER, midas.MT_LOG, midas.MT_TALK, midas.MT_CALL]:
+                    if event.header.trigger_mask & MsgType:
+                        PostToDiscord(MsgType, message)
+                        PostToMattermost(MsgType, message)
+                        PostToSlack(MsgType, message)
+
+        # Talk to midas so it knows we're alive, or can kill us if the user
+        # pressed the "stop program" button.
+        client.communicate(10)
+
+    # You don't have to cancel the event request manually (it will be done
+    # automatically when the program exits), but for completeness we're just
+    # showing that such a function exists.
+    client.deregister_event_request(buffer_handle, request_id)
+    
+    ##################################################################
+    
+    # Disconnect from midas before we exit
+    client.disconnect()

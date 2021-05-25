@@ -25,6 +25,12 @@ set(PROGS
    lazylogger
 )
 
+find_package (Python3)
+if (Python3_FOUND)
+   configure_file(mmessenger.py.in  ${CMAKE_BINARY_DIR}/progs/mmessenger @ONLY)
+   install(PROGRAMS ${CMAKE_BINARY_DIR}/progs/mmessenger DESTINATION bin)
+endif()
+
 if (NO_LOCAL_ROUTINES)
 else()
    list(APPEND PROGS odbinit)
