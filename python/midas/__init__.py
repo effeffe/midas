@@ -27,8 +27,14 @@ STATE_PAUSED  = 2
 STATE_RUNNING = 3
 
 # Message types
-MT_ERROR = 1
-MT_INFO  = 2
+MT_ERROR = (1<<0)
+MT_INFO  = (1<<1)
+MT_DEBUG = (1<<2)
+MT_USER  = (1<<3)
+MT_LOG   = (1<<4)
+MT_TALK  = (1<<5)
+MT_CALL  = (1<<6)
+MT_ALL   = 0xFF
 
 # Data types                                   min      max    
 TID_BYTE     =  1       # unsigned byte         0       255
