@@ -17,6 +17,8 @@
 /* #include "dbDefs.h" */
 
 #include "vxi11_user.h"
+#undef TRUE   // conflicting type definition between /usr/include/rpc/types.h
+#undef FALSE  // and midas.h
 #include "midas.h"
 #include "msystem.h"
 #include "vxi11dev.h"
