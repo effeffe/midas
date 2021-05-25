@@ -30,6 +30,7 @@ The Midas System include file
 
 #include "midasinc.h"
 #include <string> // std::string
+#include <mutex>  // std::mutex
 
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
@@ -108,7 +109,7 @@ SWAP QWORD macro */
 Definition of implementation specific constants */
 #define MESSAGE_BUFFER_SIZE    100000   /**< buffer used for messages */
 #define MESSAGE_BUFFER_NAME    "SYSMSG" /**< buffer name for messages */
-#define MAX_RPC_CONNECTION     64       /**< server/client connections   */
+//#define MAX_RPC_CONNECTION     64       /**< server/client connections   */
 #define MAX_STRING_LENGTH      256      /**< max string length for odb */
 #define NET_BUFFER_SIZE        (8*1024*1024) /**< size of network receive buffers */
 
@@ -138,8 +139,8 @@ Definition of implementation specific constants */
 
 #ifdef OS_MSDOS
 
-#define closesocket(s) close(s)
-#define ioctlsocket(s,c,d) ioctl(s,c,d)
+#define closesocket(s) ::close(s)
+#define ioctlsocket(s,c,d) ::ioctl(s,c,d)
 #define malloc(i) farmalloc(i)
 
 #undef NET_TCP_SIZE
@@ -149,7 +150,7 @@ Definition of implementation specific constants */
 
 #ifdef OS_VMS
 
-#define closesocket(s) close(s)
+#define closesocket(s) ::close(s)
 #define ioctlsocket(s,c,d)
 
 #ifndef FD_SET
@@ -179,8 +180,8 @@ typedef struct {
 
 #ifdef OS_UNIX
 
-#define closesocket(s) close(s)
-#define ioctlsocket(s,c,d) ioctl(s,c,d)
+#define closesocket(s) ::close(s)
+#define ioctlsocket(s,c,d) ::ioctl(s,c,d)
 #ifndef stricmp
 #define stricmp(s1, s2) strcasecmp(s1, s2)
 #endif
@@ -205,8 +206,8 @@ typedef struct {
 #ifdef OS_VXWORKS
 
 #define P_NOWAIT 1
-#define closesocket(s) close(s)
-#define ioctlsocket(s,c,d) ioctl(s,c,d)
+#define closesocket(s) ::close(s)
+#define ioctlsocket(s,c,d) ::ioctl(s,c,d)
 
 #endif
 
@@ -307,7 +308,6 @@ struct callback_addr {
    std::string experiment;
    std::string directory;
    std::string user;
-   INT index;
 
    void clear() {
       host_name = "";
@@ -318,7 +318,6 @@ struct callback_addr {
       experiment = "";
       directory = "";
       user = "";
-      index = 0;
    }
 };
 
@@ -327,30 +326,9 @@ typedef struct {
    INT port;                    /*  ip port                 */
    std::string exp_name;        /*  experiment to connect   */
    int send_sock;               /*  tcp send socket         */
-   int connected;               /*  socket is connected     */
-   INT remote_hw_type;          /*  remote hardware type    */
-   std::string client_name;     /* name of remote client    */
-   INT rpc_timeout;             /*  in milliseconds         */
-
-   void clear() {
-      host_name = "";
-      port = 0;
-      exp_name = "";
-      send_sock = 0;
-      connected = 0;
-      remote_hw_type = 0;
-      client_name = "";
-      rpc_timeout = 0;
-   }
-} RPC_CLIENT_CONNECTION;
-
-typedef struct {
-   std::string host_name;       /*  server name        */
-   INT port;                    /*  ip port                 */
-   std::string exp_name;        /*  experiment to connect   */
-   int send_sock;               /*  tcp send socket         */
    int recv_sock;               /*  tcp receive socket      */
    int event_sock;              /*  event socket            */
+   std::mutex event_sock_mutex; /*  protect event socket against multithreaded access */
    INT remote_hw_type;          /*  remote hardware type    */
    INT rpc_timeout;             /*  in milliseconds         */
 
@@ -367,23 +345,21 @@ typedef struct {
 } RPC_SERVER_CONNECTION;
 
 typedef struct {
-   std::string prog_name;       /*  client program name     */
-   std::string host_name;       /*  client name        */
-   BOOL is_mserver;             /*  this is an mserver server-side connection */
-   int send_sock;               /*  tcp send socket         */
-   int recv_sock;               /*  tcp receive socket      */
-   int event_sock;              /*  tcp event socket        */
-   INT remote_hw_type;          /*  hardware type           */
-   INT watchdog_timeout;        /*  in milliseconds         */
-   DWORD last_activity;         /*  time of last recv       */
-   INT convert_flags;           /*  convertion flags        */
-   char *net_buffer;            /*  TCP cache buffer        */
-   char *ev_net_buffer;
-   INT net_buffer_size;         /*  size of TCP cache       */
-   INT write_ptr, read_ptr, misalign;   /* pointers for cache */
-   INT ev_write_ptr, ev_read_ptr, ev_misalign;
-   HNDLE odb_handle;            /*  handle to online datab. */
-   HNDLE client_handle;         /*  client key handle .     */
+   std::string prog_name;           /*  client program name     */
+   std::string host_name;           /*  client name             */
+   BOOL is_mserver = 0;             /*  this is an mserver server-side connection */
+   int send_sock = 0;               /*  tcp send socket         */
+   int recv_sock = 0;               /*  tcp receive socket      */
+   int event_sock = 0;              /*  tcp event socket        */
+   INT remote_hw_type = 0;          /*  hardware type           */
+   INT watchdog_timeout = 0;        /*  in milliseconds         */
+   DWORD last_activity = 0;         /*  time of last recv       */
+   INT convert_flags = 0;           /*  convertion flags        */
+   char *net_buffer = NULL;         /*  TCP cache buffer        */
+   INT net_buffer_size = 0;         /*  size of TCP cache       */
+   INT write_ptr=0, read_ptr=0, misalign=0;   /* pointers for cache */
+   HNDLE odb_handle = 0;            /*  handle to online datab. */
+   HNDLE client_handle = 0;         /*  client key handle .     */
 
    void clear() {
       prog_name = "";
@@ -397,18 +373,19 @@ typedef struct {
       last_activity = 0;
       convert_flags = 0;
       net_buffer = NULL;
-      ev_net_buffer = NULL;
       net_buffer_size = 0;
       write_ptr = 0;
       read_ptr = 0;
       misalign = 0;
-      ev_write_ptr = 0;
-      ev_read_ptr = 0;
-      ev_misalign = 0;
       odb_handle = 0;
       client_handle = 0;
    }
+
+   void close();
 } RPC_SERVER_ACCEPTION;
+
+typedef std::vector<RPC_SERVER_ACCEPTION*> RPC_SERVER_ACCEPTION_LIST;
+
 
 typedef struct {
    INT size;                          /**< size in bytes              */
@@ -574,26 +551,23 @@ typedef struct {
    /*---- rpc functions -----*/
    INT rpc_register_listener(int port, RPC_HANDLER func, int *plsock, int *pport);
    RPC_LIST EXPRT *rpc_get_internal_list(INT flag);
-   INT rpc_server_receive(INT idx, int sock, BOOL check);
+   INT rpc_server_receive_rpc(int idx, RPC_SERVER_ACCEPTION* sa);
+   INT rpc_server_receive_event(int idx, RPC_SERVER_ACCEPTION* sa, int timeout_msec);
    INT rpc_server_callback(struct callback_addr *callback);
    INT EXPRT rpc_server_accept(int sock);
    INT rpc_client_accept(int sock);
    INT rpc_client_dispatch(int sock);
-   INT rpc_set_mserver_mode(void);
-   INT EXPRT rpc_set_server_option(INT item, INT value);
-   INT EXPRT rpc_get_server_option(INT item);
+   INT EXPRT rpc_get_convert_flags(void);
    INT recv_tcp_check(int sock);
-   INT recv_event_check(int sock);
    INT rpc_deregister_functions(void);
    INT rpc_check_channels(void);
    void EXPRT rpc_client_check(void);
    INT rpc_server_disconnect(void);
-   int EXPRT rpc_get_send_sock(void);
-   int EXPRT rpc_get_event_sock(void);
    INT EXPRT rpc_set_opt_tcp_size(INT tcp_size);
    INT EXPRT rpc_get_opt_tcp_size(void);
    INT EXPRT rpc_set_mserver_path(const char *mserver_path);
    const char* EXPRT rpc_get_mserver_path(void);
+   RPC_SERVER_ACCEPTION* rpc_get_mserver_acception(void);
 
    /** @addtogroup msfunctionc */
    /** @{ */
@@ -631,7 +605,7 @@ typedef struct {
    INT ss_suspend_set_server_listener(int listen_socket);
    INT ss_suspend_set_client_listener(int listen_socket);
    INT ss_suspend_set_client_connection(RPC_SERVER_CONNECTION* connection);
-   INT ss_suspend_set_server_acceptions_array(int num_acceptions, RPC_SERVER_ACCEPTION* acceptions);
+   INT ss_suspend_set_server_acceptions(RPC_SERVER_ACCEPTION_LIST* acceptions);
    INT ss_resume(INT port, const char *message);
    INT ss_suspend_exit(void);
    INT ss_exception_handler(void (*func) (void));
@@ -646,6 +620,7 @@ typedef struct {
    void EXPRT ss_stack_history_entry(char *tag);
    void EXPRT ss_stack_history_dump(char *filename);
    INT ss_gethostname(char* buffer, int buffer_size);
+   std::string ss_gethostname();
    BOOL ss_pid_exists(int pid);
    void ss_kill(int pid);
 
@@ -656,6 +631,10 @@ typedef struct {
    INT EXPRT recv_string(int sock, char *buffer, DWORD buffer_size, INT flags);
    INT EXPRT ss_socket_wait(int sock, int millisec);
    INT EXPRT ss_recv_net_command(int sock, DWORD* routine_id, DWORD* param_size, char **param_ptr, int timeout_ms);
+
+   /*---- mserver event socket ----*/
+   bool ss_event_socket_has_data();
+   int  rpc_flush_event_socket(int timeout_msec);
 
    /** @} */
 

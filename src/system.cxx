@@ -3721,8 +3721,7 @@ static midas_thread_t _ss_client_thread = 0;
 static RPC_SERVER_CONNECTION* _ss_client_connection = NULL; // client-side connection to the mserver
 
 static midas_thread_t _ss_server_thread = 0;
-static int _ss_server_num_acceptions = 0;
-static RPC_SERVER_ACCEPTION* _ss_server_acceptions = NULL; // server side RPC connections (run transitions, etc)
+static RPC_SERVER_ACCEPTION_LIST* _ss_server_acceptions = NULL; // server side RPC connections (run transitions, etc)
 
 /*------------------------------------------------------------------*/
 static bool ss_match_thread(midas_thread_t tid1, midas_thread_t tid2)
@@ -4018,10 +4017,9 @@ INT ss_suspend_set_client_connection(RPC_SERVER_CONNECTION* connection)
    return SS_SUCCESS;
 }
 
-INT ss_suspend_set_server_acceptions_array(int num, RPC_SERVER_ACCEPTION* acceptions)
+INT ss_suspend_set_server_acceptions(RPC_SERVER_ACCEPTION_LIST* acceptions)
 {
    // server side of the RPC connections (run transitions, etc)
-   _ss_server_num_acceptions = num;
    _ss_server_acceptions = acceptions;
    return SS_SUCCESS;
 }
@@ -4134,9 +4132,11 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
    
    // NB: do not need to check thread id, the mserver is single-threaded. K.O.
    int mserver_client_socket = 0;
-   for (int i = 0; i < _ss_server_num_acceptions; i++) {
-      if (_ss_server_acceptions[i].is_mserver) {
-         mserver_client_socket = _ss_server_acceptions[i].send_sock;
+   if (_ss_server_acceptions) {
+      for (unsigned i = 0; i < _ss_server_acceptions->size(); i++) {
+         if ((*_ss_server_acceptions)[i]->is_mserver) {
+            mserver_client_socket = (*_ss_server_acceptions)[i]->send_sock;
+         }
       }
    }
    
@@ -4201,6 +4201,55 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
    cm_dispatch_ipc(buffer, size, mserver_client_socket);
    
    return return_status;
+}
+
+static int ss_socket_check(int sock)
+{
+   // copied from the old rpc_server_receive()
+
+   /* only check if TCP connection is broken */
+
+   char test_buffer[256];
+#ifdef OS_WINNT
+   int n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK);
+#else
+   int n_received = recv(sock, test_buffer, sizeof(test_buffer), MSG_PEEK | MSG_DONTWAIT);
+   
+   /* check if we caught a signal */
+   if ((n_received == -1) && (errno == EAGAIN))
+      return SS_SUCCESS;
+#endif
+   
+   if (n_received == -1) {
+      cm_msg(MERROR, "ss_socket_check", "recv(%d,MSG_PEEK) returned %d, errno: %d (%s)", (int) sizeof(test_buffer), n_received, errno, strerror(errno));
+   }
+   
+   if (n_received <= 0)
+      return SS_ABORT;
+   
+   return SS_SUCCESS;
+}
+
+bool ss_event_socket_has_data()
+{
+   if (_ss_server_acceptions) {
+      for (unsigned i = 0; i < _ss_server_acceptions->size(); i++) {
+         /* event channel */
+         int sock = (*_ss_server_acceptions)[i]->event_sock;
+
+         if (!sock)
+            continue;
+
+         /* check for buffered event */
+         int status = ss_socket_wait(sock, 1);
+
+         if (status == SS_SUCCESS)
+            return true;
+      }
+   }
+   
+   /* no event socket or no data in event socket */
+   return false;
 }
 
 /*------------------------------------------------------------------*/
@@ -4304,11 +4353,11 @@ INT ss_suspend(INT millisec, INT msg)
       }
 
       /* check server channels */
-      if (ss_match_thread(_ss_server_thread, thread_id) && (_ss_server_num_acceptions > 0))
+      if (ss_match_thread(_ss_server_thread, thread_id) && _ss_server_acceptions) {
          //printf("ss_suspend: thread %s server acceptions %d\n", ss_tid_to_string(thread_id).c_str(), _ss_server_num_acceptions);
-         for (int i = 0; i < _ss_server_num_acceptions; i++) {
+         for (unsigned i = 0; i < _ss_server_acceptions->size(); i++) {
             /* RPC channel */
-            int sock = _ss_server_acceptions[i].recv_sock;
+            int sock = (*_ss_server_acceptions)[i]->recv_sock;
 
             if (!sock)
                continue;
@@ -4325,20 +4374,26 @@ INT ss_suspend(INT millisec, INT msg)
             else if (msg == 0)
                millisec = 0;
 
-            /* event channel */
-            sock = _ss_server_acceptions[i].event_sock;
+            if (msg == 0 && msg != MSG_BM) {
+               /* event channel */
+               sock = (*_ss_server_acceptions)[i]->event_sock;
 
-            if (!sock)
-               continue;
+               if (!sock)
+                  continue;
 
-            /* watch server socket if no data in cache */
-            if (recv_event_check(sock) == 0)
-               FD_SET(sock, &readfds);
-            /* set timeout to zero if data in cache (-> just quick check IPC)
-               and not called from inside bm_send_event (-> wait for IPC) */
-            else if (msg == 0)
-               millisec = 0;
+               /* check for buffered event */
+               status = rpc_server_receive_event(0, NULL, BM_NO_WAIT);
+
+               if (status == BM_ASYNC_RETURN) {
+                  /* event buffer is full and rpc_server_receive_event() is holding on
+                   * to an event it cannot get rid of. Do not read more events from
+                   * the event socket, they have nowhere to go. K.O. */
+               } else if (status == RPC_SUCCESS) {
+                  FD_SET(sock, &readfds);
+               }
+            }
          }
+      }
 
       /* watch for messages from the mserver */
       if (ss_match_thread(_ss_client_thread, thread_id)) {
@@ -4392,10 +4447,10 @@ INT ss_suspend(INT millisec, INT msg)
       }
 
       /* check server channels */
-      if (_ss_server_num_acceptions > 0)
-         for (int i = 0; i < _ss_server_num_acceptions; i++) {
+      if (_ss_server_acceptions) {
+         for (unsigned i = 0; i < _ss_server_acceptions->size(); i++) {
             /* rpc channel */
-            int sock = _ss_server_acceptions[i].recv_sock;
+            int sock = (*_ss_server_acceptions)[i]->recv_sock;
 
             if (!sock)
                continue;
@@ -4403,8 +4458,15 @@ INT ss_suspend(INT millisec, INT msg)
             //printf("rpc index %d, socket %d, hostname \'%s\', progname \'%s\'\n", i, sock, _suspend_struct[idx].server_acception[i].host_name, _suspend_struct[idx].server_acception[i].prog_name);
 
             if (recv_tcp_check(sock) || FD_ISSET(sock, &readfds)) {
-               status = rpc_server_receive(i, sock, msg != 0);
-               _ss_server_acceptions[i].last_activity = ss_millitime();
+               //printf("ss_suspend: msg %d\n", msg);
+               if (msg != 0 && msg != MSG_BM) {
+                  status = ss_socket_check(sock);
+               } else {
+                  //printf("ss_suspend: rpc_server_receive_rpc() call!\n");
+                  status = rpc_server_receive_rpc(i, (*_ss_server_acceptions)[i]);
+                  //printf("ss_suspend: rpc_server_receive_rpc() status %d\n", status);
+               }
+               (*_ss_server_acceptions)[i]->last_activity = ss_millitime();
 
                if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
                   return status;
@@ -4413,14 +4475,20 @@ INT ss_suspend(INT millisec, INT msg)
             }
 
             /* event channel */
-            sock = _ss_server_acceptions[i].event_sock;
+            sock = (*_ss_server_acceptions)[i]->event_sock;
 
             if (!sock)
                continue;
 
-            if (recv_event_check(sock) || FD_ISSET(sock, &readfds)) {
-               status = rpc_server_receive(i, sock, msg != 0);
-               _ss_server_acceptions[i].last_activity = ss_millitime();
+            if (FD_ISSET(sock, &readfds)) {
+               if (msg != 0) {
+                  status = ss_socket_check(sock);
+               } else {
+                  //printf("ss_suspend: rpc_server_receive_event() call!\n");
+                  status = rpc_server_receive_event(i, (*_ss_server_acceptions)[i], BM_NO_WAIT);
+                  //printf("ss_suspend: rpc_server_receive_event() status %d\n", status);
+               }
+               (*_ss_server_acceptions)[i]->last_activity = ss_millitime();
 
                if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
                   return status;
@@ -4428,6 +4496,7 @@ INT ss_suspend(INT millisec, INT msg)
                return_status = SS_SERVER_RECV;
             }
          }
+      }
 
       /* check for messages from the mserver */
       if (_ss_client_connection) {
@@ -4664,6 +4733,53 @@ INT send_tcp(int sock, char *buffer, DWORD buffer_size, INT flags)
    }
 
    return count;
+}
+
+/*------------------------------------------------------------------*/
+INT ss_write_tcp(int sock, const char *buffer, size_t buffer_size)
+/********************************************************************\
+
+  Routine: write_tcp
+
+  Purpose: Send network data over TCP port. Handle partial writes
+
+  Input:
+    INT   sock               Socket which was previosly opened.
+    DWORD buffer_size        Size of the buffer in bytes.
+    INT   flags              Flags passed to send()
+                             0x10000 : do not send error message
+
+  Output:
+    char  *buffer            Network receive buffer.
+
+  Function value:
+    SS_SUCCESS               Everything was sent
+    SS_SOCKET_ERROR          There was a socket error
+
+\********************************************************************/
+{
+   size_t count = 0;
+
+   while (count < buffer_size) {
+      ssize_t wr = write(sock, buffer + count, buffer_size - count);
+
+      if (wr == 0) {
+         cm_msg(MERROR, "ss_write_tcp", "write(socket=%d,size=%d) returned zero, errno: %d (%s)", sock, (int) (buffer_size - count), errno, strerror(errno));
+         return SS_SOCKET_ERROR;
+      } else if (wr < 0) {
+#ifdef OS_UNIX
+         if (errno == EINTR)
+            continue;
+#endif
+         cm_msg(MERROR, "ss_write_tcp", "write(socket=%d,size=%d) returned %d, errno: %d (%s)", sock, (int) (buffer_size - count), (int)wr, errno, strerror(errno));
+         return SS_SOCKET_ERROR;
+      }
+
+      // good write
+      count += wr;
+   }
+
+   return SS_SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
@@ -4980,6 +5096,40 @@ INT ss_recv_net_command(int sock, DWORD* routine_id, DWORD* param_size, char **p
 }
 
 /*------------------------------------------------------------------*/
+std::string ss_gethostname()
+/********************************************************************\
+
+  Routine: ss_gethostname
+
+  Purpose: Get name of local machine using gethostname() syscall
+
+  Input:
+    int   buffer_size        Size of the buffer in bytes.
+
+  Output:
+    char  *buffer            receive buffer
+
+  Function value:
+    INT                      SS_SUCCESS or SS_IO_ERROR
+
+\********************************************************************/
+{
+   char buf[256];
+   memset(buf, 0, sizeof(buf));
+
+   int status = gethostname(buf, sizeof(buf)-1);
+
+   //printf("gethostname %d (%s)\n", status, buffer);
+
+   if (status != 0) {
+      cm_msg(MERROR, "ss_gethostname", "gethostname() errno %d (%s)", errno, strerror(errno));
+      return "";
+   }
+
+   return buf;
+}
+
+/*------------------------------------------------------------------*/
 INT ss_gethostname(char* buffer, int buffer_size)
 /********************************************************************\
 
@@ -4998,16 +5148,14 @@ INT ss_gethostname(char* buffer, int buffer_size)
 
 \********************************************************************/
 {
-   int status = gethostname(buffer, buffer_size);
+   std::string h = ss_gethostname();
 
-   //printf("gethostname %d (%s)\n", status, buffer);
-
-   if (status != 0) {
-      cm_msg(MERROR, "ss_gethostname", "gethostname() errno %d (%s)", errno, strerror(errno));
+   if (h.length() == 0) {
       return SS_IO_ERROR;
+   } else {
+      strlcpy(buffer, h.c_str(), buffer_size);
+      return SS_SUCCESS;
    }
-
-   return SS_SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
@@ -7168,6 +7316,196 @@ void ss_stack_history_dump(char *filename)
 }
 
 #endif
+
+// Method to check if a given string is valid UTF-8.  Returns 1 if it is.
+// This method was taken from stackoverflow user Christoph, specifically
+// http://stackoverflow.com/questions/1031645/how-to-detect-utf-8-in-plain-c
+bool ss_is_valid_utf8(const char * string)
+{
+   assert(string);
+
+   // FIXME: this function over-reads the input array. K.O. May 2021
+
+   const unsigned char * bytes = (const unsigned char *)string;
+   while(*bytes) {
+      if( (// ASCII
+           // use bytes[0] <= 0x7F to allow ASCII control characters
+           bytes[0] == 0x09 ||
+           bytes[0] == 0x0A ||
+           bytes[0] == 0x0D ||
+           (0x20 <= bytes[0] && bytes[0] <= 0x7E)
+           )
+          ) {
+         bytes += 1;
+         continue;
+      }
+      
+      if( (// non-overlong 2-byte
+           (0xC2 <= bytes[0] && bytes[0] <= 0xDF) &&
+           (0x80 <= bytes[1] && bytes[1] <= 0xBF)
+           )
+          ) {
+         bytes += 2;
+         continue;
+      }
+      
+      if( (// excluding overlongs
+           bytes[0] == 0xE0 &&
+           (0xA0 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+           ) ||
+          (// straight 3-byte
+           ((0xE1 <= bytes[0] && bytes[0] <= 0xEC) ||
+            bytes[0] == 0xEE ||
+            bytes[0] == 0xEF) &&
+           (0x80 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+           ) ||
+          (// excluding surrogates
+           bytes[0] == 0xED &&
+           (0x80 <= bytes[1] && bytes[1] <= 0x9F) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+           )
+          ) {
+         bytes += 3;
+         continue;
+      }
+      
+      if( (// planes 1-3
+           bytes[0] == 0xF0 &&
+           (0x90 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+           (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+           ) ||
+          (// planes 4-15
+           (0xF1 <= bytes[0] && bytes[0] <= 0xF3) &&
+           (0x80 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+           (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+           ) ||
+          (// plane 16
+           bytes[0] == 0xF4 &&
+           (0x80 <= bytes[1] && bytes[1] <= 0x8F) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+           (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+           )
+          ) {
+         bytes += 4;
+         continue;
+      }
+      
+      //printf("ss_is_valid_utf8(): string [%s], not utf8 at offset %d, byte %d, [%s]\n", string, (int)((char*)bytes-(char*)string), (int)(0xFF&bytes[0]), bytes);
+      //abort();
+      
+      return false;
+   }
+
+   return true;
+}
+
+bool ss_repair_utf8(char* string)
+{
+   assert(string);
+
+   bool modified = false;
+
+   //std::string original = string;
+
+   // FIXME: this function over-reads the input array. K.O. May 2021
+
+   unsigned char * bytes = (unsigned char *)string;
+   while(*bytes) {
+      if( (// ASCII
+           // use bytes[0] <= 0x7F to allow ASCII control characters
+           bytes[0] == 0x09 ||
+           bytes[0] == 0x0A ||
+           bytes[0] == 0x0D ||
+           (0x20 <= bytes[0] && bytes[0] <= 0x7E)
+           )
+          ) {
+         bytes += 1;
+         continue;
+      }
+      
+      if( (// non-overlong 2-byte
+           (0xC2 <= bytes[0] && bytes[0] <= 0xDF) &&
+           (0x80 <= bytes[1] && bytes[1] <= 0xBF)
+           )
+          ) {
+         bytes += 2;
+         continue;
+      }
+      
+      if( (// excluding overlongs
+           bytes[0] == 0xE0 &&
+           (0xA0 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+           ) ||
+          (// straight 3-byte
+           ((0xE1 <= bytes[0] && bytes[0] <= 0xEC) ||
+            bytes[0] == 0xEE ||
+            bytes[0] == 0xEF) &&
+           (0x80 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+           ) ||
+          (// excluding surrogates
+           bytes[0] == 0xED &&
+           (0x80 <= bytes[1] && bytes[1] <= 0x9F) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+           )
+          ) {
+         bytes += 3;
+         continue;
+      }
+      
+      if( (// planes 1-3
+           bytes[0] == 0xF0 &&
+           (0x90 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+           (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+           ) ||
+          (// planes 4-15
+           (0xF1 <= bytes[0] && bytes[0] <= 0xF3) &&
+           (0x80 <= bytes[1] && bytes[1] <= 0xBF) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+           (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+           ) ||
+          (// plane 16
+           bytes[0] == 0xF4 &&
+           (0x80 <= bytes[1] && bytes[1] <= 0x8F) &&
+           (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+           (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+           )
+          ) {
+         bytes += 4;
+         continue;
+      }
+
+      if (bytes[0] == 0) // end of string
+         break;
+
+      bytes[0] = '?';
+      bytes += 1;
+
+      modified = true;
+   }
+
+   //if (modified) {
+   //   printf("ss_repair_utf8(): invalid UTF8 string [%s] changed to [%s]\n", original.c_str(), string);
+   //} else {
+   //   //printf("ss_repair_utf8(): string [%s] is ok\n", string);
+   //}
+      
+   return modified;
+}
+
+bool ss_repair_utf8(std::string& s)
+{
+   // C++11 std::string data() is same as c_str(), NUL-terminated.
+   // C++17 std::string data() is not "const".
+   // https://en.cppreference.com/w/cpp/string/basic_string/data
+   return ss_repair_utf8((char*)s.data()); // FIXME: C++17 or newer, do not need to drop the "const". K.O. May 2021
+}
 
 /** @} *//* end of msfunctionc */
 /* emacs

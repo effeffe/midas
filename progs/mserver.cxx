@@ -331,7 +331,7 @@ int main(int argc, char **argv)
       if (argc > 8)
          callback.user = argv[8];
 #endif
-      callback.index = 0;
+      //callback.index = 0;
 
       if (callback.debug) {
          rpc_set_debug(debug_print, 1);
@@ -362,9 +362,6 @@ int main(int argc, char **argv)
 
       /* must be done after cm_set_path() */
       ss_suspend_init_odb_port();
-
-      /* switch rpc to mserver mode */
-      rpc_set_mserver_mode();
 
       /* register system functions */
       rpc_register_functions(rpc_get_internal_list(0), rpc_server_dispatch);
@@ -438,9 +435,8 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
 \********************************************************************/
 {
    INT status = 0;
-   INT convert_flags;
 
-   convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+   int convert_flags = rpc_get_convert_flags();
 
    switch (index) {
       /* common functions */
@@ -505,10 +501,12 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       break;
 
    case RPC_BM_CLOSE_BUFFER:
+      //printf("RPC_BM_CLOSE_BUFFER(%d)!\n", CINT(0));
       status = bm_close_buffer(CINT(0));
       break;
 
    case RPC_BM_CLOSE_ALL_BUFFERS:
+      //printf("RPC_BM_CLOSE_ALL_BUFFERS!\n");
       status = bm_close_all_buffers();
       break;
 
@@ -577,7 +575,12 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       break;
 
    case RPC_BM_FLUSH_CACHE:
-      status = bm_flush_cache(CINT(0), CINT(1));
+      //printf("RPC_BM_FLUSH_CACHE(%d,%d)!\n", CINT(0), CINT(1));
+      if (CINT(0) == 0) {
+         status = rpc_flush_event_socket(CINT(1));
+      } else {
+         status = bm_flush_cache(CINT(0), CINT(1));
+      }
       break;
 
    case RPC_BM_MARK_READ_WAITING:
@@ -836,6 +839,10 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
 
       /* exit functions */
    case RPC_ID_EXIT:
+      //printf("RPC_ID_EXIT!\n");
+      status = RPC_SUCCESS;
+      break;
+
    case RPC_ID_SHUTDOWN:
       status = RPC_SUCCESS;
       break;

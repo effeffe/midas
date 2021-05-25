@@ -279,18 +279,41 @@
       } else if (client.status == 1) {
          e.childNodes[3].innerHTML = "Success";
          e.childNodes[3].className = "mgreen mbox";
+      } else if (client.status == 605) {
+         e.childNodes[3].innerHTML = "Error";
+         e.childNodes[3].className = "mred mbox";
+      } else if (client.status == -1) {
+         e.childNodes[3].innerHTML = "Skipped";
+         e.childNodes[3].className = "mred mbox";
       } else {
          e.childNodes[3].innerHTML = client.status;
          e.childNodes[3].className = "mred mbox";
       }
       
-      if (client.error.length > 0) {
+      if (!client.error) {
+         e.childNodes[4].innerHTML = "";
+      } else if (client.error.length > 0) {
          e.childNodes[4].innerHTML = client.error;
       } else if (client.waiting_for_client.length > 0) {
          e.childNodes[4].innerHTML = "Waiting for " + client.waiting_for_client;
       } else {
          e.childNodes[4].innerHTML = "";
       }
+   }
+
+   function should_return() {
+      let ret = mhttpd_getParameterByName("Return");
+      if (ret) {
+         if (ret.toLowerCase() === "custom") {
+             let page = mhttpd_getParameterByName("page");
+	     if (page) {
+                return true;
+	     }
+         } else {
+            return true;
+	 }
+      }
+      return false;
    }
 
    function do_return() {
@@ -378,7 +401,15 @@
          // transition is completed
          document.getElementById("cancelButton").disabled = true;
          set_text("tr_status", "");
-         setTimeout('do_return()', 2000);
+         //console.log("odb.status is " + odb.status); 
+         if (odb.status == 1) {
+            // if transition failed, stay on the transition page!
+            if (should_return()) {
+               // disable all buttons and wait for a few seconds and return to the page we came from
+               adjust_buttons(-1);
+               setTimeout('do_return()', 2000);
+	    }
+	 }
       } else {
          // transition still in progress
          document.getElementById("cancelButton").disabled = false;

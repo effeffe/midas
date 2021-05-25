@@ -16,7 +16,7 @@ help:
 	@echo "   make cclean    --- remove everything build by make cmake"
 	@echo ""
 	@echo "   options that can be added to \"make cmake\":"
-	@echo "      NO_LOCAL_ROUTINES=1 NO_CURL=1"
+	@echo "      NO_LOCAL_ROUTINES=1 NO_CURL=1 NO_SENSORS=1"
 	@echo "      NO_ROOT=1 NO_ODBC=1 NO_SQLITE=1 NO_MYSQL=1 NO_SSL=1 NO_MBEDTLS=1"
 	@echo "      NO_EXPORT_COMPILE_COMMANDS=1"
 	@echo ""
@@ -111,6 +111,10 @@ ifdef NO_SQLITE
 CMAKEFLAGS+= -DNO_SQLITE=1
 endif
 
+ifdef NO_SENSORS
+CMAKEFLAGS+= -DNO_SENSORS=1
+endif
+
 ifdef NO_MYSQL
 CMAKEFLAGS+= -DNO_MYSQL=1
 endif
@@ -161,7 +165,8 @@ cclean:
 #####################################################################
 
 # get OS type from shell
-OSTYPE = $(shell uname)
+OSTYPE := $(shell uname)
+ARCH := $(shell uname -m)
 
 #
 # Optional stack trace support
@@ -364,7 +369,7 @@ CFLAGS += -D_LARGEFILE64_SOURCE
 # include ZLIB support
 NEED_ZLIB=1
 
-OS_DIR = linux
+OS_DIR = linux-$(ARCH)
 OSFLAGS += -DOS_LINUX -fPIC -Wno-unused-function -std=c++11
 LIBS = -lutil -lpthread -lrt -ldl
 SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker $(BIN_DIR)/dio
@@ -443,12 +448,24 @@ ifdef NEED_RANLIB
 	ranlib $@
 endif
 
+MFE_MAIN   := $(LIB_DIR)/mfe.o
+
+TMFE_PROGS :=
+#TMFE_PROGS += $(BIN_DIR)/tmfe_example_periodic
+#TMFE_PROGS += $(BIN_DIR)/tmfe_example_polled
+
+MINI_OBJS  :=
+MINI_OBJS  += $(MFE_MAIN)
+
 MINI_PROGS :=
 MINI_PROGS += $(BIN_DIR)/odbinit
 MINI_PROGS += $(BIN_DIR)/odbedit
-MINI_PROGS += $(BIN_DIR)/fetest
-MINI_PROGS += $(BIN_DIR)/fetest_tmfe
-MINI_PROGS += $(BIN_DIR)/fetest_tmfe_thread
+TMFE_PROGS += $(BIN_DIR)/fetest
+MINI_PROGS += $(BIN_DIR)/tmfe_example
+MINI_PROGS += $(BIN_DIR)/tmfe_example_multithread
+TMFE_PROGS += $(BIN_DIR)/tmfe_example_everything
+TMFE_PROGS += $(BIN_DIR)/tmfe_example_frontend
+MINI_PROGS += $(TMFE_PROGS)
 
 SUBMODULES :=
 SUBMODULES += mxml/mxml.cxx
@@ -500,14 +517,11 @@ $(BIN_DIR)/%: progs/%.cxx $(LIB)
 $(BIN_DIR)/odbedit: progs/odbedit.cxx progs/cmdedit.cxx $(LIB)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
 
-$(BIN_DIR)/fetest: progs/fetest.cxx $(LIB_DIR)/mfe.o $(LIB)
-	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
-
 #
 # Main target
 #
 
-mini: $(GIT_REVISION) $(LIB) $(MINI_PROGS)
+mini: $(GIT_REVISION) $(LIB) $(MINI_OBJS) $(MINI_PROGS)
 
 clean:: cleanmini
 
@@ -551,12 +565,12 @@ gofmt:
 #
 
 remoteonly:
-	$(MAKE) mini OS_DIR=$(OSTYPE)-remoteonly USERFLAGS=-DNO_LOCAL_ROUTINES=1
+	$(MAKE) mini OS_DIR=$(OSTYPE)-$(ARCH)-remoteonly USERFLAGS=-DNO_LOCAL_ROUTINES=1
 
 clean:: cleanremoteonly
 
 cleanremoteonly:
-	$(MAKE) OS_DIR=$(OSTYPE)-remoteonly cleanmini
+	$(MAKE) OS_DIR=$(OSTYPE)-$(ARCH)-remoteonly cleanmini
 
 linux32:
 	$(MAKE) mini OS_DIR=linux-m32 USERFLAGS=-m32

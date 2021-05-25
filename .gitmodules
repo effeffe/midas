@@ -10,3 +10,9 @@
 [submodule "mvodb"]
 	path = mvodb
 	url = https://bitbucket.org/tmidas/mvodb.git
+[submodule "midasio"]
+	path = midasio
+	url = https://bitbucket.org/tmidas/midasio.git
+[submodule "manalyzer"]
+	path = manalyzer
+	url = https://bitbucket.org/tmidas/manalyzer.git

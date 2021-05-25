@@ -189,6 +189,11 @@ static int paste_object(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode
          //printf("entry [%s] type %s, tid %d\n", name, MJsonNode::TypeToString(node->GetType()), tid);
       }
 
+      if (tid == TID_UINT64 || tid == TID_INT64) {
+         cm_msg(MERROR, "db_paste_json", "TID_INT64 and TID_UINT64 are not permitted in ODB, skipping \"%s\" in \"%s\"", name, path);
+         return DB_SUCCESS;
+      }
+
       status = db_create_key(hDB, hKey, name, tid);
 
       if (status == DB_KEY_EXIST) {
@@ -239,6 +244,7 @@ static int paste_object(HNDLE hDB, HNDLE hKey, const char* path, const MJsonNode
       if (status == DB_NO_ACCESS) {
          cm_msg(MERROR, "db_paste_json", "skipping write-protected node \"%s\"", node_name.c_str());
       } else if (status != DB_SUCCESS) {
+         cm_msg(MERROR, "db_paste_json", "paste of \"%s\" is incomplete", node_name.c_str());
          //cm_msg(MERROR, "db_paste_json", "cannot..."); // paste_node() reports it's own failures
          return status;
       }
@@ -341,7 +347,14 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, bool is_array, i
    switch (tid) {
    default:
       cm_msg(MERROR, "db_paste_json", "do not know what to do with tid %d at \"%s\"", tid, path);
-      return DB_FILE_ERROR;
+      // keep loading remaining data, ignore this error return DB_FILE_ERROR;
+      return DB_SUCCESS;
+   case TID_ARRAY:
+      cm_msg(MERROR, "db_paste_json", "paste of TID_ARRAY is not implemented at \"%s\"", path);
+      return DB_SUCCESS;
+   case TID_STRUCT:
+      cm_msg(MERROR, "db_paste_json", "paste of TID_STRUCT is not implemented at \"%s\"", path);
+      return DB_SUCCESS;
    case TID_BITFIELD:
       cm_msg(MERROR, "db_paste_json", "paste of TID_BITFIELD is not implemented at \"%s\"", path);
       return DB_SUCCESS;

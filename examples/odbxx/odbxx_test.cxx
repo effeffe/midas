@@ -38,7 +38,7 @@ int main() {
       {"Double Array", {1.2, 2.3, 3.4}},
       {"String Array", {"Hello1", "Hello2", "Hello3"}},
       {"Large Array", std::array<int, 10>{} },            // array with explicit size
-      {"Large String", std::string(63, '\0') },           // string with explicit size
+      {"Large String", std::string(63, ' ') },           // string with explicit size
       {"String Array 10", std::array<std::string, 10>{}}, // string array with explicit size
       // string array with 10 strings of each 63 chars
       {"Large String Array 10", std::array<std::string, 10>{std::string(63, '\0')}}
@@ -79,6 +79,11 @@ int main() {
    i = o["Int Array"][1];     // read from array element
    o["Int Array"].resize(5);  // resize array
    o["Int Array"]++;          // increment all values of array
+   std::cout << "Arrays size is " << o["Int Array"].size() << std::endl;
+
+   // auto-enlarge arrays
+   o.set_auto_enlarge_array(true);
+   o["Int Array"][10] = 10;
 
    // test with a string vector
    std::vector<std::string> sv;
@@ -93,7 +98,7 @@ int main() {
       sum += e;
    std::cout << "Sum should be 27: " << sum << std::endl;
 
-   // creat key from other key
+   // create key from other key
    midas::odb oi(o["Int32 Key"]);
    oi = 123;
 
@@ -130,8 +135,27 @@ int main() {
    // print whole sub-tree
    std::cout << o.print() << std::endl;
 
-   // dump whole subtree
+   // print whole subtree
    std::cout << o.dump() << std::endl;
+
+   // update structure - create keys if needed, keep existing values if key already exists,
+   // delete keys that are in ODB but not the list of defaults.
+   midas::odb o3 = {
+      {"Int32 Key", 456},
+      {"New Bool Key", true},
+      {"String Array", {"Hello1", "Hello2", "Hello3"}},
+      {"Bool Key", true},
+      {"Subdir", {
+               {"Int32 key", 135 },
+               {"New Sub Bool Key", false},
+               {"Double Key", 1.5}
+      }}
+   };
+   o3.connect_and_fix_structure("/Test/Settings");
+
+   // Print new structure
+   std::cout << "After changing structure with o3:" << std::endl;
+   std::cout << o3.print() << std::endl;
 
    // delete test key from ODB
    o.delete_key();

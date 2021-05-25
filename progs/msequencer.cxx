@@ -375,11 +375,12 @@ int eval_condition(SEQUENCER& seq, const char *condition)
    if (i < (int)strlen(value1_var)) {
       // string comparison
       if (strcmp(op, "=") == 0)
-         if (equal_ustring(value1_var, value2_var)) return 1;
+         return equal_ustring(value1_var, value2_var) ? 1 : 0;
       if (strcmp(op, "==") == 0)
-         if (equal_ustring(value1_var, value2_var)) return 1;
+         return equal_ustring(value1_var, value2_var) ? 1 : 0;
       if (strcmp(op, "!=") == 0)
-         if (!equal_ustring(value1_var, value2_var)) return 1;
+         return equal_ustring(value1_var, value2_var) ? 0 : 1;
+      // invalid operator for string comparisons
       return -1;
    }
    

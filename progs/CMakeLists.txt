@@ -14,8 +14,13 @@ set(PROGS
    melog
    mh2sql
    hwtest
-   fetest_tmfe
-   fetest_tmfe_thread
+   tmfe_example
+   tmfe_example_multithread
+   tmfe_example_everything
+   tmfe_example_frontend
+   tmfe_example_indexed
+   fetest
+   test_sleep
    crc32c_sum
    lazylogger
 )
@@ -30,13 +35,11 @@ set(TESTPROGS
    mjson_test
    get_record_test
    odb_lock_test
-   odbxx_test
 )
 
 set(MFEPROGS
    mfe_link_test
    mfe_link_test_cxx
-   fetest
    feudp
    msysmon
 )
@@ -64,6 +67,12 @@ if (HAVE_NVIDIA)
    target_link_libraries(msysmon-nvidia mfe midas ${LIBS} ${DB_LIBS} ${NVIDIA_LIBS})
    target_compile_options(msysmon-nvidia PRIVATE -DHAVE_NVIDIA)
 endif(HAVE_NVIDIA)
+
+if (HAVE_LM_SENSORS)
+   add_executable(msysmon-lmsensors msysmon)
+   target_link_libraries(msysmon-lmsensors mfe midas ${LIBS} ${DB_LIBS} ${libsensors})
+   target_compile_options(msysmon-lmsensors PRIVATE -DHAVE_LM_SENSORS)
+endif(HAVE_LM_SENSORS)
 
 #
 # mhttpd
@@ -113,6 +122,7 @@ target_link_libraries(mhttpd6 midas ${LIBS} ${DB_LIBS})
 #
 # odbedit
 #
+
 add_executable(odbedit odbedit cmdedit)
 target_include_directories(odbedit PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 target_link_libraries(odbedit midas ${LIBS})
@@ -120,6 +130,7 @@ target_link_libraries(odbedit midas ${LIBS})
 #
 # lazylogger
 #
+
 if (HAVE_CURL)
    target_compile_options(lazylogger PRIVATE -DHAVE_CURL)   
 endif (HAVE_CURL)
@@ -127,6 +138,7 @@ endif (HAVE_CURL)
 #
 # rmlogger
 #
+
 if (HAVE_ROOT)
    add_executable(rmlogger mlogger)
    target_include_directories(rmlogger PUBLIC ${ROOT_INCLUDE_DIRS})
@@ -138,7 +150,9 @@ endif(HAVE_ROOT)
 #
 # Installation
 #
+
 install(TARGETS ${PROGS} ${MFEPROGS} mhttpd mhttpd6 odbedit DESTINATION bin)
+
 if (HAVE_NVIDIA)
    install(TARGETS msysmon-nvidia DESTINATION bin)
 endif(HAVE_NVIDIA)

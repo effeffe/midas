@@ -353,6 +353,7 @@ namespace midas {
       AUTO_REFRESH_WRITE,
       PRESERVE_STRING_SIZE,
       AUTO_CREATE,
+      AUTO_ENLARGE_ARRAY,
       DIRTY,
       DELETED
    };
@@ -772,9 +773,17 @@ namespace midas {
 
       // overload index operator for arrays
       u_odb &operator[](int index) {
-         if (index < 0 || index >= m_num_values)
-            throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" +
-                                    get_full_path() + "[0..." + std::to_string(m_num_values - 1) + "]\"");
+         if (index < 0)
+            throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" + get_full_path() + "[0..." + std::to_string(m_num_values - 1) + "]\"");
+
+         if (index >= m_num_values) {
+            if (is_auto_enlarge_array()) {
+               resize_mdata(index+1);
+               write(index);
+            } else {
+               throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" + get_full_path() + "[0..." + std::to_string(m_num_values - 1) + "]\"");
+            }
+         }
 
          if (is_auto_refresh_read())
             read(index);
@@ -1021,6 +1030,12 @@ namespace midas {
          set_flags_recursively(get_flags());
       }
 
+      bool is_auto_enlarge_array() const { return m_flags[odb_flags::AUTO_ENLARGE_ARRAY]; }
+      void set_auto_enlarge_array(bool f) {
+         m_flags[odb_flags::AUTO_ENLARGE_ARRAY] = f;
+         set_flags_recursively(get_flags());
+      }
+
       // Static functions
       static void set_debug(bool flag) { m_debug = flag; }
       static bool get_debug() { return m_debug; }
@@ -1028,8 +1043,9 @@ namespace midas {
       static bool exists(std::string name);
 
 
-      void connect(std::string path, std::string name, bool write_defaults);
-      void connect(std::string str, bool write_defaults = false);
+      void connect(std::string path, std::string name, bool write_defaults, bool delete_keys_not_in_defaults = false);
+      void connect(std::string str, bool write_defaults = false, bool delete_keys_not_in_defaults = false);
+      void connect_and_fix_structure(std::string path);
       static bool is_connected_odb() { return m_connected_odb; }
 
       void read();
@@ -1041,6 +1057,7 @@ namespace midas {
       void print(std::string &s, int indent);
       void dump(std::string &s, int indent);
       void delete_key();
+      int size();
       void resize(int size);
       void watch(std::function<void(midas::odb &)> f);
       void unwatch();
@@ -1051,6 +1068,8 @@ namespace midas {
       int get_tid() { return m_tid; }
       int get_num_values() { return m_num_values; }
       std::string get_name() { return m_name; }
+
+      void fix_order(std::vector<std::string> target_subkey_order);
    };
 
    //---- midas::odb friend functions -------------------------------

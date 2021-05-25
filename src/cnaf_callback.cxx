@@ -11,18 +11,17 @@
 
 \********************************************************************/
 
-#include <stdio.h>
-#include <assert.h>
+#include "mcstd.h"
 #include "midas.h"
 #include "msystem.h"
-#include "mcstd.h"
+#include <assert.h>
+#include <stdio.h>
 
 /*------------------------------------------------------------------*/
 
 static int cnaf_debug = 0;
 
-INT cnaf_callback(INT index, void *prpc_param[])
-{
+INT cnaf_callback(INT index, void *prpc_param[]) {
    DWORD cmd, b, c, n, a, f, *pdword, *size, *x, *q, dtemp;
    WORD *pword, *pdata, temp;
    INT i, count;
@@ -43,68 +42,67 @@ INT cnaf_callback(INT index, void *prpc_param[])
 
    /* determine repeat count */
    if (index == RPC_CNAF16)
-      count = *size / sizeof(WORD);     /* 16 bit */
+      count = *size / sizeof(WORD); /* 16 bit */
    else
-      count = *size / sizeof(DWORD);    /* 24 bit */
+      count = *size / sizeof(DWORD); /* 24 bit */
 
    switch (cmd) {
-    /*---- special commands ----*/
+      //---- special commands
+      case CNAF_INHIBIT_SET:
+         cam_inhibit_set(c);
+         break;
+      case CNAF_INHIBIT_CLEAR:
+         cam_inhibit_clear(c);
+         break;
+      case CNAF_CRATE_CLEAR:
+         cam_crate_clear(c);
+         break;
+      case CNAF_CRATE_ZINIT:
+         cam_crate_zinit(c);
+         break;
 
-   case CNAF_INHIBIT_SET:
-      cam_inhibit_set(c);
-      break;
-   case CNAF_INHIBIT_CLEAR:
-      cam_inhibit_clear(c);
-      break;
-   case CNAF_CRATE_CLEAR:
-      cam_crate_clear(c);
-      break;
-   case CNAF_CRATE_ZINIT:
-      cam_crate_zinit(c);
-      break;
+      case CNAF_TEST:
+         break;
 
-   case CNAF_TEST:
-      break;
+      case CNAF:
+         if (index == RPC_CNAF16) {
+            for (i = 0; i < count; i++)
+               if (f < 16)
+                  cam16i_q(c, n, a, f, pword++, (int *) x, (int *) q);
+               else if (f < 24)
+                  cam16o_q(c, n, a, f, pword[i], (int *) x, (int *) q);
+               else
+                  cam16i_q(c, n, a, f, &temp, (int *) x, (int *) q);
+         } else {
+            for (i = 0; i < count; i++)
+               if (f < 16)
+                  cam24i_q(c, n, a, f, pdword++, (int *) x, (int *) q);
+               else if (f < 24)
+                  cam24o_q(c, n, a, f, pdword[i], (int *) x, (int *) q);
+               else
+                  cam24i_q(c, n, a, f, &dtemp, (int *) x, (int *) q);
+         }
 
-   case CNAF:
-      if (index == RPC_CNAF16) {
-         for (i = 0; i < count; i++)
-            if (f < 16)
-               cam16i_q(c, n, a, f, pword++, (int *) x, (int *) q);
-            else if (f < 24)
-               cam16o_q(c, n, a, f, pword[i], (int *) x, (int *) q);
-            else
-               cam16i_q(c, n, a, f, &temp, (int *) x, (int *) q);
-      } else {
-         for (i = 0; i < count; i++)
-            if (f < 16)
-               cam24i_q(c, n, a, f, pdword++, (int *) x, (int *) q);
-            else if (f < 24)
-               cam24o_q(c, n, a, f, pdword[i], (int *) x, (int *) q);
-            else
-               cam24i_q(c, n, a, f, &dtemp, (int *) x, (int *) q);
-      }
+         break;
 
-      break;
+      case CNAF_nQ:
+         if (index == RPC_CNAF16) {
+            if (f < 16) {
+               cam16i_rq(c, n, a, f, &pword, count);
+               *size = (POINTER_T) pword - (POINTER_T) pdata;
+            }
+         } else {
+            if (f < 16) {
+               cam24i_rq(c, n, a, f, &pdword, count);
+               *size = (POINTER_T) pdword - (POINTER_T) pdata;
+            }
+         }
 
-   case CNAF_nQ:
-     if (index == RPC_CNAF16) {
-       if (f < 16) {
-	 cam16i_rq(c, n, a, f, &pword, count);
-	 *size = (POINTER_T) pword - (POINTER_T) pdata;
-       }
-     } else {
-       if (f < 16) {
-	 cam24i_rq(c, n, a, f, &pdword, count);
-	 *size = (POINTER_T) pdword - (POINTER_T) pdata;
-       }
-     }
-     
-     /* return reduced return size */
-     break;
-     
-   default:
-     printf("cnaf: Unknown command 0x%X\n", (unsigned int) cmd);
+         /* return reduced return size */
+         break;
+
+      default:
+         printf("cnaf: Unknown command 0x%X\n", (unsigned int) cmd);
    }
 
    if (cnaf_debug) {
@@ -121,8 +119,7 @@ INT cnaf_callback(INT index, void *prpc_param[])
    return RPC_SUCCESS;
 }
 
-void register_cnaf_callback(int debug)
-{
+void register_cnaf_callback(int debug) {
    cnaf_debug = debug;
    /* register CNAF callback */
    cm_register_function(RPC_CNAF16, cnaf_callback);

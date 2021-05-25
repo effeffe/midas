@@ -7,8 +7,10 @@
 message(STATUS "MIDAS: cmake version: " ${CMAKE_VERSION})
 cmake_minimum_required(VERSION 3.0)
 
-set(CMAKE_CXX_STANDARD 11) # this does not work on SL6
-set(CMAKE_CXX_STANDARD_REQUIRED ON) # this does not work on SL6
+if (NOT CMAKE_CXX_STANDARD)    # let top-level project overwrite c++ standard
+   set(CMAKE_CXX_STANDARD 11)
+endif()
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 #message(STATUS "MIDAS: CMAKE_CXX_FLAGS_RELWITHDEBINFO: ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
 #message(STATUS "MIDAS: CMAKE_CXX_COMPILE_FEATURES: ${CMAKE_CXX_COMPILE_FEATURES}")
@@ -68,6 +70,26 @@ endif()
 #
 if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mvodb/mvodb.cxx)
    message(FATAL_ERROR "\nError: 'mvodb' submodule not found. Please install via\n"
+      "'git submodule update --init'\n"
+      "in midas root directory."
+   )
+endif()
+
+#
+# Check for midasio
+#
+if (NOT EXISTS ${PROJECT_SOURCE_DIR}/midasio/midasio.cxx)
+   message(FATAL_ERROR "\nError: 'midasio' submodule not found. Please install via\n"
+      "'git submodule update --init'\n"
+      "in midas root directory."
+   )
+endif()
+
+#
+# Check for manalyzer
+#
+if (NOT EXISTS ${PROJECT_SOURCE_DIR}/manalyzer/manalyzer.cxx)
+   message(FATAL_ERROR "\nError: 'manalyzer' submodule not found. Please install via\n"
       "'git submodule update --init'\n"
       "in midas root directory."
    )
@@ -268,21 +290,37 @@ if (NOT NO_NVIDIA)
    set(NO_NVIDIA 0 CACHE PATH "")
 endif()
 if (NO_NVIDIA)
-   message(STATUS "MIDAS: NVIDIA GPU support is disabled via NO_NVIDIA")
+   message(STATUS "MIDAS (msysmon): NVIDIA GPU support is disabled via NO_NVIDIA")
 else (NO_NVIDIA)
   if (EXISTS /usr/local/cuda/include)
     execute_process(COMMAND nvidia-smi -L COMMAND wc -l OUTPUT_VARIABLE HAVE_NVIDIA)
     if (HAVE_NVIDIA)
-       message(STATUS "MIDAS: Found nvidia-smi. Number of GPUs detected: " ${HAVE_NVIDIA} )
+       message(STATUS "MIDAS (msysmon): Found nvidia-smi. Number of GPUs detected: " ${HAVE_NVIDIA} )
        set(NVIDIA_INC /usr/local/cuda/include)
        set(NVIDIA_LIBS -L/usr/local/cuda/lib64 -lnvidia-ml)
     else (HAVE_NVIDIA)
-       message(STATUS "MIDAS: nvidia-smi not found")
+       message(STATUS "MIDAS (msysmon): nvidia-smi not found")
     endif(HAVE_NVIDIA)
   else()
-    message(STATUS "MIDAS: NVIDIA CUDA libs not found")
+    message(STATUS "MIDAS (msysmon): NVIDIA CUDA libs not found")
   endif()
 endif(NO_NVIDIA)
+
+#
+# Optional lm-sensors support (used msysmon)
+#
+
+if (NO_SENSORS)
+  message(STATUS "MIDAS (msysmon): LM_SENSORS disabled")
+else()
+  find_library(libsensors sensors) #Requires libsesnsors-dev
+  if(libsensors STREQUAL "libsensors-NOTFOUND")
+    message(STATUS "MIDAS (msysmon): LM_SENSORS libs not found")
+  else()
+    message(STATUS "MIDAS (msysmon): Found LM_SENSORS ")
+    set(HAVE_LM_SENSORS TRUE)
+  endif()
+endif(NO_SENSORS)
 
 #-----------------------
 # Default build type
@@ -342,6 +380,8 @@ set(libsrc
    mvodb/midasodb
    mvodb/mxmlodb
    mvodb/mjsonodb
+   midasio/midasio
+   manalyzer/manalyzer
    src/json_paste
    src/mjsonrpc
    src/mjsonrpc_user
@@ -393,7 +433,7 @@ if (HAVE_MYSQL)
 endif()
 
 target_include_directories(objlib PUBLIC ${SYSINC_DIR})
-target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/mscb/include)
+target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/midasio ${PROJECT_SOURCE_DIR}/manalyzer ${PROJECT_SOURCE_DIR}/mscb/include)
 target_include_directories(objlib PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
 if (OPENSSL_FOUND)
    target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
@@ -413,7 +453,7 @@ if (CURL_FOUND)
 endif ()
 
 # midas include is public so all programs linking to libmidas will inherit this
-target_include_directories(midas PUBLIC ${SYSINC_DIR})
+target_include_directories(midas PUBLIC ${SYSINC_DIR} ${PROJECT_SOURCE_DIR}/manalyzer ${PROJECT_SOURCE_DIR}/midasio ${PROJECT_SOURCE_DIR}/mvodb)
 
 # library for mfe
 add_library(mfe src/mfe)
@@ -434,7 +474,16 @@ if (HAVE_ROOT)
    target_compile_options(rmana PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
 endif(HAVE_ROOT)
 
-install(TARGETS midas midas-shared midas-c-compat mfe mana rmana
+# library for manalyzer_main
+add_library(manalyzer_main manalyzer/manalyzer_main)
+target_include_directories(manalyzer_main PUBLIC ${SYSINC_DIR})
+target_include_directories(manalyzer_main PRIVATE ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/manalyzer ${PROJECT_SOURCE_DIR}/midasio ${PROJECT_SOURCE_DIR}/mvodb)
+if (HAVE_ROOT)
+   target_include_directories(manalyzer_main PUBLIC ${ROOT_INCLUDE_DIRS})
+   target_compile_options(manalyzer_main PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
+endif(HAVE_ROOT)
+
+install(TARGETS midas midas-shared midas-c-compat mfe mana rmana manalyzer_main
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 

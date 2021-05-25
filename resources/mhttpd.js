@@ -11,6 +11,8 @@
 
 let run_state_names = {1: "Stopped", 2: "Paused", 3: "Running"};
 
+let serverTimezoneOffset = undefined;
+
 let transition_names = {
    1: "Starting run...",
    2: "Stopping run...",
@@ -393,6 +395,66 @@ function dlgOdbEdit(path) {
 
 /*---- mhttpd functions -------------------------------------*/
 
+function mhttpd_get_display_time(sec) {
+// Returns time to display in status bar and history.
+// By default show local time, but through the config page the
+// user can select the server time zone or any other time zone
+
+   // retrieve timezone of server on the first call
+   if (serverTimezoneOffset === undefined) {
+      mjsonrpc_get_timezone().then(function (rpc) {
+         serverTimezoneOffset = rpc.result;
+      }).catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
+
+   let d;
+   if (sec !== undefined)
+      d = new Date(sec * 1000);
+   else
+      d = new Date();
+   let o = 0;
+
+   if (mhttpdConfig().timezone === undefined)
+      mhttpdConfigSet('timezone', 'local');
+
+   if (mhttpdConfig().timezone === 'local') {
+      o = -d.getTimezoneOffset() / 60;
+   } else if (mhttpdConfig().timezone === 'server') {
+      if (serverTimezoneOffset === undefined)
+         return {
+            date: undefined,
+            string: "",
+            offset: 0
+         };
+      o = serverTimezoneOffset / 3600;
+   } else {
+      o = parseInt(mhttpdConfig().timezone);
+   }
+
+   d = new Date(d.getTime() + o * 3600 * 1000);
+
+   let s = d.toLocaleString("en-gb", {
+      timeZone: 'UTC',
+      hour12: false, day: 'numeric', month: 'short', year: 'numeric',
+      hour: 'numeric', minute: 'numeric', second: 'numeric'
+   });
+
+   if (o === 0)
+      s += " UTC";
+   else if (o > 0)
+      s += " UTC+"+o;
+   else
+      s += " UTC"+o;
+
+   return {
+      date: d,
+      string: s,
+      offset: o
+   };
+}
+
 function mhttpd_disable_button(button) {
    if (!button.disabled) {
       button.disabled = true;
@@ -771,9 +833,12 @@ function mhttpd_init(current_page, interval, callback) {
                let l = custom[b + "/name"];
                if (l.substr(-1) === '!')
                   continue;
-               if (l.substr(-1) === '&')
+               if (l.substr(-1) === '&') {
                   l = l.slice(0, -1);
-               html += "<div class='" + cc + "'><a href='?cmd=custom&page=" + custom[b + "/name"] + "' class='mmenulink'>" + l + "</a></div>\n";
+                  html += "<div class='" + cc + "'><a target='_blank' href='?cmd=custom&page=" + l + "' class='mmenulink'>" + l + "</a></div>\n";
+               } else {
+                  html += "<div class='" + cc + "'><a href='?cmd=custom&page=" + l + "' class='mmenulink'>" + l + "</a></div>\n";
+               }
             }
          }
 
@@ -866,18 +931,12 @@ function getMElements(name) {
 }
 
 function mhttpd_scan() {
-   // go through all name="modb" tags
-   let modb = getMElements("modb");
-   for (let i = 0; i < modb.length; i++) {
-      // nothing needs to be done here
-   }
-
    // go through all name="modbvalue" tags
    let modbvalue = getMElements("modbvalue");
    for (let i = 0; i < modbvalue.length; i++) {
       let o = modbvalue[i];
       let loading = "(Loading " + modbvalue[i].dataset.odbPath + " ...)";
-      if (o.dataset.odbEditable) {
+      if (parseInt(o.dataset.odbEditable)) {
 
          // add event handler if tag is editable
          let link = document.createElement('a');
@@ -919,16 +978,19 @@ function mhttpd_scan() {
    // go through all name="modbselect" tags
    let modbselect = getMElements("modbselect");
    for (let i = 0; i < modbselect.length; i++) {
-      modbselect[i].onchange = function () {
-         if (this.dataset.validate !== undefined) {
-            let flag = eval(this.dataset.validate)(this.value, this);
-            if (!flag) {
-               mhttpd_refresh();
-               return;
+      modbselect[i].onchange = function (flag) {
+
+         if (flag !== true) { // flag === true if control changed by ODB update
+            if (this.dataset.validate !== undefined) {
+               let flag = eval(this.dataset.validate)(this.value, this);
+               if (!flag) {
+                  mhttpd_refresh();
+                  return;
+               }
             }
+            mjsonrpc_db_set_value(this.dataset.odbPath, this.value);
+            mhttpd_refresh();
          }
-         mjsonrpc_db_set_value(this.dataset.odbPath, this.value);
-         mhttpd_refresh();
       };
    }
 
@@ -1851,11 +1913,7 @@ function mhttpd_refresh() {
    mjsonrpc_send_request([req1, req2, req3, req4]).then(function (rpc) {
 
       // update time in header
-      let d = new Date();
-      let dstr = d.toLocaleString("en-gb", {
-         hour12: false, day: 'numeric', month: 'short', year: 'numeric',
-         hour: 'numeric', minute: 'numeric', second: 'numeric', timeZoneName: 'short'
-      });
+      let dstr = mhttpd_get_display_time().string;
 
       if (document.getElementById("mheader_last_updated") !== undefined) {
          //mhttpd_set_innerHTML(document.getElementById("mheader_last_updated"), dstr);
@@ -1874,6 +1932,10 @@ function mhttpd_refresh() {
                modb[i].value = JSON.stringify(x);
                modb[i].onchange();
             }
+            if (modb[i].dataset.odbLoaded === undefined && modb[i].onload !== null) {
+               modb[i].onload();
+               modb[i].dataset.odbLoaded = "1";
+            }
          } else {
             // individual value
             if (modb[i].value === undefined)
@@ -1881,6 +1943,10 @@ function mhttpd_refresh() {
             if (modb[i].onchange !== null && x !== modb[i].value) {
                modb[i].value = x;
                modb[i].onchange();
+            }
+            if (modb[i].dataset.odbLoaded === undefined && modb[i].onload !== null) {
+               modb[i].onload();
+               modb[i].dataset.odbLoaded = "1";
             }
          }
       }
@@ -1897,7 +1963,7 @@ function mhttpd_refresh() {
             if (mvalue === "")
                mvalue = "(empty)";
             let html = mhttpd_escape(mvalue);
-            if (modbvalue[i].dataset.odbEditable) {
+            if (parseInt(modbvalue[i].dataset.odbEditable)) {
                if (modbvalue[i].childNodes[0] === undefined) {
                   // element has not been scanned yet
                   mhttpd_scan();
@@ -1917,6 +1983,10 @@ function mhttpd_refresh() {
                   modbvalue[i].onchange();
                modbvalue[i].value = x;
             }
+            if (modbvalue[i].dataset.odbLoaded === undefined && modbvalue[i].onload !== null) {
+               modbvalue[i].onload();
+               modbvalue[i].dataset.odbLoaded = "1";
+            }
          }
       }
 
@@ -1925,6 +1995,10 @@ function mhttpd_refresh() {
          modbcheckbox[i].checked = (x === 1 || x === true);
          if (modbcheckbox[i].onchange !== null)
             modbcheckbox[i].onchange();
+         if (modbcheckbox[i].dataset.odbLoaded === undefined && modbcheckbox[i].onload !== null) {
+            modbcheckbox[i].onload();
+            modbcheckbox[i].dataset.odbLoaded = "1";
+        }
       }
 
       for (let i = 0; i < modbselect.length; i++, idata++) {
@@ -1941,12 +2015,16 @@ function mhttpd_refresh() {
             if (j < modbselect[i].options.length) {
                modbselect[i].value = x.toString();
                if (modbselect[i].onchange !== null)
-                  modbselect[i].onchange();
+                  modbselect[i].onchange(true);
             } else {
                // if not, set blank
                if (modbselect[i].value !== "")
                   modbselect[i].value = "";
             }
+         }
+         if (modbselect[i].dataset.odbLoaded === undefined && modbselect[i].onload !== null) {
+            modbselect[i].onload();
+            modbselect[i].dataset.odbLoaded = "1";
          }
       }
 
@@ -1964,6 +2042,10 @@ function mhttpd_refresh() {
          }
          if (modbbox[i].onchange !== null)
             modbbox[i].onchange();
+         if (modbbox[i].dataset.odbLoaded === undefined && modbbox[i].onload !== null) {
+            modbbox[i].onload();
+            modbbox[i].dataset.odbLoaded = "1";
+         }
       }
 
       for (let i = 0; i < modbhbar.length; i++, idata++) {
@@ -2000,6 +2082,10 @@ function mhttpd_refresh() {
          modbhbar[i].children[0].style.width = percent + "%";
          if (modbhbar[i].onchange !== null)
             modbhbar[i].onchange();
+         if (modbhbar[i].dataset.odbLoaded === undefined && modbhbar[i].onload !== null) {
+            modbhbar[i].onload();
+            modbhbar[i].dataset.odbLoaded = "1";
+         }
          modbhbar[i].children[0].style.backgroundColor = modbhbar[i].style.color;
       }
 
@@ -2037,6 +2123,10 @@ function mhttpd_refresh() {
          modbvbar[i].children[0].style.height = percent + "%";
          if (modbvbar[i].onchange !== null)
             modbvbar[i].onchange();
+         if (modbvbar[i].dataset.odbLoaded === undefined && modbvbar[i].onload !== null) {
+            modbvbar[i].onload();
+            modbvbar[i].dataset.odbLoaded = "1";
+         }
          modbvbar[i].children[0].style.backgroundColor = modbvbar[i].style.color;
       }
 
@@ -2052,6 +2142,10 @@ function mhttpd_refresh() {
 
          if (modbthermo[i].onchange !== null)
             modbthermo[i].onchange();
+         if (modbthermo[i].dataset.odbLoaded === undefined && modbthermo[i].onload !== null) {
+            modbthermo[i].onload();
+            modbthermo[i].dataset.odbLoaded = "1";
+         }
 
          modbthermo[i].draw();
       }
@@ -2068,6 +2162,10 @@ function mhttpd_refresh() {
 
          if (modbgauge[i].onchange !== null)
             modbgauge[i].onchange();
+         if (modbgauge[i].dataset.odbLoaded === undefined && modbgauge[i].onload !== null) {
+            modbgauge[i].onload();
+            modbgauge[i].dataset.odbLoaded = "1";
+         }
 
          modbgauge[i].draw();
       }
@@ -2268,6 +2366,8 @@ function mhttpd_message(msg, chat) {
    let lastChat = "";
    let lastChatT = 0;
    let lastT = 0;
+   let m = "";
+   let c = "";
 
    if (msg !== undefined) {
       lastMsg = msg[0].substr(msg[0].indexOf(" ") + 1);
@@ -2287,8 +2387,8 @@ function mhttpd_message(msg, chat) {
    }
 
    if (lastChatT > lastMsgT) {
-      let m = lastChat;
-      let c = "var(--mblue)";
+      m = lastChat;
+      c = "var(--mblue)";
       mType = "USER";
       talkTime = lastChatT;
       lastT = lastChatT;
@@ -2754,6 +2854,8 @@ let mhttpd_config_defaults = {
    'alarmRepeat': 60,
    'alarmVolume': 1,
 
+   'timezone': 'local',
+
    'var': {
       'lastSpeak': 0,
       'lastAlarm': 0
@@ -2764,6 +2866,41 @@ let mhttpd_config_defaults = {
 
    'facility': 'midas'
 };
+
+function mhttpdConfigODB(callback) {
+   let c = mhttpd_config_defaults;
+   try {
+      if (localStorage.mhttpd) {
+         c = JSON.parse(localStorage.mhttpd);
+         callback();
+      } else {
+         // obtain some defaults from ODB
+         mjsonrpc_db_get_value("/Experiment/Enable sound").then(function (rpc) {
+            let flag = rpc.result.data[0];
+            if (flag === null) {
+               mjsonrpc_db_create([{"path" : "/Experiment/Enable sound", "type" : TID_BOOL}]).then(function (rpc) {
+                  mjsonrpc_db_paste(["/Experiment/Enable sound"],[true]).then(function(rpc) {}).catch(function(error) {
+                     mjsonrpc_error_alert(error); });
+               }).catch(function (error) {
+                  mjsonrpc_error_alert(error);
+               });
+            } else if (flag === false) {
+               c.speakChat = false;
+               c.speakTalk = false;
+               c.speakError = false;
+               c.speakInfo = false;
+               c.speakLog = false;
+               c.alarmSound = false;
+               localStorage.setItem('mhttpd', JSON.stringify(c));
+            }
+            callback();
+         }).catch(function (error) {
+            mjsonrpc_error_alert(error);
+         });
+      }
+   } catch {
+   }
+}
 
 function mhttpdConfig() {
    let c = mhttpd_config_defaults;
@@ -2810,6 +2947,15 @@ let last_audio = null;
 let inside_new_audio = false;
 let count_audio = 0;
 
+//
+// Do not delete the following code. It is not used at this moment,
+// but may become necessary in the future. Included
+// is an alternative method of allocating and releasing Audio objects
+// and code for tracing Audio object life time and activity. It is needed
+// to debug interactions between Audio objects and throttled javascript code
+// in inactive tabs; and with the "user did not interact with this tab" business.
+// K.O. Jan 2021.
+//
 //function mhttpd_alarm_done() {
 //   let ended;
 //   if (last_audio) {
@@ -2878,6 +3024,7 @@ function mhttpd_alarm_play_now() {
    }
    inside_new_audio = true;
 
+   // reference counting of Audio objects. Not in use today. Do not remove. K.O. Jan 2021
    //console.log(Date() + ": mhttpd_alarm_play: created: " + count_audio_created + ", done: " + count_audio_done + ", last_ended: " + ended + ", audio.play!");
    //count_audio_created++;
 
@@ -2887,6 +3034,8 @@ function mhttpd_alarm_play_now() {
 
    last_audio = audio;
    inside_new_audio = false;
+
+   // code for tracing activity of Audio objects. do not remove. K.O. Jan 2021
    //audio.addEventListener("loadeddata", mhttpd_audio_loadeddata);
    //audio.addEventListener("canplay", mhttpd_audio_canplay);
    //audio.addEventListener("canplaythrough", mhttpd_audio_canplaythrough);

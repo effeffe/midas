@@ -18,6 +18,7 @@ import midas
 import midas.frontend
 import midas.event
 import random
+import ctypes
 
 class MyMultiPeriodicEquipment(midas.frontend.EquipmentBase):
     """
@@ -52,7 +53,11 @@ class MyMultiPeriodicEquipment(midas.frontend.EquipmentBase):
         # /Equipment/MyMultiPeriodicEquipment_1/Settings etc. The settings can
         # be accessed at self.settings, and will automatically update if the 
         # ODB changes.
-        default_settings = {"Prescale factor": 10}
+        default_settings = {"Prescale factor": 10, 
+                            "Some array": [1, 2, 3],
+                            "String array (specific size)": [ctypes.create_string_buffer(b"ABC", 32),
+                                                             ctypes.create_string_buffer(b"DEF", 32)],
+                            "String array (auto size)": ["uvw", "xyzzzz"]}
         
         # We MUST call __init__ from the base class as part of our __init__!
         midas.frontend.EquipmentBase.__init__(self, client, equip_name, default_common, default_settings)
@@ -88,9 +93,28 @@ class MyMultiPeriodicEquipment(midas.frontend.EquipmentBase):
         /Equipment/MyMultiPeriodicEquipment_1/Settings have changed.
         self.settings is updated automatically, and has already changed
         by this time this function is called.
+        
+        In this version, you just get told that a setting has changed
+        (not specifically which setting has changed).
         """
-        self.client.msg("Prescale factor is now %d" % self.settings["Prescale factor"])
+        self.client.msg("High-level: Prescale factor is now %d" % self.settings["Prescale factor"])
+        self.client.msg("High-level: Some array is now %s" % self.settings["Some array"])
 
+    def detailed_settings_changed_func(self, path, idx, new_value):
+        """
+        You can define this function to be told about when the values in
+        /Equipment/MyMultiPeriodicEquipment_1/Settings have changed.
+        self.settings is updated automatically, and has already changed
+        by this time this function is called.
+        
+        In this version you get told which setting has changed (down to
+        specific array elements).
+        """
+        if idx is not None:
+            self.client.msg("Low-level: %s[%d] is now %s" % (path, idx, new_value))
+        else:
+            self.client.msg("Low-level: %s is now %s" % (path, new_value))
+            
 class MyMultiPolledEquipment(midas.frontend.EquipmentBase):
     """
     Here we're creating a "polled" equipment rather than a periodic one.
@@ -118,7 +142,28 @@ class MyMultiPolledEquipment(midas.frontend.EquipmentBase):
         
         midas.frontend.EquipmentBase.__init__(self, client, equip_name, default_common)
         
+        # Example of registering a callback function on an ODB value.
+        # The equipment Settings have pre-defined callbacks (settings_changed_func()
+        # and (detailed_settings_changed_func()), but you can register to watch other
+        # directories as well if you want.
+        # See the odb_watch() documentation for meaning of the 3rd argument (and
+        # why the 2 callbacks have different signatures).
+        self.client.odb_watch("/Logger/Data dir", self.data_dir_changed)
+        self.client.odb_watch("/WebServer/Host list", self.host_list_changed, True)
+        
         self.set_status("Initialized")
+        
+    def data_dir_changed(self, client, path, new_value):
+        """
+        Example callback for watching whether an ODB value changed.
+        """
+        print("%s is now %s" % (path, new_value))
+        
+    def host_list_changed(self, client, path, idx, new_value):
+        """
+        Example callback for watching whether an ODB value changed.
+        """
+        print("%s[%d] is now %s" % (path, idx, new_value))
         
     def poll_func(self):
         """

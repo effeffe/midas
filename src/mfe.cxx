@@ -427,10 +427,13 @@ static INT register_equipment(void)
       /* set equipment Common from equipment[] list if flag is set in user frontend code */
       if (equipment_common_overwrite) {
          // do not overwrite "enabled" flag, this is always defined by the
-         BOOL old_enabled;
+         BOOL prev_enabled;
+         double prev_event_limit;
          int size;
-         size = sizeof(old_enabled);
-         db_get_value(hDB, hKey, "enabled", &old_enabled, &size, TID_BOOL, FALSE);
+         size = sizeof(prev_enabled);
+         db_get_value(hDB, hKey, "enabled", &prev_enabled, &size, TID_BOOL, FALSE);
+         size = sizeof(prev_event_limit);
+         db_get_value(hDB, hKey, "Event limit", &prev_event_limit, &size, TID_DOUBLE, FALSE);
          status = db_set_record(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), 0);
          if (status != DB_SUCCESS) {
             printf("ERROR: Cannot set record \"%s\", db_set_record() status %d", str, status);
@@ -438,8 +441,10 @@ static INT register_equipment(void)
             ss_sleep(3000);
             exit(0);
          }
-         eq_info->enabled = old_enabled;
-         db_set_value(hDB, hKey, "enabled", &old_enabled, size, 1, TID_BOOL);
+         eq_info->enabled = prev_enabled;
+         db_set_value(hDB, hKey, "enabled", &prev_enabled, sizeof(prev_enabled), 1, TID_BOOL);
+         eq_info->event_limit = prev_event_limit;
+         db_set_value(hDB, hKey, "Event limit", &prev_event_limit, sizeof(prev_event_limit), 1, TID_DOUBLE);
       } else {
          size = sizeof(EQUIPMENT_INFO);
          status = db_get_record(hDB, hKey, eq_info, &size, 0);
@@ -876,143 +881,9 @@ int set_equipment_status(const char *name, const char *equipment_status, const c
 
 /*------------------------------------------------------------------*/
 
-static void update_odb(EVENT_HEADER * pevent, HNDLE hKey, INT format)
+static void update_odb(const EVENT_HEADER* pevent, HNDLE hKey, INT format)
 {
-   INT size, n, i, status, n_data;
-   char *pdata, *pdata0;
-   char name[5];
-   BANK_HEADER *pbh;
-   BANK *pbk;
-   BANK32 *pbk32;
-   BANK32A *pbk32a;
-   DWORD bkname;
-   WORD bktype;
-   HNDLE hKeyRoot, hKeyl, *hKeys;
-   KEY key;
-
-   if (format == FORMAT_FIXED) {
-      status = db_set_record(hDB, hKey, (char *) (pevent + 1), pevent->data_size, 0);
-      if (status != DB_SUCCESS) {
-         cm_msg(MERROR, "update_odb", "event #%d size mismatch, db_set_record() status %d", pevent->event_id, status);
-      }
-   } else if (format == FORMAT_MIDAS) {
-      pbh = (BANK_HEADER *) (pevent + 1);
-      pbk = NULL;
-      pbk32 = NULL;
-      pbk32a = NULL;
-
-      /* count number of banks */
-      for (n=0 ; ; n++) {
-         if (bk_is32a(pbh)) {
-            bk_iterate32a(pbh, &pbk32a, &pdata);
-            if (pbk32a == NULL)
-               break;
-         } else if (bk_is32(pbh)) {
-            bk_iterate32(pbh, &pbk32, &pdata);
-            if (pbk32 == NULL)
-               break;
-         } else {
-            bk_iterate(pbh, &pbk, &pdata);
-            if (pbk == NULL)
-               break;
-         }
-      }
-
-      /* build array of keys */
-      hKeys = (HNDLE *)malloc(sizeof(HNDLE) * n);
-
-      pbk = NULL;
-      pbk32 = NULL;
-      n = 0;
-      do {
-         /* scan all banks */
-         if (bk_is32a(pbh)) {
-            size = bk_iterate32a(pbh, &pbk32a, &pdata);
-            if (pbk32a == NULL)
-               break;
-            bkname = *((DWORD *) pbk32a->name);
-            bktype = (WORD) pbk32a->type;
-         } else if (bk_is32(pbh)) {
-            size = bk_iterate32(pbh, &pbk32, &pdata);
-            if (pbk32 == NULL)
-               break;
-            bkname = *((DWORD *) pbk32->name);
-            bktype = (WORD) pbk32->type;
-         } else {
-            size = bk_iterate(pbh, &pbk, &pdata);
-            if (pbk == NULL)
-               break;
-            bkname = *((DWORD *) pbk->name);
-            bktype = (WORD) pbk->type;
-         }
-
-         n_data = size;
-         if (rpc_tid_size(bktype & 0xFF))
-            n_data /= rpc_tid_size(bktype & 0xFF);
-
-         /* get bank key */
-         *((DWORD *) name) = bkname;
-         name[4] = 0;
-         /* record the start of the data in case it is struct */
-         pdata0 = pdata;
-         if (bktype == TID_STRUCT) {
-            status = db_find_key(hDB, hKey, name, &hKeyRoot);
-            if (status != DB_SUCCESS) {
-               cm_msg(MERROR, "update_odb",
-                      "please define bank %s in BANK_LIST in frontend", name);
-               continue;
-            }
-
-            /* write structured bank */
-            for (i = 0;; i++) {
-               status = db_enum_key(hDB, hKeyRoot, i, &hKeyl);
-               if (status == DB_NO_MORE_SUBKEYS)
-                  break;
-
-               db_get_key(hDB, hKeyl, &key);
-
-               /* adjust for alignment */
-               if (key.type != TID_STRING && key.type != TID_LINK)
-                  pdata = (pdata0 + VALIGN(pdata-pdata0, MIN(ss_get_struct_align(), key.item_size)));
-
-               status = db_set_data1(hDB, hKeyl, pdata, key.item_size * key.num_values,
-                                    key.num_values, key.type);
-               if (status != DB_SUCCESS) {
-                  cm_msg(MERROR, "update_odb", "cannot write %s to ODB", name);
-                  continue;
-               }
-               hKeys[n++] = hKeyl;
-
-               /* shift data pointer to next item */
-               pdata += key.item_size * key.num_values;
-            }
-         } else {
-            /* write variable length bank  */
-            status = db_find_key(hDB, hKey, name, &hKeyRoot);
-            if (status != DB_SUCCESS) {
-               db_create_key(hDB, hKey, name, bktype);
-               status = db_find_key(hDB, hKey, name, &hKeyRoot);
-               if (status != DB_SUCCESS) {
-                  cm_msg(MERROR, "update_odb",
-                         "Cannot create key for bank %s in ODB", name);
-                  continue;
-               }
-            }
-            if (n_data > 0) {
-               db_set_data1(hDB, hKeyRoot, pdata, size, n_data, bktype & 0xFF);
-               hKeys[n++] = hKeyRoot;
-            }
-         }
-      } while (1);
-
-      /* notify all hot-lined clients in one go */
-      db_notify_clients_array(hDB, hKeys, n*sizeof(INT));
-
-      free(hKeys);
-
-   } else if (format == FORMAT_YBOS) {
-     assert(!"YBOS not supported anymore");
-   }
+   cm_write_event_to_odb(hDB, hKey, pevent, format);
 }
 
 /*------------------------------------------------------------------*/
@@ -1856,7 +1727,7 @@ static INT scheduler()
    DWORD last_time_network = 0, last_time_display = 0, last_time_flush = 0,
       readout_start, sent, size, last_time_rate = 0;
    INT i, j, idx, status = 0, ch, source, state, old_flag;
-   char str[80], *pdata;
+   char *pdata;
    unsigned char *pd;
    BOOL flag, force_update = FALSE;
 
@@ -2178,16 +2049,21 @@ static INT scheduler()
              eq->stats.events_sent + eq->events_sent >= eq_info->event_limit &&
              run_state == STATE_RUNNING) {
             /* stop run */
+            char str[TRANSITION_ERROR_STRING_LENGTH];
             if (cm_transition(TR_STOP, 0, str, sizeof(str), TR_SYNC, FALSE) != CM_SUCCESS)
                cm_msg(MERROR, "scheduler", "cannot stop run: %s", str);
 
-            /* check if autorestart, main loop will take care of it */
-            size = sizeof(BOOL);
+            /* check if auto-restart, main loop will take care of it */
             flag = FALSE;
+            size = sizeof(flag);
             db_get_value(hDB, 0, "/Logger/Auto restart", &flag, (INT *)&size, TID_BOOL, TRUE);
 
-            if (flag)
-               auto_restart = ss_time() + 20;   /* restart in 20 sec. */
+            if (flag) {
+               UINT32 delay = 20;
+               size = sizeof(delay);
+               db_get_value(hDB, 0, "/Logger/Auto restart delay", &delay, (INT *)&size, TID_UINT32, TRUE);
+               auto_restart = ss_time() + delay;
+            }
 
             /* update event display correctly */
             force_update = TRUE;

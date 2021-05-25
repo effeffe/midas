@@ -10,7 +10,9 @@
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <map>
 #include <stdexcept>
+#include <algorithm>
 #include <initializer_list>
 #include <cstring>
 #include <bitset>
@@ -215,6 +217,11 @@ namespace midas {
       char str[256];
       db_get_path(m_hDB, m_hKey, str, sizeof(str));
       return str;
+   }
+
+   // Return size of ODB key
+   int odb::size() {
+      return m_num_values;
    }
 
    // Resize an ODB key
@@ -466,6 +473,10 @@ namespace midas {
                   // write key if different
                   m_data[i].get_odb().write_key(k, true);
                   m_data[i].get_odb().write();
+               }
+               if (m_data[i].get_odb().get_tid() == TID_KEY) {
+                  // update subkey structure
+                  m_data[i].get_odb().read_key(k);
                }
             }
          }
@@ -926,8 +937,131 @@ namespace midas {
                 "\" failed with status " + std::to_string(status));
    }
 
+   void recurse_del_keys_not_in_defaults(std::string path, HNDLE hDB, HNDLE hKey, midas::odb& default_odb) {
+      // Delete any subkeys that are not in the list of defaults.
+      KEY key;
+      db_get_link(hDB, hKey, &key);
+
+      if (key.type == TID_KEY) {
+         std::vector<std::string> to_delete;
+
+         for (int i = 0;; i++) {
+            HNDLE hSubKey;
+            int status = db_enum_link(hDB, hKey, i, &hSubKey);
+            if (status != DB_SUCCESS)
+               break;
+
+            KEY subKey;
+            db_get_link(hDB, hSubKey, &subKey);
+            std::string full_path = path + "/" + subKey.name;
+
+            if (!default_odb.is_subkey(subKey.name)) {
+               to_delete.push_back(subKey.name);
+
+               if (default_odb.get_debug()) {
+                  std::cout << "Deleting " << full_path << " as not in list of defaults" << std::endl;
+               }
+            } else if (key.type == TID_KEY) {
+               recurse_del_keys_not_in_defaults(full_path, hDB, hSubKey, default_odb[subKey.name]);
+            }
+         }
+
+         for (auto name : to_delete) {
+            HNDLE hSubKey;
+            db_find_link(hDB, hKey, name.c_str(), &hSubKey);
+            db_delete_key(hDB, hSubKey, FALSE);
+         }
+      }
+   }
+
+   void recurse_get_defaults_order(std::string path, midas::odb& default_odb, std::map<std::string, std::vector<std::string> >& retval) {
+      for (midas::odb& sub : default_odb) {
+         if (sub.get_tid() == TID_KEY) {
+            recurse_get_defaults_order(path + "/" + sub.get_name(), sub, retval);
+         }
+
+         retval[path].push_back(sub.get_name());
+      }
+   }
+
+   void recurse_fix_order(midas::odb& default_odb, std::map<std::string, std::vector<std::string> >& user_order) {
+      std::string path = default_odb.get_full_path();
+
+      if (user_order.find(path) != user_order.end()) {
+         default_odb.fix_order(user_order[path]);
+      }
+
+      for (midas::odb& it : default_odb) {
+         if (it.get_tid() == TID_KEY) {
+            recurse_fix_order(it, user_order);
+         }
+      }
+   }
+
+   void odb::fix_order(std::vector<std::string> target_order) {
+      // Fix the order of ODB keys to match that specified in target_order.
+      // The in-ODB representation is simple, as we can just use db_reorder_key()
+      // on anything that's in the wrong place.
+      // The in-memory representation is a little trickier, but we just copy raw
+      // memory into a temporary array, so we don't have to delete/recreate the
+      // u_odb objects.
+      std::vector<std::string> curr_order;
+
+      if (get_subkeys(curr_order) <= 0) {
+         // Not a TID_KEY (or no keys)
+         return;
+      }
+
+      if (target_order.size() != curr_order.size() || (int)target_order.size() != m_num_values) {
+         return;
+      }
+
+      HNDLE hKey = get_hkey();
+      bool force_order = false;
+
+      // Temporary location where we'll store in-memory u_odb objects in th
+      // correct order.
+      u_odb* new_m_data = new u_odb[m_num_values];
+
+      for (int i = 0; i < m_num_values; i++) {
+         if (force_order || curr_order[i] != target_order[i]) {
+            force_order = true;
+            HNDLE hSubKey;
+
+            // Fix the order in the ODB
+            db_find_key(m_hDB, hKey, target_order[i].c_str(), &hSubKey);
+            db_reorder_key(m_hDB, hSubKey, i);
+         }
+
+         // Fix the order in memory
+         auto curr_it = std::find(curr_order.begin(), curr_order.end(), target_order[i]);
+
+         if (curr_it == curr_order.end()) {
+            // Logic error - bail to avoid doing any damage to the in-memory version.
+            delete[] new_m_data;
+            return;
+         }
+
+         int curr_idx = curr_it - curr_order.begin();
+         new_m_data[i] = m_data[curr_idx];
+      }
+
+      // Final update of the in-memory version so they are in the correct order
+      for (int i = 0; i < m_num_values; i++) {
+         m_data[i] = new_m_data[i];
+
+         // Nullify pointers that point to the same object in
+         // m_data and new_m_data, so the underlying object doesn't
+         // get destroyed when we delete new_m_data.
+         new_m_data[i].set_string_ptr(nullptr);
+         new_m_data[i].set_odb(nullptr);
+      }
+
+      delete[] new_m_data;
+   }
+
    // write function with separated path and key name
-   void odb::connect(std::string path, std::string name, bool write_defaults) {
+   void odb::connect(std::string path, std::string name, bool write_defaults, bool delete_keys_not_in_defaults) {
       init_hdb();
 
       if (!name.empty())
@@ -939,10 +1073,18 @@ namespace midas {
       bool key_exists = (status == DB_SUCCESS);
       bool created = false;
 
-      if (!key_exists || write_defaults)
+      if (key_exists && delete_keys_not_in_defaults) {
+         // Recurse down to delete keys as needed.
+         // We need to do this recursively BEFORE calling read/read_key for the first time
+         // to ensure that subdirectories get handled correctly.
+         recurse_del_keys_not_in_defaults(path, m_hDB, hKey, *this);
+      }
+
+      if (!key_exists || write_defaults) {
          created = write_key(path, write_defaults);
-      else
+      } else {
          read_key(path);
+      }
 
       // correct wrong parent ODB from initializer_list
       for (int i = 0; i < m_num_values; i++)
@@ -953,12 +1095,13 @@ namespace midas {
             m_data[i].get_odb().connect(get_full_path(), m_data[i].get_odb().get_name(), write_defaults);
       } else if (created || write_defaults) {
          write();
-      } else
+      } else {
          read();
+      }
    }
 
    // send key definitions and data with optional subkeys to certain path in ODB
-   void odb::connect(std::string str, bool write_defaults) {
+   void odb::connect(std::string str, bool write_defaults, bool delete_keys_not_in_defaults) {
       if (str[0] != '/')
          mthrow("connect(\"" + str + "\"): path must start with leading \"/\"");
 
@@ -972,7 +1115,26 @@ namespace midas {
          path = str.substr(0, str.find_last_of('/'));
       }
 
-      connect(path, name, write_defaults);
+      connect(path, name, write_defaults, delete_keys_not_in_defaults);
+   }
+
+   // shorthand for the same behavior as db_check_record:
+   // - keep values of keys that already exist with the correct type
+   // - add keys that user provided but aren't in ODB already
+   // - delete keys that are in ODB but not in user's settings
+   // - re-order ODB keys to match user's order
+   void odb::connect_and_fix_structure(std::string path) {
+      // Store the order the user specified.
+      // Need to do this recursively before calling connect(), as the first
+      // read() in that function merges user keys and existing keys.
+      std::map<std::string, std::vector<std::string> > user_order;
+      recurse_get_defaults_order(path, *this, user_order);
+
+      // Main connect() that adds/deletes/updates keys as needed.
+      connect(path, false, true);
+
+      // Fix order in ODB (and memory)
+      recurse_fix_order(*this, user_order);
    }
 
    void odb::delete_key() {

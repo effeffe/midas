@@ -44,13 +44,13 @@ public:
             int status=0;
             demangled = abi::__cxa_demangle(info.dli_sname, nullptr, 0, &status);
             snprintf(buf, sizeof(buf), "%-3d 0x%018lX %s + %zd\n",
-                     i, (uintptr_t)callstack[i],
+                     i, (long unsigned int) callstack[i],
                      status == 0 ? demangled : info.dli_sname,
                      (char *)callstack[i] - (char *)info.dli_saddr);
             free(demangled);
          } else {
             snprintf(buf, sizeof(buf), "%-3d 0x%018lX\n",
-                     i, (uintptr_t)callstack[i]);
+                     i, (long unsigned int) callstack[i]);
          }
          trace_buf << buf;
       }

@@ -16,6 +16,9 @@
 #include <string.h>
 #include "midas.h"
 
+// minimal ramping increment to reduce calls to (potential slow) SET function
+#define HV_MIN_RAMP_STEP 0.05
+
 typedef struct {
 
    /* ODB keys */
@@ -359,6 +362,9 @@ INT hv_ramp(HV_INFO * hv_info)
          else {
             delta = (float) ((ss_millitime() -
                               hv_info->last_change[i]) / 1000.0 * ramp_speed);
+            if (delta < HV_MIN_RAMP_STEP)
+               return FE_SUCCESS;
+
             if (hv_info->demand[i] > hv_info->demand_mirror[i])
                hv_info->demand_mirror[i] =
                    MIN(hv_info->demand[i], hv_info->demand_mirror[i] + delta);

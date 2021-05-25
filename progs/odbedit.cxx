@@ -2180,7 +2180,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
          if (client_name[0]) {
             if (cm_connect_client(client_name, &hConn) == CM_SUCCESS) {
                rpc_client_call(hConn, RPC_ANA_CLEAR_HISTOS, n1, n2);
-               cm_disconnect_client(hConn, FALSE);
+               //cm_disconnect_client(hConn, FALSE);
             } else
                printf("Cannot connect to client %s\n", client_name);
          }
@@ -2856,11 +2856,7 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
    } while (TRUE);
 
    /* check if client connections are broken */
-   for (i = 0; i < MAX_RPC_CONNECTION; i++) {
-      status = cm_yield(0);
-      if (status == SS_ABORT || status == RPC_SHUTDOWN)
-         break;
-   }
+   status = cm_yield(0);
 
    return 1; /* indicate success */
 }

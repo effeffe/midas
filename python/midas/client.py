@@ -67,7 +67,7 @@ class MidasClient:
     * event_buffers (dict of {int: `ctypes.c_char_p`}) - Character buffers that
         have been opened, keyed by buffer handle.
     """
-    def __init__(self, client_name, host_name=None, expt_name=None):
+    def __init__(self, client_name, host_name=None, expt_name=None, daemon_flag=None):
         """
         Load the midas library, and connect to the chosen experiment.
         
@@ -81,6 +81,8 @@ class MidasClient:
             *  expt_name (str) - Which experiment to connect to on the server.
                 If None, it will be determined automatically from the 
                 MIDAS_EXPT_NAME environment variable.
+            * daemon_flag (None/int) - None means do not deamonize this process; 
+                0 means deamonize and close stdout; 1 means deamonize and keep stdout.
         """
         global _midas_connected, _midas_lib_loaded
         
@@ -111,7 +113,11 @@ class MidasClient:
             _midas_lib_loaded = midas.MidasLib(lib_path)
             
         self.name = client_name    
-        self.lib = _midas_lib_loaded 
+        self.lib = _midas_lib_loaded
+        
+        # Deamonize before we connect, or else the buffer handles etc will be associated with the wrong PID
+        if daemon_flag is not None:
+            self.lib.c_ss_daemon_init(daemon_flag)
         
         c_host_name = ctypes.create_string_buffer(32)
         c_expt_name = ctypes.create_string_buffer(32)
@@ -442,7 +448,7 @@ class MidasClient:
                     new_midas_type = explicit_new_midas_type
                 else:
                     # Choose ODB type based on input (e.g. a dict means
-                    # we'll create a TID_KEY, an in means TID_INT etc)
+                    # we'll create a TID_KEY, an int means TID_INT etc)
                     new_midas_type = self._ctype_to_midas_type(contents)
                     
                 self.lib.c_db_create_key(self.hDB, 0, c_path_no_idx, new_midas_type)
@@ -600,22 +606,39 @@ class MidasClient:
         ts = self._odb_get_key(path).last_written
         return datetime.datetime.fromtimestamp(ts)
     
-    def odb_watch(self, path, callback):
+    def odb_watch(self, path, callback, pass_changed_value_only=False):
         """
         Register a function that will be called when a value in the ODB changes.
         You must later call `communicate()` so that midas can inform your
-        client about any ODB changes.
+        client about any ODB changes (if you're using the `midas.frontend`
+        framework, then `communicate()` will be called for you automatically).
         
         Args:
             * path (str) - The ODB path to watch (including all its children).
             * callback (function) - See below. You can register the same 
                 callback function to watch multiple ODB entries if you wish.
+            * pass_changed_value_only (bool) - Whether your callback function
+                expects to be passed:
+                - True: the full ODB entry that is being watched
+                - False: only the value that has changed
             
-        Python function (`callback`) details:
+        Python function (`callback`) details if pass_changed_value_only is FALSE:
             * Arguments it should accept:
                 * client (midas.client.MidasClient)
                 * path (str) - The ODB path being watched
-                * odb_value (float/int/dict etc) - The new ODB value
+                * odb_value (float/int/dict etc) - The new ODB state of the path being watched
+            * Value it should return:
+                * Anything or nothing, we don't do anything with it 
+            
+        Python function (`callback`) details if pass_changed_value_only is TRUE:
+            * Arguments it should accept:
+                * client (midas.client.MidasClient)
+                * path (str) - The ODB path that changed (possibly a child if you're watching
+                    an entire ODB directory)
+                * index (int/None) - The array index that changed (or None if the entry that changed
+                    is not an array)
+                * odb_value (float/int/dict etc) - The new ODB value (the single element
+                    that changed if you're watching an array)
             * Value it should return:
                 * Anything or nothing, we don't do anything with it 
                 
@@ -639,8 +662,13 @@ class MidasClient:
         """
         logger.debug("Registering callback function for watching %s" % path)
         hKey = self._odb_get_hkey(path)
-        cb = midas.callbacks.make_hotlink_callback(path, callback, self)
-        self.lib.c_db_open_record(self.hDB, hKey, None, 0, 1, cb, None)
+        
+        if pass_changed_value_only:
+            cb = midas.callbacks.make_watch_callback(path, callback, self)
+            self.lib.c_db_watch(self.hDB, hKey, cb, None)
+        else:
+            cb = midas.callbacks.make_hotlink_callback(path, callback, self)
+            self.lib.c_db_open_record(self.hDB, hKey, None, 0, 1, cb, None)
         
     def odb_stop_watching(self, path):
         """
@@ -652,7 +680,13 @@ class MidasClient:
         """
         logger.debug("De-registering callback function that was watching %s" % path)
         hKey = self._odb_get_hkey(path)
-        self.lib.c_db_close_record(self.hDB, hKey)
+        
+        if path in midas.callbacks.watch_callbacks:
+            self.lib.c_db_unwatch(self.hDB, hKey)
+            del midas.callbacks.watch_callbacks[path]
+        elif path in midas.callbacks.hotlink_callbacks:
+            self.lib.c_db_close_record(self.hDB, hKey)
+            del midas.callbacks.hotlink_callbacks[path]
         
     def open_event_buffer(self, buffer_name, buf_size=None, max_event_size=None):
         """
@@ -1334,6 +1368,20 @@ class MidasClient:
         self.lib.c_db_get_key(self.hDB, hKey, ctypes.byref(key))
         return key        
     
+    def _odb_get_parent_hkey(self, hKey):
+        """
+        Convert a key handle to the actual key metadata.
+        
+        Args:
+            * hKey (int) - from `_odb_get_hkey()`
+            
+        Returns:
+            `ctypes.c_int`            
+        """
+        hParent = ctypes.c_int()
+        self.lib.c_db_get_parent(self.hDB, hKey, ctypes.byref(hParent))
+        return hParent        
+    
     def _odb_enum_key(self, hKey):
         """
         Get a list of ODB keys beneath this directory.
@@ -1721,7 +1769,7 @@ class MidasClient:
             return midas.TID_DOUBLE
         if isinstance(value, ctypes.c_float):
             return midas.TID_FLOAT
-        if isinstance(value, str):
+        if isinstance(value, str) or (isinstance(value, ctypes.Array) and isinstance(value._type_(), ctypes.c_char)):
             return midas.TID_STRING
         if isinstance(value, dict):
             return midas.TID_KEY

@@ -1,6 +1,7 @@
 #include "midas_c_compat.h"
 #include "midas.h"
 #include "mrpc.h"
+#include "msystem.h"
 #include <string>
 #include "string.h"
 #include "stdlib.h"
@@ -340,6 +341,10 @@ INT c_db_get_link_data(HNDLE hdb, HNDLE key_handle, void *data, INT * buf_size, 
    return db_get_link_data(hdb, key_handle, data, buf_size, type);
 }
 
+INT c_db_get_parent(HNDLE hDB, HNDLE hKey, HNDLE * parenthKey) {
+   return db_get_parent(hDB, hKey, parenthKey);
+}
+
 INT c_db_get_value(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, void *data, INT * size, DWORD type, BOOL create) {
    return db_get_value(hdb, hKeyRoot, key_name, data, size, type, create);
 }
@@ -376,6 +381,14 @@ INT c_db_set_value_index(HNDLE hDB, HNDLE hKeyRoot, const char *key_name, const 
    return db_set_value_index(hDB, hKeyRoot, key_name, data, data_size, index, type, truncate);
 }
 
+INT c_db_unwatch(HNDLE hDB, HNDLE hKey) {
+   return db_unwatch(hDB, hKey);
+}
+
+INT c_db_watch(HNDLE hDB, HNDLE hKey, void (*dispatcher) (INT, INT, INT, void*), void* info) {
+   return db_watch(hDB, hKey, dispatcher, info);
+}
+
 INT c_jrpc_client_call(HNDLE hconn, char* cmd, char* args, char* buf, int buf_length) {
    // Specialized version of rpc_client_call that just deals with RPC_JRPC,
    // so we don't have to worry about variable arg lists.
@@ -393,4 +406,8 @@ INT c_rpc_is_remote(void) {
 
 INT c_rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, INT buf_size, INT async_flag, INT mode) {
    return rpc_send_event(buffer_handle, event, buf_size, async_flag, mode);
+}
+
+INT c_ss_daemon_init(BOOL keep_stdout) {
+   return ss_daemon_init(keep_stdout);
 }

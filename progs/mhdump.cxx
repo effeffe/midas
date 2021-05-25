@@ -68,7 +68,9 @@ int tid_size[] = {
    0,                           /* TID_ARRAY     variable length array of unkown type */
    0,                           /* TID_STRUCT    C structure                          */
    0,                           /* TID_KEY       key in online database               */
-   0                            /* TID_LINK      link in online database              */
+   0,                           /* TID_LINK      link in online database              */
+   8,                           /* TID_INT64     8 bytes int          -2^63   2^63-1  */
+   8                            /* TID_UINT64    8 bytes unsigned int  0      2^64-1  */
 };
 
 /* data type names */
@@ -77,10 +79,10 @@ const char *tid_name[] = {
    "BYTE",
    "SBYTE",
    "CHAR",
-   "WORD",
-   "SHORT",
-   "DWORD",
-   "INT",
+   "UINT16",
+   "INT16",
+   "UINT32",
+   "INT32",
    "BOOL",
    "FLOAT",
    "DOUBLE",
@@ -89,7 +91,9 @@ const char *tid_name[] = {
    "ARRAY",
    "STRUCT",
    "KEY",
-   "LINK"
+   "LINK",
+   "INT64",
+   "UINT64"
 };
 
 ////////////////////////////////////////

@@ -347,12 +347,13 @@ static int sql2midasType_sqlite(const char* name)
 ////////////////////////////////////////
 
 struct HsSchemaEntry {
-   std::string tag_name;
-   std::string tag_type;
-   std::string name;
-   int type;
-   int n_data;
-   int n_bytes;
+   std::string tag_name; // tag name from MIDAS
+   std::string tag_type; // tag type from MIDAS
+   std::string name;     // entry name, same as tag_name except when read from SQL history when it could be the SQL column name
+   int type    = 0; // MIDAS data type TID_xxx
+   int n_data  = 0; // MIDAS array size
+   int n_bytes = 0; // n_data * size of MIDAS data type (only used by HsFileSchema?)
+   bool inactive = false; // inactive SQL column
 
    HsSchemaEntry() // ctor
    {
@@ -366,18 +367,20 @@ struct HsSchema
 {
    // event schema definitions
    std::string event_name;
-   time_t time_from;
-   time_t time_to;
+   time_t time_from = 0;
+   time_t time_to = 0;
    std::vector<HsSchemaEntry> variables;
    std::vector<int> offsets;
-   int  n_bytes;
+   int  n_bytes = 0;
 
    // run time data used by hs_write_event()
-   bool active;
-   int count_write_undersize;
-   int count_write_oversize;
-   int write_max_size;
-   int write_min_size;
+   int count_write_undersize = 0;
+   int count_write_oversize = 0;
+   int write_max_size = 0;
+   int write_min_size = 0;
+
+   // schema disabled by write error
+   bool disabled = true;
 
    HsSchema() // ctor
    {
@@ -385,7 +388,6 @@ struct HsSchema
       time_to = 0;
       n_bytes = 0;
 
-      active = false;
       count_write_undersize = 0;
       count_write_oversize = 0;
       write_max_size = 0;
@@ -572,10 +574,12 @@ class SqlBase
 public:
    int  fDebug;
    bool fIsConnected;
+   bool fTransactionPerTable;
 
    SqlBase() {  // ctor
       fDebug = 0;
       fIsConnected = false;
+      fTransactionPerTable = true;
    };
 
    virtual ~SqlBase() { // dtor
@@ -626,22 +630,25 @@ public:
 struct HsSqlSchema : public HsSchema {
    SqlBase* sql;
    std::vector<std::string> disconnected_buffer;
-   int transaction_count;
    std::string table_name;
    std::vector<std::string> column_names;
    std::vector<std::string> column_types;
 
    HsSqlSchema() // ctor
    {
-      transaction_count = 0;
+      sql = 0;
+      table_transaction_count = 0;
    }
 
    ~HsSqlSchema() // dtor
    {
-      assert(transaction_count == 0);
+      assert(get_transaction_count() == 0);
    }
 
    void print(bool print_tags = true) const;
+   int get_transaction_count();
+   void reset_transaction_count();
+   void increment_transaction_count();
    int close_transaction();
    int flush_buffers() { return close_transaction(); }
    int close() { return close_transaction(); }
@@ -656,7 +663,17 @@ struct HsSqlSchema : public HsSchema {
                  const int debug,
                  std::vector<time_t>& last_time,
                  MidasHistoryBufferInterface* buffer[]);
+
+private:
+   // Sqlite uses a transaction per table; MySQL uses a single transaction for all tables.
+   // But to support future "single transaction" DBs more easily (e.g. if user wants to
+   // log to both Postgres and MySQL in future), we keep track of the transaction count
+   // per SQL engine.
+   int table_transaction_count;
+   static std::map<SqlBase*, int> global_transaction_count;
 };
+
+std::map<SqlBase*, int> HsSqlSchema::global_transaction_count;
 
 struct HsFileSchema : public HsSchema {
    std::string file_name;
@@ -718,6 +735,7 @@ void HsSqlSchema::print(bool print_tags) const
       for (unsigned j=0; j<nv; j++) {
          printf("  %d: name [%s], type [%s] tid %d, n_data %d, n_bytes %d", j, this->variables[j].name.c_str(), rpc_tid_name(this->variables[j].type), this->variables[j].type, this->variables[j].n_data, this->variables[j].n_bytes);
          printf(", sql_column [%s], sql_type [%s], offset %d", this->column_names[j].c_str(), this->column_types[j].c_str(), this->offsets[j]);
+         printf(", inactive %d", this->variables[j].inactive);
          printf("\n");
       }
    }
@@ -809,6 +827,7 @@ Mysql::Mysql() // ctor
    fNextReconnect = 0;
    fNextReconnectDelaySec = 0;
    fDisconnectedLost = 0;
+   fTransactionPerTable = false;
 }
 
 Mysql::~Mysql() // dtor
@@ -1880,7 +1899,7 @@ int HsFileSchema::write_event(const time_t t, const char* data, const int data_s
 
    int expected_size = s->record_size - 4;
 
-   // sanity check: record_size and n_bytes are computed from the byte counts in he file header
+   // sanity check: record_size and n_bytes are computed from the byte counts in the file header
    assert(expected_size == s->n_bytes);
 
    if (s->last_size == 0)
@@ -2189,6 +2208,9 @@ int HsFileSchema::read_data(const time_t start_time,
          }
 
          time_t t = *(DWORD*)buf;
+
+         if (debug > 1)
+            printf("FileHistory::read: file %s, schema time %s..%s, read time %s..%s, row time %s\n", s->file_name.c_str(), TimeToString(s->time_from).c_str(), TimeToString(s->time_to).c_str(), TimeToString(start_time).c_str(), TimeToString(end_time).c_str(), TimeToString(t).c_str());
 
          if (t < start_time) {
             cm_msg(MERROR, "FileHistory::read_data", "Bad timestamp in history file \'%s\', time 0x%08x less then start_time 0x%08x, irec %d, nrec %d, fpos %d", s->file_name.c_str(), (DWORD)t, (DWORD)start_time, irec, nrec, fpos);
@@ -2645,7 +2667,7 @@ int SchemaHistoryBase::hs_define_event(const char* event_name, time_t timestamp,
    if (!s)
       return HS_FILE_ERROR;
 
-   s->active = true;
+   s->disabled = false;
 
    // find empty slot in events list
    for (unsigned int i=0; i<fEvents.size(); i++)
@@ -2681,15 +2703,15 @@ int SchemaHistoryBase::hs_write_event(const char* event_name, time_t timestamp, 
       return HS_UNDEFINED_EVENT;
 
    // deactivated because of error?
-   if (!s->active)
+   if (s->disabled)
       return HS_FILE_ERROR;
 
    if (s->n_bytes == 0) { // compute expected data size
       // NB: history data does not have any padding!
       for (unsigned i=0; i<s->variables.size(); i++) {
-         if (s->variables[i].name != "") {
-            s->n_bytes += s->variables[i].n_bytes;
-         }
+         if (s->variables[i].inactive)
+            continue;
+         s->n_bytes += s->variables[i].n_bytes;
       }
    }
 
@@ -2728,7 +2750,7 @@ int SchemaHistoryBase::hs_write_event(const char* event_name, time_t timestamp, 
 
    // if could not write event, deactivate it
    if (status != HS_SUCCESS) {
-      s->active = false;
+      s->disabled = true;
       cm_msg(MERROR, "hs_write_event", "Event \'%s\' disabled after write error %d", event_name, status);
       return HS_FILE_ERROR;
    }
@@ -3147,9 +3169,9 @@ int HsSqlSchema::close_transaction()
    }
    
    int status = HS_SUCCESS;
-   if (transaction_count > 0) {
+   if (get_transaction_count() > 0) {
       status = sql->CommitTransaction(table_name.c_str());
-      transaction_count = 0;
+      reset_transaction_count();
    }
    return status;
 }
@@ -3264,7 +3286,7 @@ int HsSqlSchema::write_event(const time_t t, const char* data, const int data_si
    std::string values;
 
    for (unsigned i=0; i<s->variables.size(); i++) {
-      if (s->variables[i].name.length() < 1)
+      if (s->variables[i].inactive)
          continue;
 
       int type   = s->variables[i].type;
@@ -3349,20 +3371,20 @@ int HsSqlSchema::write_event(const time_t t, const char* data, const int data_si
    cmd += ");";
 
    if (sql->IsConnected()) {
-      if (s->transaction_count == 0)
+      if (s->get_transaction_count() == 0)
          sql->OpenTransaction(s->table_name.c_str());
 
-      s->transaction_count++;
+      s->increment_transaction_count();
 
       int status = sql->Exec(s->table_name.c_str(), cmd.c_str());
 
       // mh2sql who does not call hs_flush_buffers()
       // so we should flush the transaction by hand
       // some SQL engines have limited transaction buffers... K.O.
-      if (s->transaction_count > 100000) {
+      if (s->get_transaction_count() > 100000) {
          //printf("flush table %s\n", table_name);
          sql->CommitTransaction(s->table_name.c_str());
-         s->transaction_count = 0;
+         s->reset_transaction_count();
       }
       
       if (status != DB_SUCCESS) {
@@ -3512,6 +3534,30 @@ int HsSqlSchema::read_data(const time_t start_time,
       printf("SqlHistory::read_data: table [%s], start %s, end %s, read %d rows\n", table_name.c_str(), TimeToString(start_time).c_str(), TimeToString(end_time).c_str(), count);
 
    return HS_SUCCESS;
+}
+
+int HsSqlSchema::get_transaction_count() {
+   if (!sql || sql->fTransactionPerTable) {
+      return table_transaction_count;
+   } else {
+      return global_transaction_count[sql];
+   }
+}
+
+void HsSqlSchema::reset_transaction_count() {
+   if (!sql || sql->fTransactionPerTable) {
+      table_transaction_count = 0;
+   } else {
+      global_transaction_count[sql] = 0;
+   }
+}
+
+void HsSqlSchema::increment_transaction_count() {
+   if (!sql || sql->fTransactionPerTable) {
+      table_transaction_count++;
+   } else {
+      global_transaction_count[sql]++;
+   }
 }
 
 ////////////////////////////////////////////////////////
@@ -4618,6 +4664,7 @@ int MysqlHistory::read_column_names(HsSchemaVector *sv, const char* table_name, 
             s->variables[j].tag_type = tag_type;
             if (!iactive) {
                s->variables[j].name = "";
+               s->variables[j].inactive = true;
             } else {
                s->variables[j].name = tag_name;
             }

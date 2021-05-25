@@ -1923,7 +1923,7 @@ void check_obsolete_odb(HNDLE hDB, const char* odb_path)
    }
 }
 
-void init_menu_buttons()
+void init_menu_buttons(MVOdb* odb)
 {
    HNDLE hDB;
    BOOL true_value = TRUE;
@@ -1966,7 +1966,7 @@ void init_menu_buttons()
 
 /*------------------------------------------------------------------*/
 
-void init_mhttpd_odb()
+void init_mhttpd_odb(MVOdb* odb)
 {
    HNDLE hDB;
    HNDLE hKey;
@@ -1993,6 +1993,9 @@ void init_mhttpd_odb()
    if (status == DB_SUCCESS) {
       cm_msg(MERROR, "init_mhttpd_odb", "ODB \"/Experiment/Start-Stop Buttons\" is obsolete, please delete it.");
    }
+
+   bool xdefault = true;
+   odb->RB("Experiment/Pause-Resume Buttons", &xdefault, true);
 
 #ifdef HAVE_MONGOOSE616
    check_obsolete_odb(hDB, "/Experiment/midas http port");
@@ -4631,8 +4634,7 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
                   if (equal_ustring(eq_name, eqkey.name))
                      r->rsprintf("<b>%s</b> &nbsp;&nbsp;", eqkey.name);
                   else {
-                     r->rsprintf("<a href=\"?cmd=eqtable&eq=%s\">%s</a> &nbsp;&nbsp;",
-                                 eqkey.name, eqkey.name);
+                     r->rsprintf("<a href=\"?cmd=eqtable&eq=%s\">%s</a> &nbsp;&nbsp;", urlEncode(eqkey.name).c_str(), eqkey.name);
                   }
                   break;
                }
@@ -4662,7 +4664,7 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
       if (equal_ustring(group, "All"))
          r->rsprintf("<b>All</b> &nbsp;&nbsp;");
       else
-         r->rsprintf("<a href=\"?cmd=eqtable&eq=%s\">All</a> &nbsp;&nbsp;", eq_name);
+         r->rsprintf("<a href=\"?cmd=eqtable&eq=%s\">All</a> &nbsp;&nbsp;", urlEncode(eq_name).c_str());
 
       /* collect groups */
 
@@ -4704,17 +4706,14 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
          if (equal_ustring(group_name[i], group))
             r->rsprintf("<b>%s</b> &nbsp;&nbsp;", group_name[i]);
          else {
-            char s[256];
-            strlcpy(s, group_name[i], sizeof(s));
-            urlEncode(s, sizeof(s));
-            r->rsprintf("<a href=\"?cmd=eqtable&eq=%s&group=%s\">%s</a> &nbsp;&nbsp;", eq_name, s, group_name[i]);
+            r->rsprintf("<a href=\"?cmd=eqtable&eq=%s&group=%s\">%s</a> &nbsp;&nbsp;", urlEncode(eq_name).c_str(), urlEncode(group_name[i]).c_str(), group_name[i]);
          }
       }
 
       r->rsprintf("<i>ODB:</i> &nbsp;&nbsp;");
-      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Common\">Common</a> &nbsp;&nbsp;", eq_name);
-      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Settings\">Settings</a> &nbsp;&nbsp;", eq_name);
-      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Variables\">Variables</a> &nbsp;&nbsp;", eq_name);
+      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Common\">Common</a> &nbsp;&nbsp;", urlEncode(eq_name).c_str());
+      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Settings\">Settings</a> &nbsp;&nbsp;", urlEncode(eq_name).c_str());
+      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Variables\">Variables</a> &nbsp;&nbsp;", urlEncode(eq_name).c_str());
       r->rsprintf("</tr>\n");
 
       /* count variables */
@@ -4869,15 +4868,15 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
             if (equal_ustring(key.name, group)) {
                r->rsprintf("<b>%s</b> &nbsp;&nbsp;", key.name);
             } else {
-               r->rsprintf("<a href=\"?cmd=eqtable&eq=%s&group=%s\">%s</a> &nbsp;&nbsp;", eq_name, key.name, key.name);
+               r->rsprintf("<a href=\"?cmd=eqtable&eq=%s&group=%s\">%s</a> &nbsp;&nbsp;", urlEncode(eq_name).c_str(), urlEncode(key.name).c_str(), key.name);
             }
          }
       }
 
       r->rsprintf("<i>ODB:</i> &nbsp;&nbsp;");
-      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Common\">Common</a> &nbsp;&nbsp;", eq_name);
-      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Settings\">Settings</a> &nbsp;&nbsp;", eq_name);
-      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Variables\">Variables</a> &nbsp;&nbsp;", eq_name);
+      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Common\">Common</a> &nbsp;&nbsp;", urlEncode(eq_name).c_str());
+      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Settings\">Settings</a> &nbsp;&nbsp;", urlEncode(eq_name).c_str());
+      r->rsprintf("<a href=\"?cmd=odb&odb_path=Equipment/%s/Variables\">Variables</a> &nbsp;&nbsp;", urlEncode(eq_name).c_str());
       r->rsprintf("</tr>\n");
 
       /* enumerate variable arrays */
@@ -6080,7 +6079,7 @@ void do_jrpc_rev0(Param* p, Return* r)
                                            );
                   r->rsprintf(" %d", status);
 
-                  status = cm_disconnect_client(hconn, FALSE);
+                  //status = cm_disconnect_client(hconn, FALSE);
                   r->rsprintf(" %d", status);
                }
 
@@ -6244,7 +6243,7 @@ void do_jrpc_rev1(Param* p, Return* r)
                      reply_body += buf;
                   }
 
-                  disconnect_status = cm_disconnect_client(hconn, FALSE);
+                  //disconnect_status = cm_disconnect_client(hconn, FALSE);
                   //r->rsprintf("    <disconnect_status>%d</disconnect_status>\n", status);
                }
 
@@ -6319,7 +6318,7 @@ void do_jrpc(Param* p, Return* r)
 
    r->rsprintf("%s", buf);
 
-   status = cm_disconnect_client(hconn, FALSE);
+   //status = cm_disconnect_client(hconn, FALSE);
 
    free(buf);
 }
@@ -7749,17 +7748,16 @@ static void show_cnaf_page(Param* p, Return* rr)
 
             if (status == RPC_NET_ERROR) {
                /* try to reconnect */
-               cm_disconnect_client(hconn, FALSE);
+               //cm_disconnect_client(hconn, FALSE);
                status = cm_connect_client(client_name, &hconn);
                if (status != RPC_SUCCESS) {
                   hconn = 0;
                   client_name[0] = 0;
                }
 
-               if (hconn)
-                  status =
-                      rpc_client_call(hconn, RPC_CNAF24, CNAF, 0, c, n, a, f, &d, &size,
-                                      &x, &q);
+               if (hconn) {
+                  status = rpc_client_call(hconn, RPC_CNAF24, CNAF, 0, c, n, a, f, &d, &size, &x, &q);
+               }
             }
          }
 
@@ -8739,28 +8737,21 @@ BOOL check_web_password(Return* r, HNDLE hDB, const char* dec_path, const char *
 
 /*------------------------------------------------------------------*/
 
-void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char *dec_path, int write_access)
+void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
 {
    int keyPresent, size, status, line, link_index;
-   char keyname[32];
-   char link_name[256];
-   char full_path[256];
-   char root_path[256];
-   //char odb_path[256];
    char colspan;
    char style[32];
-   char *p;
    HNDLE hDB, hkey, hkeyroot;
    KEY key;
    DWORD delta;
 
    cm_get_experiment_database(&hDB, NULL);
 
-   //printf("enc_path [%s] dec_path [%s]\n", enc_path, dec_path);
+   //printf("path [%s]\n", dec_path);
 
-   if (strcmp(enc_path, "root") == 0) {
-      strcpy(enc_path, "");
-      strcpy(dec_path, "");
+   if (strcmp(dec_path, "root") == 0) {
+      dec_path = "";
    }
 
    char xdecpath[256];
@@ -8785,26 +8776,32 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
       return;
    }
 
+   char xdec_path[MAX_ODB_PATH];
+
    /* if key is not of type TID_KEY, cut off key name */
    db_get_key(hDB, hkeyroot, &key);
    if (key.type != TID_KEY) {
+      strlcpy(xdec_path, dec_path, sizeof(xdec_path));
+      
       /* strip variable name from path */
-      p = dec_path + strlen(dec_path) - 1;
+      char* p = xdec_path + strlen(xdec_path) - 1;
       while (*p && *p != '/')
          *p-- = 0;
       if (*p == '/')
          *p = 0;
 
-      strlcpy(enc_path, dec_path, enc_path_size);
-      urlEncode(enc_path, enc_path_size);
-
-      status = db_find_key(hDB, 0, dec_path, &hkeyroot);
+      status = db_find_key(hDB, 0, xdec_path, &hkeyroot);
       if (status != DB_SUCCESS) {
-         r->rsprintf("Error: cannot find key %s<P>\n", dec_path);
+         r->rsprintf("Error: cannot find key %s<P>\n", xdec_path);
          r->rsprintf("</body></html>\r\n");
          return;
       }
+
+      dec_path = xdec_path;
    }
+
+   //strlcpy(enc_path, dec_path, enc_path_size);
+   //urlEncode(enc_path, enc_path_size);
 
    char odbpath[MAX_ODB_PATH];
    status = db_get_path(hDB, hkeyroot, odbpath, sizeof(odbpath));
@@ -8832,7 +8829,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
       r->rsprintf("<input type=button value=Create onclick=\"dlgShow('dlgCreate')\">\n");
       r->rsprintf("<input type=button value=Link   onclick=\"dlgShow('dlgLink')\">\n");
       r->rsprintf("<input type=button value=Delete onclick=\"dlgShow('dlgDelete')\">\n");
-      r->rsprintf("<input type=button value=\"Create Elog from this page\" onclick=\"self.location=\'?cmd=Create Elog from this page&odb_path=%s\';\"></td></tr>\n", odbpath);
+      r->rsprintf("<input type=button value=\"Create Elog from this page\" onclick=\"self.location=\'?cmd=Create Elog from this page&odb_path=%s\';\"></td></tr>\n", urlEncode(odbpath).c_str());
    }
 
    /*---- Build the Delete dialog------------------------------------*/
@@ -8863,27 +8860,27 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
    r->rsprintf("<tr><td colspan=%d class='ODBpath'><b>", colspan);
    r->rsprintf("<a href=\"?cmd=odb\">/</a> \n");
 
+   std::string enc_root_path;
+
    /*---- display path ----*/
-   p = dec_path;
-   std::string url_path;
-   while (*p) {
-      std::string pd;
-      while (*p && *p != '/')
-         pd += *p++;
-
-      char tmp_path[MAX_ODB_PATH];
-      strlcpy(tmp_path, pd.c_str(), sizeof(tmp_path));
-      urlEncode(tmp_path, sizeof(tmp_path));
-      url_path += tmp_path;
-
-      if (pd.length() > 0)
-         r->rsprintf("<a href=\"?cmd=odb&odb_path=%s\">%s</a>\n / ", url_path.c_str(), pd.c_str());
-
-      url_path += "/";
-      if (*p == '/')
-         p++;
+   {
+      const char* p = dec_path;
+      while (*p) {
+         std::string pd;
+         while (*p && *p != '/')
+            pd += *p++;
+         
+         enc_root_path += urlEncode(pd.c_str());
+         
+         if (pd.length() > 0)
+            r->rsprintf("<a href=\"?cmd=odb&odb_path=%s\">%s</a>\n / ", enc_root_path.c_str(), pd.c_str());
+         
+         enc_root_path += "/";
+         if (*p == '/')
+            p++;
+      }
    }
-   strlcpy(root_path, url_path.c_str(), sizeof(root_path));
+
    r->rsprintf("</b></tr>\n");
 
    /* enumerate subkeys */
@@ -8937,10 +8934,11 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
          else
             strlcpy(style, "ODBtableOdd", sizeof(style));
 
-         strlcpy(full_path, root_path, sizeof(full_path));
-         strlcat(full_path, key.name, sizeof(full_path));
-         urlEncode(full_path, sizeof(full_path));
-         strlcpy(keyname, key.name, sizeof(keyname));
+         std::string keyname = key.name;
+         std::string enc_keyname = urlEncode(key.name);
+
+         std::string enc_full_path = enc_root_path + enc_keyname;
+
          std::string odb_path = dec_path;
          if (odb_path.length() > 0 && odb_path[odb_path.length() - 1] != '/')
             odb_path += "/";
@@ -8948,6 +8946,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
 
          /* resolve links */
          std::string link_ref;
+         char link_name[MAX_ODB_PATH];
          link_name[0] = 0;
          status = DB_SUCCESS;
          if (key.type == TID_LINK) {
@@ -8961,7 +8960,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
 
             //sprintf(link_ref, "?cmd=Set&odb_path=%s", full_path);
             link_ref = "?cmd=Set&odb_path=";
-            link_ref += full_path;
+            link_ref += enc_full_path;
 
             if (status == DB_SUCCESS && link_name[0] == 0) {
                // fake the case when an empty link somehow resolves
@@ -8972,36 +8971,36 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
          std::string ref;
 
          if (link_name[0]) {
-            if (root_path[strlen(root_path)-1] == '/' && link_name[0] == '/') {
+            if (enc_root_path.back() == '/' && link_name[0] == '/') {
                //sprintf(ref, "?cmd=Set&odb_path=%s%s", root_path, link_name+1);
                ref = "";
                ref += "?cmd=Set&odb_path=";
-               ref += root_path;
-               ref += link_name + 1;
+               ref += enc_root_path;
+               ref += urlEncode(link_name + 1);
             } else {
                //sprintf(ref, "?cmd=Set&odb_path=%s%s", root_path, link_name);
                ref = "";
                ref += "?cmd=Set&odb_path=";
-               ref += root_path;
-               ref += link_name;
+               ref += enc_root_path;
+               ref += urlEncode(link_name);
             }
          } else {
             //sprintf(ref, "?cmd=Set&odb_path=%s", full_path);
             ref = "";
             ref += "?cmd=Set&odb_path=";
-            ref += full_path;
+            ref += enc_full_path;
          }
 
          if (status != DB_SUCCESS) {
             if (scan == 1) {
                r->rsprintf("<tr><td class=\"yellowLight\">");
-               r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td><b><div style=\"color:red\">&lt;cannot resolve link&gt;</div></b></tr>\n", keyname, link_ref.c_str(), link_name[0]?link_name:"(empty)");
+               r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td><b><div style=\"color:red\">&lt;cannot resolve link&gt;</div></b></tr>\n", keyname.c_str(), link_ref.c_str(), link_name[0]?link_name:"(empty)");
             }
          } else {
 
             if (key.type == TID_KEY && scan == 0) {
                /* for keys, don't display data value */
-               r->rsprintf("<tr><td colspan=%d class=\"ODBdirectory\"><a href=\"?cmd=odb&odb_path=%s\">&#x25B6 %s</a>\n", colspan, full_path, keyname);
+               r->rsprintf("<tr><td colspan=%d class=\"ODBdirectory\"><a href=\"?cmd=odb&odb_path=%s\">&#x25B6 %s</a>\n", colspan, enc_full_path.c_str(), keyname.c_str());
                if (link_name[0])
                   r->rsprintf("<i>&rarr; <a href=\"?cmd=odb&odb_path=%s\">%s</a></i>", link_ref.c_str(), link_name);
                r->rsprintf("</tr>\n");
@@ -9051,7 +9050,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                   if (strcmp(data_str, hex_str) != 0 && hex_str[0]) {
                      if (link_name[0]) {
                         r->rsprintf("<td class=\"ODBkey\">\n");
-                        r->rsprintf("%s <i>&rarr; ", keyname);
+                        r->rsprintf("%s <i>&rarr; ", keyname.c_str());
                         r->rsprintf("<a href=\"%s\">%s</a></i>\n", link_ref.c_str(), link_name);
                         r->rsprintf("<td class=\"%s\">\n", style);
                         if (!write_access)
@@ -9062,7 +9061,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                         }
                      } else {
                         r->rsprintf("<td class=\"ODBkey\">\n");
-                        r->rsprintf("%s<td class=\"%s\">", keyname, style);
+                        r->rsprintf("%s<td class=\"%s\">", keyname.c_str(), style);
                         if (!write_access)
                            r->rsprintf("%s (%s)", data_str, hex_str);
                         else {
@@ -9074,9 +9073,9 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                      if (strchr(data_str, '\n')) {
                         if (link_name[0]) {
                            r->rsprintf("<td class=\"ODBkey\">");
-                           r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"ODBvalue\">", keyname, link_ref.c_str(), link_name);
+                           r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"ODBvalue\">", keyname.c_str(), link_ref.c_str(), link_name);
                         } else
-                           r->rsprintf("<td class=\"ODBkey\">%s<td class=\"%s\">", keyname, style);
+                           r->rsprintf("<td class=\"ODBkey\">%s<td class=\"%s\">", keyname.c_str(), style);
                         r->rsprintf("\n<pre>");
                         strencode3(r, data_str);
                         r->rsprintf("</pre>");
@@ -9087,7 +9086,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                      } else {
                         if (link_name[0]) {
                            r->rsprintf("<td class=\"ODBkey\">\n");
-                           r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"%s\">", keyname, link_ref.c_str(), link_name, style);
+                           r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"%s\">", keyname.c_str(), link_ref.c_str(), link_name, style);
                            if (!write_access)
                               strencode(r, data_str);
                            else {
@@ -9097,7 +9096,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                               r->rsprintf("</a>\n");
                            }
                         } else {
-                           r->rsprintf("<td class=\"ODBkey\">%s<td class=\"%s\">", keyname, style);
+                           r->rsprintf("<td class=\"ODBkey\">%s<td class=\"%s\">", keyname.c_str(), style);
                            if (!write_access) {
                               strencode(r, data_str);
                            } else {
@@ -9153,16 +9152,13 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                } else { /* display array value */
                   /* check for exceeding length */
                   if (key.num_values > 1000 && !pp->isparam("all"))
-                     r->rsprintf("<tr><td class=\"ODBkey\">%s<td class=\"%s\"><span style=\"font-style: italic\"><a href=\"?cmd=odb&odb_path=%s&all=1\">... %d values ...</a></span>\n",
-                              keyname, style, full_path, key.num_values);
+                     r->rsprintf("<tr><td class=\"ODBkey\">%s<td class=\"%s\"><span style=\"font-style: italic\"><a href=\"?cmd=odb&odb_path=%s&all=1\">... %d values ...</a></span>\n", keyname.c_str(), style, enc_full_path.c_str(), key.num_values);
                   else {
                      /* display first value */
                      if (link_name[0])
-                        r->rsprintf("<tr><td class=\"ODBkey\" rowspan=%d>%s<br><i>&rarr; <a href=\"%s\">%s</a></i>\n",
-                                    key.num_values, keyname, link_ref.c_str(), link_name);
+                        r->rsprintf("<tr><td class=\"ODBkey\" rowspan=%d>%s<br><i>&rarr; <a href=\"%s\">%s</a></i>\n", key.num_values, keyname.c_str(), link_ref.c_str(), link_name);
                      else
-                        r->rsprintf("<tr><td class=\"ODBkey\" rowspan=%d>%s\n",
-                                 key.num_values, keyname);
+                        r->rsprintf("<tr><td class=\"ODBkey\" rowspan=%d>%s\n", key.num_values, keyname.c_str());
 
                      for (int j = 0; j < key.num_values; j++) {
                         char data[TEXT_SIZE];
@@ -9200,7 +9196,7 @@ void show_odb_page(Param* pp, Return* r, char *enc_path, int enc_path_size, char
                         //sprintf(ref, "?cmd=Set&odb_path=%s&index=%d", full_path, j);
                         ref = "";
                         ref += "?cmd=Set&odb_path=";
-                        ref += full_path;
+                        ref += enc_full_path;
                         ref += "&index=";
                         ref += toString(j);
 
@@ -12274,7 +12270,27 @@ struct hist_plot_t
          xdb_find_key(hDB, hDir, "Variables", &hKey, TID_STRING, 2*NAME_LENGTH);
          db_set_data_index(hDB, hKey, str, 2 * NAME_LENGTH, index, TID_STRING);
 
-         xdb_find_key(hDB, hDir, "Formula", &hKey, TID_STRING, NAME_LENGTH);
+         xdb_find_key(hDB, hDir, "Formula", &hKey, TID_STRING, 256);
+
+         // resize formula ODB entry if necessary
+         KEY key;
+         db_get_key(hDB, hKey, &key);
+         if (key.item_size != 256) {
+            std::vector<std::string> list;
+            char str[256];
+            int size = sizeof(str);
+            for (int i=0 ; i<key.num_values ; i++) {
+               db_get_data_index(hDB, hKey, str, &size, i, TID_STRING);
+               list.push_back(str);
+            }
+            db_delete_key(hDB, hKey, false);
+            db_create_key(hDB, hDir, "Formula", TID_STRING);
+            db_find_key(hDB, hDir, "Formula", &hKey);
+            for (int i=0 ; i<key.num_values ; i++) {
+               db_set_data_index(hDB, hKey, list[i].c_str(), 256, i, TID_STRING);
+            }
+         }
+
          db_set_data_index(hDB, hKey, vars[index].hist_formula.c_str(), 256, index, TID_STRING);
 
          xdb_find_key(hDB, hDir, "Colour", &hKey, TID_STRING, NAME_LENGTH);
@@ -16239,7 +16255,7 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
             else
                redirect(r, "");
 
-            cm_disconnect_client(hconn, FALSE);
+            //cm_disconnect_client(hconn, FALSE);
          }
       }
 
@@ -16569,16 +16585,12 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
             write_access = FALSE;
       }
 
-      char odb_enc_path[256], odb_dec_path[256];
+      std::string odb_path;
       if (p->getparam("odb_path") && *p->getparam("odb_path"))
-         strlcpy(odb_enc_path, p->getparam("odb_path"), sizeof(odb_enc_path));
-      else
-         strlcpy(odb_enc_path, "", sizeof(odb_enc_path));
-      strlcpy(odb_dec_path, odb_enc_path, sizeof(odb_dec_path));
-      urlDecode(odb_dec_path);
+         odb_path = p->getparam("odb_path");
 
       Lock(t);
-      show_odb_page(p, r, odb_enc_path, sizeof(odb_enc_path), odb_dec_path, write_access);
+      show_odb_page(p, r, odb_path.c_str(), write_access);
       Unlock(t);
       return;
    }
@@ -19855,10 +19867,10 @@ int main(int argc, const char *argv[])
 #endif
 
    /* initialize odb entries needed for mhttpd and midas web pages */
-   init_mhttpd_odb();
+   init_mhttpd_odb(odb);
 
    /* initialize menu buttons */
-   init_menu_buttons();
+   init_menu_buttons(odb);
 
 #ifdef OLD_SEQUENCER
    /* initialize sequencer */

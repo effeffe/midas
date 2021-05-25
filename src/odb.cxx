@@ -817,85 +817,10 @@ INT db_get_free_mem(HNDLE hDB, INT *key_size, INT *data_size)
 // http://stackoverflow.com/questions/1031645/how-to-detect-utf-8-in-plain-c
 static bool is_utf8(const char * string)
 {
-    if(!string)
-        return false;
+   if (!string)
+      return false;
 
-    const unsigned char * bytes = (const unsigned char *)string;
-    while(*bytes)
-    {
-        if( (// ASCII
-             // use bytes[0] <= 0x7F to allow ASCII control characters
-                bytes[0] == 0x09 ||
-                bytes[0] == 0x0A ||
-                bytes[0] == 0x0D ||
-                (0x20 <= bytes[0] && bytes[0] <= 0x7E)
-            )
-        ) {
-            bytes += 1;
-            continue;
-        }
-
-        if( (// non-overlong 2-byte
-                (0xC2 <= bytes[0] && bytes[0] <= 0xDF) &&
-                (0x80 <= bytes[1] && bytes[1] <= 0xBF)
-            )
-        ) {
-            bytes += 2;
-            continue;
-        }
-
-        if( (// excluding overlongs
-                bytes[0] == 0xE0 &&
-                (0xA0 <= bytes[1] && bytes[1] <= 0xBF) &&
-                (0x80 <= bytes[2] && bytes[2] <= 0xBF)
-            ) ||
-            (// straight 3-byte
-                ((0xE1 <= bytes[0] && bytes[0] <= 0xEC) ||
-                    bytes[0] == 0xEE ||
-                    bytes[0] == 0xEF) &&
-                (0x80 <= bytes[1] && bytes[1] <= 0xBF) &&
-                (0x80 <= bytes[2] && bytes[2] <= 0xBF)
-            ) ||
-            (// excluding surrogates
-                bytes[0] == 0xED &&
-                (0x80 <= bytes[1] && bytes[1] <= 0x9F) &&
-                (0x80 <= bytes[2] && bytes[2] <= 0xBF)
-            )
-        ) {
-            bytes += 3;
-            continue;
-        }
-
-        if( (// planes 1-3
-                bytes[0] == 0xF0 &&
-                (0x90 <= bytes[1] && bytes[1] <= 0xBF) &&
-                (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
-                (0x80 <= bytes[3] && bytes[3] <= 0xBF)
-            ) ||
-            (// planes 4-15
-                (0xF1 <= bytes[0] && bytes[0] <= 0xF3) &&
-                (0x80 <= bytes[1] && bytes[1] <= 0xBF) &&
-                (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
-                (0x80 <= bytes[3] && bytes[3] <= 0xBF)
-            ) ||
-            (// plane 16
-                bytes[0] == 0xF4 &&
-                (0x80 <= bytes[1] && bytes[1] <= 0x8F) &&
-                (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
-                (0x80 <= bytes[3] && bytes[3] <= 0xBF)
-            )
-        ) {
-            bytes += 4;
-            continue;
-        }
-        
-        //printf("is_utf8: string [%s], not utf8 at offset %d, byte %d, [%s]\n", string, (int)((char*)bytes-(char*)string), (int)(0xFF&bytes[0]), bytes);
-        //abort();
-
-        return false;
-    }
-
-    return true;
+   return ss_is_valid_utf8(string);
 }
 
 #ifdef LOCAL_ROUTINES
@@ -1484,6 +1409,15 @@ static void db_validate_sizes()
    printf("EQUIPMENT_INFO offset of status: %d\n", (int)((char*)&eq.status - (char*)&eq));
    printf("EQUIPMENT_INFO offset of hidden: %d\n", (int)((char*)&eq.hidden - (char*)&eq));
 #endif
+
+   assert(sizeof(UINT8)  == 1);
+   assert(sizeof(INT8)   == 1);
+   assert(sizeof(UINT16) == 2);
+   assert(sizeof(INT16)  == 2);
+   assert(sizeof(UINT32) == 4);
+   assert(sizeof(INT32)  == 4);
+   assert(sizeof(UINT64) == 8);
+   assert(sizeof(INT64)  == 8);
    
 #ifdef OS_LINUX
    assert(sizeof(EVENT_REQUEST) == 16); // ODB v3
@@ -3285,6 +3219,11 @@ int db_create_key_wlocked(DATABASE_HEADER* pheader, KEY* parentKey, const char *
       db_msg(msg, MERROR, "db_create_key", "invalid key type %d to create \'%s\' in \'%s\'", type, key_name, db_get_path_locked(pheader, parentKey).c_str());
       return DB_INVALID_PARAM;
    }
+
+   if ((type == TID_INT64) || (type == TID_UINT64)) {
+      db_msg(msg, MERROR, "db_create_key", "TID_INT64 and TID_UINT64 are not permitted in ODB, sorry. invalid key type %d to create \'%s\' in \'%s\'", type, key_name, db_get_path_locked(pheader, parentKey).c_str());
+      return DB_INVALID_PARAM;
+   }
    
    const KEY* pdir = parentKey;
    
@@ -3425,9 +3364,9 @@ int db_create_key_wlocked(DATABASE_HEADER* pheader, KEY* parentKey, const char *
             strlcpy(pkey->name, name, sizeof(pkey->name));
             pkey->parent_keylist = (POINTER_T) pkeylist - (POINTER_T) pheader;
             
-            /* zero data */
-            if (type != TID_STRING && type != TID_LINK) {
-               pkey->item_size = rpc_tid_size(type);
+            /* allocate data */
+            pkey->item_size = rpc_tid_size(type);
+            if (pkey->item_size > 0) {
                void* data = malloc_data(pheader, pkey->item_size);
                if (data == NULL) {
                   pkey->total_size = 0;
@@ -6983,7 +6922,7 @@ static INT db_check_set_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, c
    }
    
    if (pkey->type != type) {
-      db_msg(msg, MERROR, caller, "\"%s\" is of type %s, not %s", db_get_path_locked(pheader, pkey).c_str(), rpc_tid_name(pkey->type), rpc_tid_name(pkey->type));
+      db_msg(msg, MERROR, caller, "\"%s\" is of type %s, not %s", db_get_path_locked(pheader, pkey).c_str(), rpc_tid_name(pkey->type), rpc_tid_name(type));
       return DB_TYPE_MISMATCH;
    }
    
@@ -11245,7 +11184,7 @@ INT db_get_record(HNDLE hDB, HNDLE hKey, void *data, INT * buf_size, INT align)
       else {
          /* only convert data if called remotely, as indicated by align != 0 */
          if (rpc_is_mserver()) {
-            convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+            convert_flags = rpc_get_convert_flags();
          }
       }
 
@@ -11823,7 +11762,7 @@ INT db_set_record(HNDLE hDB, HNDLE hKey, void *data, INT buf_size, INT align)
       else {
          /* only convert data if called remotely, as indicated by align != 0 */
          if (rpc_is_mserver()) {
-            convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+            convert_flags = rpc_get_convert_flags();
          }
       }
 
@@ -13109,7 +13048,7 @@ INT db_update_record_mserver(INT hDB, INT hKeyRoot, INT hKey, int index, int cli
 {
    char buffer[32];
 
-   int convert_flags = rpc_get_server_option(RPC_CONVERT_FLAGS);
+   int convert_flags = rpc_get_convert_flags();
    
    NET_COMMAND* nc = (NET_COMMAND *) buffer;
    

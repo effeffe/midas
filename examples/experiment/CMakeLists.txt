@@ -46,7 +46,7 @@ else()
    if (NOT EXISTS $ENV{MIDASSYS})
       message(FATAL_ERROR "Environment variable $MIDASSYS not defined, aborting.")
    endif()
-   set(INC_PATH $ENV{MIDASSYS}/include $ENV{MIDASSYS}/mxml)
+   set(INC_PATH $ENV{MIDASSYS}/include $ENV{MIDASSYS}/mxml $ENV{MIDASSYS}/manalyzer)
    link_directories($ENV{MIDASSYS}/lib)
 endif()
 
@@ -121,4 +121,15 @@ if (HAVE_ROOT)
    target_include_directories(analyzer PUBLIC ${ROOT_INCLUDE_DIRS} ${INC_PATH})
    target_compile_options(analyzer PRIVATE ${ROOT_CXX_FLAGS})
    target_link_libraries(analyzer rmana midas ${ROOT_LIBRARIES} ${LIBS})
+
+   add_executable(manalyzer
+      #analyzer.cxx
+      adccalib_module.cxx
+      adcsum_module.cxx
+      scaler_module.cxx
+      )
+
+   target_include_directories(manalyzer PUBLIC ${ROOT_INCLUDE_DIRS} ${INC_PATH})
+   target_compile_options(manalyzer PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
+   target_link_libraries(manalyzer manalyzer_main midas ${ROOT_LIBRARIES} ${LIBS})
 endif(HAVE_ROOT)

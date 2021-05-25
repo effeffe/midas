@@ -126,6 +126,18 @@ typedef int INT;
 
 typedef INT HNDLE;
 
+/* define integer types with explicit widths */
+#ifndef NO_INT_TYPES_DEFINE
+typedef unsigned char      UINT8;
+typedef char               INT8;
+typedef unsigned short     UINT16;
+typedef short              INT16;
+typedef unsigned int       UINT32;
+typedef int                INT32;
+typedef unsigned long long UINT64;
+typedef long long          INT64;
+#endif
+
 /* Include vxWorks for BOOL definition */
 #ifdef OS_VXWORKS
 #ifndef __INCvxWorksh
@@ -259,6 +271,7 @@ typedef std::vector<std::string> STRING_LIST;
 #define MAX_ODB_PATH           256           /**< length of path in ODB       */
 #define BANKLIST_MAX           4096          /**< max # of banks in event     */
 #define STRING_BANKLIST_MAX    BANKLIST_MAX * 4   /**< for bk_list()          */
+#define TRANSITION_ERROR_STRING_LENGTH 256   /**< length of transition error string */
 
 
 #define MIDAS_TCP_PORT 1175     /* port under which server is listening */
@@ -596,6 +609,7 @@ System message types */
 #define BM_INVALID_MIXING           217   /**< - */
 #define BM_NO_SHM                   218   /**< - */
 #define BM_CORRUPTED                219   /**< - */
+#define BM_INVALID_SIZE             220   /**< - */
 /**dox***************************************************************/
           /** @} *//* end of group 22 */
 
@@ -1731,6 +1745,7 @@ Data conversion flags */
    BOOL EXPRT cm_is_ctrlc_pressed(void);
    void EXPRT cm_ack_ctrlc_pressed(void);
    INT EXPRT cm_exec_script(const char* odb_path_to_script);
+   int EXPRT cm_write_event_to_odb(HNDLE hDB, HNDLE hKey, const EVENT_HEADER* pevent, INT format);
 
    INT EXPRT cm_set_msg_print(INT system_mask, INT user_mask, int (*func) (const char *));
    INT EXPRT cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) MATTRPRINTF(5,6);
@@ -1780,12 +1795,18 @@ Data conversion flags */
                                   INT request_id);
    INT EXPRT bm_remove_event_request(INT buffer_handle, INT request_id);
    INT EXPRT bm_delete_request(INT request_id);
-   INT EXPRT bm_send_event(INT buffer_handle, const EVENT_HEADER* event, INT buf_size, INT async_flag);
-   INT EXPRT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT async_flag);
+   INT EXPRT bm_send_event(INT buffer_handle, const EVENT_HEADER* event, int unused, int timeout_msec);
+#define HAVE_BM_SEND_EVENT_VEC 1
+   INT EXPRT bm_send_event_vec(INT buffer_handle, const std::vector<char>& event, int timeout_msec);
+   INT EXPRT bm_send_event_vec(INT buffer_handle, const std::vector<std::vector<char>>& event, int timeout_msec);
+   INT EXPRT bm_send_event_sg(INT buffer_handle, int sg_n, const char* const sg_ptr[], const size_t sg_len[], int timeout_msec);
+   INT EXPRT bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, int timeout_msec);
+#define HAVE_BM_RECEIVE_EVENT_VEC 1
+   INT EXPRT bm_receive_event_vec(INT buffer_handle, std::vector<char> *event, int timeout_msec);
 #define HAVE_BM_RECEIVE_EVENT_ALLOC 1
-   INT EXPRT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER** ppevent, INT async_flag);
+   INT EXPRT bm_receive_event_alloc(INT buffer_handle, EVENT_HEADER** ppevent, int timeout_msec);
    INT EXPRT bm_skip_event(INT buffer_handle);
-   INT EXPRT bm_flush_cache(INT buffer_handle, INT async_flag);
+   INT EXPRT bm_flush_cache(INT buffer_handle, int timeout_msec);
    INT EXPRT bm_poll_event(void);
    INT EXPRT bm_empty_buffers(void);
    INT EXPRT bm_check_buffers(void);
@@ -1937,7 +1958,7 @@ Data conversion flags */
    std::string rpc_get_name();
    INT EXPRT rpc_is_remote(void);
    std::string rpc_get_mserver_hostname();
-   INT EXPRT rpc_is_mserver(void);
+   bool EXPRT rpc_is_mserver(void);
    INT EXPRT rpc_set_debug(void (*func) (const char *), INT mode);
    void EXPRT rpc_debug_printf(const char *format, ...);
 
@@ -1955,8 +1976,11 @@ Data conversion flags */
    INT EXPRT rpc_client_connect(const char *host_name, INT midas_port, const char *client_name, HNDLE * hConnection);
    INT EXPRT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown);
 
-   INT EXPRT rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, INT buf_size, INT async_flag, INT mode);
+   INT EXPRT rpc_send_event(INT buffer_handle, const EVENT_HEADER *event, int unused, INT async_flag, INT mode);
    INT EXPRT rpc_flush_event(void);
+
+   INT EXPRT rpc_send_event1(INT buffer_handle, const EVENT_HEADER *event);
+   INT EXPRT rpc_send_event_sg(INT buffer_handle, int sg_n, const char* const sg_ptr[], const size_t sg_len[]);
 
    void EXPRT rpc_get_convert_flags(INT * convert_flags);
    void EXPRT rpc_convert_single(void *data, INT tid, INT flags, INT convert_flags);
@@ -1987,6 +2011,8 @@ Data conversion flags */
    char EXPRT *ss_gets(char *string, int size);
 
    void EXPRT *ss_ctrlc_handler(void (*func) (int));
+
+   INT EXPRT ss_write_tcp(int sock, const char *buffer, size_t buffer_size);
 
    /*---- direct io routines ----*/
    INT EXPRT ss_directio_give_port(INT start, INT end);
@@ -2020,6 +2046,11 @@ Data conversion flags */
    INT EXPRT ss_dir_find(const char *path, const char *pattern, STRING_LIST*);
    double EXPRT ss_disk_size(const char *path);
    int EXPRT ss_file_copy(const char *src, const char *dst, bool append = false);
+
+   /*---- UTF8 unicode ----*/
+   bool ss_is_valid_utf8(const char* s);
+   bool ss_repair_utf8(char* s);
+   bool ss_repair_utf8(std::string& s);
 
 /** @} */
 
