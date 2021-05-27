@@ -93,7 +93,7 @@ else (NO_ROOT)
       list(APPEND CMAKE_PREFIX_PATH $ENV{ROOTSYS})
 
       #---Locate the ROOT package and defines a number of variables (e.g. ROOT_INCLUDE_DIRS)
-      find_package(ROOT REQUIRED COMPONENTS MathCore RIO Hist Tree Net)
+      find_package(ROOT REQUIRED COMPONENTS Gui MathCore RIO Hist Tree Net RHTTP)
 
       #---Define useful ROOT functions and macros (e.g. ROOT_GENERATE_DICTIONARY)
       include(${ROOT_USE_FILE})
@@ -122,14 +122,13 @@ if (HAVE_ROOT)
    target_compile_options(analyzer PRIVATE ${ROOT_CXX_FLAGS})
    target_link_libraries(analyzer rmana midas ${ROOT_LIBRARIES} ${LIBS})
 
-   add_executable(manalyzer
-      #analyzer.cxx
+   add_executable(ana
       adccalib_module.cxx
       adcsum_module.cxx
       scaler_module.cxx
       )
 
-   target_include_directories(manalyzer PUBLIC ${ROOT_INCLUDE_DIRS} ${INC_PATH})
-   target_compile_options(manalyzer PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
-   target_link_libraries(manalyzer manalyzer_main midas ${ROOT_LIBRARIES} ${LIBS})
+   target_include_directories(ana PUBLIC ${ROOT_INCLUDE_DIRS} ${INC_PATH})
+   target_compile_options(ana PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
+   target_link_libraries(ana manalyzer_main manalyzer midas ${ROOT_LIBRARIES} ${LIBS})
 endif(HAVE_ROOT)

@@ -128,7 +128,12 @@ else (NO_ROOT)
       list(APPEND CMAKE_PREFIX_PATH $ENV{ROOTSYS})
 
       #---Locate the ROOT package and defines a number of variables (e.g. ROOT_INCLUDE_DIRS)
-      find_package(ROOT REQUIRED COMPONENTS MathCore RIO Hist Tree Net)
+      find_package(ROOT REQUIRED COMPONENTS
+          Gui # TG* objects
+          RHTTP # THttpServer
+          XMLIO XMLParser
+          MathCore RIO Hist Tree Net
+          )
 
       #---Define useful ROOT functions and macros (e.g. ROOT_GENERATE_DICTIONARY)
       #include(${ROOT_USE_FILE}) #  this pollutes midas cflags & co with ROOT include and library paths 
@@ -322,6 +327,16 @@ else()
   endif()
 endif(NO_SENSORS)
 
+#
+# Fake find_package(Midas)
+#
+
+set(MIDAS_FOUND TRUE)
+set(MIDAS_INCLUDE_DIRS ${SYSINC_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/midasio)
+#set(MIDAS_LIBRARIES -L$ENV{MIDASSYS}/lib -lmidas -lutil -lrt)
+set(MIDAS_LIBRARIES -L${SYSLIB_DIR} -lmidas -lutil)
+
+
 #-----------------------
 # Default build type
 #
@@ -381,7 +396,7 @@ set(libsrc
    mvodb/mxmlodb
    mvodb/mjsonodb
    midasio/midasio
-   manalyzer/manalyzer
+   #manalyzer/manalyzer
    src/json_paste
    src/mjsonrpc
    src/mjsonrpc_user
@@ -452,7 +467,7 @@ target_link_libraries(objlib mjson)
 target_link_libraries(objlib mxml)
 target_link_libraries(objlib mvodb)
 target_link_libraries(objlib midasio)
-target_link_libraries(objlib manalyzer)
+#target_link_libraries(objlib manalyzer)
 
 # midas include is public so all programs linking to libmidas will inherit this
 target_include_directories(midas PUBLIC ${SYSINC_DIR})
@@ -461,7 +476,7 @@ target_link_libraries(midas mjson)
 target_link_libraries(midas mxml)
 target_link_libraries(midas mvodb)
 target_link_libraries(midas midasio)
-target_link_libraries(midas manalyzer)
+#target_link_libraries(midas manalyzer)
 
 # library for mfe
 add_library(mfe src/mfe)
@@ -479,21 +494,21 @@ if (HAVE_ROOT)
    target_compile_options(rmana PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
 endif(HAVE_ROOT)
 
-# library for manalyzer_main
-add_library(manalyzer_main manalyzer/manalyzer_main)
-target_include_directories(manalyzer_main PUBLIC ${SYSINC_DIR})
-if (HAVE_ROOT)
-   target_include_directories(manalyzer_main PUBLIC ${ROOT_INCLUDE_DIRS})
-   target_compile_options(manalyzer_main PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
-endif(HAVE_ROOT)
+## library for manalyzer_main
+#add_library(manalyzer_main manalyzer/manalyzer_main)
+#target_include_directories(manalyzer_main PUBLIC ${SYSINC_DIR})
+#if (HAVE_ROOT)
+#   target_include_directories(manalyzer_main PUBLIC ${ROOT_INCLUDE_DIRS})
+#   target_compile_options(manalyzer_main PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
+#endif(HAVE_ROOT)
 
-target_link_libraries(manalyzer_main mjson)
-target_link_libraries(manalyzer_main mxml)
-target_link_libraries(manalyzer_main mvodb)
-target_link_libraries(manalyzer_main midasio)
-target_link_libraries(manalyzer_main manalyzer)
+#target_link_libraries(manalyzer_main mjson)
+#target_link_libraries(manalyzer_main mxml)
+#target_link_libraries(manalyzer_main mvodb)
+#target_link_libraries(manalyzer_main midasio)
+#target_link_libraries(manalyzer_main manalyzer)
 
-install(TARGETS midas midas-shared midas-c-compat mfe mana rmana manalyzer_main
+install(TARGETS midas midas-shared midas-c-compat mfe mana rmana
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
