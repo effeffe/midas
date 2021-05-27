@@ -13,26 +13,37 @@ requests messages (to discord, mattermost and or slack) via webhook
 
 """
 
-MT_MAP = {}
-MT_MAP[midas.MT_ERROR] = "MT_ERROR"
-MT_MAP[midas.MT_INFO] = "MT_INFO"
-MT_MAP[midas.MT_DEBUG] = "MT_DEBUG"
-MT_MAP[midas.MT_USER] = "MT_USER"
-MT_MAP[midas.MT_LOG] = "MT_LOG"
-MT_MAP[midas.MT_TALK] = "MT_TALK"
-MT_MAP[midas.MT_CALL] = "MT_CALL"
+# Create a dictionary of all the MIDAS Message Types
+MT_DICT = {}
+MT_DICT[midas.MT_ERROR] = "MT_ERROR"
+MT_DICT[midas.MT_INFO] = "MT_INFO"
+MT_DICT[midas.MT_DEBUG] = "MT_DEBUG"
+MT_DICT[midas.MT_USER] = "MT_USER"
+MT_DICT[midas.MT_LOG] = "MT_LOG"
+MT_DICT[midas.MT_TALK] = "MT_TALK"
+MT_DICT[midas.MT_CALL] = "MT_CALL"
 
-ExperimentName = ""
+
+# Create a list of the MT_DICT strings
+MT_MessageTypeList = []
+for key in MT_DICT.keys():
+    MT_MessageTypeList.append(MT_DICT[key])
 
 
-def PostToDiscord(MsgType, message):
-    if len(discord[MT_MAP[MsgType]]):
+def PostToDiscord(MsgType, message, author, URL_DICT):
+    # Loop up MsgType (int) in dictionary for string... 
+    key = MT_DICT[MsgType]
+    # Get URL for this message type
+    webhook_url = URL_DICT[key]
+    # If key returns a webhook URL
+    if len(webhook_url):
+        # Format message
         discord_message = {
             'content': message.decode('UTF-8'),
-            'username': ExperimentName
+            'username': author
         }
         result = requests.post(
-            discord[MT_MAP[MsgType]], json=discord_message)
+            webhook_url, json=discord_message)
         try:
             result.raise_for_status()
         except requests.exceptions.HTTPError as err:
@@ -41,14 +52,20 @@ def PostToDiscord(MsgType, message):
             print('Discord webhook response: %s' % result.status_code)
 
 
-def PostToMattermost(MsgType, message):
-    if len(mattermost[MT_MAP[MsgType]]):
+def PostToMattermost(MsgType, message,author,URL_DICT):
+    # Loop up MsgType (int) in dictionary for string... 
+    key = MT_DICT[MsgType]
+    # Get URL for this message type
+    webhook_url = URL_DICT[key]
+    # If key returns a webhook URL
+    if len(webhook_url):
+        # Format message
         mattermost_message = {
             "text": message.decode('UTF-8'),
-            'username': ExperimentName
+            'username': author
         }
         result = requests.post(
-            mattermost[MT_MAP[MsgType]], json=mattermost_message)
+            webhook_url, json=mattermost_message)
         try:
             result.raise_for_status()
         except requests.exceptions.HTTPError as err:
@@ -57,14 +74,19 @@ def PostToMattermost(MsgType, message):
             print('mattermost webhook response: %s' % result.status_code)
 
 
-def PostToSlack(MsgType, message):
-    if len(slack[MT_MAP[MsgType]]):
+def PostToSlack(MsgType, message,URL_DICT):
+    # Loop up MsgType (int) in dictionary for string... 
+    key = MT_DICT[MsgType]
+    # Get URL for this message type
+    webhook_url = URL_DICT[key]
+    # If key returns a webhook URL
+    if len(webhook_url):
         #Username is imbedded into the slack app, so can't be given here
         slack_message = {
             "text": message.decode('UTF-8')
         }
         result = requests.post(
-            slack[MT_MAP[MsgType]], json=slack_message)
+            webhook_url, json=slack_message)
         try:
             result.raise_for_status()
         except requests.exceptions.HTTPError as err:
@@ -75,22 +97,23 @@ def PostToSlack(MsgType, message):
 
 if __name__ == "__main__":
     client = midas.client.MidasClient("mmessenger")
-
-    # Messages will be posted as being from the experiment name (except slack which cannot set username)
+    
+    # Read the name of the experiment, use it as 'Author' in posts
     ExperimentName = client.odb_get("/Experiment/Name")
 
-    # Setup ODB paths for Discord, Mattermost and slack (they they dont already exist)
+    # Read all webhook urls (and make entries if they dont exist)
     for service in [ "Discord", "Mattermost", "Slack" ]:
-        for key in [ "MT_ERROR", "MT_INFO", "MT_DEBUG", "MT_USER", "MT_LOG", "MT_TALK", "MT_CALL" ]:
+        for key in MT_MessageTypeList:
             odb_path = "/MIDASMessenger/" + service + "/WebHooks/" + key
             if not client.odb_exists(odb_path):
+                # default entry for webhook URL is no text (len = 0)
                 client.odb_set(odb_path,"")
     
     discord = {}
     mattermost = {}
     slack = {}
-    # Load all webhook links in ODB
-    for key in [ "MT_ERROR", "MT_INFO", "MT_DEBUG", "MT_USER", "MT_LOG", "MT_TALK", "MT_CALL" ]:
+    # Populate dictionary of webhook URLs
+    for key in MT_MessageTypeList:
         discord[key]    = client.odb_get("/MIDASMessenger/" + "Discord" + "/WebHooks/" + key)
         mattermost[key] = client.odb_get("/MIDASMessenger/" + "Mattermost" + "/WebHooks/" + key)
         slack[key]      = client.odb_get("/MIDASMessenger/" + "Slack" + "/WebHooks/" + key)
@@ -112,17 +135,18 @@ if __name__ == "__main__":
         if event is not None:
             # Print some information to screen about this event.
             bank_names = ", ".join(b.name for b in event.banks)
-            #if event.header.trigger_mask == midas.MT_TALK:
             print("Received event with timestamp %s containing banks %s" % (event.header.timestamp, bank_names))
             if event.header.is_msg_event():
+                # Strip off junk data after string
                 message = event.non_bank_data[0:event.header.event_data_size_bytes - midas.event.event_header_size - 1]
                 print(str(message))
 
                 for MsgType in [midas.MT_ERROR, midas.MT_INFO, midas.MT_DEBUG, midas.MT_USER, midas.MT_LOG, midas.MT_TALK, midas.MT_CALL]:
                     if event.header.trigger_mask & MsgType:
-                        PostToDiscord(MsgType, message)
-                        PostToMattermost(MsgType, message)
-                        PostToSlack(MsgType, message)
+                        PostToDiscord(MsgType, message, ExperimentName, discord)
+                        PostToMattermost(MsgType, message, ExperimentName, mattermost)
+                        # Author is not part of the slack message
+                        PostToSlack(MsgType, message, slack)
 
         # Talk to midas so it knows we're alive, or can kill us if the user
         # pressed the "stop program" button.

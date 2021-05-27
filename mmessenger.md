@@ -12,11 +12,11 @@ Running the program will create odb entries in
 within each of these are 6 strings (by default bank and therefor do nothing)
 ```
 MT_ERROR
-MT_INFO	
+MT_INFO
 MT_DEBUG
-MT_USER	
-MT_LOG	
-MT_TALK	
+MT_USER
+MT_LOG
+MT_TALK
 MT_CALL
 ```
 
@@ -35,3 +35,11 @@ They message types have been separated so that uses can direct differn't message
 [https://docs.mattermost.com/developer/webhooks-incoming.html#simple-incoming-webhook](https://docs.mattermost.com/developer/webhooks-incoming.html#simple-incoming-webhook)
 
 
+## Requirements
+
+MIDAS python libraries are required to be installed, see python/README.md
+
+Additional library: requests
+```
+pip3 install requests --user
+```
