@@ -46,24 +46,21 @@ set(MFEPROGS
 
 foreach(PROG ${PROGS} ${TESTPROGS})
    add_executable(${PROG} ${PROG})
-   target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/mscb/include)
-   target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
    target_link_libraries(${PROG} midas ${LIBS} ${DB_LIBS})
 #   set(CMAKE_CXX_FLAGS "-fsanitize=address")
+   target_link_libraries(${PROG} mjson)
+   target_link_libraries(${PROG} mxml)
 endforeach()
 
 
 foreach(PROG ${MFEPROGS})
    add_executable(${PROG} ${PROG})
-   target_include_directories(${PROG} PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/mscb/include)
-   target_include_directories(${PROG} PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
    target_link_libraries(${PROG} mfe midas ${LIBS} ${DB_LIBS})
 endforeach()
 
 if (HAVE_NVIDIA)
    add_executable(msysmon-nvidia msysmon)
-   target_include_directories(msysmon-nvidia PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include ${NVIDIA_INC})
-   target_include_directories(msysmon-nvidia PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
+   target_include_directories(msysmon-nvidia PRIVATE ${NVIDIA_INC})
    target_link_libraries(msysmon-nvidia mfe midas ${LIBS} ${DB_LIBS} ${NVIDIA_LIBS})
    target_compile_options(msysmon-nvidia PRIVATE -DHAVE_NVIDIA)
 endif(HAVE_NVIDIA)
@@ -80,7 +77,7 @@ endif(HAVE_LM_SENSORS)
 add_executable(mhttpd mhttpd mongoose616 mgd ${PROJECT_SOURCE_DIR}/mscb/src/mscb)
 target_compile_options(mhttpd PRIVATE -DHAVE_MSCB)
 target_include_directories(mhttpd PRIVATE ${PROJECT_SOURCE_DIR}/mscb/include)
-target_include_directories(mhttpd PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb)
+target_link_libraries(mhttpd mjson)
 
 target_compile_options(mhttpd PRIVATE -DHAVE_MONGOOSE616 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI -DMG_ENABLE_EXTRA_ERRORS_DESC -DMG_ENABLE_IPV6 -DMG_ENABLE_HTTP_URL_REWRITES -DMG_ENABLE_HTTP_SSI=0)
 
@@ -106,9 +103,9 @@ endif(MBEDTLS_FOUND)
 add_executable(mhttpd6 mhttpd mongoose6 mgd ${PROJECT_SOURCE_DIR}/mscb/src/mscb)
 target_compile_options(mhttpd6 PRIVATE -DHAVE_MSCB)
 target_include_directories(mhttpd6 PRIVATE ${PROJECT_SOURCE_DIR}/mscb/include)
-target_include_directories(mhttpd6 PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb)
 target_include_directories(mhttpd6 PRIVATE ${OPENSSL_INCLUDE_DIR})
 target_link_libraries(mhttpd6 ${DB_LIBS})
+target_link_libraries(mhttpd6 mjson)
 
 # mongoose flags
 target_compile_options(mhttpd6 PRIVATE -DHAVE_MONGOOSE6 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI -DMG_ENABLE_EXTRA_ERRORS_DESC)
@@ -124,7 +121,6 @@ target_link_libraries(mhttpd6 midas ${LIBS} ${DB_LIBS})
 #
 
 add_executable(odbedit odbedit cmdedit)
-target_include_directories(odbedit PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 target_link_libraries(odbedit midas ${LIBS})
 
 #
