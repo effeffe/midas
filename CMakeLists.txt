@@ -433,8 +433,6 @@ if (HAVE_MYSQL)
 endif()
 
 target_include_directories(objlib PUBLIC ${SYSINC_DIR})
-target_include_directories(objlib PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/midasio ${PROJECT_SOURCE_DIR}/manalyzer ${PROJECT_SOURCE_DIR}/mscb/include)
-target_include_directories(objlib PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
 if (OPENSSL_FOUND)
    target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
 endif ()
@@ -443,8 +441,6 @@ if (CURL_FOUND)
 endif ()
 
 target_include_directories(objlib-c-compat PUBLIC ${SYSINC_DIR})
-target_include_directories(objlib-c-compat PRIVATE ${DRV_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mscb/include)
-target_include_directories(objlib-c-compat PRIVATE ${PROJECT_SOURCE_DIR}/drivers)
 if (OPENSSL_FOUND)
    target_include_directories(objlib-c-compat PRIVATE ${OPENSSL_INCLUDE_DIR})
 endif ()
@@ -452,23 +448,32 @@ if (CURL_FOUND)
    target_include_directories(objlib PRIVATE ${CURL_INCLUDE_DIR})
 endif ()
 
+target_link_libraries(objlib mjson)
+target_link_libraries(objlib mxml)
+target_link_libraries(objlib mvodb)
+target_link_libraries(objlib midasio)
+target_link_libraries(objlib manalyzer)
+
 # midas include is public so all programs linking to libmidas will inherit this
-target_include_directories(midas PUBLIC ${SYSINC_DIR} ${PROJECT_SOURCE_DIR}/manalyzer ${PROJECT_SOURCE_DIR}/midasio ${PROJECT_SOURCE_DIR}/mvodb)
+target_include_directories(midas PUBLIC ${SYSINC_DIR})
+
+target_link_libraries(midas mjson)
+target_link_libraries(midas mxml)
+target_link_libraries(midas mvodb)
+target_link_libraries(midas midasio)
+target_link_libraries(midas manalyzer)
 
 # library for mfe
 add_library(mfe src/mfe)
 target_include_directories(mfe PUBLIC ${SYSINC_DIR})
-target_include_directories(mfe PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 
 # library for mana
 add_library(mana src/mana)
 target_include_directories(mana PUBLIC ${SYSINC_DIR})
-target_include_directories(mana PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 
 # library for rmana
 add_library(rmana src/mana)
 target_include_directories(rmana PUBLIC ${SYSINC_DIR})
-target_include_directories(rmana PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 if (HAVE_ROOT)
    target_include_directories(rmana PUBLIC ${ROOT_INCLUDE_DIRS})
    target_compile_options(rmana PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
@@ -477,11 +482,16 @@ endif(HAVE_ROOT)
 # library for manalyzer_main
 add_library(manalyzer_main manalyzer/manalyzer_main)
 target_include_directories(manalyzer_main PUBLIC ${SYSINC_DIR})
-target_include_directories(manalyzer_main PRIVATE ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/manalyzer ${PROJECT_SOURCE_DIR}/midasio ${PROJECT_SOURCE_DIR}/mvodb)
 if (HAVE_ROOT)
    target_include_directories(manalyzer_main PUBLIC ${ROOT_INCLUDE_DIRS})
    target_compile_options(manalyzer_main PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
 endif(HAVE_ROOT)
+
+target_link_libraries(manalyzer_main mjson)
+target_link_libraries(manalyzer_main mxml)
+target_link_libraries(manalyzer_main mvodb)
+target_link_libraries(manalyzer_main midasio)
+target_link_libraries(manalyzer_main manalyzer)
 
 install(TARGETS midas midas-shared midas-c-compat mfe mana rmana manalyzer_main
         LIBRARY DESTINATION lib
@@ -490,7 +500,6 @@ install(TARGETS midas midas-shared midas-c-compat mfe mana rmana manalyzer_main
 # library for mfe.o
 add_library(mfeo OBJECT src/mfe)
 target_include_directories(mfeo PUBLIC ${SYSINC_DIR})
-target_include_directories(mfeo PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 
 # this is somewhat dirty, as the path to the object dir is hardcoded and
 # might change in future CMake versions. The only other option however
@@ -500,13 +509,11 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/mfeo.dir/src/mfe.cxx.o DEST
 # library for mana.o
 add_library(manao OBJECT src/mana)
 target_include_directories(manao PUBLIC ${SYSINC_DIR})
-target_include_directories(manao PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manao.dir/src/mana.cxx.o DESTINATION lib RENAME mana.o)
 
 # library for rmana.o
 add_library(rmanao OBJECT src/mana)
 target_include_directories(rmanao PUBLIC ${SYSINC_DIR})
-target_include_directories(rmanao PRIVATE ${PROJECT_SOURCE_DIR}/mxml)
 if (HAVE_ROOT)
    target_include_directories(rmanao PUBLIC ${ROOT_INCLUDE_DIRS})
    target_compile_options(rmanao PRIVATE -DHAVE_ROOT)
@@ -553,6 +560,15 @@ add_custom_target(git_revision_h
 add_dependencies(objlib git_revision_h)
 
 #####################################################################
+# sub-modules
+#####################################################################
+add_subdirectory(mjson)
+add_subdirectory(mxml)
+add_subdirectory(mvodb)
+add_subdirectory(midasio)
+add_subdirectory(manalyzer)
+
+#####################################################################
 # sub-projects
 #####################################################################
 add_subdirectory(progs)
@@ -561,3 +577,7 @@ add_subdirectory(examples)
 configure_file(
     ${PROJECT_SOURCE_DIR}/MidasConfig.cmake.in
     ${PROJECT_SOURCE_DIR}/MidasConfig.cmake)
+
+#####################################################################
+# end
+#####################################################################
