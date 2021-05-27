@@ -201,7 +201,7 @@ NEED_ZLIB=
 #
 CC  = false ### C compiler is not used
 CXX = g++ -std=c++11 $(USERFLAGS)
-CFLAGS = -g -O2 -Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Iinclude -Imxml -Imjson -Imvodb
+CFLAGS = -g -O2 -Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Iinclude -Imxml -Imjson -Imvodb -Imidasio -Imanalyzer
 
 #-----------------------
 # Cross-compilation, change GCC_PREFIX
@@ -438,6 +438,8 @@ OBJS +=	$(LIB_DIR)/odbxx.o
 ifdef NEED_STRLCPY
 OBJS += $(LIB_DIR)/strlcpy.o
 endif
+OBJS += $(LIB_DIR)/midasio.o
+OBJS += $(LIB_DIR)/manalyzer.o
 
 LIB := $(LIB_DIR)/libmidas.a
 
@@ -454,8 +456,12 @@ TMFE_PROGS :=
 #TMFE_PROGS += $(BIN_DIR)/tmfe_example_periodic
 #TMFE_PROGS += $(BIN_DIR)/tmfe_example_polled
 
+MANALYZER_MAIN := $(LIB_DIR)/manalyzer_main.o
+MANALYZER_PROGS :=
+
 MINI_OBJS  :=
 MINI_OBJS  += $(MFE_MAIN)
+MINI_OBJS  += $(MANALYZER_MAIN)
 
 MINI_PROGS :=
 MINI_PROGS += $(BIN_DIR)/odbinit
@@ -465,12 +471,22 @@ MINI_PROGS += $(BIN_DIR)/tmfe_example
 MINI_PROGS += $(BIN_DIR)/tmfe_example_multithread
 TMFE_PROGS += $(BIN_DIR)/tmfe_example_everything
 TMFE_PROGS += $(BIN_DIR)/tmfe_example_frontend
+MANALYZER_PROGS += $(BIN_DIR)/manalyzer
+MANALYZER_PROGS += $(BIN_DIR)/manalyzer_example_cxx
+MANALYZER_PROGS += $(BIN_DIR)/manalyzer_example_flow
+MANALYZER_PROGS += $(BIN_DIR)/manalyzer_example_flow_queue
+#MANALYZER_PROGS += $(BIN_DIR)/manalyzer_example_root
+#MANALYZER_PROGS += $(BIN_DIR)/manalyzer_example_root_graphics
+
 MINI_PROGS += $(TMFE_PROGS)
+MINI_PROGS += $(MANALYZER_PROGS)
 
 SUBMODULES :=
 SUBMODULES += mxml/mxml.cxx
 SUBMODULES += mjson/mjson.cxx
 SUBMODULES += mvodb/mvodb.cxx
+SUBMODULES += midasio/midasio.cxx
+SUBMODULES += manalyzer/manalyzer.cxx
 
 $(LIB_DIR)/mfe.o $(LIB) $(OBJS): $(OS_DIR) $(GIT_REVISION) $(SUBMODULES)
 
@@ -507,6 +523,12 @@ $(LIB_DIR)/%.o: mjson/%.cxx
 $(LIB_DIR)/%.o: mvodb/%.cxx
 	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 
+$(LIB_DIR)/%.o: midasio/%.cxx
+	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
+
+$(LIB_DIR)/%.o: manalyzer/%.cxx
+	$(CXX) -c $(CFLAGS) $(OSFLAGS) -DHAVE_MIDAS -DHAVE_TMFE -o $@ $<
+
 #
 # rules to build executables
 #
@@ -515,6 +537,9 @@ $(BIN_DIR)/%: progs/%.cxx $(LIB)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
 
 $(BIN_DIR)/odbedit: progs/odbedit.cxx progs/cmdedit.cxx $(LIB)
+	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
+
+$(MANALYZER_PROGS): $(BIN_DIR)/%: $(MANALYZER_MAIN) manalyzer/%.cxx $(LIB)
 	$(CXX) $(CFLAGS) $(OSFLAGS) -o $@ $^ $(LIBS)
 
 #
