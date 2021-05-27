@@ -161,7 +161,7 @@ void multi_read_output(EQUIPMENT * pequipment, int channel)
 
    if (value != m_info->output_mirror[channel]) {
       m_info->output_mirror[channel] = value;
-      m_info->var_input[channel] = value;
+      m_info->var_output[channel] = value;
 
       db_set_record(hDB, m_info->hKeyOutput, m_info->output_mirror,
                     m_info->num_channels_output * sizeof(float), 0);
