@@ -1550,6 +1550,7 @@ static MJsonNode* js_al_trigger_alarm(const MJsonNode* params)
       doc->D("trigger an alarm");
       doc->P("name", MJSON_STRING, "alarm name");
       doc->P("message", MJSON_STRING, "alarm message");
+      doc->P("users", MJSON_STRING, "users responsible");
       doc->P("class", MJSON_STRING, "alarm class");
       doc->P("condition", MJSON_STRING, "alarm condition");
       doc->P("type", MJSON_INT, "alarm type (AT_xxx)");
@@ -1561,11 +1562,12 @@ static MJsonNode* js_al_trigger_alarm(const MJsonNode* params)
 
    std::string name = mjsonrpc_get_param(params, "name", &error)->GetString(); if (error) return error;
    std::string message = mjsonrpc_get_param(params, "message", &error)->GetString(); if (error) return error;
+   std::string users_responsible = mjsonrpc_get_param(params, "user", &error)->GetString(); if (error) return error;
    std::string xclass = mjsonrpc_get_param(params, "class", &error)->GetString(); if (error) return error;
    std::string condition = mjsonrpc_get_param(params, "condition", &error)->GetString(); if (error) return error;
    int type = mjsonrpc_get_param(params, "type", &error)->GetInt(); if (error) return error;
 
-   int status = al_trigger_alarm(name.c_str(), message.c_str(), xclass.c_str(), condition.c_str(), type);
+   int status = al_trigger_alarm(name.c_str(), message.c_str(), users_responsible.c_str(), xclass.c_str(), condition.c_str(), type);
    
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }
@@ -1577,6 +1579,7 @@ static MJsonNode* js_al_trigger_class(const MJsonNode* params)
       doc->D("trigger an alarm");
       doc->P("class", MJSON_STRING, "alarm class");
       doc->P("message", MJSON_STRING, "alarm message");
+      doc->P("users", MJSON_STRING, "users responsible");
       doc->P("first?", MJSON_BOOL, "see al_trigger_class() in midas.c");
       doc->R("status", MJSON_INT, "return status of al_trigger_class()");
       return doc;
@@ -1586,9 +1589,10 @@ static MJsonNode* js_al_trigger_class(const MJsonNode* params)
 
    std::string xclass = mjsonrpc_get_param(params, "class", &error)->GetString(); if (error) return error;
    std::string message = mjsonrpc_get_param(params, "message", &error)->GetString(); if (error) return error;
+   std::string users_responsible = mjsonrpc_get_param(params, "users", &error)->GetString(); if (error) return error;
    bool first = mjsonrpc_get_param(params, "first", NULL)->GetBool();
 
-   int status = al_trigger_class(xclass.c_str(), message.c_str(), first);
+   int status = al_trigger_class(xclass.c_str(), message.c_str(), users_responsible.c_str(), first);
 
    return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
 }

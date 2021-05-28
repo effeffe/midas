@@ -1403,6 +1403,7 @@ typedef struct {
    BOOL auto_stop;
    BOOL auto_restart;
    char alarm_class[32];
+   char users_responsible[256];
    DWORD first_failed;
 } PROGRAM_INFO;
 
@@ -1422,6 +1423,7 @@ typedef struct {
 "Auto stop = BOOL : n",\
 "Auto restart = BOOL : n",\
 "Alarm class = STRING : [32] ",\
+"Users responsible = STRING : [256] ",\
 "First failed = DWORD : 0",\
 "",\
 NULL }
@@ -1469,6 +1471,7 @@ typedef struct {
    char condition[256];
    char alarm_class[32];
    char alarm_message[80];
+   char users_responsible[256];
 } ALARM;
 
 #define ALARM_ODB_STR(_name) const char *_name[] = {\
@@ -1483,6 +1486,7 @@ typedef struct {
 "Condition = STRING : [256] /Runinfo/Run number > 100",\
 "Alarm Class = STRING : [32] Alarm",\
 "Alarm Message = STRING : [80] Run number became too large",\
+"Users responsible = STRING : [256] ",\
 "",\
 NULL }
 
@@ -1498,6 +1502,7 @@ NULL }
 "Condition = STRING : [256] ",\
 "Alarm Class = STRING : [32] Warning",\
 "Alarm Message = STRING : [80] Please do your shift checks",\
+"Users responsible = STRING : [256] ",\
 "",\
 NULL }
 
@@ -2073,13 +2078,13 @@ Data conversion flags */
 
    /*---- alarm functions ----*/
    INT EXPRT al_check(void);
-   INT EXPRT al_trigger_alarm(const char *alarm_name, const char *alarm_message,
+   INT EXPRT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const char* users_responsible,
                               const char *default_class, const char *cond_str, INT type);
-   INT EXPRT al_trigger_class(const char *alarm_class, const char *alarm_message, BOOL first);
+   INT EXPRT al_trigger_class(const char *alarm_class, const char *alarm_message,const char* users_responsible, BOOL first);
    INT EXPRT al_reset_alarm(const char *alarm_name);
    BOOL EXPRT al_evaluate_condition(const char *condition, char *value);
    INT al_get_alarms(char *result, int result_size);
-   INT EXPRT al_define_odb_alarm(const char *name, const char *condition, const char *aclass, const char *message);
+   INT EXPRT al_define_odb_alarm(const char *name, const char *condition, const char *aclass, const char *message, const char* users_responsible);
 
    /*---- analyzer functions ----*/
    void EXPRT test_register(ANA_TEST * t);

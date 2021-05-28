@@ -130,6 +130,7 @@ Maintain free space (%) = INT : 0\n\
 Stay behind = INT : 0\n\
 Alarm Class = STRING : [32]\n\
 Running condition = STRING : [128] ALWAYS\n\
+User responsible = STRING : [256]\n\
 Data dir = STRING : [256] \n\
 Data format = STRING : [8] MIDAS\n\
 Filename format = STRING : [128] run%05d.mid\n\
@@ -163,6 +164,7 @@ typedef struct {
                                    -x same as x but starting from oldest */
    char alarm[32];                /* Alarm Class */
    char condition[128];           /* key condition */
+   char user_responsible[256];     /* Tag a user in alarm */
    char dir[256];                 /* path to the data dir */
    char format[8];                /* Data format (MIDAS) */
    char backfmt[MAX_FILE_PATH];   /* format for the run files run%05d.mid */
@@ -1910,7 +1912,7 @@ INT lazy_maintain_free_space(LAZY_INFO *pLch, LAZY_INFO *pLall) {
          char buf[256];
          sprintf(buf, "%.1f%%", freepercent);
          str += buf;
-         al_trigger_alarm("Disk Full", str.c_str(), lazy.alarm, "Disk buffer full", AT_INTERNAL);
+         al_trigger_alarm("Disk Full", str.c_str(), lazy.user_responsible, lazy.alarm, "Disk buffer full", AT_INTERNAL);
       } else {
          HNDLE hKey;
          if (db_find_key(hDB, 0, "/Alarms/Alarms/Disk Full", &hKey) == DB_SUCCESS)
@@ -2273,10 +2275,15 @@ Function value:
             size = sizeof(lazy.alarm);
             db_get_value(hDB, pLch->hKey, "Settings/Alarm Class", lazy.alarm, &size, TID_STRING, TRUE);
 
+            lazy.user_responsible[0] = 0;
+            size = sizeof(lazy.user_responsible);
+            db_get_value(hDB, pLch->hKey, "Settings/User responsible", lazy.user_responsible, &size, TID_STRING, TRUE);
+
             /* trigger alarm if defined */
             if (lazy.alarm[0])
                al_trigger_alarm("Tape",
                                 "Tape full, Please remove current tape and load new one!",
+                                lazy.user_responsible,
                                 lazy.alarm, "Tape full", AT_INTERNAL);
 
             /* run shell command if available */
@@ -2521,6 +2528,7 @@ int main(int argc, char **argv) {
          printf("                             acquisition run minus 'Stay behind number' \n");
          printf("                            Zero : no stay-behind - files are saved as soon as they are closed\n");
          printf("Alarm Class               : Specify the Class to be used in case of Tape Full condition\n");
+         printf("User responsible          : Specify the user responsible for the Tape Full condition (using @user will directly ping them in mmessenger)\n");
          printf("Running condition         : active/deactive lazylogger under given condition i.e:\n");
          printf("                           'ALWAYS' (default)     : Independent of the ACQ state ...\n");
          printf("                           'NEVER'                : ...\n");

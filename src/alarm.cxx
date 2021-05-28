@@ -218,10 +218,10 @@ Trigger a certain alarm.
 @param type Alarm type, one of AT_xxx
 @return AL_SUCCESS, AL_INVALID_NAME
 */
-INT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const char *default_class, const char *cond_str,
+INT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const char *users_responsible, const char *default_class, const char *cond_str,
                      INT type) {
    if (rpc_is_remote())
-      return rpc_call(RPC_AL_TRIGGER_ALARM, alarm_name, alarm_message, default_class, cond_str, type);
+      return rpc_call(RPC_AL_TRIGGER_ALARM, alarm_name, alarm_message, users_responsible, default_class, cond_str, type);
 
 #ifdef LOCAL_ROUTINES
    {
@@ -319,11 +319,11 @@ INT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const ch
 
       /* now trigger alarm class defined in this alarm */
       if (a.alarm_class[0])
-         al_trigger_class(a.alarm_class, alarm_message, a.triggered > 0);
+         al_trigger_class(a.alarm_class, alarm_message, a.users_responsible, a.triggered > 0);
 
       /* check for and trigger "All" class */
       if (db_find_key(hDB, 0, "/Alarms/Classes/All", &hkey) == DB_SUCCESS)
-         al_trigger_class("All", alarm_message, a.triggered > 0);
+         al_trigger_class("All", alarm_message, a.users_responsible, a.triggered > 0);
 
       {
          char str[256];
@@ -356,7 +356,7 @@ INT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const ch
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 /********************************************************************/
-INT al_trigger_class(const char *alarm_class, const char *alarm_message, BOOL first)
+INT al_trigger_class(const char *alarm_class, const char *alarm_message, const char* users_responsible, BOOL first)
 /********************************************************************\
 
   Routine: al_trigger_class
@@ -380,8 +380,10 @@ INT al_trigger_class(const char *alarm_class, const char *alarm_message, BOOL fi
 {
    int status, size, state;
    HNDLE hDB, hkeyclass;
-   char str[256], command[256], tag[32], url[256];
+   char str[sizeof(ALARM::alarm_class) + sizeof(ALARM::alarm_message) + sizeof(ALARM::users_responsible) + 8];
+   char tag[32], url[256];
    ALARM_CLASS ac;
+   char command[sizeof(ALARM_CLASS::execute_command) + sizeof(str)];
    ALARM_CLASS_STR(alarm_class_str);
    DWORD now = ss_time();
 
@@ -409,9 +411,16 @@ INT al_trigger_class(const char *alarm_class, const char *alarm_message, BOOL fi
    /* write system message */
    if (ac.write_system_message && (now - ac.system_message_last >= (DWORD) ac.system_message_interval)) {
       if (equal_ustring(alarm_class, "All"))
+      {
          sprintf(str, "General alarm: %s", alarm_message);
+      }
       else
-         sprintf(str, "%s: %s", alarm_class, alarm_message);
+      {
+         if (users_responsible[0])
+            sprintf(str, "%s: %s (%s)", alarm_class, alarm_message, users_responsible);
+         else
+            sprintf(str, "%s: %s", alarm_class, alarm_message);
+      }
       cm_msg(MTALK, "al_trigger_class", "%s", str);
       ac.system_message_last = now;
    }
@@ -425,9 +434,16 @@ INT al_trigger_class(const char *alarm_class, const char *alarm_message, BOOL fi
    /* execute command */
    if (ac.execute_command[0] && ac.execute_interval > 0 && (INT) ss_time() - (INT) ac.execute_last > ac.execute_interval) {
       if (equal_ustring(alarm_class, "All"))
+      {
          sprintf(str, "General alarm: %s", alarm_message);
+      }
       else
-         sprintf(str, "%s: %s", alarm_class, alarm_message);
+      {
+         if (users_responsible[0])
+            sprintf(str, "%s: %s (%s)", alarm_class, alarm_message, users_responsible);
+         else
+            sprintf(str, "%s: %s", alarm_class, alarm_message);
+      }
       sprintf(command, ac.execute_command, str);
       cm_msg(MINFO, "al_trigger_class", "Execute: %s", command);
       ss_system(command);
@@ -662,7 +678,7 @@ INT al_check() {
                a.checked_last = ss_time();
                db_set_record(hDB, hkey, &a, size, 0);
             } else
-               al_trigger_alarm(key.name, a.alarm_message, a.alarm_class, "", AT_PERIODIC);
+               al_trigger_alarm(key.name, a.alarm_message, a.users_responsible, a.alarm_class, "", AT_PERIODIC);
          }
 
          /* check alarm only when active and not internal */
@@ -670,7 +686,7 @@ INT al_check() {
             /* if condition is true, trigger alarm */
             if (al_evaluate_condition(a.condition, value)) {
                sprintf(str, a.alarm_message, value);
-               al_trigger_alarm(key.name, str, a.alarm_class, "", AT_EVALUATED);
+               al_trigger_alarm(key.name, str, a.users_responsible, a.alarm_class, "", AT_EVALUATED);
             } else {
                a.checked_last = ss_time();
                status = db_set_value(hDB, hkey, "Checked last", &a.checked_last, sizeof(DWORD), 1, TID_DWORD);
@@ -730,7 +746,7 @@ INT al_check() {
                   /* if not running and alarm class defined, trigger alarm */
                   if (program_info.alarm_class[0]) {
                      sprintf(str, "Program %s is not running", key.name);
-                     al_trigger_alarm(key.name, str, program_info.alarm_class, "Program not running", AT_PROGRAM);
+                     al_trigger_alarm(key.name, str, program_info.users_responsible, program_info.alarm_class, "Program not running", AT_PROGRAM);
                   }
 
                   /* auto restart program */

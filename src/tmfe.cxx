@@ -2092,9 +2092,9 @@ TMFeResult TMFeEquipment::EqSetStatus(char const* eq_status, char const* eq_colo
    return TMFeOk();
 }
 
-TMFeResult TMFE::TriggerAlarm(const char* name, const char* message, const char* aclass)
+TMFeResult TMFE::TriggerAlarm(const char* name, const char* message, const char* users_responsible, const char* aclass)
 {
-   int status = al_trigger_alarm(name, message, aclass, message, AT_INTERNAL);
+   int status = al_trigger_alarm(name, message, users_responsible, aclass, message, AT_INTERNAL);
 
    if (status) {
       return TMFeMidasError("Cannot trigger alarm", "al_trigger_alarm", status);

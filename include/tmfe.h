@@ -453,7 +453,7 @@ public:
    void Yield(double sleep_sec);
    void MidasPeriodicTasks();
 
-   TMFeResult TriggerAlarm(const char* name, const char* message, const char* aclass);
+   TMFeResult TriggerAlarm(const char* name, const char* message, const char* users_responsible, const char* aclass);
    TMFeResult ResetAlarm(const char* name);
 
    void Msg(int message_type, const char *filename, int line, const char *routine, const char *format, ...) MATTRPRINTF(6,7);

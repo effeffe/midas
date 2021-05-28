@@ -834,7 +834,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       break;
 
    case RPC_AL_TRIGGER_ALARM:
-      status = al_trigger_alarm(CSTRING(0), CSTRING(1), CSTRING(2), CSTRING(3), CINT(4));
+      status = al_trigger_alarm(CSTRING(0), CSTRING(1), CSTRING(2), CSTRING(3), CSTRING(4), CINT(5));
       break;
 
       /* exit functions */

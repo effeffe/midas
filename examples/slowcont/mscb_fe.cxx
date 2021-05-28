@@ -148,7 +148,7 @@ void scfe_error(const char *error) {
 
    strlcpy(str, error, sizeof(str));
    cm_msg(MERROR, "scfe_error", "%s", str);
-   al_trigger_alarm("MSCB", str, "MSCB Alarm", "Communication Problem", AT_INTERNAL);
+   al_trigger_alarm("MSCB", str, "DAQ TEAM", "MSCB Alarm", "Communication Problem", AT_INTERNAL);
 }
 
 /*-- Frontend Init -------------------------------------------------*/
