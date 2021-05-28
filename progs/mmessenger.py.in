@@ -104,7 +104,7 @@ if __name__ == "__main__":
     # Read all webhook urls (and make entries if they dont exist)
     for service in [ "Discord", "Mattermost", "Slack" ]:
         for key in MT_MessageTypeList:
-            odb_path = "/MIDASMessenger/" + service + "/WebHooks/" + key
+            odb_path = "/Messenger/" + service + "/WebHooks/" + key
             if not client.odb_exists(odb_path):
                 # default entry for webhook URL is no text (len = 0)
                 client.odb_set(odb_path,"")
@@ -114,9 +114,9 @@ if __name__ == "__main__":
     slack = {}
     # Populate dictionary of webhook URLs
     for key in MT_MessageTypeList:
-        discord[key]    = client.odb_get("/MIDASMessenger/" + "Discord" + "/WebHooks/" + key)
-        mattermost[key] = client.odb_get("/MIDASMessenger/" + "Mattermost" + "/WebHooks/" + key)
-        slack[key]      = client.odb_get("/MIDASMessenger/" + "Slack" + "/WebHooks/" + key)
+        discord[key]    = client.odb_get("/Messenger/" + "Discord" + "/WebHooks/" + key)
+        mattermost[key] = client.odb_get("/Messenger/" + "Mattermost" + "/WebHooks/" + key)
+        slack[key]      = client.odb_get("/Messenger/" + "Slack" + "/WebHooks/" + key)
 
     # Define which buffer we want to listen for events on (SYSTEM is the 
     # main midas buffer).
