@@ -1403,9 +1403,22 @@ typedef struct {
    BOOL auto_stop;
    BOOL auto_restart;
    char alarm_class[32];
-   char users_responsible[256];
+   char users_responsible[10][80];
    DWORD first_failed;
 } PROGRAM_INFO;
+
+static std::string GetUserList(const PROGRAM_INFO& p)
+{
+   std::string users;
+   for (int i=0; i<10; i++)
+   {
+      if (p.users_responsible[i][0])
+         users += &p.users_responsible[i][0];
+      if ( i < 31 && p.users_responsible[i+1][0] )
+         users += " ";
+   }
+   return users;
+}
 
 #define AT_INTERNAL   1 /**< - */
 #define AT_PROGRAM    2 /**< - */
@@ -1423,7 +1436,17 @@ typedef struct {
 "Auto stop = BOOL : n",\
 "Auto restart = BOOL : n",\
 "Alarm class = STRING : [32] ",\
-"Users responsible = STRING : [256] ",\
+"Users responsible = STRING[10] : ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
 "First failed = DWORD : 0",\
 "",\
 NULL }
@@ -1471,8 +1494,22 @@ typedef struct {
    char condition[256];
    char alarm_class[32];
    char alarm_message[80];
-   char users_responsible[256];
+   char users_responsible[10][80];
 } ALARM;
+
+static std::string GetUserList(const ALARM& p)
+{
+   std::string users;
+   for (int i=0; i<10; i++)
+   {
+      if (p.users_responsible[i][0])
+         users += &p.users_responsible[i][0];
+      //Insert a space between lines
+      if ( i < 31 && p.users_responsible[i+1][0] )
+         users += " ";
+   }
+   return users;
+}
 
 #define ALARM_ODB_STR(_name) const char *_name[] = {\
 "[.]",\
@@ -1486,7 +1523,17 @@ typedef struct {
 "Condition = STRING : [256] /Runinfo/Run number > 100",\
 "Alarm Class = STRING : [32] Alarm",\
 "Alarm Message = STRING : [80] Run number became too large",\
-"Users responsible = STRING : [256] ",\
+"Users responsible = STRING[10] : ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
 "",\
 NULL }
 
@@ -1502,7 +1549,17 @@ NULL }
 "Condition = STRING : [256] ",\
 "Alarm Class = STRING : [32] Warning",\
 "Alarm Message = STRING : [80] Please do your shift checks",\
-"Users responsible = STRING : [256] ",\
+"Users responsible = STRING[10] : ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
+"[80] ",\
 "",\
 NULL }
 

@@ -318,12 +318,13 @@ INT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const ch
       }
 
       /* now trigger alarm class defined in this alarm */
-      if (a.alarm_class[0])
-         al_trigger_class(a.alarm_class, alarm_message, a.users_responsible, a.triggered > 0);
-
+      if (a.alarm_class[0]) {
+         al_trigger_class(a.alarm_class, alarm_message, GetUserList(a).c_str(), a.triggered > 0);
+      }
       /* check for and trigger "All" class */
-      if (db_find_key(hDB, 0, "/Alarms/Classes/All", &hkey) == DB_SUCCESS)
-         al_trigger_class("All", alarm_message, a.users_responsible, a.triggered > 0);
+      if (db_find_key(hDB, 0, "/Alarms/Classes/All", &hkey) == DB_SUCCESS) {
+         al_trigger_class("All", alarm_message, GetUserList(a).c_str(), a.triggered > 0);
+      }
 
       {
          char str[256];
@@ -380,7 +381,7 @@ INT al_trigger_class(const char *alarm_class, const char *alarm_message, const c
 {
    int status, size, state;
    HNDLE hDB, hkeyclass;
-   char str[sizeof(ALARM::alarm_class) + sizeof(ALARM::alarm_message) + sizeof(ALARM::users_responsible) + 8];
+   std::string str;
    char tag[32], url[256];
    ALARM_CLASS ac;
    char command[sizeof(ALARM_CLASS::execute_command) + sizeof(str)];
@@ -392,8 +393,8 @@ INT al_trigger_class(const char *alarm_class, const char *alarm_message, const c
    cm_get_experiment_database(&hDB, NULL);
 
    /* get alarm class */
-   sprintf(str, "/Alarms/Classes/%s", alarm_class);
-   db_find_key(hDB, 0, str, &hkeyclass);
+   str = "/Alarms/Classes/" + std::string(alarm_class);
+   db_find_key(hDB, 0, str.c_str(), &hkeyclass);
    if (!hkeyclass) {
       cm_msg(MERROR, "al_trigger_class", "Alarm class \"%s\" for alarm \"%s\" not found in ODB", alarm_class,
              alarm_message);
@@ -403,7 +404,7 @@ INT al_trigger_class(const char *alarm_class, const char *alarm_message, const c
    size = sizeof(ac);
    status = db_get_record1(hDB, hkeyclass, &ac, &size, 0, strcomb(alarm_class_str));
    if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "al_trigger_class", "Cannot get alarm class record \"%s\", db_get_record1() status %d", str,
+      cm_msg(MERROR, "al_trigger_class", "Cannot get alarm class record \"%s\", db_get_record1() status %d", str.c_str(),
              status);
       return AL_ERROR_ODB;
    }
@@ -412,39 +413,39 @@ INT al_trigger_class(const char *alarm_class, const char *alarm_message, const c
    if (ac.write_system_message && (now - ac.system_message_last >= (DWORD) ac.system_message_interval)) {
       if (equal_ustring(alarm_class, "All"))
       {
-         sprintf(str, "General alarm: %s", alarm_message);
+         str = "General alarm: " + std::string(alarm_message);
       }
       else
       {
          if (users_responsible[0])
-            sprintf(str, "%s: %s (%s)", alarm_class, alarm_message, users_responsible);
+            str = std::string(alarm_class) + ": " + alarm_message + " (" + users_responsible +")";
          else
-            sprintf(str, "%s: %s", alarm_class, alarm_message);
+            str = std::string(alarm_class) + ": " + alarm_message;
       }
-      cm_msg(MTALK, "al_trigger_class", "%s", str);
+      cm_msg(MTALK, "al_trigger_class", "%s", str.c_str());
       ac.system_message_last = now;
    }
 
    /* write elog message on first trigger if using internal ELOG */
    size = sizeof(url);
    if (ac.write_elog_message && first && db_get_value(hDB, 0, "/Elog/URL", url, &size, TID_STRING, FALSE) != DB_SUCCESS)
-      el_submit(0, "Alarm system", "Alarm", "General", alarm_class, str, "", "plain", "", "", 0, "", "", 0, "", "", 0,
+      el_submit(0, "Alarm system", "Alarm", "General", alarm_class, str.c_str(), "", "plain", "", "", 0, "", "", 0, "", "", 0,
                 tag, sizeof(tag));
 
    /* execute command */
    if (ac.execute_command[0] && ac.execute_interval > 0 && (INT) ss_time() - (INT) ac.execute_last > ac.execute_interval) {
       if (equal_ustring(alarm_class, "All"))
       {
-         sprintf(str, "General alarm: %s", alarm_message);
+         str = std::string("General alarm: ") + alarm_message;
       }
       else
       {
          if (users_responsible[0])
-            sprintf(str, "%s: %s (%s)", alarm_class, alarm_message, users_responsible);
+            str = std::string(alarm_class) + ": " + alarm_message + " (" + users_responsible +")";
          else
-            sprintf(str, "%s: %s", alarm_class, alarm_message);
+            str = std::string(alarm_class) + ": " + alarm_message;
       }
-      sprintf(command, ac.execute_command, str);
+      sprintf(command, ac.execute_command, str.c_str());
       cm_msg(MINFO, "al_trigger_class", "Execute: %s", command);
       ss_system(command);
       ac.execute_last = ss_time();
@@ -677,8 +678,9 @@ INT al_check() {
             if (a.checked_last == 0) {
                a.checked_last = ss_time();
                db_set_record(hDB, hkey, &a, size, 0);
-            } else
-               al_trigger_alarm(key.name, a.alarm_message, a.users_responsible, a.alarm_class, "", AT_PERIODIC);
+            } else {
+               al_trigger_alarm(key.name, a.alarm_message, GetUserList(a).c_str(), a.alarm_class, "", AT_PERIODIC);
+            }
          }
 
          /* check alarm only when active and not internal */
@@ -686,7 +688,7 @@ INT al_check() {
             /* if condition is true, trigger alarm */
             if (al_evaluate_condition(a.condition, value)) {
                sprintf(str, a.alarm_message, value);
-               al_trigger_alarm(key.name, str, a.users_responsible, a.alarm_class, "", AT_EVALUATED);
+               al_trigger_alarm(key.name, str, GetUserList(a).c_str(), a.alarm_class, "", AT_EVALUATED);
             } else {
                a.checked_last = ss_time();
                status = db_set_value(hDB, hkey, "Checked last", &a.checked_last, sizeof(DWORD), 1, TID_DWORD);
@@ -746,7 +748,7 @@ INT al_check() {
                   /* if not running and alarm class defined, trigger alarm */
                   if (program_info.alarm_class[0]) {
                      sprintf(str, "Program %s is not running", key.name);
-                     al_trigger_alarm(key.name, str, program_info.users_responsible, program_info.alarm_class, "Program not running", AT_PROGRAM);
+                     al_trigger_alarm(key.name, str, GetUserList(program_info).c_str() , program_info.alarm_class, "Program not running", AT_PROGRAM);
                   }
 
                   /* auto restart program */
@@ -844,7 +846,7 @@ Reset (acknoledge) alarm.
 @param message      Alarm message
 @return AL_SUCCESS
 */
-INT EXPRT al_define_odb_alarm(const char *name, const char *condition, const char *aclass, const char *message) {
+INT EXPRT al_define_odb_alarm(const char *name, const char *condition, const char *aclass, const char *message, const char* users_responsible) {
    HNDLE hDB, hKey;
    char str[256];
    ALARM_ODB_STR(alarm_odb_str);
@@ -861,7 +863,10 @@ INT EXPRT al_define_odb_alarm(const char *name, const char *condition, const cha
    db_set_value(hDB, hKey, "Condition", condition, 256, 1, TID_STRING);
    db_set_value(hDB, hKey, "Alarm Class", aclass, 32, 1, TID_STRING);
    db_set_value(hDB, hKey, "Alarm Message", message, 80, 1, TID_STRING);
-
+   for (int i=0; i<10;  i++)
+   {
+      db_set_value(hDB, hKey, "Users responsible", users_responsible + i*80, 80, i, TID_STRING);
+   }
    return AL_SUCCESS;
 }
 
