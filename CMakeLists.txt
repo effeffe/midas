@@ -33,7 +33,7 @@ endif()
 message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
 set(SYSLIB_DIR ${PROJECT_SOURCE_DIR}/lib)
-set(SYSINC_DIR ${PROJECT_SOURCE_DIR}/include)
+set(SYSINC_DIR ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/midasio)
 set(DRV_DIR ${PROJECT_SOURCE_DIR}/drivers)
 
 # NB: RPATH is not needed as everything is linked statically. K.O.
@@ -328,14 +328,10 @@ else()
 endif(NO_SENSORS)
 
 #
-# Fake find_package(Midas)
+# Tell subprojects that we have the "midas" target already defined
 #
 
 set(MIDAS_FOUND TRUE)
-set(MIDAS_INCLUDE_DIRS ${SYSINC_DIR} ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/midasio)
-#set(MIDAS_LIBRARIES -L$ENV{MIDASSYS}/lib -lmidas -lutil -lrt)
-set(MIDAS_LIBRARIES -L${SYSLIB_DIR} -lmidas -lutil)
-
 
 #-----------------------
 # Default build type
@@ -396,7 +392,6 @@ set(libsrc
    mvodb/mxmlodb
    mvodb/mjsonodb
    midasio/midasio
-   #manalyzer/manalyzer
    src/json_paste
    src/mjsonrpc
    src/mjsonrpc_user
@@ -433,9 +428,13 @@ set_property(TARGET objlib-c-compat PROPERTY POSITION_INDEPENDENT_CODE 1)
 
 # static midas library
 add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
+target_compile_features(midas PUBLIC cxx_std_11)
+target_link_libraries(midas ${LIBS})
+target_link_libraries(midas ${DB_LIBS})
 
 # shared midas library
 add_library(midas-shared SHARED $<TARGET_OBJECTS:objlib>)
+target_compile_features(midas-shared PUBLIC cxx_std_11)
 target_link_libraries(midas-shared ${LIBS})
 target_link_libraries(midas-shared ${DB_LIBS})
 
@@ -463,20 +462,8 @@ if (CURL_FOUND)
    target_include_directories(objlib PRIVATE ${CURL_INCLUDE_DIR})
 endif ()
 
-target_link_libraries(objlib mjson)
-target_link_libraries(objlib mxml)
-target_link_libraries(objlib mvodb)
-target_link_libraries(objlib midasio)
-#target_link_libraries(objlib manalyzer)
-
 # midas include is public so all programs linking to libmidas will inherit this
 target_include_directories(midas PUBLIC ${SYSINC_DIR})
-
-target_link_libraries(midas mjson)
-target_link_libraries(midas mxml)
-target_link_libraries(midas mvodb)
-target_link_libraries(midas midasio)
-#target_link_libraries(midas manalyzer)
 
 # library for mfe
 add_library(mfe src/mfe)
@@ -495,23 +482,11 @@ if (HAVE_ROOT)
    target_compile_options(rmana PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
 endif(HAVE_ROOT)
 
-## library for manalyzer_main
-#add_library(manalyzer_main manalyzer/manalyzer_main)
-#target_include_directories(manalyzer_main PUBLIC ${SYSINC_DIR})
-#if (HAVE_ROOT)
-#   target_include_directories(manalyzer_main PUBLIC ${ROOT_INCLUDE_DIRS})
-#   target_compile_options(manalyzer_main PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
-#endif(HAVE_ROOT)
-
-#target_link_libraries(manalyzer_main mjson)
-#target_link_libraries(manalyzer_main mxml)
-#target_link_libraries(manalyzer_main mvodb)
-#target_link_libraries(manalyzer_main midasio)
-#target_link_libraries(manalyzer_main manalyzer)
-
 install(TARGETS midas midas-shared midas-c-compat mfe mana rmana
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
+        DESTINATION lib
+        EXPORT ${PROJECT_NAME}-targets)
+        
+install(EXPORT ${PROJECT_NAME}-targets DESTINATION lib)
 
 # library for mfe.o
 add_library(mfeo OBJECT src/mfe)
