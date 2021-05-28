@@ -468,7 +468,6 @@ target_include_directories(midas PUBLIC ${SYSINC_DIR})
 # library for mfe
 add_library(mfe src/mfe)
 target_include_directories(mfe PUBLIC ${SYSINC_DIR})
-target_link_libraries(mfe mxml)
 
 # library for mana
 add_library(mana src/mana)
@@ -491,7 +490,6 @@ install(EXPORT ${PROJECT_NAME}-targets DESTINATION lib)
 # library for mfe.o
 add_library(mfeo OBJECT src/mfe)
 target_include_directories(mfeo PUBLIC ${SYSINC_DIR})
-target_link_libraries(mfeo mxml)
 
 # this is somewhat dirty, as the path to the object dir is hardcoded and
 # might change in future CMake versions. The only other option however
