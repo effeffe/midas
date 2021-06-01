@@ -4959,10 +4959,10 @@ std::string db_get_path(HNDLE hDB, HNDLE hKey)
    return "(no LOCAL_ROUTINES)";
 }
 
-/*------------------------------------------------------------------*/
-int db_find_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *result)
-{
 #ifdef LOCAL_ROUTINES
+/*------------------------------------------------------------------*/
+static int db_find_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *xresult)
+{
    /* check if this key has notify count set */
    if (key->notify_count) {
 
@@ -4994,18 +4994,19 @@ int db_find_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *resu
       }
 
       line += "\n";
-      strcat((char *) result, line.c_str());
+
+      std::string *result = (std::string*)xresult;
+      *result = line;
 
       db_unlock_database(hDB);
    }
-#endif                          /* LOCAL_ROUTINES */
    return DB_SUCCESS;
 }
 
-int db_fix_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *result)
+static int db_fix_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *xresult)
 {
-#ifdef LOCAL_ROUTINES
-
+   std::string *result = (std::string*)xresult;
+   
    /* check if this key has notify count set */
    if (key->notify_count) {
       db_lock_database(hDB);
@@ -5033,17 +5034,16 @@ int db_fix_open_records(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *resul
          KEY *pkey = (KEY *) ((char *) pheader + hKey);
          pkey->notify_count = 0;
 
-         char str[256];
-         db_get_path(hDB, hKey, str, sizeof(str));
-         strcat(str, " fixed\n");
-         strcat((char *) result, str);
+         std::string path = db_get_path_locked(pheader, hKey);
+         *result += path;
+         *result += " fixed\n";
       }
 
       db_unlock_database(hDB);
    }
-#endif                          /* LOCAL_ROUTINES */
    return DB_SUCCESS;
 }
+#endif                          /* LOCAL_ROUTINES */
 
 INT db_get_open_records(HNDLE hDB, HNDLE hKey, char *str, INT buf_size, BOOL fix)
 /********************************************************************\
@@ -5073,10 +5073,18 @@ INT db_get_open_records(HNDLE hDB, HNDLE hKey, char *str, INT buf_size, BOOL fix
    if (rpc_is_remote())
       return rpc_call(RPC_DB_GET_OPEN_RECORDS, hDB, hKey, str, buf_size);
 
+   std::string result;
+
+#ifdef LOCAL_ROUTINES
+
    if (fix)
-      db_scan_tree(hDB, hKey, 0, db_fix_open_records, str);
+      db_scan_tree(hDB, hKey, 0, db_fix_open_records, &result); // FIXME: should use db_scan_tree_wlocked()
    else
-      db_scan_tree(hDB, hKey, 0, db_find_open_records, str);
+      db_scan_tree(hDB, hKey, 0, db_find_open_records, &result); // FIXME: should use db_scan_tree_locked()
+
+#endif
+
+   strlcpy(str, result.c_str(), buf_size);
 
    return DB_SUCCESS;
 }
