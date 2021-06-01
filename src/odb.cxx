@@ -86,6 +86,7 @@ static INT db_set_data_wlocked(DATABASE_HEADER* pheader, KEY* pkey, const void *
 static INT db_set_data_index_wlocked(DATABASE_HEADER* pheader, KEY* pkey, int idx, const void *data, INT data_size, DWORD type, const char* caller, db_err_msg** msg);
 static INT db_check_set_data_locked(DATABASE_HEADER* pheader, const KEY* pkey, const void *data, INT data_size, INT num_values, DWORD type, const char* caller, db_err_msg** msg);
 static INT db_check_set_data_index_locked(DATABASE_HEADER* pheader, const KEY* pkey, int idx, const void *data, INT data_size, DWORD type, const char* caller, db_err_msg** msg);
+static int db_remove_open_record_wlocked(DATABASE* pdb, DATABASE_HEADER* pheader, HNDLE hKey);
 #endif // LOCAL_ROUTINES
 
 /*------------------------------------------------------------------*/
@@ -2157,7 +2158,7 @@ INT db_close_database(HNDLE hDB)
       /* close all open records */
       for (i = 0; i < pclient->max_index; i++)
          if (pclient->open_record[i].handle)
-            db_remove_open_record(hDB, pclient->open_record[i].handle, FALSE);
+            db_remove_open_record_wlocked(pdb, pheader, pclient->open_record[i].handle);
 
       /* mark entry in _database as empty */
       pdb->attached = FALSE;
@@ -11944,7 +11945,53 @@ INT db_add_open_record(HNDLE hDB, HNDLE hKey, WORD access_mode)
    return DB_SUCCESS;
 }
 
-/*------------------------------------------------------------------*/
+#ifdef LOCAL_ROUTINES
+
+static int db_remove_open_record_wlocked(DATABASE* pdb, DATABASE_HEADER* pheader, HNDLE hKey)
+{
+   int status = DB_SUCCESS;
+
+   DATABASE_CLIENT *pclient = db_get_my_client_locked(pdb);
+
+   /* search key */
+   int idx;
+   for (idx = 0; idx < pclient->max_index; idx++)
+      if (pclient->open_record[idx].handle == hKey)
+         break;
+   
+   if (idx == pclient->max_index) {
+      return DB_INVALID_HANDLE;
+   }
+
+   KEY* pkey = (KEY*)db_get_pkey(pheader, hKey, &status, "db_remove_open_record_wlocked", NULL);
+
+   if (!pkey)
+      return status;
+
+   /* decrement notify_count */
+
+   if (pkey->notify_count > 0)
+      pkey->notify_count--;
+   
+   pclient->num_open_records--;
+   
+   /* remove exclusive flag */
+   if (pclient->open_record[idx].access_mode & MODE_WRITE)
+      db_set_mode_wlocked(pheader, pkey, (WORD) (pkey->access_mode & ~MODE_EXCLUSIVE), 2, NULL);
+   
+   memset(&pclient->open_record[idx], 0, sizeof(OPEN_RECORD));
+   
+   /* calculate new max_index entry */
+   int i;
+   for (i = pclient->max_index - 1; i >= 0; i--)
+      if (pclient->open_record[i].handle != 0)
+         break;
+   pclient->max_index = i + 1;
+
+   return DB_SUCCESS;
+}
+#endif // LOCAL_ROUTINES
+
 
 INT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock)
 /********************************************************************\
@@ -11958,6 +12005,8 @@ INT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock)
    if (rpc_is_remote())
       return rpc_call(RPC_DB_REMOVE_OPEN_RECORD, hDB, hKey, lock);
 
+   int status = DB_SUCCESS;
+   
 #ifdef LOCAL_ROUTINES
    {
       if (hDB > _database_entries || hDB <= 0) {
@@ -11965,61 +12014,20 @@ INT db_remove_open_record(HNDLE hDB, HNDLE hKey, BOOL lock)
          return DB_INVALID_HANDLE;
       }
 
-      if (lock)
-         db_lock_database(hDB);
+      db_lock_database(hDB);
 
       DATABASE *pdb = &_database[hDB - 1];
       DATABASE_HEADER *pheader = pdb->database_header;
-      DATABASE_CLIENT *pclient = db_get_my_client_locked(pdb);
-
-      /* search key */
-      int idx;
-      for (idx = 0; idx < pclient->max_index; idx++)
-         if (pclient->open_record[idx].handle == hKey)
-            break;
-
-      if (idx == pclient->max_index) {
-         if (lock)
-            db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
-
-      /* check if hKey argument is correct */
-      if (!db_validate_hkey(pheader, hKey)) {
-         if (lock)
-            db_unlock_database(hDB);
-         return DB_INVALID_HANDLE;
-      }
-
-      /* decrement notify_count */
-      KEY* pkey = (KEY *) ((char *) pheader + hKey);
 
       db_allow_write_locked(pdb, "db_remove_open_record");
 
-      if (pkey->notify_count > 0)
-         pkey->notify_count--;
+      status = db_remove_open_record_wlocked(pdb, pheader, hKey);
 
-      pclient->num_open_records--;
-
-      /* remove exclusive flag */
-      if (pclient->open_record[idx].access_mode & MODE_WRITE)
-         db_set_mode(hDB, hKey, (WORD) (pkey->access_mode & ~MODE_EXCLUSIVE), 2);
-
-      memset(&pclient->open_record[idx], 0, sizeof(OPEN_RECORD));
-
-      /* calculate new max_index entry */
-      int i;
-      for (i = pclient->max_index - 1; i >= 0; i--)
-         if (pclient->open_record[i].handle != 0)
-            break;
-      pclient->max_index = i + 1;
-
-      if (lock)
-         db_unlock_database(hDB);
+      db_unlock_database(hDB);
    }
 #endif                          /* LOCAL_ROUTINES */
 
-   return DB_SUCCESS;
+   return status;
 }
 
 /*------------------------------------------------------------------*/
