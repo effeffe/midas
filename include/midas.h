@@ -1344,7 +1344,7 @@ typedef struct {
    DWORD offset;
 } INDEX_RECORD;
 
-typedef struct {
+typedef struct history_struct {
    DWORD event_id = 0;
    std::string event_name;
    DWORD n_tag = 0;

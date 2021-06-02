@@ -321,7 +321,7 @@ struct callback_addr {
    }
 };
 
-typedef struct {
+typedef struct rpc_server_connection_struct {
    std::string host_name;       /*  server name        */
    INT port;                    /*  ip port                 */
    std::string exp_name;        /*  experiment to connect   */
@@ -344,7 +344,7 @@ typedef struct {
    }
 } RPC_SERVER_CONNECTION;
 
-typedef struct {
+typedef struct rpc_server_acception_struct {
    std::string prog_name;           /*  client program name     */
    std::string host_name;           /*  client name             */
    BOOL is_mserver = 0;             /*  this is an mserver server-side connection */
