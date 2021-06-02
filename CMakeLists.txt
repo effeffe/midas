@@ -247,6 +247,7 @@ else (NO_MYSQL)
       separate_arguments(MYSQL_CFLAGS)
       add_compile_options(-DHAVE_MYSQL ${MYSQL_CFLAGS})
       set(DB_LIBS ${DB_LIBS} ${MYSQL_LIBS})
+      message(STATUS "MIDAS: MySQL CFLAGS: ${MYSQL_CFLAGS} and libs: ${MYSQL_LIBS}")
    endif ()
 endif (NO_MYSQL)
 
