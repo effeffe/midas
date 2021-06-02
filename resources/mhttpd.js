@@ -2898,7 +2898,7 @@ function mhttpdConfigODB(callback) {
             mjsonrpc_error_alert(error);
          });
       }
-   } catch {
+   } catch (e) {
    }
 }
 
