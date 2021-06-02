@@ -146,7 +146,7 @@ else (NO_ROOT)
          message(STATUS "MIDAS: ROOT not found")
       endif (ROOT_FOUND)
    else ()
-      message(STATUS "MIDAS: ROOTSYS not defined")
+      message(STATUS "MIDAS: ROOT not found: ROOTSYS is not defined")
       unset(HAVE_ROOT)
    endif()
 

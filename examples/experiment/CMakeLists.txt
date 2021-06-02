@@ -84,7 +84,7 @@ elseif (DEFINED ENV{ROOTSYS})
    #---Define useful ROOT functions and macros (e.g. ROOT_GENERATE_DICTIONARY)
    include(${ROOT_USE_FILE})
 else()
-   message(STATUS "${PROJECT_NAME}: ROOTSYS env.variable is not defined")
+   message(STATUS "${PROJECT_NAME}: ROOT not found: ROOTSYS is not defined")
 endif()
 
 if (ROOT_FOUND)
