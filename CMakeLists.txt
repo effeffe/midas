@@ -33,7 +33,7 @@ endif()
 message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
 set(SYSLIB_DIR ${PROJECT_SOURCE_DIR}/lib)
-set(SYSINC_DIR ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/midasio)
+set(SYSINC_DIR include mxml mjson mvodb midasio)
 set(DRV_DIR ${PROJECT_SOURCE_DIR}/drivers)
 
 # NB: RPATH is not needed as everything is linked statically. K.O.
@@ -447,38 +447,38 @@ if (HAVE_MYSQL)
    target_link_libraries(midas-c-compat ${DB_LIBS})
 endif()
 
-target_include_directories(objlib PUBLIC ${SYSINC_DIR})
+target_include_directories(objlib PUBLIC $<BUILD_INTERFACE:${SYSINC_DIR}>)
 if (OPENSSL_FOUND)
-   target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
+   target_include_directories(objlib PRIVATE $<BUILD_INTERFACE:${OPENSSL_INCLUDE_DIR}>)
 endif ()
 if (CURL_FOUND)
-   target_include_directories(objlib PRIVATE ${CURL_INCLUDE_DIR})
+   target_include_directories(objlib PRIVATE $<BUILD_INTERFACE:${CURL_INCLUDE_DIR}>)
 endif ()
 
-target_include_directories(objlib-c-compat PUBLIC ${SYSINC_DIR})
+target_include_directories(objlib-c-compat PUBLIC $<BUILD_INTERFACE:${SYSINC_DIR}>)
 if (OPENSSL_FOUND)
-   target_include_directories(objlib-c-compat PRIVATE ${OPENSSL_INCLUDE_DIR})
+   target_include_directories(objlib-c-compat PRIVATE $<BUILD_INTERFACE:${OPENSSL_INCLUDE_DIR}>)
 endif ()
 if (CURL_FOUND)
-   target_include_directories(objlib PRIVATE ${CURL_INCLUDE_DIR})
+   target_include_directories(objlib PRIVATE $<BUILD_INTERFACE:${CURL_INCLUDE_DIR}>)
 endif ()
 
 # midas include is public so all programs linking to libmidas will inherit this
-target_include_directories(midas PUBLIC ${SYSINC_DIR})
+target_include_directories(midas PUBLIC $<BUILD_INTERFACE:${SYSINC_DIR}>)
 
 # library for mfe
 add_library(mfe src/mfe)
-target_include_directories(mfe PUBLIC ${SYSINC_DIR})
+target_include_directories(mfe PUBLIC $<BUILD_INTERFACE:${SYSINC_DIR}>)
 
 # library for mana
 add_library(mana src/mana)
-target_include_directories(mana PUBLIC ${SYSINC_DIR})
+target_include_directories(mana PUBLIC $<BUILD_INTERFACE:${SYSINC_DIR}>)
 
 # library for rmana
 add_library(rmana src/mana)
-target_include_directories(rmana PUBLIC ${SYSINC_DIR})
+target_include_directories(rmana PUBLIC $<BUILD_INTERFACE:${SYSINC_DIR}>)
 if (HAVE_ROOT)
-   target_include_directories(rmana PUBLIC ${ROOT_INCLUDE_DIRS})
+   target_include_directories(rmana PUBLIC $<BUILD_INTERFACE:${ROOT_INCLUDE_DIRS}>)
    target_compile_options(rmana PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
 endif(HAVE_ROOT)
 
@@ -490,7 +490,7 @@ install(EXPORT ${PROJECT_NAME}-targets DESTINATION lib)
 
 # library for mfe.o
 add_library(mfeo OBJECT src/mfe)
-target_include_directories(mfeo PUBLIC ${SYSINC_DIR})
+target_include_directories(mfeo PUBLIC $<BUILD_INTERFACE:${SYSINC_DIR}>)
 
 # this is somewhat dirty, as the path to the object dir is hardcoded and
 # might change in future CMake versions. The only other option however
@@ -499,14 +499,14 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/mfeo.dir/src/mfe.cxx.o DEST
 
 # library for mana.o
 add_library(manao OBJECT src/mana)
-target_include_directories(manao PUBLIC ${SYSINC_DIR})
+target_include_directories(manao PUBLIC $<BUILD_INTERFACE:${SYSINC_DIR}>)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manao.dir/src/mana.cxx.o DESTINATION lib RENAME mana.o)
 
 # library for rmana.o
 add_library(rmanao OBJECT src/mana)
-target_include_directories(rmanao PUBLIC ${SYSINC_DIR})
+target_include_directories(rmanao PUBLIC $<BUILD_INTERFACE:${SYSINC_DIR}>)
 if (HAVE_ROOT)
-   target_include_directories(rmanao PUBLIC ${ROOT_INCLUDE_DIRS})
+   target_include_directories(rmanao PUBLIC $<BUILD_INTERFACE:${ROOT_INCLUDE_DIRS}>)
    target_compile_options(rmanao PRIVATE -DHAVE_ROOT)
 endif(HAVE_ROOT)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/rmanao.dir/src/mana.cxx.o DESTINATION lib RENAME rmana.o)
