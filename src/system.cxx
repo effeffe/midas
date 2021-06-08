@@ -3700,7 +3700,7 @@ void *ss_ctrlc_handler(void (*func) (int))
    which keeps one entry for each thread.
 */
 
-typedef struct {
+typedef struct suspend_struct {
    midas_thread_t thread_id = 0;
    INT ipc_recv_port = 0;
    INT ipc_recv_socket = 0;

@@ -627,12 +627,12 @@ int main(int argc, char **argv)
     return 0;
   } else {
     /* check parameters */
-    if (evt_display < 1 && evt_display > 1000) {
+    if (evt_display < 1 || evt_display > 1000) {
       printf("mdump-F- <-display arg> out of range (1:1000)\n");
       return -1;
     }
   }
-  if (dsp_time < 0 && dsp_time > 100) {
+  if (dsp_time < 0 || dsp_time > 100) {
     printf("mdump-F- <-delay arg> out of range (1:100)\n");
     return -1;
   }
