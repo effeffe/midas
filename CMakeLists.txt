@@ -329,6 +329,32 @@ else()
 endif(NO_SENSORS)
 
 #
+# Option OpenCV support (used in mlogger for rstp cameras)
+#
+
+if (NOT NO_OPENCV)
+   set(NO_OPENCV 0 CACHE PATH "")
+endif()
+if (NO_OPENCV)
+  message(STATUS "MIDAS (mlogger): OpenCVG disabled (no rtsp camera support)")
+else()
+  find_package(OpenCV)
+  if (OpenCV_FOUND)
+    if (CURL_FOUND)
+       message(STATUS "MIDAS (mlogger): Found OpenCV version " ${OpenCV_VERSION})
+       add_compile_options(-DHAVE_OPENCV)
+       set(LIBS ${LIBS} ${OpenCV_LIBS})
+    else()
+       message(STATUS "MIDAS (mlogger): Found OpenCV but CURL missing")
+    endif(CURL_FOUND)
+    set(HAVE_OPENCV TRUE)
+  else()
+    message(STATUS "MIDAS (mlogger): OpenCV not found, (no rtsp camera support))")
+  endif()
+endif(NO_OPENCV)
+
+
+#
 # Tell subprojects that we have the "midas" target already defined
 #
 

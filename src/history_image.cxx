@@ -20,6 +20,11 @@
 #include "msystem.h"
 #include "odbxx.h"
 
+
+#ifdef HAVE_OPENCV
+#include <opencv2/opencv.hpp>
+#endif
+
 std::string history_dir() {
    static std::string dir;
 
@@ -80,9 +85,16 @@ int mkpath(std::string dir, mode_t mode)
    return mkdir(dir.c_str(), mode);
 }
 
+
 void image_thread(std::string name) {
    DWORD last_check_delete = 0;
    midas::odb o("/History/Images/"+name);
+#ifdef HAVE_OPENCV
+   cv::VideoCapture cap;
+   //Track the number of times we have failed to connect to prevent error spam
+   int failed_connections = 0;
+   cv::Mat frame;
+#endif
 
    do {
       std::this_thread::sleep_for(std::chrono::milliseconds(20));
@@ -130,6 +142,32 @@ void image_thread(std::string name) {
       if (ss_time() >= o["Last fetch"] + o["Period"]) {
          o["Last fetch"] = ss_time();
          std::string url = o["URL"];
+         bool is_rtsp = false;
+         // Check if the URL is rtsp protocol 
+         if (url.compare(0,7,"rtsp://") == 0) {
+            is_rtsp = true;
+#ifdef HAVE_OPENCV
+            if (!cap.isOpened() ) {
+               cm_msg(MINFO,"image_history_rtsp","Opening camera %s",name.c_str());
+               if (!cap.open(url.c_str())) {
+                  std::cout << "Unable to open video capture\n";
+                  failed_connections++;
+                  std::string error = "Cannot connect to camera \"" + name + "\" at " + url + ", please check camera power and URL";
+                  cm_msg(MERROR,"image_history_rtsp","%s",error.c_str());
+                  if (failed_connections > 10)
+                     cm_msg(MERROR,"image_history_rtsp","More than 10 failed connections, I will stop reporting this error");
+                  continue;
+               } else {
+                  //Connection success! Reset failure counter
+                  failed_connections = 0;
+               }
+            }
+
+#else // We have not built with OpenCV and tried to connect to a rtsp camera
+            std::string error = "Cannot connect to camera \"" + name + "\". mlogger not build with rtsp support (OpenCV)";
+            cm_msg(MERROR,"image_history_rtsp","%s",error.c_str());
+#endif
+         }
          std::string filename = history_dir() + name;
          std::string dotname = filename;
          int status = mkpath(filename, 0755);
@@ -157,41 +195,61 @@ void image_thread(std::string name) {
             filename += o["Extension"];
             dotname +=  o["Extension"];
          }
-
-         CURL *conn = curl_easy_init();
-         curl_easy_setopt(conn, CURLOPT_URL, url.c_str());
-         curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, write_data);
-         curl_easy_setopt(conn, CURLOPT_VERBOSE, 0L);
-         auto f = fopen(dotname.c_str(), "wb");
-         if (f) {
-            curl_easy_setopt(conn, CURLOPT_WRITEDATA, f);
-            curl_easy_setopt(conn, CURLOPT_TIMEOUT, 60L);
-            int status = curl_easy_perform(conn);
-            fclose(f);
-            std::string error;
-            if (status == CURLE_COULDNT_CONNECT) {
-               error = "Cannot connect to camera \"" + name + "\" at " + url + ", please check camera power and URL";
-            } else if (status != CURLE_OK) {
-               error = "Error fetching image from camera \"" + name + "\", curl status " + std::to_string(status);
-            } else {
-               long http_code = 0;
-               curl_easy_getinfo(conn, CURLINFO_RESPONSE_CODE, &http_code);
-               if (http_code != 200)
-                  error = "Error fetching image from camera \"" + name + "\", http error status " +
-                          std::to_string(http_code);
+         if (is_rtsp)
+         {
+#ifdef HAVE_OPENCV
+            // If the system has OpenCV but not the full gstreamer install, or the system is missing video codecs, the mlogger can hang here. 
+            bool OK = cap.grab();
+            if (OK == false) {
+               std::string error = "Cannot grab from camera \"" + name + "\" at " + url + ", please check camera power and URL";
+               cm_msg(MERROR, "log_image_history", "%s", error.c_str());
             }
-            if (!error.empty()) {
-               if (ss_time() > o["Last error"] + o["Error interval (s)"]) {
-                  cm_msg(MERROR, "log_image_history", "%s", error.c_str());
-                  o["Last error"] = ss_time();
+
+            cap >> frame;
+            if (frame.empty()) {
+               std::string error = "Recieved empty frame from camera \"" + name;
+               cm_msg(MERROR, "log_image_history", "%s", error.c_str());
+               continue;
+               // End of video stream
+            }
+            cv::imwrite(filename, frame);
+#endif
+         } else {
+            CURL *conn = curl_easy_init();
+            curl_easy_setopt(conn, CURLOPT_URL, url.c_str());
+            curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, write_data);
+            curl_easy_setopt(conn, CURLOPT_VERBOSE, 0L);
+            auto f = fopen(dotname.c_str(), "wb");
+            if (f) {
+               curl_easy_setopt(conn, CURLOPT_WRITEDATA, f);
+               curl_easy_setopt(conn, CURLOPT_TIMEOUT, 60L);
+               int status = curl_easy_perform(conn);
+               fclose(f);
+               std::string error;
+               if (status == CURLE_COULDNT_CONNECT) {
+                  error = "Cannot connect to camera \"" + name + "\" at " + url + ", please check camera power and URL";
+               } else if (status != CURLE_OK) {
+                  error = "Error fetching image from camera \"" + name + "\", curl status " + std::to_string(status);
+               } else {
+                  long http_code = 0;
+                  curl_easy_getinfo(conn, CURLINFO_RESPONSE_CODE, &http_code);
+                  if (http_code != 200)
+                     error = "Error fetching image from camera \"" + name + "\", http error status " +
+                             std::to_string(http_code);
                }
-               remove(dotname.c_str());
+               if (!error.empty()) {
+                  if (ss_time() > o["Last error"] + o["Error interval (s)"]) {
+                     cm_msg(MERROR, "log_image_history", "%s", error.c_str());
+                     o["Last error"] = ss_time();
+                  }
+                  remove(dotname.c_str());
+               }
+   
+               // rename dotfile to filename to make it visible
+               rename(dotname.c_str(), filename.c_str());
             }
-
-            // rename dotfile to filename to make it visible
-            rename(dotname.c_str(), filename.c_str());
+            curl_easy_cleanup(conn);
          }
-         curl_easy_cleanup(conn);
       }
 
    } while (!stop_all_threads);
