@@ -90,7 +90,7 @@ void image_thread(std::string name) {
    DWORD last_check_delete = 0;
    midas::odb o("/History/Images/"+name);
 #ifdef HAVE_OPENCV
-   cv::VideoCapture cap;
+   cv::VideoCapture* cap = new cv::VideoCapture();
    //Track the number of times we have failed to connect to prevent error spam
    int failed_connections = 0;
    cv::Mat frame;
@@ -147,9 +147,9 @@ void image_thread(std::string name) {
          if (url.compare(0,7,"rtsp://") == 0) {
             is_rtsp = true;
 #ifdef HAVE_OPENCV
-            if (!cap.isOpened() ) {
+            if (!cap->isOpened() ) {
                cm_msg(MINFO,"image_history_rtsp","Opening camera %s",name.c_str());
-               if (!cap.open(url.c_str())) {
+               if (!cap->open(url.c_str())) {
                   std::cout << "Unable to open video capture\n";
                   failed_connections++;
                   std::string error = "Cannot connect to camera \"" + name + "\" at " + url + ", please check camera power and URL";
@@ -199,16 +199,23 @@ void image_thread(std::string name) {
          {
 #ifdef HAVE_OPENCV
             // If the system has OpenCV but not the full gstreamer install, or the system is missing video codecs, the mlogger can hang here. 
-            bool OK = cap.grab();
+            bool OK = cap->grab();
             if (OK == false) {
                std::string error = "Cannot grab from camera \"" + name + "\" at " + url + ", please check camera power and URL";
                cm_msg(MERROR, "log_image_history", "%s", error.c_str());
+               cap->release();
+               delete cap;
+               cap = new cv::VideoCapture();
+               continue;
             }
 
-            cap >> frame;
+            *cap >> frame;
             if (frame.empty()) {
                std::string error = "Recieved empty frame from camera \"" + name;
                cm_msg(MERROR, "log_image_history", "%s", error.c_str());
+               cap->release();
+               delete cap;
+               cap = new cv::VideoCapture();
                continue;
                // End of video stream
             }
@@ -417,4 +424,3 @@ int hs_image_retrieve(std::string image_name, time_t start_time, time_t stop_tim
 
    return HS_SUCCESS;
 }
-
