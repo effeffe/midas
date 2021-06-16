@@ -334,7 +334,7 @@ TMFeResult TMEventBuffer::SendEvent(const std::vector<std::vector<char>>& e)
    int sg_n = e.size();
    const char* sg_ptr[sg_n];
    size_t sg_len[sg_n];
-   for (size_t i=0; i<sg_n; i++) {
+   for (int i=0; i<sg_n; i++) {
       sg_ptr[i] = e[i].data();
       sg_len[i] = e[i].size();
    }
