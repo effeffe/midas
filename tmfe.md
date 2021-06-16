@@ -47,7 +47,7 @@ The frontend main function FeMain provides command line switches similar to mfe.
 ### General structure
 
 * TMFE singleton class provides generic functions of MIDAS
-* TMFeFrontend base class is the frontend framework ("frontend init", "frontend exit", create equipments, etc)
+* TMFrontend base class is the frontend framework ("frontend init", "frontend exit", create equipments, etc)
 * TMFeEquipment base class is the equipment framework (periodic and polled event readout, begin of run & co handlers, etc)
 
 ### Equipment configuration and ODB Common
