@@ -118,6 +118,19 @@ TMFeResult TMFE::Connect(const char* progname, const char* hostname, const char*
 
    fOdbRoot = MakeMidasOdb(fDB);
 
+   int run_state = 0;
+
+   fOdbRoot->RI("Runinfo/state", &run_state);
+   fOdbRoot->RI("Runinfo/run number", &fRunNumber);
+
+   if (run_state == STATE_RUNNING) {
+      fStateRunning = true;
+   } else if (run_state == STATE_PAUSED) {
+      fStateRunning = true;
+   } else {
+      fStateRunning = false;
+   }
+
    RegisterRPCs();
 
    if (gfVerbose) {
@@ -2281,22 +2294,13 @@ TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
       exit(1);
    }
 
-   int run_state = 0;
-   int run_number = 0;
-
-   fMfe->fOdbRoot->RI("Runinfo/state", &run_state);
-   fMfe->fOdbRoot->RI("Runinfo/run number", &run_number);
-
-   if (run_state == STATE_RUNNING) {
-      if (fMfe->fIfRunningCallExit) {
+   if (fMfe->fStateRunning) {
+      if (fFeIfRunningCallExit) {
          fprintf(stderr, "Fatal error: Cannot start frontend, run is in progress!\n");
          exit(1);
-      } else if (fMfe->fIfRunningCallBeginRun) {
+      } else if (fFeIfRunningCallBeginRun) {
          char errstr[TRANSITION_ERROR_STRING_LENGTH];
-         tr_start(run_number, errstr);
-      } else {
-         fMfe->fRunNumber = run_number;
-         fMfe->fStateRunning = true;
+         tr_start(fMfe->fRunNumber, errstr);
       }
    }
 

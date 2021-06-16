@@ -25,25 +25,30 @@ TBW - explain running the frontend:
 * check that history is working
 * stop the frontend (ctrl-C and "programs" page "stop" button)
 
-### tmfe_main command line switches
+### FeMain command line switches
 
-TBW
+The frontend main function FeMain provides command line switches similar to mfe.c frontend:
 
-* -v - enable verbose ...
+* Usage: ./bin/fetest args... [-- equipment args...]
 
-### Concept of equipment module
+* --help and -h - print usage help message
+* -v - enable verbose mode
 
-TBW
+* -h hostname[:tcpport] -- connect to MIDAS mserver on given host and tcp port number
+* -e exptname -- connect to given MIDAS experiment
 
-### Frontend configuration
+* -D -- Become a daemon
+* -O -- Become a daemon but keep stdout for saving in a log file: frontend -O >file.log 2>&1
 
-* std::string fHostname - ???
-* std::string fExptname - experiment name
-* std::string fFrontendName - midas program name (as shown on the Programs page, etc)
-* std::string fFrontendHostname - hostname of machine we are running on (ss_gethostname())
-* std::string fFrontendFilename - program source file name if equipment source file name is not available
-* bool fIfRunningCallExit - do not allow frontend to start if a run is already running
-* bool fIfRunningCallBeginRun - if a run is already running, call begin run handlers
+* -i NNN -- Set frontend index number for indexed equipments
+
+* -- equipment args - all command line switches after "--" are passed to the frontend and equipment handlers
+
+### General structure
+
+* TMFE singleton class provides generic functions of MIDAS
+* TMFeFrontend base class is the frontend framework ("frontend init", "frontend exit", create equipments, etc)
+* TMFeEquipment base class is the equipment framework (periodic and polled event readout, begin of run & co handlers, etc)
 
 ### Equipment configuration and ODB Common
 
@@ -101,6 +106,51 @@ them in the init handler.
 
 Alternatively, experiments that do not want equipment configuration controlled to be controlled by ODB,
 should set the initial value of ReadEqInfoFromODB to false.
+
+### Equipment useful variables and services
+
+* fEqName - equipment name
+* fEqFileName - equipment source file name
+* fEqConfXXX - equipment configuration (see above)
+
+* fEqEventBuffer - event buffer where events will be sent
+* fEqEventBuffer->fBufName - event buffer name
+* fEqEventBuffer->fBufSize - event buffer size
+* fEqEventBuffer->fBufMaxEventSize - maximum event size for this buffer (MAX_EVENT_SIZE in ODB or half of buffer size)
+
+* fOdbEq - ODB directory /Equipment/EQNAME
+* fOdbEqSettings - ODB directory /Equipment/EQNAME/Settings
+* fOdbEqVariables - ODB directory /Equipment/EQNAME/Variables
+* fOdbEqStatistics - ODB directory /Equipment/EQNAME/Statistics
+
+* fEqSerial - serial number for the next event
+
+* EqSetStatus() - set equipment status string shown on the midas status page
+* EqSendEvent() - send event into the event buffer
+
+### Frontend configuration, useful variables and services
+
+* fFe->fFeIndex - frontend index for indexed equipments
+
+* fFe->fFeIfRunningCallExit - do not allow frontend to start if a run is already running
+* fFe->fFeIfRunningCallBeginRun - if a run is already running, call the begin run handlers
+
+### TMFE configuration, useful variables and services
+
+* fMfe->Msg() - midas info, log and error messages
+
+* fMfe->fProgramName - current MIDAS program name
+* fMfe->fHostname - current hostname (same as ss_gethostname())
+* fMfe->fExptname - current experiment (blank if default/only experiment)
+* fMfe->fMserverHostname - mserver connection, blank if local shared memory connection
+
+* fMfe->fShutdownRequested - frontend is shutting down. stop looping, stop threads, etc, return from event loop, return from handler, etc
+
+* fMfe->fRunNumber - current run number (same as ODB "Runinfo/Run Number")
+* fMfe->fStateRunning - current run state, false=stopped, true=running or paused (from ODB "Runinfo/State")
+
+* fMfe->fDB - MIDAS ODB handle
+* fMfe->fOdbRoot - MIDAS ODB MVOdb top level directory
 
 ### Main loop and general control flow
 
@@ -218,35 +268,6 @@ TBW
 ### ODB Handler
 
 TBI, TBW
-
-### Variables provided by the framework
-
-Important and useful variables provided by the framework:
-
-* fMfe->Msg() - midas info, log and error messages
-* fMfe->fProgramName - current MIDAS program name
-* fMfe->fHostname - current hostname (same as ss_gethostname())
-* fMfe->fExptname - current experiment (blank if default/only experiment)
-* fMfe->MserverHostname - mserver connection, blank if local shared memory connection
-* fMfe->fShutdownRequested - frontend is shutting down. stop looping, etc, return from event loop, return from handler, etc
-* fMfe->fRunNumber - current run number (same as ODB "Runinfo/Run Number")
-* fMfe->fStateRunning - current run state is running or paused (run in progress)
-* fMfe->fDB - MIDAS ODB handle
-* fMfe->fOdbRoot - MIDAS ODB MVOdb top level directory
-
-* fFe->fFeIndex - frontend index for indexed equipments
-
-* fFe->fEventBuffer->fBufName - name of current event buffer
-* fFe->fEventBuffer->fBufSize - size of current event buffer
-* fFe->fEventBuffer->fBufMaxEventSize - maximum event size accepted by the event buffer
-
-* fEqName - equipment name
-* fEqConfXXX - equipment configuration (see above)
-* fOdbEq - ODB directory /Equipment/EQNAME
-* fOdbEqSettings - ODB directory /Equipment/EQNAME/Settings
-* fOdbEqVariables - ODB directory /Equipment/EQNAME/Variables
-* fOdbEqStatistics - ODB directory /Equipment/EQNAME/Statistics
-* EqSetStatus() - set equipment status string on the midas status page
 
 ### Creating and sending events
 

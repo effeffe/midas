@@ -209,9 +209,6 @@ public: // connection to ODB
    MVOdb* fOdbEqStatistics = NULL; ///< ODB Equipment/EQNAME/Statistics
 
 public: // connection to event buffer
-   //size_t fEqBufferSize = 0;
-   //size_t fEqMaxEventSize = 0;
-   //int    fEqBufferHandle = 0;
    TMEventBuffer* fEqEventBuffer = NULL; // pointer to buffer entry inside TMFE
    int    fEqSerial = 0;
 
@@ -307,8 +304,10 @@ public: // configuration
    TMFrontendRpcHelper* fFeRpcHelper = NULL;
 
 public: // configuration
-   // use fMfe->fProgramName instead std::string fFeName; //< frontend name
-   int fFeIndex = 0; //< frontend index
+   int  fFeIndex = 0; //< frontend index
+
+   bool fFeIfRunningCallExit = false;
+   bool fFeIfRunningCallBeginRun = true;
 
 public: // multithreaded lock
    std::mutex fFeMutex;
@@ -381,11 +380,6 @@ public: // configuration
 
    std::string fProgramName; ///< frontend program name
    std::string fHostname; ///< hostname we are running on
-
-public: // configuration, what to do if started when run is in progress
-
-   bool fIfRunningCallExit = false;
-   bool fIfRunningCallBeginRun = true;
 
 public: // multithreaded lock
    std::mutex fMutex;
