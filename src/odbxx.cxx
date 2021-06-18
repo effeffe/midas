@@ -69,6 +69,18 @@ namespace midas {
       return db_find_key(m_hDB, 0, name.c_str(), &hkey) == DB_SUCCESS;
    }
 
+   // delete a key in the ODB
+   int odb::delete_key(std::string name) {
+      init_hdb();
+      if (!odb::is_connected_odb())
+         return false;
+      HNDLE hkey;
+      auto status = db_find_key(m_hDB, 0, name.c_str(), &hkey);
+      if (status != DB_SUCCESS)
+         return status;
+      return db_delete_key(m_hDB, hkey, false);
+   }
+
    // global callback function for db_watch()
    void odb::watch_callback(int hDB, int hKey, int index, void *info) {
       midas::odb *po = static_cast<midas::odb *>(info);
