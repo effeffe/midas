@@ -831,7 +831,7 @@ void TMFE::Yield(double sleep_sec)
       if (sleep_time > 0)
          s = 1 + sleep_time*1000.0;
 
-      //printf("now %f, sleep_end %f, s %d\n", now, sleep_end, s);
+      //printf("TMFE::Yield: now %f, sleep_end %f, s %d\n", now, sleep_end, s);
       
       int status = cm_yield(s);
       
@@ -845,7 +845,7 @@ void TMFE::Yield(double sleep_sec)
          break;
    }
 
-   //printf("TMFE::Yield: msec %d, actual %f msec\n", msec, (now - sleep_start) * 1000.0);
+   //printf("TMFE::Yield: sleep_sec %.6f, actual %.6f sec\n", sleep_sec, now - sleep_start);
 }
 
 void TMFE::MidasPeriodicTasks()
