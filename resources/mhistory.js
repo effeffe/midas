@@ -477,6 +477,13 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    this.logAxis = this.odb["Log axis"];
 
+   // protect against empty history plot
+   if (!this.odb.Variables) {
+      this.odb.Variables = "(empty):(empty)";
+      this.odb.Label = "(empty)";
+      this.odb.Colour = "";
+   }
+
    // if only one variable present, convert it to array[0]
    if (!Array.isArray(this.odb.Variables))
       this.odb.Variables = new Array(this.odb.Variables);
