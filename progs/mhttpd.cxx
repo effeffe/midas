@@ -11926,460 +11926,377 @@ static int xdb_find_key(HNDLE hDB, HNDLE dir, const char* str, HNDLE* hKey, int 
    return status;
 }
 
-struct hist_var_t
+struct HistVar
 {
    std::string event_name;
    std::string tag_name;
-   std::string hist_formula;
-   std::string hist_col;
-   std::string hist_label;
-   int  hist_order;
-
-   hist_var_t() // ctor
-   {
-      hist_formula = "";
-      hist_order = -1;
-   }
+   std::string formula;
+   std::string colour;
+   std::string label;
+   int         order = -1;
+   double factor = 1.0;
+   double offset = 0;
+   double voffset = 0;
 };
 
-typedef std::vector<hist_var_t> hist_var_list_t;
-
-bool cmp_vars(const hist_var_t &a, const hist_var_t &b)
+struct HistPlot
 {
-   return a.hist_order < b.hist_order;
+   std::string timescale = "1h";
+   double minimum = 0;
+   double maximum = 0;
+   bool zero_ylow = false;
+   bool log_axis  = false;
+   bool show_run_markers = true;
+   bool show_values = true;
+   bool show_fill   = true;
+
+   std::vector<HistVar> vars;
+};
+
+static bool cmp_vars(const HistVar &a, const HistVar &b)
+{
+   return a.order < b.order;
 }
 
-struct hist_plot_t
+static void PrintHistPlot(const HistPlot& hp)
 {
-   std::string timescale;
-   float minimum;
-   float maximum;
-   bool zero_ylow;
-   bool log_axis;
-   bool show_run_markers;
-   bool show_values;
-   bool show_fill;
-
-   hist_var_list_t vars;
-
-   hist_plot_t() // ctor
-   {
-      timescale = "1h";
-      minimum = 0;
-      maximum = 0;
-      zero_ylow = true;
-      log_axis = false;
-      show_run_markers = true;
-      show_values = true;
-      show_fill = true;
+   printf("hist plot: %d variables\n", (int)hp.vars.size());
+   printf("timescale: %s, minimum: %f, maximum: %f, zero_ylow: %d, log_axis: %d, show_run_markers: %d, show_values: %d, show_fill: %d\n", hp.timescale.c_str(), hp.minimum, hp.maximum, hp.zero_ylow, hp.log_axis, hp.show_run_markers, hp.show_values, hp.show_fill);
+   
+   for (size_t i=0; i<hp.vars.size(); i++) {
+      printf("var[%d] event [%s][%s] formula [%s], colour [%s] label [%s] factor %f offset %f voffset %f order %d\n", (int)i, hp.vars[i].event_name.c_str(), hp.vars[i].tag_name.c_str(), hp.vars[i].formula.c_str(), hp.vars[i].colour.c_str(), hp.vars[i].label.c_str(), hp.vars[i].factor, hp.vars[i].offset , hp.vars[i].voffset, hp.vars[i].order);
    }
+}
 
-   void Print() const
-   {
-      printf("hist plot:\n");
-      printf("timescale: %s, minimum: %f, maximum: %f, zero_ylow: %d, log_axis: %d, show_run_markers: %d, show_values: %d, show_fill: %d\n", timescale.c_str(), minimum, maximum, zero_ylow, log_axis, show_run_markers, show_values, show_fill);
+static std::string NextHistPlotColour(const HistPlot& hp)
+{
+   const char* const colour[] =
+      {
+       "#00AAFF", "#FF9000", "#FF00A0", "#00C030",
+       "#A0C0D0", "#D0A060", "#C04010", "#807060",
+       "#F0C000", "#2090A0", "#D040D0", "#90B000",
+       "#B0B040", "#B0B0FF", "#FFA0A0", "#A0FFA0",
+       NULL };
 
-      for (unsigned i=0; i<vars.size(); i++) {
-         printf("var[%d] event [%s][%s] formula %s, color [%s] label [%s] order %d\n", i, vars[i].event_name.c_str(), vars[i].tag_name.c_str(), vars[i].hist_formula.c_str(), vars[i].hist_col.c_str(), vars[i].hist_label.c_str(), vars[i].hist_order);
-      }
-   }
-
-   void LoadFromOdb(HNDLE hDB, const char* path)
-   {
-      int status;
-      HNDLE hDir;
-
-      status = db_find_key(hDB, 0, "/History/Display", &hDir);
-      if (status != DB_SUCCESS || !hDir) {
-         return;
-      }
-
-      status = db_find_key(hDB, hDir, path, &hDir);
-      if (status != DB_SUCCESS || !hDir) {
-         return;
-      }
-
-      int size;
-      float val;
-      BOOL flag;
-
-      std::string ts = timescale;
-      status = db_get_value_string(hDB, hDir, "Timescale", 0, &ts, FALSE);
-      if (status == DB_SUCCESS)
-         timescale = ts;
-
-      val = minimum;
-      size = sizeof(val);
-      status = db_get_value(hDB, hDir, "Minimum", &val, &size, TID_FLOAT, FALSE);
-      if (status == DB_SUCCESS)
-         minimum = val;
-
-      val = maximum;
-      size = sizeof(val);
-      status = db_get_value(hDB, hDir, "Maximum", &val, &size, TID_FLOAT, FALSE);
-      if (status == DB_SUCCESS)
-         maximum = val;
-
-      flag = zero_ylow;
-      size = sizeof(flag);
-      status = db_get_value(hDB, hDir, "Zero ylow", &flag, &size, TID_BOOL, FALSE);
-      if (status == DB_SUCCESS)
-         zero_ylow = flag;
-
-      flag = log_axis;
-      size = sizeof(flag);
-      status = db_get_value(hDB, hDir, "Log axis", &flag, &size, TID_BOOL, FALSE);
-      if (status == DB_SUCCESS)
-         log_axis = flag;
-
-      flag = show_run_markers;
-      size = sizeof(flag);
-      status = db_get_value(hDB, hDir, "Show run markers", &flag, &size, TID_BOOL, FALSE);
-      if (status == DB_SUCCESS)
-         show_run_markers = flag;
-
-      flag = show_values;
-      size = sizeof(flag);
-      status = db_get_value(hDB, hDir, "Show values", &flag, &size, TID_BOOL, FALSE);
-      if (status == DB_SUCCESS)
-         show_values = flag;
-
-      flag = show_fill;
-      size = sizeof(flag);
-      status = db_get_value(hDB, hDir, "Show fill", &flag, &size, TID_BOOL, FALSE);
-      if (status == DB_SUCCESS)
-         show_fill = flag;
-
-      for (unsigned index=0; ; index++) {
-         hist_var_t v;
-
-         char str[256];
-         char var_name_odb[256];
-
-         var_name_odb[0] = 0;
-
-         sprintf(str, "/History/Display/%s/Variables", path);
-         xdb_get_data_index(hDB, str, var_name_odb, sizeof(var_name_odb), index, TID_STRING);
-
-         if (var_name_odb[0] == 0)
+   for (int i=0; colour[i]; i++) {
+      bool in_use = false;
+      
+      for (size_t j=0; j<hp.vars.size(); j++)
+         if (hp.vars[j].colour == colour[i]) {
+            in_use = true;
             break;
+         }
+      
+      if (!in_use)
+         return colour[i];
+   }
+   
+   return "#808080";
+}
 
-         //printf("index %d, var_name_odb %s\n", index, var_name_odb);
+static int NextHistPlotOrder(const HistPlot& hp)
+{
+   int order = 0;
+   for (size_t i=0; i<hp.vars.size(); i++)
+      if (hp.vars[i].order > order)
+         order = hp.vars[i].order;
+   return order + 10;
+}
 
-         char* s = strchr(var_name_odb, ':');
-
-         //printf("index %d, var_name_odb [%s] %p [%s]\n", index, var_name_odb, s, s?s:"");
-
-         if (s)
-            *s = 0;
-         v.event_name = var_name_odb;
-         if (s)
-            v.tag_name = s+1;
-
-         //printf("index %d, var_name_odb [%s] %p [%s]\n", index, var_name_odb, s, s?(s+1):"");
-
-         v.hist_formula = "";
-
-         char buf[256];
-         buf[0] = 0;
-         sprintf(str, "/History/Display/%s/Formula", path);
-         xdb_get_data_index(hDB, str, buf, sizeof(buf), index, TID_STRING);
-         v.hist_formula = buf;
-
-         strlcpy(buf, "#000000", sizeof(buf));
-         sprintf(str, "/History/Display/%s/Colour", path);
-         xdb_get_data_index(hDB, str, buf, sizeof(buf), index, TID_STRING);
-         v.hist_col = buf;
-
-         sprintf(str, "/History/Display/%s/Label", path);
-         xdb_get_data_index(hDB, str, buf, sizeof(buf), index, TID_STRING);
-         v.hist_label = buf;
-
-         v.hist_order = NextOrder();
-
-         vars.push_back(v);
-      }
-
-      //printf("Load from ODB:\n");
-      //Print();
+static HistPlot* LoadHistPlotFromOdb(HNDLE hDB, const char* path)
+{
+   HistPlot* hp = new HistPlot;
+   
+   MVOdb* odb = MakeMidasOdb(hDB);
+   MVOdb* odb_history_display = odb->Chdir("History/Display");
+   if (!odb_history_display) {
+      delete odb;
+      return hp;
+   }
+   MVOdb* o = odb_history_display->Chdir(path);
+   if (!o) {
+      delete odb;
+      delete odb_history_display;
+      return hp;
    }
 
-   void LoadFromParam(Param* p)
-   {
-      timescale        = p->getparam("timescale");
-      minimum = (float) strtod(p->getparam("minimum"),NULL);
-      maximum = (float) strtod(p->getparam("maximum"),NULL);
-      zero_ylow        = *p->getparam("zero_ylow");
-      log_axis         = *p->getparam("log_axis");
-      show_run_markers = *p->getparam("run_markers");
-      show_values      = *p->getparam("show_values");
-      show_fill        = *p->getparam("show_fill");
+   o->RS("Timescale",   &hp->timescale);
+   o->RD("Minimum",     &hp->minimum);
+   o->RD("Maximum",     &hp->maximum);
+   o->RB("Zero ylow",   &hp->zero_ylow);
+   o->RB("Log axis",    &hp->log_axis);
+   o->RB("Zero ylow",   &hp->zero_ylow);
+   o->RB("Show run markers", &hp->show_run_markers);
+   o->RB("Show values", &hp->show_values);
+   o->RB("Show fill",   &hp->show_fill);
 
-      for (unsigned index=0; ; index++) {
-         char str[256];
-         sprintf(str, "event%d", index);
+   std::vector<std::string> hist_vars;
+   std::vector<std::string> hist_formula;
+   std::vector<std::string> hist_colour;
+   std::vector<std::string> hist_label;
+   std::vector<double> hist_factor;
+   std::vector<double> hist_offset;
+   std::vector<double> hist_voffset;
 
-         //printf("param event %d: [%s] [%s] [%d]\n", index, str, p->getparam(str), *p->getparam(str));
+   o->RSA("Variables", &hist_vars);
+   o->RSA("Formula",   &hist_formula);
+   o->RSA("Colour",    &hist_colour);
+   o->RSA("Label",     &hist_label);
+   o->RDA("Factor",    &hist_factor);
+   o->RDA("Offset",    &hist_offset);
+   o->RDA("VOffset",   &hist_voffset);
 
-         if (!p->getparam(str) || !*p->getparam(str))
-            break;
+   size_t num = std::max(hist_vars.size(), hist_formula.size());
+   num = std::max(num, hist_colour.size());
+   num = std::max(num, hist_label.size());
+   num = std::max(num, hist_factor.size());
+   num = std::max(num, hist_offset.size());
+   num = std::max(num, hist_voffset.size());
 
-         if (*p->getparam(str) == '/') // "/empty"
-            continue;
+   hist_vars.resize(num);
+   hist_formula.resize(num);
+   hist_colour.resize(num);
+   hist_label.resize(num);
+   hist_factor.resize(num, 1.0);
+   hist_offset.resize(num, 0.0);
+   hist_voffset.resize(num, 0.0);
 
-         hist_var_t v;
-         v.event_name = p->getparam(str);
+   for (size_t i=0; i<num; i++) {
+      HistVar v;
 
-         sprintf(str, "var%d", index);
-         v.tag_name = p->getparam(str);
-
-         sprintf(str, "form%d", index);
-         if (p->getparam(str) && *p->getparam(str))
-            v.hist_formula = p->getparam(str);
-
-         sprintf(str, "col%d", index);
-         if (p->getparam(str) && *p->getparam(str))
-            v.hist_col = p->getparam(str);
-
-         sprintf(str, "lab%d", index);
-         if (p->getparam(str) && *p->getparam(str))
-            v.hist_label = p->getparam(str);
-
-         sprintf(str, "ord%d", index);
-         if (p->getparam(str) && *p->getparam(str))
-            v.hist_order = atoi(p->getparam(str));
-
-         vars.push_back(v);
+      size_t pos = hist_vars[i].find(":");
+      if (pos != std::string::npos) {
+         v.event_name = hist_vars[i].substr(0, pos);
+         v.tag_name = hist_vars[i].substr(pos+1);
+      } else {
+         v.event_name = hist_vars[i];
+         v.tag_name = "";
       }
 
-      /* correctly number newly added variables */
-      for (unsigned index=0; index<vars.size(); index++) {
-         if (vars[index].hist_order < 0)
-            vars[index].hist_order = NextOrder();
-      }
-
-      //printf("Load from param:\n");
-      //Print();
+      v.formula = hist_formula[i];
+      v.colour  = hist_colour[i];
+      v.label   = hist_label[i];
+      v.factor  = hist_factor[i];
+      v.offset  = hist_offset[i];
+      v.voffset = hist_voffset[i];
+      v.order   = NextHistPlotOrder(*hp);
+      
+      hp->vars.push_back(v);
    }
+   
+   printf("Load from ODB:\n");
+   PrintHistPlot(*hp);
 
-   void AddSelectedParam(Param* p)
-   {
-      int seln = atoi(p->getparam("seln"));
-      for (int i=0; i<seln; i++) {
-         char str[256];
-         sprintf(str, "sel%d", i);
+   delete odb;
+   delete odb_history_display;
+   delete o;
 
-         std::string par = p->getparam(str);
-	 if (par.length() < 1)
-            continue;
+   return hp;
+}
 
-         std::string::size_type pos = par.find(':');
-         if (pos == std::string::npos)
-            continue;
+static HistPlot* LoadHistPlotFromParam(Param* p)
+{
+   HistPlot *hp = new HistPlot;
 
-         hist_var_t v;
-
-         v.event_name = par.substr(0, pos);
-         v.tag_name = par.substr(pos+1);
-         v.hist_formula = "";
-         v.hist_order = NextOrder();
-
-         vars.push_back(v);
-      }
-   }
-
-   void SaveToOdb(HNDLE hDB, const char* path)
-   {
-      int status;
-      HNDLE hDir;
-      BOOL flag;
-      float val;
+   hp->timescale        = p->getparam("timescale");
+   hp->minimum          = strtod(p->getparam("minimum"), NULL);
+   hp->maximum          = strtod(p->getparam("maximum"), NULL);
+   hp->zero_ylow        = *p->getparam("zero_ylow");
+   hp->log_axis         = *p->getparam("log_axis");
+   hp->show_run_markers = *p->getparam("run_markers");
+   hp->show_values      = *p->getparam("show_values");
+   hp->show_fill        = *p->getparam("show_fill");
+   
+   for (int index=0; ; index++) {
       char str[256];
+      sprintf(str, "event%d", index);
+      
+      //printf("param event %d: [%s] [%s] [%d]\n", index, str, p->getparam(str), *p->getparam(str));
+      
+      if (!p->isparam(str))
+         break;
+      
+      if (*p->getparam(str) == '/') // "/empty"
+         continue;
+      
+      HistVar v;
 
-      status = db_find_key(hDB, 0, "/History/Display", &hDir);
-      if (status != DB_SUCCESS || !hDir) {
-         return;
+      v.event_name = p->xgetparam(str);
+      
+      sprintf(str, "var%d", index);
+      v.tag_name = p->xgetparam(str);
+      
+      sprintf(str, "form%d", index);
+      v.formula = p->xgetparam(str);
+      
+      sprintf(str, "col%d", index);
+      v.colour = p->xgetparam(str);
+      
+      sprintf(str, "lab%d", index);
+      v.label = p->xgetparam(str);
+      
+      sprintf(str, "factor%d", index);
+      if (p->isparam(str)) {
+         v.factor = atof(p->xgetparam(str).c_str());
+      } else {
+         v.factor = 1.0;
       }
-
-      status = db_find_key(hDB, hDir, path, &hDir);
-      if (status != DB_SUCCESS || !hDir) {
-         status = db_create_key(hDB, 0, path, TID_KEY);
-         status = db_find_key(hDB, 0, path, &hDir);
-         if (status != DB_SUCCESS || !hDir)
-            return;
+      
+      sprintf(str, "offset%d", index);
+      v.offset = atof(p->xgetparam(str).c_str());
+      
+      sprintf(str, "voffset%d", index);
+      v.voffset = atof(p->xgetparam(str).c_str());
+      
+      sprintf(str, "ord%d", index);
+      if (p->isparam(str)) {
+         v.order = atoi(p->xgetparam(str).c_str());
+      } else {
+         v.order = NextHistPlotOrder(*hp);
       }
+      
+      hp->vars.push_back(v);
+   }
+   
+   /* correctly number newly added variables */
+   for (size_t index=0; index<hp->vars.size(); index++) {
+      if (hp->vars[index].order < 0)
+         hp->vars[index].order = NextHistPlotOrder(*hp);
+   }
+   
+   printf("Load from param:\n");
+   PrintHistPlot(*hp);
 
-      STRLCPY(str, timescale.c_str());
-      db_set_value(hDB, hDir, "Timescale", str, NAME_LENGTH, 1, TID_STRING);
+   return hp;
+}
 
-      val = minimum;
-      db_set_value(hDB, hDir, "Minimum", &val, sizeof(val), 1, TID_FLOAT);
+static void AddHistPlotSelectedParam(HistPlot& hp, Param* p)
+{
+   int seln = atoi(p->getparam("seln"));
+   for (int i=0; i<seln; i++) {
+      char str[256];
+      sprintf(str, "sel%d", i);
+      
+      std::string par = p->getparam(str);
+      if (par.length() < 1)
+         continue;
+      
+      std::string::size_type pos = par.find(':');
+      if (pos == std::string::npos)
+         continue;
+      
+      HistVar v;
+      
+      v.event_name = par.substr(0, pos);
+      v.tag_name   = par.substr(pos+1);
+      v.colour     = NextHistPlotColour(hp);
+      v.order      = NextHistPlotOrder(hp);
+      
+      hp.vars.push_back(v);
+   }
+}
 
-      val = maximum;
-      db_set_value(hDB, hDir, "Maximum", &val, sizeof(val), 1, TID_FLOAT);
+static void SaveHistPlotToOdb(HNDLE hDB, const char* path, const HistPlot& hp)
+{
+   MVOdb* odb = MakeMidasOdb(hDB);
+   MVOdb* odb_history_display = odb->Chdir("History/Display", true);
+   MVOdb* o = odb_history_display->Chdir(path, true);
+   
+   o->WS("Timescale", hp.timescale.c_str());
+   o->WD("Minimum", hp.minimum);
+   o->WD("Maximum", hp.maximum);
+   o->WB("Zero ylow", hp.zero_ylow);
+   o->WB("Log axis", hp.log_axis);
+   o->WB("Show run markers", hp.show_run_markers);
+   o->WB("Show values", hp.show_values);
+   o->WB("Show fill", hp.show_fill);
 
-      flag = zero_ylow;
-      db_set_value(hDB, hDir, "Zero ylow", &flag, sizeof(flag), 1, TID_BOOL);
+   std::vector<std::string> hist_vars;
+   std::vector<std::string> hist_formula;
+   std::vector<std::string> hist_colour;
+   std::vector<std::string> hist_label;
+   std::vector<double> hist_factor;
+   std::vector<double> hist_offset;
+   std::vector<double> hist_voffset;
 
-      flag = log_axis;
-      db_set_value(hDB, hDir, "Log axis", &flag, sizeof(flag), 1, TID_BOOL);
+   for (size_t i=0; i<hp.vars.size(); i++) {
+      hist_vars.push_back(hp.vars[i].event_name + ":" + hp.vars[i].tag_name);
+      hist_formula.push_back(hp.vars[i].formula);
+      hist_colour.push_back(hp.vars[i].colour);
+      hist_label.push_back(hp.vars[i].label);
+      hist_factor.push_back(hp.vars[i].factor);
+      hist_offset.push_back(hp.vars[i].offset);
+      hist_voffset.push_back(hp.vars[i].voffset);
+   }
 
-      flag = show_run_markers;
-      db_set_value(hDB, hDir, "Show run markers", &flag, sizeof(flag), 1, TID_BOOL);
+   if (hp.vars.size() > 0) {
+      o->WSA("Variables", hist_vars, 256);
+      o->WSA("Formula",   hist_formula, 256);
+      o->WSA("Colour",    hist_colour, NAME_LENGTH);
+      o->WSA("Label",     hist_label, NAME_LENGTH);
+      o->WDA("Factor",    hist_factor);
+      o->WDA("Offset",    hist_offset);
+      o->WDA("VOffset",   hist_voffset);
+   } else {
+      o->Delete("Variables");
+      o->Delete("Formula");
+      o->Delete("Colour");
+      o->Delete("Label");
+      o->Delete("Factor");
+      o->Delete("Offset");
+      o->Delete("VOffset");
+   }
 
-      flag = show_values;
-      db_set_value(hDB, hDir, "Show values", &flag, sizeof(flag), 1, TID_BOOL);
+   delete odb;
+   delete odb_history_display;
+   delete o;
+}
 
-      flag = show_fill;
-      db_set_value(hDB, hDir, "Show fill", &flag, sizeof(flag), 1, TID_BOOL);
-
-      int index = vars.size();
-
-      if (index == 0) {
-         index = 1;
-      }
-
-      HNDLE hKey;
-
-      xdb_find_key(hDB, hDir, "Variables", &hKey, TID_STRING, 2*NAME_LENGTH);
-      status = db_set_num_values(hDB, hKey, index);
-      assert(status == DB_SUCCESS);
-
-      xdb_find_key(hDB, hDir, "Label", &hKey, TID_STRING, NAME_LENGTH);
-      status = db_set_num_values(hDB, hKey, index);
-      assert(status == DB_SUCCESS);
-
-      xdb_find_key(hDB, hDir, "Colour", &hKey, TID_STRING, NAME_LENGTH);
-      status = db_set_num_values(hDB, hKey, index);
-      assert(status == DB_SUCCESS);
-
-      xdb_find_key(hDB, hDir, "Factor", &hKey, TID_FLOAT, 0);
-      status = db_set_num_values(hDB, hKey, index);
-      assert(status == DB_SUCCESS);
-
-      xdb_find_key(hDB, hDir, "Offset", &hKey, TID_FLOAT, 0);
-      status = db_set_num_values(hDB, hKey, index);
-      assert(status == DB_SUCCESS);
-
-      for (unsigned index=0; index<vars.size(); index++) {
-         HNDLE hKey;
-         std::string var_name = vars[index].event_name + ":" + vars[index].tag_name;
-
-         sprintf(str, "/History/Display/%s/Variables", path);
-         STRLCPY(str, var_name.c_str());
-         xdb_find_key(hDB, hDir, "Variables", &hKey, TID_STRING, 2*NAME_LENGTH);
-         db_set_data_index(hDB, hKey, str, 2 * NAME_LENGTH, index, TID_STRING);
-
-         xdb_find_key(hDB, hDir, "Formula", &hKey, TID_STRING, 256);
-
-         // resize formula ODB entry if necessary
-         KEY key;
-         db_get_key(hDB, hKey, &key);
-         if (key.item_size != 256) {
-            std::vector<std::string> list;
-            char str[256];
-            int size = sizeof(str);
-            for (int i=0 ; i<key.num_values ; i++) {
-               db_get_data_index(hDB, hKey, str, &size, i, TID_STRING);
-               list.push_back(str);
-            }
-            db_delete_key(hDB, hKey, false);
-            db_create_key(hDB, hDir, "Formula", TID_STRING);
-            db_find_key(hDB, hDir, "Formula", &hKey);
-            for (int i=0 ; i<key.num_values ; i++) {
-               db_set_data_index(hDB, hKey, list[i].c_str(), 256, i, TID_STRING);
-            }
+static void DeleteHistPlotDeleted(HistPlot& hp)
+{
+   /* delete variables according to "hist_order" */
+   
+   while (1) {
+      bool something_deleted = false;
+      for (unsigned i=0; i<hp.vars.size(); i++) {
+         if (hp.vars[i].order <= 0) {
+            hp.vars.erase(hp.vars.begin() + i);
+            something_deleted = true;
          }
+      }
+      if (!something_deleted)
+         break;
+   }
+}
 
-         db_set_data_index(hDB, hKey, vars[index].hist_formula.c_str(), 256, index, TID_STRING);
-
-         xdb_find_key(hDB, hDir, "Colour", &hKey, TID_STRING, NAME_LENGTH);
-         db_set_data_index(hDB, hKey, vars[index].hist_col.c_str(), NAME_LENGTH, index, TID_STRING);
-
-         xdb_find_key(hDB, hDir, "Label", &hKey, TID_STRING, NAME_LENGTH);
-         db_set_data_index(hDB, hKey, vars[index].hist_label.c_str(), NAME_LENGTH, index, TID_STRING);
+static void SortHistPlotVars(HistPlot& hp)
+{
+   /* sort variables according to "hist_order" */
+   
+   bool need_sort = false;
+   for (size_t i=1; i<hp.vars.size(); i++) {
+      if (hp.vars[i-1].order >= hp.vars[i].order) {
+         need_sort = true;
       }
    }
-
-   void DeleteDeleted()
-   {
-      /* delete variables according to "hist_order" */
-
-      while (1) {
-         bool something_deleted = false;
-         for (unsigned i=0; i<vars.size(); i++) {
-            if (vars[i].hist_order <= 0) {
-               vars.erase(vars.begin() + i);
-               something_deleted = true;
-            }
-         }
-         if (!something_deleted)
-            break;
-      }
+   
+   if (need_sort) {
+      /* sort variables by order */
+      std::sort(hp.vars.begin(), hp.vars.end(), cmp_vars);
+      
+      /* renumber the variables according to the new sorted order */
+      for (size_t index=0; index<hp.vars.size(); index++)
+         hp.vars[index].order = (index+1)*10;
    }
+}
 
-   void SortVars()
-   {
-      /* sort variables according to "hist_order" */
-
-      bool need_sort = false;
-      for (unsigned i=1; i<vars.size(); i++) {
-         if (vars[i-1].hist_order >= vars[i].hist_order) {
-            need_sort = true;
-         }
-      }
-
-      if (need_sort) {
-         /* sort variables by order */
-         std::sort(vars.begin(), vars.end(), cmp_vars);
-
-         /* renumber the variables according to the new sorted order */
-         for (unsigned index=0; index<vars.size(); index++)
-            vars[index].hist_order = (index+1)*10;
-      }
-   }
-
-   std::string NextColor()
-   {
-      const char* const color[] = {
-              "#00AAFF", "#FF9000", "#FF00A0", "#00C030",
-              "#A0C0D0", "#D0A060", "#C04010", "#807060",
-              "#F0C000", "#2090A0", "#D040D0", "#90B000",
-              "#B0B040", "#B0B0FF", "#FFA0A0", "#A0FFA0", NULL };
-
-      for (int i=0; color[i]; i++) {
-         bool in_use = false;
-
-         for (unsigned j=0; j<vars.size(); j++)
-            if (vars[j].hist_col == color[i]) {
-               in_use = true;
-               break;
-            }
-
-         if (!in_use)
-            return color[i];
-      }
-
-      return "#808080";
-   }
-
-   int NextOrder()
-   {
-      int order = 0;
-      for (unsigned i=0; i<vars.size(); i++)
-         if (vars[i].hist_order > order)
-            order = vars[i].hist_order;
-      return order + 10;
-   }
-};
-
-void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *hpanel) {
+void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *hpanel)
+{
    int status, size;
    HNDLE hDB;
    unsigned max_display_events = 20;
    unsigned max_display_tags = 200;
    char str[256], hcmd[256], path[256];
-   hist_plot_t plot;
 
    cm_get_experiment_database(&hDB, NULL);
    sprintf(path, "%s/%s", hgroup, hpanel);
@@ -12403,22 +12320,24 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    //printf("cmd [%s]\n", cmd);
    //printf("cmdx [%s]\n", p->getparam("cmdx"));
 
+   HistPlot* hp = NULL;
+
    if (equal_ustring(hcmd, "refresh") || equal_ustring(hcmd, "save")) {
-      plot.LoadFromParam(p);
-      plot.DeleteDeleted();
+      hp = LoadHistPlotFromParam(p);
+      DeleteHistPlotDeleted(*hp);
    } else {
-      plot.LoadFromOdb(hDB, path);
+      hp = LoadHistPlotFromOdb(hDB, path);
    }
 
-   plot.SortVars();
+   SortHistPlotVars(*hp);
 
    if (strlen(p->getparam("seln")) > 0)
-      plot.AddSelectedParam(p);
+      AddHistPlotSelectedParam(*hp, p);
 
-   //plot.Print();
+   //hp->Print();
 
    if (hcmd[0] && equal_ustring(hcmd, "save")) {
-      plot.SaveToOdb(hDB, path);
+      SaveHistPlotToOdb(hDB, path, *hp);
 
       if (p->getparam("redir") && *p->getparam("redir"))
          redirect(r, p->getparam("redir"));
@@ -12426,6 +12345,9 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
          sprintf(str, "?cmd=oldhistory&group=%s&panel=%s", hgroup, hpanel);
          redirect(r, str);
       }
+      
+      delete hp;
+      hp = NULL;
       return;
    }
 
@@ -12434,16 +12356,17 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
 
    r->rsprintf("<table class=\"mtable\">"); //open main table
 
-   r->rsprintf("<tr><th colspan=8 class=\"subStatusTitle\">History Panel \"%s / %s\"</th></tr>\n", hgroup, hpanel);
+   r->rsprintf("<tr><th colspan=10 class=\"subStatusTitle\">History Panel \"%s\" / \"%s\"</th></tr>\n", hgroup, hpanel);
 
    /* menu buttons */
-   r->rsprintf("<tr><td colspan=8>\n");
+   r->rsprintf("<tr><td colspan=10>\n");
    r->rsprintf("<input type=button value=Refresh ");
    r->rsprintf("onclick=\"document.form1.hcmd.value='Refresh';document.form1.submit()\">\n");
 
    r->rsprintf("<input type=button value=Save ");
    r->rsprintf("onclick=\"document.form1.hcmd.value='Save';document.form1.submit()\">\n");
 
+   {
    r->rsprintf("<input type=button value=Cancel ");
    std::string url = "?cmd=oldhistory&group=";
    url += hgroup;
@@ -12458,13 +12381,23 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
       url += enc;
    }
    r->rsprintf("onclick=\"window.location.search='%s'\">\n", url.c_str());
+   r->rsprintf("<input type=button value=\"Edit in ODB\"");
+   }
+   {
+   std::string url = "?cmd=odb&odb_path=";
+   url += "/History/Display/";
+   url += urlEncode(hgroup);
+   url += "/";
+   url += urlEncode(hpanel);
+   r->rsprintf("onclick=\"window.location.search='%s'\">\n", url.c_str());
+   }
    r->rsprintf("<input type=button value=\"Clear history cache\"");
    r->rsprintf("onclick=\"document.form1.hcmd.value='Clear history cache';document.form1.submit()\">\n");
    r->rsprintf("<input type=button value=\"Delete panel\"");
    r->rsprintf("onclick=\"window.location.search='?cmd=oldhistory&group=%s&panel=%s&hcmd=Delete%%20panel'\">\n", hgroup, hpanel);
    r->rsprintf("</td></tr>\n");
 
-   r->rsprintf("<tr><td colspan=6>\n");
+   r->rsprintf("<tr><td colspan=10>\n");
 
    /* sort_vars */
    int sort_vars = *p->getparam("sort_vars");
@@ -12486,33 +12419,43 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    r->rsprintf("</td></tr>\n");
 
    r->rsprintf("<tr><td colspan=4 style='text-align:right'>Time scale (in units 'm', 'h', 'd'):</td>\n");
-   r->rsprintf("<td colspan=2><input type=text size=12 name=timescale value=%s></td></tr>\n", plot.timescale.c_str());
+   r->rsprintf("<td colspan=2><input type=text size=12 name=timescale value=%s></td><td colspan=4></td></tr>\n", hp->timescale.c_str());
 
    r->rsprintf("<tr><td colspan=4 style='text-align:right'>Minimum (set to '-inf' for autoscale):</td>\n");
-   r->rsprintf("<td colspan=2><input type=text size=12 name=minimum value=%f></td></tr>\n", plot.minimum);
+   r->rsprintf("<td colspan=2><input type=text size=12 name=minimum value=%f></td><td colspan=4></td></tr>\n", hp->minimum);
 
    r->rsprintf("<tr><td colspan=4 style='text-align:right'>Maximum (set to 'inf' for autoscale):</td>\n");
-   r->rsprintf("<td colspan=2><input type=text size=12 name=maximum value=%f></td></tr>\n", plot.maximum);
+   r->rsprintf("<td colspan=2><input type=text size=12 name=maximum value=%f></td><td colspan=4></td></tr>\n", hp->maximum);
 
-   if (plot.log_axis)
-      r->rsprintf("<tr><td colspan=6><input type=checkbox checked name=log_axis value=1>");
+   r->rsprintf("<tr><td colspan=10>");
+   
+   if (hp->zero_ylow)
+      r->rsprintf("<input type=checkbox checked name=zero_ylow value=1>");
    else
-      r->rsprintf("<tr><td colspan=6><input type=checkbox name=log_axis value=1>");
+      r->rsprintf("<input type=checkbox name=zero_ylow value=1>");
+   r->rsprintf("Zero Y axis\n");
+
+   r->rsprintf("&nbsp;&nbsp;");
+
+   if (hp->log_axis)
+      r->rsprintf("<input type=checkbox checked name=log_axis value=1>");
+   else
+      r->rsprintf("<input type=checkbox name=log_axis value=1>");
    r->rsprintf("Logarithmic Y axis\n");
 
-   if (plot.show_run_markers)
+   if (hp->show_run_markers)
       r->rsprintf("&nbsp;&nbsp;<input type=checkbox checked name=run_markers value=1>");
    else
       r->rsprintf("&nbsp;&nbsp;<input type=checkbox name=run_markers value=1>");
    r->rsprintf("Show run markers\n");
 
-   if (plot.show_values)
+   if (hp->show_values)
       r->rsprintf("&nbsp;&nbsp;<input type=checkbox checked name=show_values value=1>");
    else
       r->rsprintf("&nbsp;&nbsp;<input type=checkbox name=show_values value=1>");
    r->rsprintf("Show values of variables\n");
 
-   if (plot.show_fill)
+   if (hp->show_fill)
       r->rsprintf("&nbsp;&nbsp;<input type=checkbox checked name=show_fill value=1>");
    else
       r->rsprintf("&nbsp;&nbsp;<input type=checkbox name=show_fill value=1>");
@@ -12525,6 +12468,8 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    MidasHistoryInterface* mh = get_history();
    if (mh == NULL) {
       r->rsprintf(str, "History is not configured\n");
+      delete hp;
+      hp = NULL;
       return;
    }
 
@@ -12673,27 +12618,30 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
       r->rsprintf("</tr>\n");
    }
 
-   //r->rsprintf("<tr><th>Col<th>Event<th>Variable<th>Formula e.g. '3*x+4'<th>Color<th>Label<th>Order</tr>\n");
-   r->rsprintf("<tr><th>Col<th>Event<th>Variable<th>Formula e.g. '3*x+4'<th>Color<th>Label</tr>\n");
+   r->rsprintf("<tr><td colspan=10>Use the \"formula\" to transform history data to physics values</td></tr>\n");
+   r->rsprintf("<tr><td colspan=10>Use the \"offset\" and \"factor\" to position the individual graphics on the history plot</td></tr>\n");
+   r->rsprintf("<tr><td colspan=10>displayed_value = offset + factor*(formula(history_value) - voffset)</td></tr>\n");
+   r->rsprintf("<tr><td colspan=10>\"formula\" format is \"3*x+4\" or \"10*sin(x)\". all javascript math functions can be used</td></tr>\n");
+   r->rsprintf("<tr><th>Col<th>Event<th>Variable<th>Formula<th>Colour<th>Label<th>Order<th>Factor<th>Offset<th>VOffset</tr>\n");
 
    //print_vars(vars);
 
-   unsigned nvars = plot.vars.size();
-   for (unsigned index = 0; index <= nvars; index++) {
+   size_t nvars = hp->vars.size();
+   for (size_t index = 0; index <= nvars; index++) {
 
       r->rsprintf("<tr>");
 
       if (index < nvars) {
-         if (plot.vars[index].hist_col.length() < 1)
-            plot.vars[index].hist_col = plot.NextColor();
-         r->rsprintf("<td style=\"background-color:%s\">&nbsp;<td>\n", plot.vars[index].hist_col.c_str());
+         if (hp->vars[index].colour.empty())
+            hp->vars[index].colour = NextHistPlotColour(*hp);
+         r->rsprintf("<td style=\"background-color:%s\">&nbsp;<td>\n", hp->vars[index].colour.c_str());
       } else {
          r->rsprintf("<td>&nbsp;<td>\n");
       }
 
       /* event and variable selection */
 
-      r->rsprintf("<select name=\"event%d\" size=1 onChange=\"document.form1.submit()\">\n", index);
+      r->rsprintf("<select name=\"event%d\" size=1 onChange=\"document.form1.submit()\">\n", (int)index);
 
       /* enumerate events */
 
@@ -12706,39 +12654,39 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
             r->rsprintf("<option value=\"%s\">%s\n", p, p);
          }
       } else if (events.size() > max_display_events) { // too many events
-         r->rsprintf("<option selected value=\"%s\">%s\n", plot.vars[index].event_name.c_str(), plot.vars[index].event_name.c_str());
+         r->rsprintf("<option selected value=\"%s\">%s\n", hp->vars[index].event_name.c_str(), hp->vars[index].event_name.c_str());
          r->rsprintf("<option>(%d events omitted)\n", (int)events.size());
       } else { // show all events
          bool found = false;
          for (unsigned e=0; e<events.size(); e++) {
             const char *s = "";
             const char *p = events[e].c_str();
-            if (equal_ustring(plot.vars[index].event_name.c_str(), p)) {
+            if (equal_ustring(hp->vars[index].event_name.c_str(), p)) {
                s = "selected";
                found = true;
             }
             r->rsprintf("<option %s value=\"%s\">%s\n", s, p, p);
          }
          if (!found) {
-            const char *p = plot.vars[index].event_name.c_str();
+            const char *p = hp->vars[index].event_name.c_str();
             r->rsprintf("<option selected value=\"%s\">%s\n", p, p);
          }
       }
 
       r->rsprintf("</select></td>\n");
 
-      //if (vars[index].hist_order <= 0)
-      //vars[index].hist_order = (index+1)*10;
+      //if (hp->vars[index].order <= 0)
+      //   hp->vars[index].order = (index+1)*10;
 
       if (index < nvars) {
          bool found_tag = false;
-         std::string selected_tag = plot.vars[index].tag_name;
+         std::string selected_tag = hp->vars[index].tag_name;
 
-         r->rsprintf("<td><select name=\"var%d\">\n", index);
+         r->rsprintf("<td><select name=\"var%d\">\n", (int)index);
 
          std::vector<TAG> tags;
 
-         status = mh->hs_get_tags(plot.vars[index].event_name.c_str(), t, &tags);
+         status = mh->hs_get_tags(hp->vars[index].event_name.c_str(), t, &tags);
 
          if (status == HS_SUCCESS && tags.size() > 0) {
 
@@ -12757,7 +12705,7 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
                std::sort(tags.begin(), tags.end(), cmp_tags);
 
             if (/* DISABLES CODE */ (0)) {
-               printf("Event [%s] %d tags\n", plot.vars[index].event_name.c_str(), (int)tags.size());
+               printf("Event [%s] %d tags\n", hp->vars[index].event_name.c_str(), (int)tags.size());
 
                for (unsigned v=0; v<tags.size(); v++) {
                  printf("tag[%d] [%s]\n", v, tags[v].name);
@@ -12791,23 +12739,26 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
                     else
                        r->rsprintf("<option value=\"%s\">%s\n", tagname.c_str(), tagname.c_str());
 
-                    //printf("%d [%s] [%s] [%s][%s] %d\n", index, vars[index].event_name, tagname, vars[index].var_name, selected_var, found_var);
+                    //printf("%d [%s] [%s] [%s][%s] %d\n", (int)index, vars[index].event_name, tagname, vars[index].var_name, selected_var, found_var);
                  }
                }
             }
          }
 
          if (!found_tag)
-            if (plot.vars[index].tag_name.length() > 0)
-               r->rsprintf("<option selected value=\"%s\">%s\n", plot.vars[index].tag_name.c_str(), plot.vars[index].tag_name.c_str());
+            if (hp->vars[index].tag_name.length() > 0)
+               r->rsprintf("<option selected value=\"%s\">%s\n", hp->vars[index].tag_name.c_str(), hp->vars[index].tag_name.c_str());
 
          r->rsprintf("</select></td>\n");
-         r->rsprintf("<td><input type=text size=20 maxlength=256 name=\"form%d\" value=%s></td>\n", index, plot.vars[index].hist_formula.c_str());
-         r->rsprintf("<td><input type=text size=10 maxlength=10 name=\"col%d\" value=%s></td>\n", index, plot.vars[index].hist_col.c_str());
-         r->rsprintf("<td><input type=text size=10 maxlength=%d name=\"lab%d\" value=\"%s\"></td>\n", NAME_LENGTH, index, plot.vars[index].hist_label.c_str());
-         //r->rsprintf("<td><input type=text size=5 maxlength=10 name=\"ord%d\" value=\"%d\"></td>\n", index, plot.vars[index].hist_order);
+         r->rsprintf("<td><input type=text size=15 maxlength=256 name=\"form%d\" value=%s></td>\n", (int)index, hp->vars[index].formula.c_str());
+         r->rsprintf("<td><input type=text size=8 maxlength=10 name=\"col%d\" value=%s></td>\n", (int)index, hp->vars[index].colour.c_str());
+         r->rsprintf("<td><input type=text size=8 maxlength=%d name=\"lab%d\" value=\"%s\"></td>\n", NAME_LENGTH, (int)index, hp->vars[index].label.c_str());
+         r->rsprintf("<td><input type=text size=3 maxlength=32 name=\"ord%d\" value=\"%d\"></td>\n", (int)index, hp->vars[index].order);
+         r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"factor%d\" value=\"%f\"></td>\n", (int)index, hp->vars[index].factor);
+         r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"offset%d\" value=\"%f\"></td>\n", (int)index, hp->vars[index].offset);
+         r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"voffset%d\" value=\"%f\"></td>\n", (int)index, hp->vars[index].voffset);
       } else {
-         r->rsprintf("<td><input type=submit name=cmdx value=\"List all variables\"></td>\n");
+         r->rsprintf("<td colspan=2><input type=submit name=cmdx value=\"List all variables\"></td>\n");
       }
 
       r->rsprintf("</tr>\n");
@@ -12818,6 +12769,9 @@ void show_hist_config_page(Param* p, Return* r, const char *hgroup, const char *
    r->rsprintf("</div>\n"); // closing for <div id="mmain">
    r->rsprintf("</form>\n");
    r->rsprintf("</body></html>\r\n");
+
+   delete hp;
+   hp = NULL;
 }
 
 /*------------------------------------------------------------------*/
@@ -13187,31 +13141,6 @@ void show_hist_page(Param* p, Return* r, const char *dec_path, char *buffer, int
       /* use new group if present */
       if (p->isparam("new_group") && *p->getparam("new_group"))
          strlcpy(hgroup, p->getparam("new_group"), sizeof(hgroup));
-
-
-      /* create new panel */
-      std::string path;
-      //sprintf(str, "/History/Display/%s/%s", hgroup, hpanel); // FIXME: overflow str
-      path += "/History/Display/";
-      path += hgroup;
-      path += "/";
-      path += hpanel;
-      db_create_key(hDB, 0, path.c_str(), TID_KEY);
-      status = db_find_key(hDB, 0, path.c_str(), &hkey);
-      if (status != DB_SUCCESS || !hkey) {
-         cm_msg(MERROR, "show_hist_page", "Cannot create history panel with invalid ODB path \"%s\"", path.c_str());
-         return;
-      }
-      db_set_value(hDB, hkey, "Timescale", "1h", NAME_LENGTH, 1, TID_STRING);
-      i = 1;
-      db_set_value(hDB, hkey, "Zero ylow", &i, sizeof(BOOL), 1, TID_BOOL);
-      db_set_value(hDB, hkey, "Show run markers", &i, sizeof(BOOL), 1, TID_BOOL);
-      i = 0;
-      db_set_value(hDB, hkey, "Show values", &i, sizeof(BOOL), 1, TID_BOOL);
-      i = 0;
-      db_set_value(hDB, hkey, "Sort Vars", &i, sizeof(BOOL), 1, TID_BOOL);
-      i = 0;
-      db_set_value(hDB, hkey, "Log axis", &i, sizeof(BOOL), 1, TID_BOOL);
 
       /* configure that panel */
       show_hist_config_page(p, r, hgroup, hpanel);
