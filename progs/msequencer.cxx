@@ -1256,9 +1256,13 @@ void sequencer()
    
    /* check for ODBSubdir end */
    if (seq.current_line_number == seq.subdir_end_line) {
+      size = sizeof(seq);
+      db_get_record(hDB, hKeySeq, &seq, &size, 0);
       seq.subdir_end_line = 0;
       seq.subdir[0] = 0;
       seq.subdir_not_notify = FALSE;
+      db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
+      return;
    }
    
    /* find node belonging to current line */
