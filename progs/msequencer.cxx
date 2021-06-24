@@ -1161,12 +1161,15 @@ void sequencer()
    
    /* check for Subroutine end */
    if (seq.stack_index > 0 && seq.current_line_number == seq.subroutine_end_line[seq.stack_index-1]) {
+      size = sizeof(seq);
+      db_get_record(hDB, hKeySeq, &seq, &size, 0);
       seq.subroutine_end_line[seq.stack_index-1] = 0;
       seq.current_line_number = seq.subroutine_return_line[seq.stack_index-1];
       seq.subroutine_return_line[seq.stack_index-1] = 0;
       seq.subroutine_call_line[seq.stack_index-1] = 0;
       seq.ssubroutine_call_line[seq.stack_index-1] = 0;
       seq.stack_index --;
+      db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
    }
 
    /* check for last line of script */
