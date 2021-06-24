@@ -470,9 +470,17 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
                xml += "<!DOCTYPE RunSequence [\n";
                incl = 1;
             }
-            fprintf(fout, "  <!ENTITY %s SYSTEM \"%s.xml\">\n", list[1], list[1]);
+
+            //if a path is given, use filename as entity reference
+            char *reference = strrchr(list[1], '/');
+            if(reference)
+               reference++;
+            else
+               reference = list[1];
+
+            fprintf(fout, "  <!ENTITY %s SYSTEM \"%s.xml\">\n", reference, list[1]);
             xml += "  <!ENTITY ";
-            xml += list[1];
+            xml += reference;
             xml += " SYSTEM \"";
             xml += list[1];
             xml += ".xml\">\n";
@@ -527,9 +535,16 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
          if (equal_ustring(list[0], "library")) {
             
          } else if (equal_ustring(list[0], "include")) {
-            fprintf(fout, "&%s;\n", list[1]);
+            //if a path is given, use filename as entity reference
+            char *reference = strrchr(list[1], '/');
+            if(reference)
+               reference++;
+            else
+               reference = list[1];
+
+            fprintf(fout, "&%s;\n", reference);
             xml += "&";
-            xml += list[1];
+            xml += reference;
             xml += ";\n";
 
          } else if (equal_ustring(list[0], "call")) {

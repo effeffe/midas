@@ -14226,7 +14226,15 @@ BOOL msl_parse(const char *filename, char *error, int error_size, int *error_lin
                fprintf(fout, "<!DOCTYPE RunSequence [\n");
                incl = 1;
             }
-            fprintf(fout, "  <!ENTITY %s SYSTEM \"%s.xml\">\n", list[1], list[1]);
+
+            //use filename as enity reference, not full path
+            char *reference = strrchr(list[1], '/');
+            if(reference)
+               reference++;
+            else
+               reference = list[1];
+
+            fprintf(fout, "  <!ENTITY %s SYSTEM \"%s.xml\">\n", reference, list[1]);
          }
          if (equal_ustring(list[0], "library")) {
             fprintf(fout, "<Library name=\"%s\">\n", list[1]);
@@ -14256,7 +14264,14 @@ BOOL msl_parse(const char *filename, char *error, int error_size, int *error_lin
          if (equal_ustring(list[0], "library")) {
 
          } else if (equal_ustring(list[0], "include")) {
-            fprintf(fout, "&%s;\n", list[1]);
+            //use filename as enity reference, not full path
+            char *reference = strrchr(list[1], '/');
+            if(reference)
+               reference++;
+            else
+               reference = list[1];
+
+            fprintf(fout, "&%s;\n", reference);
 
          } else if (equal_ustring(list[0], "call")) {
             fprintf(fout, "<Call l=\"%d\" name=\"%s\">", line+1, list[1]);
