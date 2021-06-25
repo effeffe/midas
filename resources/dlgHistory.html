@@ -271,3 +271,49 @@
 
    </div>
 </div>
+
+<!--==================================================================================-->
+
+<div id="dlgNewGroup" class="dlgFrame">
+   <div class="dlgTitlebar">Create new history group</div>
+   <div class="dlgPanel">
+
+      <table class='mtable'>
+         <tr>
+            <td>Enter new group name:</td>
+            <td><input type="text" size="32" id="dlgNewNewGroupName"></td>
+         </tr>
+      </table>
+
+
+      <button class="dlgButton" type="button" onClick="dlgHide(this)">Cancel</button>
+      <button class="dlgButton" type="button" onClick="dlgHide(this);newGroupCreate();">Create</button>
+
+   </div>
+</div>
+
+<!--==================================================================================-->
+
+<div id="dlgNewPanel" class="dlgFrame">
+   <div class="dlgTitlebar">Create new history panel</div>
+   <div class="dlgPanel">
+
+      <table class='mtable'>
+         <tr>
+            <td>Group name:</td>
+            <td><input type="text" size="32" id="dlgNewNewNewGroupName"></td>
+         </tr>
+         <tr>
+            <td>New panel name:</td>
+            <td><input type="text" size="32" id="dlgNewNewPanelName"></td>
+         </tr>
+      </table>
+
+
+      <button class="dlgButton" type="button" onClick="dlgHide(this)">Cancel</button>
+      <button class="dlgButton" type="button" onClick="dlgHide(this);newPanelCreate();">Create</button>
+
+   </div>
+</div>
+
+<!--==================================================================================-->

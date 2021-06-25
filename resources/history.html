@@ -42,6 +42,43 @@
       window.location.href = url;
    }
 
+   function newGroupCreate() {
+      let newGroupName = document.getElementById('dlgNewNewGroupName').value;
+      if (newGroupName === "") {
+         dlgAlert('Empty group name is not allowed');
+         return;
+      }
+
+      //console.log("create new group " + newGroupName);
+
+      mjsonrpc_db_create([{"path":"/History/Display/"+newGroupName,"type":TID_KEY}]).then(function (rpc) {
+         window.location.reload();
+      }).catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
+
+   function newPanelCreate() {
+      let groupName = document.getElementById('dlgNewNewNewGroupName').value;
+      let panelName = document.getElementById('dlgNewNewPanelName').value;
+      if (panelName === "") {
+         dlgAlert('Empty panel name is not allowed');
+         return;
+      }
+
+      console.log("create new panel " + panelName + " in group " + groupName);
+
+      let url = "?cmd=oldhistory";
+      url += "&group="+encodeURIComponent(groupName);
+      url += "&panel="+encodeURIComponent(panelName);
+      url += "&hcmd=Config";
+      url += "&redir=" + encodeURIComponent("?cmd=history&group="+groupName+"&panel="+panelName);
+
+      console.log("redirect to: " + url);
+
+      window.location.href = url;
+   }
+
    function getPlotsForCallback(caller) {
       // Get all divs containing midas history graphs, except for the
       // div that contains the graph specified by 'caller'.
@@ -143,6 +180,10 @@
          if (baseURL.search("&group") > 0)
             baseURL = baseURL.substr(0, baseURL.search("&group"));
 
+         let oldhistory = mhttpd_getParameterByName("oldhistory");
+
+         //console.log("oldhistory="+oldhistory);
+
          // show history panel selector
          if (curGroup === "undefined") {
             // create selector table
@@ -164,25 +205,50 @@
 
             let h =
                "<table class=\"mtable\" id=\"overallTable\">\n" +
-               "    <tr><th colspan=\"2\" class=\"mtableheader\">History</th></tr>\n" +
-               "    <tr><td colspan=2><input type=\"button\" class=\"mbutton\" name=\"New\" value=\"New\" " +
-               "        onClick=\"dlgShow('dlgNew')\"></td></tr>\n" +
-               "    <tr><td colspan=2 style=\"text-align:center;\"><b>Please select panel:</b></td></tr>\n" +
-               "    <tr><td colspan=2 class=\"titleCell\"><a href=\"" + baseURL + "&group=All\">ALL</a>\n" +
-               "</td></tr>\n";
+               "    <tr><th colspan=\"2\" class=\"mtableheader\">History</th></tr>\n";
+            //h +=
+            //   "    <tr><td colspan=2><input type=\"button\" class=\"mbutton\" name=\"New\" value=\"New\" " +
+            //   "        onClick=\"dlgShow('dlgNew')\"></td></tr>\n";
+            h +=    "<tr>";
+            h +=    "<th>Groups</th>\n";
+            h +=    "<th style='text-align:left'>Panels";
+            if (oldhistory) {
+               h +=    "&nbsp;&nbsp;<input type=checkbox checked onClick=\"window.location.href=\'?cmd=History\'\">open in old history display";
+            } else {
+               h +=    "&nbsp;&nbsp;<input type=checkbox onClick=\"window.location.href=\'?cmd=History&oldhistory=1\'\">open in old history display";
+            }
+            h +=    "</tr>";
+            h +=    "<tr>";
+            if (oldhistory) {
+               h +=    "<td colspan=2 class=\"titleCell\"><a href=\"?cmd=oldhistory&group=All\">ALL</a></td>\n";
+            } else {
+               h +=    "<td colspan=2 class=\"titleCell\"><a href=\"" + baseURL + "&group=All\">ALL</a></td>\n";
+            }
+            h +=    "/<tr>";
 
 
             Object.keys(historyDisplay).forEach(group => {
-               h +=
-                  "    <tr>\n" +
-                  "      <td class=\"titleCell\"><a href=\"" + baseURL + "&group=" + group + "&panel=All\">" +
-                  group + "</a></td>\n" +
-                  "      <td>\n";
+               h += "<tr>";
+               h += "<td class=\"titleCell\">";
+               if (oldhistory) {
+                  h += "<a href=\"?cmd=oldhistory&group=" + encodeURIComponent(group) + "\">" + group + "</a>";
+               } else {
+                  h += "<a href=\"" + baseURL + "&group=" + encodeURIComponent(group) + "&panel=All\">" + group + "</a>";
+               }
+               h += "</td>";
+               h += "<td>";
 
                Object.keys(historyDisplay[group]).forEach(panel => {
-                  h += "         <a href=\"" + baseURL + "&group=" + group + "&panel=" + panel + "\">" +
-                     panel + "</a>&nbsp;\n";
+                  if (oldhistory) {
+                     h += "<a href=\"?cmd=oldhistory&group=" + encodeURIComponent(group) + "&panel=" + encodeURIComponent(panel) + "\">" + panel + "</a>&nbsp;\n";
+                  } else {
+                     h += "<a href=\"" + baseURL + "&group=" + encodeURIComponent(group) + "&panel=" + encodeURIComponent(panel) + "\">" + panel + "</a>&nbsp;\n";
+                  }
                });
+
+               h +=
+                  "    <input type=\"button\" class=\"mbutton\" name=\"New\" value=\"New\" " +
+                  "        onClick=\"document.getElementById(\'dlgNewNewNewGroupName\').value=\'"+group+"\';dlgShow('dlgNewPanel')\"></td></tr>\n";
 
                h +=
                   "      </td>\n" +
@@ -205,6 +271,10 @@
                   "      </td>\n" +
                   "    </tr>\n";
             }
+
+            h +=
+               "    <tr><td colspan=2><input type=\"button\" class=\"mbutton\" value=\"Add New Group\" " +
+                 "        onClick=\"dlgShow('dlgNewGroup')\"></td></tr>\n";
 
             h +=
                "</table>\n";
