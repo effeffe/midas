@@ -881,10 +881,12 @@ INT hv_init(EQUIPMENT * pequipment)
                                 i - hv_info->channel_offset[i], hv_info->current_limit[i]);
          status = device_driver(hv_info->driver[i], CMD_SET_VOLTAGE_LIMIT,
                                 i - hv_info->channel_offset[i], hv_info->voltage_limit[i]);
-         status = device_driver(hv_info->driver[i], CMD_SET_RAMPUP,
-                                i - hv_info->channel_offset[i], hv_info->rampup_speed[i]);
-         status = device_driver(hv_info->driver[i], CMD_SET_RAMPDOWN,
-                                i - hv_info->channel_offset[i], hv_info->rampdown_speed[i]);
+         if(hv_info->driver[i]->flags & DF_HW_RAMP){
+            status = device_driver(hv_info->driver[i], CMD_SET_RAMPUP,
+                                   i - hv_info->channel_offset[i], hv_info->rampup_speed[i]);
+            status = device_driver(hv_info->driver[i], CMD_SET_RAMPDOWN,
+                                   i - hv_info->channel_offset[i], hv_info->rampdown_speed[i]);
+         }
          if (hv_info->driver[i]->flags & DF_REPORT_CHSTATE)
             status = device_driver(hv_info->driver[i], CMD_SET_CHSTATE,
                                    i - hv_info->channel_offset[i], (double)hv_info->chState[i]);
@@ -899,10 +901,12 @@ INT hv_init(EQUIPMENT * pequipment)
                                 i - hv_info->channel_offset[i], &hv_info->current_limit[i]);
          status = device_driver(hv_info->driver[i], CMD_GET_VOLTAGE_LIMIT,
                                 i - hv_info->channel_offset[i], &hv_info->voltage_limit[i]);
-         status = device_driver(hv_info->driver[i], CMD_GET_RAMPUP,
-                                i - hv_info->channel_offset[i], &hv_info->rampup_speed[i]);
-         status = device_driver(hv_info->driver[i], CMD_GET_RAMPDOWN,
-                                i - hv_info->channel_offset[i], &hv_info->rampdown_speed[i]);
+         if(hv_info->driver[i]->flags & DF_HW_RAMP){
+            status = device_driver(hv_info->driver[i], CMD_GET_RAMPUP,
+                                   i - hv_info->channel_offset[i], &hv_info->rampup_speed[i]);
+            status = device_driver(hv_info->driver[i], CMD_GET_RAMPDOWN,
+                                   i - hv_info->channel_offset[i], &hv_info->rampdown_speed[i]);
+         }
          if (hv_info->driver[i]->flags & DF_REPORT_CHSTATE)
             status = device_driver(hv_info->driver[i], CMD_GET_CHSTATE,
                                    i - hv_info->channel_offset[i], &hv_info->chState[i]);
