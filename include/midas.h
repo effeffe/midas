@@ -1031,6 +1031,7 @@ typedef struct {
 #define DF_REPORT_STATUS      (1<<8)  //*< report status word from HV channels */
 #define DF_REPORT_CHSTATE     (1<<9)  //*< report channel state word from HV channels */
 #define DF_REPORT_CRATEMAP    (1<<10) //*< reports an integer encoding size and occupancy of HV crate */
+#define DF_QUICKSTART         (1<<11) //*< do not read channels initially during init to speed up startup */
 
 /** @addtogroup msectionh
  *  @{  */

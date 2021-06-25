@@ -807,11 +807,11 @@ INT hv_init(EQUIPMENT * pequipment)
                       hv_info->rampdown_speed, hv_set_rampdown, pequipment);
 
    /* Crate Map */
-   if (hv_info->driver[0]->flags & DF_REPORT_CRATEMAP){
+   if (hv_info->driver[0]->flags & DF_REPORT_CRATEMAP) {
       sprintf(str, "Settings/Devices/%s/DD/crateMap", pequipment->driver[0].name);
       validate_odb_int(hDB, hv_info, str, 'n', CMD_GET_CRATEMAP,
                       hv_info->crateMap, NULL, pequipment);
-      }
+   }
 
    /*---- Create/Read variables ----*/
 
@@ -901,7 +901,7 @@ INT hv_init(EQUIPMENT * pequipment)
                                 i - hv_info->channel_offset[i], &hv_info->current_limit[i]);
          status = device_driver(hv_info->driver[i], CMD_GET_VOLTAGE_LIMIT,
                                 i - hv_info->channel_offset[i], &hv_info->voltage_limit[i]);
-         if(hv_info->driver[i]->flags & DF_HW_RAMP){
+         if (hv_info->driver[i]->flags & DF_HW_RAMP) {
             status = device_driver(hv_info->driver[i], CMD_GET_RAMPUP,
                                    i - hv_info->channel_offset[i], &hv_info->rampup_speed[i]);
             status = device_driver(hv_info->driver[i], CMD_GET_RAMPDOWN,
@@ -945,38 +945,37 @@ INT hv_init(EQUIPMENT * pequipment)
 
    /* initially read all channels */
    for (i=0 ; i<hv_info->num_channels ; i++) {
-      if (hv_info->driver[i]->enabled) {
-         hv_info->driver[i]->dd(CMD_GET, hv_info->driver[i]->dd_info,
-                                i - hv_info->channel_offset[i], &hv_info->measured[i]);
-         hv_info->driver[i]->dd(CMD_GET_CURRENT, hv_info->driver[i]->dd_info,
-                                i - hv_info->channel_offset[i], &hv_info->current[i]);
-         if (hv_info->driver[i]->flags & DF_REPORT_STATUS)
-            hv_info->driver[i]->dd(CMD_GET_STATUS, hv_info->driver[i]->dd_info,
-                                   i - hv_info->channel_offset[i], &hv_info->chStatus[i]);
-         if (hv_info->driver[i]->flags & DF_REPORT_TEMP)
-            hv_info->driver[i]->dd(CMD_GET_TEMPERATURE, hv_info->driver[i]->dd_info,
-                                   i - hv_info->channel_offset[i], &hv_info->temperature[i]);
-         
-         hv_info->measured_mirror[i] = hv_info->measured[i];
-         hv_info->current_mirror[i]  = hv_info->current[i];
-         hv_info->chStatus_mirror[i]  = hv_info->chStatus[i];
-         hv_info->temperature_mirror[i]  = hv_info->temperature[i];
+      if ((hv_info->driver[i]->flags & DF_QUICKSTART) == 0) {
+         if (hv_info->driver[i]->enabled) {
+            hv_info->driver[i]->dd(CMD_GET, hv_info->driver[i]->dd_info,
+                                   i - hv_info->channel_offset[i], &hv_info->measured[i]);
+            hv_info->driver[i]->dd(CMD_GET_CURRENT, hv_info->driver[i]->dd_info,
+                                   i - hv_info->channel_offset[i], &hv_info->current[i]);
+            if (hv_info->driver[i]->flags & DF_REPORT_STATUS)
+               hv_info->driver[i]->dd(CMD_GET_STATUS, hv_info->driver[i]->dd_info,
+                                      i - hv_info->channel_offset[i], &hv_info->chStatus[i]);
+            if (hv_info->driver[i]->flags & DF_REPORT_TEMP)
+               hv_info->driver[i]->dd(CMD_GET_TEMPERATURE, hv_info->driver[i]->dd_info,
+                                      i - hv_info->channel_offset[i], &hv_info->temperature[i]);
+
+            hv_info->measured_mirror[i]    = hv_info->measured[i];
+            hv_info->current_mirror[i]     = hv_info->current[i];
+            hv_info->chStatus_mirror[i]    = hv_info->chStatus[i];
+            hv_info->temperature_mirror[i] = hv_info->temperature[i];
+
+            db_set_data_index(hDB, hv_info->hKeyCurrent, &hv_info->current[i], sizeof(float), i, TID_FLOAT);
+
+            if (hv_info->driver[0]->flags & DF_REPORT_STATUS)
+               db_set_data_index(hDB, hv_info->hKeyChStatus, &hv_info->chStatus[i],
+                           sizeof(DWORD), i, TID_DWORD);
+
+            if (hv_info->driver[0]->flags & DF_REPORT_TEMP)
+               db_set_data_index(hDB, hv_info->hKeyTemperature, &hv_info->temperature[i],
+                           sizeof(float) * hv_info->num_channels, hv_info->num_channels,
+                           TID_FLOAT);
+         }
       }
    }
-
-   db_set_data(hDB, hv_info->hKeyCurrent, hv_info->current,
-               sizeof(float) * hv_info->num_channels, hv_info->num_channels,
-               TID_FLOAT);
-
-   if (hv_info->driver[0]->flags & DF_REPORT_STATUS)
-      db_set_data(hDB, hv_info->hKeyChStatus, hv_info->chStatus,
-                  sizeof(DWORD) * hv_info->num_channels, hv_info->num_channels,
-                  TID_DWORD);
-
-   if (hv_info->driver[0]->flags & DF_REPORT_TEMP)
-      db_set_data(hDB, hv_info->hKeyTemperature, hv_info->temperature,
-                  sizeof(float) * hv_info->num_channels, hv_info->num_channels,
-                  TID_FLOAT);
 
    pequipment->odb_out++;
    

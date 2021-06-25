@@ -508,13 +508,13 @@ INT multi_init(EQUIPMENT * pequipment)
 
       /* open hot link to output record */
       db_open_record(hDB, m_info->hKeyOutput, m_info->var_output,
-                     m_info->num_channels_output * sizeof(float),
+                     m_info->num_channels_output * (int)sizeof(float),
                      MODE_READ, multi_output, pequipment);
    }
 
    /* set initial demand values */
    for (i = 0; i < m_info->num_channels_output; i++) {
-      if (pequipment->driver[index].flags & DF_PRIO_DEVICE) {
+      if (m_info->driver_output[i]->flags & DF_PRIO_DEVICE) {
          /* read default value directly from device bypassing multi-thread buffer */
          device_driver(m_info->driver_output[i], CMD_GET_DEMAND,
                        i - m_info->channel_offset_output[i],
@@ -532,10 +532,10 @@ INT multi_init(EQUIPMENT * pequipment)
 
    if (m_info->num_channels_output)
       db_set_record(hDB, m_info->hKeyOutput, m_info->output_mirror,
-                    m_info->num_channels_output * sizeof(float), 0);
+                    m_info->num_channels_output * (int)sizeof(float), 0);
 
    /* initially read all input channels */
-   if (m_info->num_channels_input)
+   if (m_info->num_channels_input && (m_info->driver_input[0]->flags & DF_QUICKSTART) == 0)
       multi_read(pequipment, -1);
 
    if (partially_disabled)
