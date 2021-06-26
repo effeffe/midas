@@ -11803,7 +11803,7 @@ void show_query_page(Param* p, Return* r)
 
    /* menu buttons */
    r->rsprintf("<tr><td colspan=2>\n");
-   r->rsprintf("<input type=hidden name=cmd value=History>\n");
+   r->rsprintf("<input type=hidden name=cmd value=OldHistory>\n");
    r->rsprintf("<input type=submit name=hcmd value=Query>\n");
    r->rsprintf("<input type=submit name=hcmd value=Cancel>\n");
    if (p->isparam("group"))
@@ -13692,6 +13692,13 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
       r->rsprintf("<input type=\"button\" name=\"Cmd\" value=\"Reset\" onClick=\"window.location.href='?cmd=oldhistory&hcmd=Reset&group=%s&panel=%s'\">\n", hgroup, hpanel);
 
       r->rsprintf("<input type=\"button\" name=\"Cmd\" value=\"Query\" onClick=\"window.location.href='?cmd=oldhistory&hcmd=Query&group=%s&panel=%s'\">\n", hgroup, hpanel);
+
+      double xendtime = endtime;
+      if (xendtime == 0)
+         xendtime = now;
+      double xstarttime = xendtime - scale;
+      
+      r->rsprintf("<input type=\"button\" name=\"Cmd\" value=\"New history\" onClick=\"window.location.href='?cmd=history&group=%s&panel=%s&A=%.0f&B=%.0f'\">\n", hgroup, hpanel, xstarttime, xendtime);
 
       r->rsprintf("</td></tr>\n");
    }
