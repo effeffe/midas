@@ -12112,6 +12112,22 @@ static void LoadHistPlotFromOdb(MVOdb* odb, HistPlot* hp, const char* group, con
    o->RDA("Offset",    &hist_offset);
    o->RDA("VOffset",   &hist_voffset);
 
+   // fix broken plots with "factor" all zero. for reasons
+   // unknown the new history code has corrupted many
+   // history plot definitions like this. K.O.
+   {
+      bool all_zero = true;
+      for (size_t i=0; i<hist_factor.size(); i++) {
+         if (hist_factor[i] != 0)
+            all_zero = false;
+      }
+      if (all_zero) {
+         for (size_t i=0; i<hist_factor.size(); i++) {
+            hist_factor[i] = 1.0;
+         }
+      }
+   }
+
    size_t num = std::max(hist_vars.size(), hist_formula.size());
    num = std::max(num, hist_colour.size());
    num = std::max(num, hist_label.size());
