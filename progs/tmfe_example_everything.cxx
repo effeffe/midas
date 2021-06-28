@@ -197,7 +197,7 @@ public:
    TMFeResult HandleFrontendReady(const std::vector<std::string>& args)
    {
       printf("FeEverything::HandleFrontendReady!\n");
-      //fMfe->StartPeriodicThread();
+      //FeStartPeriodicThread();
       //fMfe->StartRpcThread();
       return TMFeOk();
    };
