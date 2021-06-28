@@ -6301,11 +6301,16 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER *pbuf, BOOL forc
       if (pbuf->count_lock == pbuf->last_count_lock)
          return;
 
-   HNDLE hKey, hKeyBuffer, hKeyClient;
+   if ((strlen(pbuf->buffer_name) < 1) || (strlen(pbuf->client_name) < 1)) {
+      cm_msg(MERROR, "bm_write_buffer_statistics_to_odb", "Invalid empty buffer name \"%s\" or client name \"%s\"", pbuf->buffer_name, pbuf->client_name);
+      return;
+   }
+
    int status;
 
    DWORD now = ss_millitime();
 
+   HNDLE hKey;
    status = db_find_key(hDB, 0, "/System/Buffers", &hKey);
    if (status != DB_SUCCESS) {
       db_create_key(hDB, 0, "/System/Buffers", TID_KEY);
@@ -6314,6 +6319,7 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER *pbuf, BOOL forc
          return;
    }
 
+   HNDLE hKeyBuffer;
    status = db_find_key(hDB, hKey, pbuf->buffer_name, &hKeyBuffer);
    if (status != DB_SUCCESS) {
       db_create_key(hDB, hKey, pbuf->buffer_name, TID_KEY);
@@ -6379,6 +6385,7 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER *pbuf, BOOL forc
          return;
    }
 
+   HNDLE hKeyClient;
    status = db_find_key(hDB, hKey, pbuf->client_name, &hKeyClient);
    if (status != DB_SUCCESS) {
       db_create_key(hDB, hKey, pbuf->client_name, TID_KEY);
