@@ -207,7 +207,7 @@ TMFeResult TMEventBuffer::OpenBuffer(const char* bufname, size_t bufsize)
 
    if (buf_size > 0) {
       // limit event size to half the buffer size, so we can buffer two events
-      int xmax_event_size = buf_size / 2;
+      uint32_t xmax_event_size = buf_size / 2;
       // add extra margin
       if (xmax_event_size > 1024)
          xmax_event_size -= 1024;
@@ -1775,9 +1775,9 @@ TMFeResult TMFeEquipment::EqPostInit()
 
             if (r.error_flag)
                return r;
-         } else if (fEqConfWriteCacheSize < fEqEventBuffer->fBufWriteCacheSize) {
+         } else if (fEqConfWriteCacheSize < (int)fEqEventBuffer->fBufWriteCacheSize) {
             fMfe->Msg(MERROR, "TMFeEquipment::EqPostInit", "Equipment \"%s\" requested write cache size %d for buffer \"%s\" is smaller then already set write cache size %d, ignoring it", fEqName.c_str(), (int)fEqConfWriteCacheSize, fEqEventBuffer->fBufName.c_str(), (int)fEqEventBuffer->fBufWriteCacheSize);
-         } else if (fEqConfWriteCacheSize == fEqEventBuffer->fBufWriteCacheSize) {
+         } else if (fEqConfWriteCacheSize == (int)fEqEventBuffer->fBufWriteCacheSize) {
             // do nothing
          } else {
             fMfe->Msg(MERROR, "TMFeEquipment::EqPostInit", "Equipment \"%s\" requested write cache size %d for buffer \"%s\" is different from already set write cache size %d", fEqName.c_str(), (int)fEqConfWriteCacheSize, fEqEventBuffer->fBufName.c_str(), (int)fEqEventBuffer->fBufWriteCacheSize);
