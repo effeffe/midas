@@ -886,8 +886,13 @@ void TMFrontend::FePeriodicThread()
    
    fFePeriodicThreadRunning = true;
    while (!fMfe->fShutdownRequested && !fFePeriodicThreadShutdownRequested) {
-      FePeriodicTasks();
-      TMFE::Sleep(0.0005);
+      double next_periodic_time = FePeriodicTasks();
+      double now = TMFE::GetTime();
+      double sleep = next_periodic_time - now;
+      //printf("TMFrontend::FePeriodicThread: now %.6f next %.6f, sleep %.6f\n", now, next_periodic_time, sleep);
+      if (sleep >= 1.0)
+         sleep = 1.0;
+      TMFE::Sleep(sleep);
    }
    if (TMFE::gfVerbose)
       printf("TMFE::PeriodicThread: periodic thread stopped\n");
@@ -1013,14 +1018,16 @@ void TMFE::Sleep(double time)
       
    timeout.tv_sec = time;
    timeout.tv_usec = (time-timeout.tv_sec)*1000000.0;
-      
-   status = select(1, &fdset, NULL, NULL, &timeout);
-   
-   //#ifdef EINTR
-   //if (status < 0 && errno == EINTR) {
-   //   return 0; // watchdog interrupt, try again
-   //}
-   //#endif
+
+   while (1) {
+      status = select(1, &fdset, NULL, NULL, &timeout);
+#ifdef EINTR
+      if (status < 0 && errno == EINTR) {
+         continue;
+      }
+#endif
+      break;
+   }
       
    if (status < 0) {
       TMFE::Instance()->Msg(MERROR, "TMFE::Sleep", "select() returned %d, errno %d (%s)", status, errno, strerror(errno));
