@@ -145,7 +145,9 @@ public:
       EqSendEvent(buf);
    }
 
-#if 0
+//#define TEST_PERIOD 1
+
+#ifdef TEST_PERIOD
    double first = 0;
    double prev = 0;
    int count = 0;
@@ -153,13 +155,13 @@ public:
    
    void HandlePeriodic()
    {
-#if 0
+#ifdef TEST_PERIOD
       double now = TMFE::GetTime();
       if (first == 0)
          first = now;
       double elapsed = now - prev;
       double expected = first + count*fEqConfPeriodMilliSec/1000.0;
-      printf("periodic %f, expected %f, diff %f, elapsed %f\n", now, expected, now-expected, elapsed);
+      printf("count %d, periodic %f, expected %f, diff %f, elapsed %f\n", count, now, expected, now-expected, elapsed);
       prev = now;
       count++;
 
@@ -461,6 +463,36 @@ public:
       FeAddEquipment(new EqSlow("test_slow", __FILE__));
       FeAddEquipment(new EqBulk("test_bulk", __FILE__));
    }
+
+   void HandleUsage()
+   {
+      //printf("FeEverything::HandleUsage!\n");
+   };
+   
+   TMFeResult HandleArguments(const std::vector<std::string>& args)
+   {
+      //printf("FeEverything::HandleArguments!\n");
+      return TMFeOk();
+   };
+   
+   TMFeResult HandleFrontendInit(const std::vector<std::string>& args)
+   {
+      //printf("FeEverything::HandleFrontendInit!\n");
+      return TMFeOk();
+   };
+   
+   TMFeResult HandleFrontendReady(const std::vector<std::string>& args)
+   {
+      //printf("FeEverything::HandleFrontendReady!\n");
+      //FeStartPeriodicThread();
+      //fMfe->StartRpcThread();
+      return TMFeOk();
+   };
+   
+   void HandleFrontendExit()
+   {
+      //printf("FeEverything::HandleFrontendExit!\n");
+   };
 };
 
 // boilerplate main function
