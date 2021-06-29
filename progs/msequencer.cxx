@@ -1353,6 +1353,12 @@ void sequencer()
          //absolute path
          strlcpy(value, mxml_get_value(pn), sizeof(value));
 
+      } else if (mxml_get_value(pn)[0] == '$'){
+         //path relative to the one set in /Sequencer/Path
+         strlcpy(value, seq.path, sizeof(value));
+         strlcat(value, mxml_get_value(pn), sizeof(value));
+         *strchr(value, '$') = '/';
+
       } else {
          //relative path to msl file
          strlcpy(value, seq.path, sizeof(value));
