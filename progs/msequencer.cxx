@@ -664,6 +664,10 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
                fprintf(fout, "<ODBSet l=\"%d\" path=\"%s\">%s</ODBSet>\n", line+1, list[1], list[2]);
                xml += "<ODBSet l=" + qtoString(line+1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBSet>\n";
             }
+
+         } else if (equal_ustring(list[0], "odbload")) {
+            fprintf(fout, "<ODBLoad l=\"%d\">%s</ODBLoad>\n", line+1, list[1]);
+            xml += "<ODBLoad l=" + qtoString(line+1) + ">" + list[1] + "</ODBLoad>\n";
             
          } else if (equal_ustring(list[0], "odbget")) {
             fprintf(fout, "<ODBGet l=\"%d\" path=\"%s\">%s</ODBGet>\n", line+1, list[1], list[2]);
@@ -1335,6 +1339,37 @@ void sequencer()
             return;
          }
 
+      }
+   }
+   
+   /*---- ODBLoad ----*/
+   else if (equal_ustring(mxml_get_name(pn), "ODBLoad")) {
+      if(mxml_get_value(pn)[0] == '/'){
+         //absolute path
+         strlcpy(value, mxml_get_value(pn), sizeof(value));
+
+      } else {
+         //relative path to msl file
+         strlcpy(value, seq.path, sizeof(value));
+         strlcat(value, seq.filename, sizeof(value));
+         char *fullpath = strrchr(value, '/');
+         if(fullpath) *(++fullpath)='\0';
+         strlcat(value, mxml_get_value(pn), sizeof(value));
+      }
+
+      status = db_load(hDB, 0, value, FALSE);
+
+      if(status == DB_SUCCESS){
+         size = sizeof(seq);
+         db_get_record1(hDB, hKeySeq, &seq, &size, 0, strcomb1(sequencer_str).c_str()); // could have changed seq tree
+         seq.current_line_number++;
+      } else if(status == DB_FILE_ERROR){
+         sprintf(str, "Error reading file \"%s\"", mxml_get_value(pn));
+         seq_error(seq, str);
+      } else {
+         //something went really wrong
+         seq_error(seq, "Internal error loading ODB file!");
+         return;
       }
    }
    
