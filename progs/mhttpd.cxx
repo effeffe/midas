@@ -14344,7 +14344,10 @@ BOOL msl_parse(const char *filename, char *error, int error_size, int *error_lin
                fprintf(fout, "<ODBSet l=\"%d\" path=\"%s\">%s</ODBSet>\n", line+1, list[1], list[2]);
 
          } else if (equal_ustring(list[0], "odbload")) {
-            fprintf(fout, "<ODBLoad l=\"%d\">%s</ODBLoad>\n", line+1, list[1]);
+            if (list[2][0])
+               fprintf(fout, "<ODBLoad l=\"%d\" path=\"%s\">%s</ODBLoad>\n", line+1, list[2], list[1]);
+            else
+               fprintf(fout, "<ODBLoad l=\"%d\">%s</ODBLoad>\n", line+1, list[1]);
 
          } else if (equal_ustring(list[0], "odbget")) {
             fprintf(fout, "<ODBGet l=\"%d\" path=\"%s\">%s</ODBGet>\n", line+1, list[1], list[2]);
