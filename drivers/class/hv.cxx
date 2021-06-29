@@ -166,6 +166,10 @@ INT hv_read(EQUIPMENT * pequipment, int channel)
             status = device_driver(hv_info->driver[i], CMD_GET_TEMPERATURE,
                                    i - hv_info->channel_offset[i],
                                    &hv_info->temperature[i]);
+         if (hv_info->driver[i]->flags & DF_POLL_DEMAND)
+            status = device_driver(hv_info->driver[i], CMD_GET_DEMAND,
+                                   i - hv_info->channel_offset[i],
+                                   &hv_info->demand[i]);
       }
    }
 
@@ -185,12 +189,16 @@ INT hv_read(EQUIPMENT * pequipment, int channel)
          status = device_driver(hv_info->driver[channel], CMD_GET_TEMPERATURE,
                                     channel - hv_info->channel_offset[channel],
                                     &hv_info->temperature[channel]);
+      if (hv_info->driver[channel]->flags & DF_POLL_DEMAND)
+         status = device_driver(hv_info->driver[channel], CMD_GET_DEMAND,
+                                channel - hv_info->channel_offset[channel],
+                                &hv_info->demand[channel]);
    }
 
-   /* check how much channels have changed since last ODB update */
+   // check how much channels have changed since last ODB update
    act_time = ss_millitime();
 
-   /* check for update measured */
+   // check for update measured
    max_diff = 0.f;
    min_time = 60000;
    changed = FALSE;
@@ -223,7 +231,7 @@ INT hv_read(EQUIPMENT * pequipment, int channel)
       pequipment->odb_out++;
    }
 
-   /* check for update current */
+   // check for update current
    max_diff = 0.f;
    min_time = 10000;
    changed = FALSE;
@@ -239,7 +247,7 @@ INT hv_read(EQUIPMENT * pequipment, int channel)
          min_time = act_time - hv_info->last_change[i];
    }
 
-   /* update if change is more than update_sensitivity or less than 5sec ago */
+   // update if change is more than update_sensitivity or less than 5sec ago
    if (changed || (min_time < 5000 && max_diff > 0)) {
       for (i = 0; i < hv_info->num_channels; i++)
          hv_info->current_mirror[i] = hv_info->current[i];
@@ -251,7 +259,20 @@ INT hv_read(EQUIPMENT * pequipment, int channel)
       pequipment->odb_out++;
    }
 
-   //check for updated chStatus:
+   // check for update demand
+   for (i = 0; i < hv_info->num_channels; i++) {
+      if (hv_info->driver[i]->flags & DF_POLL_DEMAND) {
+         if (hv_info->demand[i] != hv_info->demand_mirror[i])
+            db_set_data_index(hDB, hv_info->hKeyDemand, &hv_info->demand[i],
+                        sizeof(float), i, TID_FLOAT);
+
+         pequipment->odb_out++;
+      }
+   }
+
+   hv_info->demand_mirror[i] = hv_info->demand[i];
+
+   // check for updated chStatus
    max_diff = 0.f;
    min_time = 60000;
    changed = FALSE;
@@ -265,7 +286,7 @@ INT hv_read(EQUIPMENT * pequipment, int channel)
       }
    }
       
-   //update if change is more than update_sensitivity or less than 20 seconds ago or last update is older than a minute
+   // update if change is more than update_sensitivity or less than 20 seconds ago or last update is older than a minute
    if (changed || (min_time < 20000 && max_diff > 0) ||
        act_time - hv_info->last_update > 60000) {
       hv_info->last_update = act_time;
@@ -280,7 +301,7 @@ INT hv_read(EQUIPMENT * pequipment, int channel)
       pequipment->odb_out++;
    }
 
-   //check for temeprature update:
+   // check for temperature update
    max_diff = 0.f;
    min_time = 60000;
    changed = FALSE;
@@ -298,7 +319,7 @@ INT hv_read(EQUIPMENT * pequipment, int channel)
       }
    }
                                  
-   //update if change is more than update_sensitivity or less than 20 seconds ago or last update is older than a minute
+   // update if change is more than update_sensitivity or less than 20 seconds ago or last update is older than a minute
    if (changed || (min_time < 20000 && max_diff > 0) ||
        act_time - hv_info->last_update > 60000) {
       hv_info->last_update = act_time;

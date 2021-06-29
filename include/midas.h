@@ -771,7 +771,7 @@ Slow control device driver commands */
 #define CMD_SET_LAST                 CMD_SET_FIRST+6 /* update this if you add new commands */
 
 #define CMD_GET_FIRST                CMD_SET_LAST+1  /* multithreaded get commands */
-#define CMD_GET                      CMD_GET_FIRST   // = 19
+#define CMD_GET                      CMD_GET_FIRST   // = 20
 #define CMD_GET_CURRENT              CMD_GET_FIRST+1
 #define CMD_GET_TRIP                 CMD_GET_FIRST+2
 #define CMD_GET_STATUS               CMD_GET_FIRST+3
@@ -779,7 +779,7 @@ Slow control device driver commands */
 #define CMD_GET_LAST                 CMD_GET_FIRST+4 /* update this if you add new commands ! */
 
 #define CMD_GET_DIRECT               CMD_GET_LAST+1  /* direct get commands */
-#define CMD_GET_DEMAND               CMD_GET_DIRECT  // = 22
+#define CMD_GET_DEMAND               CMD_GET_DIRECT  // = 25
 #define CMD_GET_VOLTAGE_LIMIT        CMD_GET_DIRECT+1
 #define CMD_GET_CURRENT_LIMIT        CMD_GET_DIRECT+2
 #define CMD_GET_RAMPUP               CMD_GET_DIRECT+3
@@ -1032,6 +1032,7 @@ typedef struct {
 #define DF_REPORT_CHSTATE     (1<<9)  //*< report channel state word from HV channels */
 #define DF_REPORT_CRATEMAP    (1<<10) //*< reports an integer encoding size and occupancy of HV crate */
 #define DF_QUICKSTART         (1<<11) //*< do not read channels initially during init to speed up startup */
+#define DF_POLL_DEMAND        (1<<12) //*< continously read demand value from device */
 
 /** @addtogroup msectionh
  *  @{  */
