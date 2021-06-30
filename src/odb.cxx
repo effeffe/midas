@@ -8025,6 +8025,12 @@ INT db_load(HNDLE hDB, HNDLE hKeyRoot, const char *filename, BOOL bRemote)
       status = db_paste_xml(hDB, hKeyRoot, buffer);
       if (status != DB_SUCCESS)
          printf("Error in file \"%s\"\n", filename);
+   } else if( buffer[0] == '{'){
+      if(strrchr(buffer, '}')){
+         status = db_paste_json(hDB, hKeyRoot, buffer);
+      } else {
+         status = DB_FILE_ERROR;
+      }
    } else
       status = db_paste(hDB, hKeyRoot, buffer);
 
