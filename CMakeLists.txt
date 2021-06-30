@@ -581,6 +581,7 @@ add_dependencies(objlib git_revision_h)
 #####################################################################
 add_subdirectory(mjson)
 add_subdirectory(mxml)
+add_subdirectory(mscb)
 add_subdirectory(mvodb)
 add_subdirectory(midasio)
 add_subdirectory(manalyzer)
