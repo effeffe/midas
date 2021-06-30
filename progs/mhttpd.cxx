@@ -14182,6 +14182,9 @@ BOOL msl_parse(const char *filename, char *error, int error_size, int *error_lin
    char list[100][XNAME_LENGTH], list2[100][XNAME_LENGTH], **lines;
    int i, j, n, size, n_lines, endl, line, fhin, nest, incl, library;
    FILE *fout = NULL;
+   char* msl_include, *include_error;
+   int include_error_size;
+   BOOL include_status;
 
    fhin = open(filename, O_RDONLY | O_TEXT);
 
@@ -14245,6 +14248,26 @@ BOOL msl_parse(const char *filename, char *error, int error_size, int *error_lin
                reference = list[1];
 
             fprintf(fout, "  <!ENTITY %s SYSTEM \"%s.xml\">\n", reference, list[1]);
+            //recurse
+            size = strlen(list[1]) + 1 + 4;
+            msl_include = (char*)malloc(size);
+            strlcpy(msl_include, list[1], size);
+            strlcat(msl_include, ".msl", size);
+
+            strlcpy(error, "Including file ", error_size);
+            strlcat(error, msl_include, error_size);
+            strlcat(error, ", ", error_size);
+            include_error = error + strlen(error);
+            include_error_size = error_size - strlen(error);
+
+            include_status = msl_parse(msl_include, include_error, include_error_size, error_line);
+               free(msl_include);
+
+            if(!include_status){
+               //report the errror on CALL line instead of the one in included file
+               *error_line = n_lines+1;
+               return FALSE;
+            }
          }
          if (equal_ustring(list[0], "library")) {
             fprintf(fout, "<Library name=\"%s\">\n", list[1]);

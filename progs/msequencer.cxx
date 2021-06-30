@@ -423,6 +423,9 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
    char list[100][XNAME_LENGTH], list2[100][XNAME_LENGTH], **lines;
    int i, j, n, size, n_lines, endl, line, nest, incl, library;
    std::string xml;
+   char* msl_include, *xml_include, *include_error;
+   int include_error_size;
+   BOOL include_status;
 
    int fhin = open(filename, O_RDONLY | O_TEXT);
    if (fhin < 0) {
@@ -484,6 +487,31 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
             xml += " SYSTEM \"";
             xml += list[1];
             xml += ".xml\">\n";
+
+            //recurse
+            size = strlen(list[1]) + 1 + 4;
+            msl_include = (char*)malloc(size);
+            xml_include = (char*)malloc(size);
+            strlcpy(msl_include, list[1], size);
+            strlcpy(xml_include, list[1], size);
+            strlcat(msl_include, ".msl", size);
+            strlcat(xml_include, ".xml", size);
+
+            strlcpy(error, "Including file ", error_size);
+            strlcat(error, msl_include, error_size);
+            strlcat(error, ", ", error_size);
+            include_error = error + strlen(error);
+            include_error_size = error_size - strlen(error);
+
+            include_status = msl_parse(hDB, odb, msl_include, xml_include, include_error, include_error_size, error_line);
+            free(msl_include);
+            free(xml_include);
+
+            if(!include_status){
+               //report the errror on CALL line instead of the one in included file
+               *error_line = n_lines+1;
+               return FALSE;
+            }
          }
          if (equal_ustring(list[0], "library")) {
             fprintf(fout, "<Library name=\"%s\">\n", list[1]);
