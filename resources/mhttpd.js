@@ -1992,7 +1992,12 @@ function mhttpd_refresh() {
 
       for (let i = 0; i < modbcheckbox.length; i++, idata++) {
          let x = rpc[0].result.data[idata];
-         modbcheckbox[i].checked = (x === 1 || x === true);
+         let tid = rpc[0].result.tid[idata];
+         let mvalue = mie_to_string(tid, x, modbvalue[i].dataset.format);
+         if (typeof x === "boolean")
+            modbcheckbox[i].checked = x;
+         else
+            modbcheckbox[i].checked = (mvalue !== 0);
          if (modbcheckbox[i].onchange !== null)
             modbcheckbox[i].onchange();
          if (modbcheckbox[i].dataset.odbLoaded === undefined && modbcheckbox[i].onload !== null) {
