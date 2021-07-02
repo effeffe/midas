@@ -10267,17 +10267,47 @@ struct HistoryData
 #define READ_HISTORY_RUNMARKER    0x2
 #define READ_HISTORY_LAST_WRITTEN 0x4
 
-int read_history(HNDLE hDB, const char *group, const char *panel, int index, int flags, time_t tstart, time_t tend, time_t scale, HistoryData *data)
+struct HistVar
 {
-   HNDLE hkeypanel, hkeydvar, hkey;
-   KEY key;
-   char path[256];
-   int n_vars, status;
-   int debug = 0;
+   std::string event_name;
+   std::string tag_name;
+   std::string formula;
+   std::string colour;
+   std::string label;
+   int         order = -1;
+   double factor = 1.0;
+   double offset = 0;
+   double voffset = 0;
+};
 
-   strlcpy(path, group, sizeof(path));
-   strlcat(path, "/", sizeof(path));
-   strlcat(path, panel, sizeof(path));
+struct HistPlot
+{
+   std::string timescale = "1h";
+   double minimum = 0;
+   double maximum = 0;
+   bool zero_ylow = false;
+   bool log_axis  = false;
+   bool show_run_markers = true;
+   bool show_values = true;
+   bool show_fill   = true;
+
+   std::vector<HistVar> vars;
+};
+
+static void LoadHistPlotFromOdb(MVOdb* odb, HistPlot* hp, const char* group, const char* panel);
+
+int read_history(const HistPlot& hp, /*HNDLE hDB, const char *group, const char *panel,*/ int index, int flags, time_t tstart, time_t tend, time_t scale, HistoryData *data)
+{
+   //HNDLE hkeypanel, hkeydvar, hkey;
+   //KEY key;
+   //char path[256];
+   //int n_vars;
+   int status;
+   int debug = 1;
+
+   //strlcpy(path, group, sizeof(path));
+   //strlcat(path, "/", sizeof(path));
+   //strlcat(path, panel, sizeof(path));
 
    //printf("read_history, path %s, index %d, flags 0x%x, start %d, end %d, scale %d, data %p\n", path, index, flags, (int)tstart, (int)tend, (int)scale, data);
 
@@ -10288,6 +10318,7 @@ int read_history(HNDLE hDB, const char *group, const char *panel, int index, int
       return HS_FILE_ERROR;
    }
 
+#if 0
    /* check panel name in ODB */
    status = db_find_key(hDB, 0, "/History/Display", &hkey);
    if (!hkey) {
@@ -10310,49 +10341,49 @@ int read_history(HNDLE hDB, const char *group, const char *panel, int index, int
 
    db_get_key(hDB, hkeydvar, &key);
    n_vars = key.num_values;
+#endif
 
-   data->Allocate(n_vars+2);
+   data->Allocate(hp.vars.size()+2);
 
    data->tstart = tstart;
    data->tend = tend;
    data->scale = scale;
 
-   for (int i=0; i<n_vars; i++) {
+   for (size_t i=0; i<hp.vars.size(); i++) {
       if (index != -1 && index != i)
          continue;
 
-      char str[256];
-      int size = sizeof(str);
-      status = db_get_data_index(hDB, hkeydvar, str, &size, i, TID_STRING);
-      if (status != DB_SUCCESS) {
-         cm_msg(MERROR, "read_history", "Cannot read tag %d in panel %s, status %d", i, path, status);
-         continue;
-      }
+      //char str[256];
+      //int size = sizeof(str);
+      //status = db_get_data_index(hDB, hkeydvar, str, &size, i, TID_STRING);
+      //if (status != DB_SUCCESS) {
+      //   cm_msg(MERROR, "read_history", "Cannot read tag %d in panel %s, status %d", i, path, status);
+      //   continue;
+      //}
 
       /* split varname in event, variable and index: "event/tag[index]" */
 
-      char *p = strchr(str, ':');
-      if (!p)
-         p = strchr(str, '/');
+      //char *p = strchr(str, ':');
+      //if (!p)
+         //   p = strchr(str, '/');
+      //
+      //if (!p) {
+      //   cm_msg(MERROR, "read_history", "Tag \"%s\" has wrong format in panel \"%s\"", str, path);
+      //   continue;
+      //}
 
-      if (!p) {
-         cm_msg(MERROR, "read_history", "Tag \"%s\" has wrong format in panel \"%s\"", str, path);
-         continue;
-      }
-
-      *p = 0;
+      //*p = 0;
 
       data->odb_index[data->nvars] = i;
-      data->event_names[data->nvars] = STRDUP(str);
+      data->event_names[data->nvars] = STRDUP(hp.vars[i].event_name.c_str());
+      data->var_names[data->nvars] = STRDUP(hp.vars[i].tag_name.c_str());
       data->var_index[data->nvars] = 0;
 
-      char *q = strchr(p+1, '[');
+      char *q = strchr(data->var_names[data->nvars], '[');
       if (q) {
          data->var_index[data->nvars] = atoi(q+1);
          *q = 0;
       }
-
-      data->var_names[data->nvars] = STRDUP(p+1);
 
       data->nvars++;
    } // loop over variables
@@ -10430,9 +10461,9 @@ int read_history(HNDLE hDB, const char *group, const char *panel, int index, int
    return SUCCESS;
 }
 
-int get_hist_last_written(const char *group, const char *panel, time_t endtime, int index, int want_all, time_t *plastwritten)
+int get_hist_last_written(MVOdb* odb, const char *group, const char *panel, time_t endtime, int index, int want_all, time_t *plastwritten)
 {
-   HNDLE hDB;
+   //HNDLE hDB;
    int status;
 
    time_t now = ss_time();
@@ -10443,13 +10474,16 @@ int get_hist_last_written(const char *group, const char *panel, time_t endtime, 
    HistoryData  hsxxx;
    HistoryData* hsdata = &hsxxx;
 
-   cm_get_experiment_database(&hDB, NULL);
+   //cm_get_experiment_database(&hDB, NULL);
+
+   HistPlot hp;
+   LoadHistPlotFromOdb(odb, &hp, group, panel);
 
    double tstart = ss_millitime();
 
    int flags = READ_HISTORY_LAST_WRITTEN;
 
-   status = read_history(hDB, group, panel, index, flags, endtime, endtime, 0, hsdata);
+   status = read_history(hp, /*hDB, group, panel,*/ index, flags, endtime, endtime, 0, hsdata);
 
    if (status != HS_SUCCESS) {
       //sprintf(str, "Complete history failure, read_history() status %d, see messages", status);
@@ -10509,35 +10543,6 @@ int get_hist_last_written(const char *group, const char *panel, time_t endtime, 
 
    return HS_SUCCESS;
 }
-
-struct HistVar
-{
-   std::string event_name;
-   std::string tag_name;
-   std::string formula;
-   std::string colour;
-   std::string label;
-   int         order = -1;
-   double factor = 1.0;
-   double offset = 0;
-   double voffset = 0;
-};
-
-struct HistPlot
-{
-   std::string timescale = "1h";
-   double minimum = 0;
-   double maximum = 0;
-   bool zero_ylow = false;
-   bool log_axis  = false;
-   bool show_run_markers = true;
-   bool show_values = true;
-   bool show_fill   = true;
-
-   std::vector<HistVar> vars;
-};
-
-static void LoadHistPlotFromOdb(MVOdb* odb, HistPlot* hp, const char* group, const char* panel);
 
 void generate_hist_graph(MVOdb* odb, Return* rr, const char *hgroup, const char *hpanel, char *buffer, int *buffer_size,
                          int width, int height,
@@ -11041,7 +11046,7 @@ void generate_hist_graph(MVOdb* odb, Return* rr, const char *hgroup, const char 
    if (hp.show_run_markers)
       flags |= READ_HISTORY_RUNMARKER;
 
-   status = read_history(hDB, hgroup, hpanel, index, flags, starttime, endtime, scale/1000+1, hsdata);
+   status = read_history(hp, /*hDB, hgroup, hpanel,*/ index, flags, starttime, endtime, scale/1000+1, hsdata);
 
    if (status != HS_SUCCESS) {
       sprintf(str, "Complete history failure, read_history() status %d, see messages", status);
@@ -12850,14 +12855,16 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
 
 /*------------------------------------------------------------------*/
 
-void export_hist(Return* r, const char *group, const char *panel, time_t endtime, int scale, int index, int labels)
+void export_hist(MVOdb* odb, Return* r, const char *group, const char *panel, time_t endtime, int scale, int index, int labels)
 {
-   HNDLE hDB, hkey, hkeypanel;
-   int size, status;
-   char str[256];
+   //HNDLE hDB, hkey, hkeypanel;
+   //int size;
+   int status;
+   //char str[256];
 
    int debug = 0;
 
+#if 0
    cm_get_experiment_database(&hDB, NULL);
 
    /* check panel name in ODB */
@@ -12890,6 +12897,7 @@ void export_hist(Return* r, const char *group, const char *panel, time_t endtime
 
       scale = time_to_sec(ts.c_str());
    }
+#endif
 
    time_t now = ss_time();
 
@@ -12899,12 +12907,16 @@ void export_hist(Return* r, const char *group, const char *panel, time_t endtime
    HistoryData hsxxx;
    HistoryData* hsdata = &hsxxx;
 
+   HistPlot hp;
+   LoadHistPlotFromOdb(odb, &hp, group, panel);
+
    time_t starttime = endtime - scale;
 
    //printf("start %.0f, end %.0f, scale %.0f\n", (double)starttime, (double)endtime, (double)scale);
 
-   status = read_history(hDB, group, panel, index, runmarker, starttime, endtime, 0, hsdata);
+   status = read_history(hp, /*hDB, group, panel,*/ index, hp.show_run_markers, starttime, endtime, 0, hsdata);
    if (status != HS_SUCCESS) {
+      char str[256];
       sprintf(str, "History error, status %d\n", status);
       show_error(r, str);
       return;
@@ -12937,7 +12949,7 @@ void export_hist(Return* r, const char *group, const char *panel, time_t endtime
    int state_index = -1;
    int n_run_number = 0;
    time_t* t_run_number = NULL;
-   if (runmarker)
+   if (hp.show_run_markers)
       for (int i = 0; i < hsdata->nvars; i++) {
          if (hsdata->odb_index[i] == -2) {
             n_run_number = hsdata->num_entries[i];
@@ -12961,7 +12973,7 @@ void export_hist(Return* r, const char *group, const char *panel, time_t endtime
    r->rsprintf("\r\n");
 
    /* output header line with variable names */
-   if (runmarker && t_run_number)
+   if (hp.show_run_markers && t_run_number)
       r->rsprintf("Time, Timestamp, Run, Run State, ");
    else
       r->rsprintf("Time, Timestamp, ");
@@ -12986,7 +12998,7 @@ void export_hist(Return* r, const char *group, const char *panel, time_t endtime
          printf("hsdata %p, t %d, irun %d\n", hsdata, (int)t, i_run);
 
       /* find run number/state which is valid for t */
-      if (runmarker && t_run_number)
+      if (hp.show_run_markers && t_run_number)
          while (i_run < n_run_number-1 && t_run_number[i_run+1] <= t)
             i_run++;
 
@@ -13021,6 +13033,7 @@ void export_hist(Return* r, const char *group, const char *panel, time_t endtime
       char fmt[256];
       //strcpy(fmt, "%c");
       strcpy(fmt, "%Y.%m.%d %H:%M:%S");
+      char str[256];
       strftime(str, sizeof(str), fmt, tms);
 
       if (t_run_number && run_index>=0 && state_index>=0) {
@@ -13376,7 +13389,7 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
 #endif
 
    if (equal_ustring(hcmd, "Export")) {
-      export_hist(r, hgroup, hpanel, endtime, scale, index, labels);
+      export_hist(odb, r, hgroup, hpanel, endtime, scale, index, labels);
       return;
    }
 
@@ -13414,7 +13427,7 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
       if (endtime == 0)
          endtime = now;
       time_t last_written = 0;
-      status = get_hist_last_written(hgroup, hpanel, endtime, index, 1, &last_written);
+      status = get_hist_last_written(odb, hgroup, hpanel, endtime, index, 1, &last_written);
       if (status == HS_SUCCESS)
          endtime = last_written + scale/2;
    }
@@ -13423,7 +13436,7 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
       if (endtime == 0)
          endtime = now;
       time_t last_written = 0;
-      status = get_hist_last_written(hgroup, hpanel, endtime, index, 0, &last_written);
+      status = get_hist_last_written(odb, hgroup, hpanel, endtime, index, 0, &last_written);
       if (status == HS_SUCCESS)
          if (last_written != endtime)
             endtime = last_written + scale/2;
