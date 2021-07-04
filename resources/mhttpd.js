@@ -1993,7 +1993,7 @@ function mhttpd_refresh() {
       for (let i = 0; i < modbcheckbox.length; i++, idata++) {
          let x = rpc[0].result.data[idata];
          let tid = rpc[0].result.tid[idata];
-         let mvalue = mie_to_string(tid, x, modbvalue[i].dataset.format);
+         let mvalue = mie_to_string(tid, x);
          if (typeof x === "boolean")
             modbcheckbox[i].checked = x;
          else
