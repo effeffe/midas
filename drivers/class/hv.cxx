@@ -262,15 +262,15 @@ INT hv_read(EQUIPMENT * pequipment, int channel)
    // check for update demand
    for (i = 0; i < hv_info->num_channels; i++) {
       if (hv_info->driver[i]->flags & DF_POLL_DEMAND) {
-         if (hv_info->demand[i] != hv_info->demand_mirror[i])
+         if (hv_info->demand[i] != hv_info->demand_mirror[i]) {
             db_set_data_index(hDB, hv_info->hKeyDemand, &hv_info->demand[i],
-                        sizeof(float), i, TID_FLOAT);
+                              sizeof(float), i, TID_FLOAT);
+            hv_info->demand_mirror[i] = hv_info->demand[i];
+         }
 
          pequipment->odb_out++;
       }
    }
-
-   hv_info->demand_mirror[i] = hv_info->demand[i];
 
    // check for updated chStatus
    max_diff = 0.f;
@@ -416,8 +416,13 @@ void hv_demand(INT hDB, INT hKey, void *info)
 
    /* check for voltage limit */
    for (i = 0; i < hv_info->num_channels; i++)
-      if (fabs(hv_info->demand[i]) > fabs(hv_info->voltage_limit[i]))
+      if (fabs(hv_info->demand[i]) > fabs(hv_info->voltage_limit[i])) {
          hv_info->demand[i] = hv_info->voltage_limit[i];
+
+         /* correct value in ODB */
+         db_set_data_index(hDB, hv_info->hKeyDemand, &hv_info->demand[i],
+                           sizeof(float), i, TID_FLOAT);
+      }
 
    /* set individual channels only if demand value differs */
    for (i = 0; i < hv_info->num_channels; i++)
