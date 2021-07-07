@@ -772,16 +772,16 @@ INT hv_init(EQUIPMENT * pequipment)
    db_create_key(hDB, hv_info->hKeyRoot, "Settings/Editable", TID_STRING);
    status = db_find_key(hDB, hv_info->hKeyRoot, "Settings/Editable", &hKey);
    if (status == DB_SUCCESS) {
-     const int kSize = 10;
-     char editable[kSize][NAME_LENGTH];
-     int i, count;
-     for (i=0; i<kSize; i++)
-       editable[i][0] = 0;
-     count = 0;
-     strcpy(editable[count++], "Demand");
-     if (hv_info->driver[0]->flags & DF_REPORT_CHSTATE)
-       strcpy(editable[count++], "ChState");
-     db_set_data(hDB, hKey, editable, count*NAME_LENGTH, count, TID_STRING);
+      const int kSize = 10;
+      char editable[kSize][NAME_LENGTH];
+      int count;
+      for (i = 0; i < kSize; i++)
+         editable[i][0] = 0;
+      count = 0;
+      strcpy(editable[count++], "Demand");
+      if (hv_info->driver[0]->flags & DF_REPORT_CHSTATE)
+         strcpy(editable[count++], "ChState");
+      db_set_data(hDB, hKey, editable, count * NAME_LENGTH, count, TID_STRING);
    }
 
    // Names
@@ -940,7 +940,10 @@ INT hv_init(EQUIPMENT * pequipment)
             status = device_driver(hv_info->driver[i], CMD_GET_CRATEMAP,
                                    i - hv_info->channel_offset[i], &hv_info->crateMap[i]);
       }
+      printf("%s: %d\r", pequipment->name, i+1);
    }
+   printf("\n");
+
    db_set_record(hDB, hv_info->hKeyDemand, hv_info->demand,
                  hv_info->num_channels * sizeof(float), 0);
 
@@ -999,6 +1002,8 @@ INT hv_init(EQUIPMENT * pequipment)
                db_set_data_index(hDB, hv_info->hKeyTemperature, &hv_info->temperature[i],
                            sizeof(float) * hv_info->num_channels, hv_info->num_channels,
                            TID_FLOAT);
+
+            printf("%s: %d\r", pequipment->name, i+1);
          }
       }
    }
