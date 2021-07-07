@@ -10350,7 +10350,7 @@ int read_history(const HistPlot& hp, /*HNDLE hDB, const char *group, const char 
    data->scale = scale;
 
    for (size_t i=0; i<hp.vars.size(); i++) {
-      if (index != -1 && index != i)
+      if (index != -1 && (size_t)index != i)
          continue;
 
       //char str[256];
@@ -12735,7 +12735,7 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
             const char *p = events[e].c_str();
             r->rsprintf("<option value=\"%s\">%s\n", p, p);
          }
-      } else if (events.size() > max_display_events) { // too many events
+      } else if ((int)events.size() > max_display_events) { // too many events
          r->rsprintf("<option selected value=\"%s\">%s\n", hp.vars[index].event_name.c_str(), hp.vars[index].event_name.c_str());
          r->rsprintf("<option>(%d events omitted)\n", (int)events.size());
       } else { // show all events
@@ -12800,7 +12800,7 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
 
             //printf("output %d option tags\n", count_tags);
 
-            if (count_tags < max_display_tags) {
+            if ((int)count_tags < max_display_tags) {
                for (unsigned v=0; v<tags.size(); v++) {
 
                  for (unsigned j=0; j<tags[v].n_data; j++) {
