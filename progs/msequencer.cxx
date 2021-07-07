@@ -1555,7 +1555,7 @@ void sequencer()
                db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, &size, TID_INT32, FALSE);
                status = cm_transition(TR_START, run_number+1, str, sizeof(str), TR_MTHREAD | TR_SYNC, FALSE);
                if (status != CM_SUCCESS) {
-                  char errorstr[512];
+                  char errorstr[1500];
                   sprintf(errorstr, "Cannot start run: %s", str);
                   seq_error(seq, errorstr);
                }
@@ -1579,7 +1579,7 @@ void sequencer()
                if (status == CM_DEFERRED_TRANSITION) {
                   // do nothing
                } else if (status != CM_SUCCESS) {
-                  char errorstr[512];
+                  char errorstr[1500];
                   sprintf(errorstr, "Cannot stop run: %s", str);
                   seq_error(seq, errorstr);
                }
