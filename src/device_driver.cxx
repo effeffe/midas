@@ -35,10 +35,10 @@ static int sc_thread(void *info)
          value = (float)ss_nan();
          status = device_drv->dd(cmd, device_drv->dd_info, current_channel, &value);
 
-         ss_semaphore_wait_for(device_drv->semaphore, 1000);
+         ss_mutex_wait_for(device_drv->mutex, 1000);
          device_drv->mt_buffer->channel[current_channel].variable[cmd] = value;
          device_drv->mt_buffer->status = status;
-         ss_semaphore_release(device_drv->semaphore);
+         ss_mutex_release(device_drv->mutex);
 
          // printf("TID %d: channel %d, value %f\n", ss_gettid(), current_channel, value);
       }
@@ -64,10 +64,10 @@ static int sc_thread(void *info)
          for (cmd = CMD_GET_FIRST; cmd <= CMD_GET_LAST; cmd++) {
             status = device_drv->dd(cmd, device_drv->dd_info, i, &value);
 
-            ss_semaphore_wait_for(device_drv->semaphore, 1000);
+            ss_mutex_wait_for(device_drv->mutex, 1000);
             device_drv->mt_buffer->channel[i].variable[cmd] = value;
             device_drv->mt_buffer->status = status;
-            ss_semaphore_release(device_drv->semaphore);
+            ss_mutex_release(device_drv->mutex);
          }
       }
 
@@ -76,10 +76,10 @@ static int sc_thread(void *info)
 
          for (cmd = CMD_SET_FIRST; cmd <= CMD_SET_LAST; cmd++) {
             if (!ss_isnan(device_drv->mt_buffer->channel[i].variable[cmd])) {
-               ss_semaphore_wait_for(device_drv->semaphore, 1000);
+               ss_mutex_wait_for(device_drv->mutex, 1000);
                value = device_drv->mt_buffer->channel[i].variable[cmd];
                device_drv->mt_buffer->channel[i].variable[cmd] = (float) ss_nan();
-               ss_semaphore_release(device_drv->semaphore);
+               ss_mutex_release(device_drv->mutex);
 
                status = device_drv->dd(cmd, device_drv->dd_info, i, value);
                device_drv->mt_buffer->status = status;
@@ -151,8 +151,7 @@ INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...)
                                  device_drv->mt_buffer->channel[i].label);
 
             /* create semaphore */
-            sprintf(str, "DD_%s", device_drv->name);
-            status = ss_semaphore_create(str, &device_drv->semaphore);
+            status = ss_mutex_create(&device_drv->mutex, FALSE);
             if (status != SS_CREATED && status != SS_SUCCESS)
                return FE_ERR_DRIVER;
             status = FE_SUCCESS;
@@ -185,7 +184,7 @@ INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...)
          if (i == 1000)
             ss_thread_kill(device_drv->mt_buffer->thread_id);
 
-         ss_semaphore_delete(device_drv->semaphore, TRUE);
+         ss_mutex_delete(device_drv->mutex);
          free(device_drv->mt_buffer->channel);
          free(device_drv->mt_buffer);
       }
@@ -215,10 +214,10 @@ INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...)
          channel = va_arg(argptr, INT);
          value = (float) va_arg(argptr, double);        // floats are passed as double
          if (device_drv->flags & DF_MULTITHREAD) {
-            ss_semaphore_wait_for(device_drv->semaphore, 1000);
+            ss_mutex_wait_for(device_drv->mutex, 1000);
             device_drv->mt_buffer->channel[channel].variable[cmd] = value;
             status = device_drv->mt_buffer->status;
-            ss_semaphore_release(device_drv->semaphore);
+            ss_mutex_release(device_drv->mutex);
          } else {
             status = device_drv->dd(cmd, device_drv->dd_info, channel, value);
          }
@@ -229,10 +228,10 @@ INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...)
          channel = va_arg(argptr, INT);
          pvalue = va_arg(argptr, float *);
          if (device_drv->flags & DF_MULTITHREAD) {
-            ss_semaphore_wait_for(device_drv->semaphore, 1000);
+            ss_mutex_wait_for(device_drv->mutex, 1000);
             *pvalue = device_drv->mt_buffer->channel[channel].variable[cmd];
             status = device_drv->mt_buffer->status;
-            ss_semaphore_release(device_drv->semaphore);
+            ss_mutex_release(device_drv->mutex);
          } else
             status = device_drv->dd(cmd, device_drv->dd_info, channel, pvalue);
 

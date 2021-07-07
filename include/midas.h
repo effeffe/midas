@@ -422,7 +422,8 @@ Read - On flags */
 #define RO_RESUME     (1<<6)   /**< Before resuming the run */
 
 #define RO_TRANSITIONS (RO_BOR|RO_EOR|RO_PAUSE|RO_RESUME)      /**< At all transitions */
-#define RO_ALWAYS      (0xFF)      /**<  Always (independent of the run status) */
+#define RO_NONTRANS    (RO_RUNNING|RO_STOPPED|RO_PAUSED)       /**< Always except on tranistion */
+#define RO_ALWAYS      (0xFF)                                  /**< Always and during transitions */
 
 #define RO_ODB        (1<<8)   /**< Submit data to ODB only */
 
@@ -1135,7 +1136,6 @@ typedef struct {
    DD_MT_BUFFER *mt_buffer;           /**< pointer to multithread buffer     */
    INT stop_thread;                   /**< flag used to stop the thread      */
    MUTEX_T *mutex;                    /**< mutex for buffer                  */
-   INT semaphore;                     /**< semaphore for device access       */
    EQUIPMENT_INFO *pequipment;        /**< pointer to equipment              */
 } DEVICE_DRIVER;
 

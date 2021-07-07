@@ -794,7 +794,7 @@ static INT initialize_equipment(void)
 
          /* loop over equipment list and call class driver's init method */
          if (eq_info->enabled) {
-            printf("%s:\n", equipment[idx].name);
+            printf("%s:\r", equipment[idx].name);
             equipment[idx].status = equipment[idx].cd(CMD_INIT, &equipment[idx]);
 
             if (equipment[idx].status == FE_SUCCESS)
@@ -2588,7 +2588,7 @@ int main(int argc, char *argv[])
    }
 
    /* call user init function */
-   printf("Init hardware...");
+   printf("Init hardware...\n");
    if (frontend_init() != SUCCESS) {
       printf("\n");
       cm_disconnect_experiment();
