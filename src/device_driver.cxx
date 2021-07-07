@@ -115,7 +115,7 @@ INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...)
    HNDLE hKey;
    INT channel, status, i, j;
    float value, *pvalue;
-   char *name, *label, str[256];
+   char *name, *label;
 
    va_start(argptr, cmd);
    status = FE_SUCCESS;
