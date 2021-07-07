@@ -1172,7 +1172,7 @@ int set_all_matching(HNDLE hDB, HNDLE hBaseKey, char* odbpath, char* value, int 
 void sequencer()
 {
    PMXML_NODE pn, pr, pt, pe;
-   char odbpath[256], value[256], data[256], str[256], str1[256], name[32], op[32];
+   char odbpath[256], value[256], data[256], str[1024], str1[256], name[32], op[32];
    char list[100][XNAME_LENGTH];
    int i, j, l, n, status, size, index1, index2, state, run_number, cont;
    HNDLE hDB, hKey, hKeySeq;
