@@ -64,10 +64,10 @@ INT mscbhv4_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
 
    cm_get_experiment_database(&hDB, NULL);
 
-   /* retrieve device name */
+   // retrieve device name
    db_get_key(hDB, hkey, &key);
 
-   /* create MSCBHV4 settings record */
+   // create MSCBHV4 settings record
    size = sizeof(info->settings.mscb_device);
    info->settings.mscb_device[0] = 0;
    status = db_get_value(hDB, hkey, "Device", &info->settings.mscb_device, &size, TID_STRING, TRUE);
@@ -88,7 +88,7 @@ INT mscbhv4_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
    if (status != DB_SUCCESS)
       return FE_ERR_ODB;
 
-   /* open device on MSCB */
+   // open device on MSCB
    info->fd = mscb_init(info->settings.mscb_device, NAME_LENGTH, info->settings.pwd, info->settings.debug);
    if (info->fd < 0) {
       cm_msg(MERROR, "mscbhv4_init",
@@ -97,7 +97,7 @@ INT mscbhv4_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
       return FE_ERR_HW;
    }
 
-   /* check nodes */
+   // check nodes
    for (int i=0 ; i<channels / 4 ; i++) {
       status = mscb_info(info->fd, info->settings.address[i], &node_info);
       if (status != MSCB_SUCCESS) {
@@ -116,7 +116,7 @@ INT mscbhv4_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
       }
    }
 
-   /* read all values from HV4 devices */
+   // read all values from HV4 devices
    for (int i=0 ; i<channels ; i++) {
 
       if (i % 10 == 0)
@@ -151,7 +151,7 @@ INT mscbhv4_read_all(MSCBHV4_INFO * info, int i)
       return FE_ERR_HW;
    }
 
-   /* decode variables from buffer */
+   // decode variables from buffer
    pbuf = buffer;
    DWORD_SWAP(pbuf);
    info->node_vars[i].u_demand = *((float *)pbuf);
@@ -182,7 +182,7 @@ INT mscbhv4_read_all(MSCBHV4_INFO * info, int i)
    info->node_vars[i].i_meas[3] = *((float *)pbuf);
    pbuf += sizeof(float);
 
-   /* mark voltage/current as valid in cache */
+   // mark voltage/current as valid in cache
    for (int j=i ; j<i+4 ; j++)
       info->node_vars[j].cached = 1;
 
@@ -205,6 +205,11 @@ INT mscbhv4_exit(MSCBHV4_INFO * info)
 INT mscbhv4_set(MSCBHV4_INFO * info, INT channel, float value)
 {
    mscb_write(info->fd, info->settings.address[channel/4], 0, &value, 4);
+
+   // set demand value of all four channels, since unit only has one demand
+   int fc = channel / 4 * 4;
+   for (int i=fc ; i<fc+4 ; i++)
+      info->node_vars[i].u_demand = value;
    return FE_SUCCESS;
 }
 
@@ -212,7 +217,7 @@ INT mscbhv4_set(MSCBHV4_INFO * info, INT channel, float value)
 
 INT mscbhv4_get(MSCBHV4_INFO * info, INT channel, float *pvalue)
 {
-   /* check if value was previously read by mscbhvr_read_all() */
+   // check if value was previously read by mscbhvr_read_all()
    if (info->node_vars[channel].cached) {
       int i = channel / 4 * 4;
       *pvalue = info->node_vars[i].u_meas;
@@ -286,9 +291,6 @@ INT mscbhv4(INT cmd, ...)
          break;
 
       case CMD_GET_LABEL:
-         status = FE_SUCCESS;
-         break;
-
       case CMD_SET_LABEL:
          status = FE_SUCCESS;
          break;
