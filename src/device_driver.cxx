@@ -170,9 +170,17 @@ INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...)
       }
       break;
 
+   case CMD_CLOSE:
+      /* signal all threads to stop */
+      if (device_drv->flags & DF_MULTITHREAD && device_drv->mt_buffer != NULL)
+         device_drv->stop_thread = 1;
+      break;
+
    case CMD_STOP:
       if (device_drv->flags & DF_MULTITHREAD && device_drv->mt_buffer != NULL) {
-         device_drv->stop_thread = 1;
+         if (device_drv->stop_thread == 0)
+            device_drv->stop_thread = 1;
+
          /* wait for max. 10 seconds until thread has gracefully stopped */
          for (i = 0; i < 1000; i++) {
             if (device_drv->stop_thread == 2)

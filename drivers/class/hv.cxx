@@ -130,6 +130,11 @@ INT hv_stop(EQUIPMENT * pequipment)
    /* call close method of device drivers */
    for (i = 0; pequipment->driver[i].dd != NULL ; i++)
       if (pequipment->driver[i].flags & DF_MULTITHREAD)
+         device_driver(&pequipment->driver[i], CMD_CLOSE);
+
+   /* call stop method of device drivers */
+   for (i = 0; pequipment->driver[i].dd != NULL ; i++)
+      if (pequipment->driver[i].flags & DF_MULTITHREAD)
          device_driver(&pequipment->driver[i], CMD_STOP);
 
    return FE_SUCCESS;
