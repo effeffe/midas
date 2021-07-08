@@ -669,6 +669,10 @@ typedef struct {
    int EXPRT rb_increment_rp(int handle, int size);
    int EXPRT rb_get_buffer_level(int handle, int * n_bytes);
 
+   /*---- stop watch ----*/
+   std::chrono::time_point<std::chrono::high_resolution_clock> ss_us_start();
+   unsigned int ss_us_since(std::chrono::time_point<std::chrono::high_resolution_clock> start);
+
 /*---- Include RPC identifiers -------------------------------------*/
 
 #include "mrpc.h"

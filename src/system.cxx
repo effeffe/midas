@@ -7507,6 +7507,16 @@ bool ss_repair_utf8(std::string& s)
    return ss_repair_utf8((char*)s.data()); // FIXME: C++17 or newer, do not need to drop the "const". K.O. May 2021
 }
 
+std::chrono::time_point<std::chrono::high_resolution_clock> ss_us_start()
+{
+   return std::chrono::high_resolution_clock::now();
+}
+
+unsigned int ss_us_since(std::chrono::time_point<std::chrono::high_resolution_clock> start) {
+   auto elapsed = std::chrono::high_resolution_clock::now() - start;
+   return std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
+}
+
 /** @} *//* end of msfunctionc */
 /* emacs
  * Local Variables:
