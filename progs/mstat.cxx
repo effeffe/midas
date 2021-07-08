@@ -655,7 +655,7 @@ int main(int argc, char **argv)
 
             j = 0;
             while ((j < cur_max_line) && (ststr[j][0] != '\0')) {
-               strncpy(strdis, ststr[j], 80);
+               strlcpy(strdis, ststr[j], sizeof(strdis));
                ss_printf(0, j, "%s", strdis);
                j++;
             }
