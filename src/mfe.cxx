@@ -143,6 +143,7 @@ static INT tr_start(INT rn, char *error)
    }
 
    cm_set_client_run_state(run_state);
+
    return status;
 }
 
@@ -1764,6 +1765,7 @@ static INT scheduler()
          if (eq->status != FE_SUCCESS && eq->status != FE_PARTIALLY_DISABLED)
             continue;
 
+
          /*---- call idle routine for slow control equipment ----*/
          if ((eq_info->eq_type & EQ_SLOW) &&
              (eq->status == FE_SUCCESS || eq->status == FE_PARTIALLY_DISABLED)) {
@@ -2115,7 +2117,7 @@ static INT scheduler()
 
       for (i = 0; equipment[i].name[0]; i++) {
          if (equipment[i].bytes_sent > 0xDFFFFFFF)
-            overflow = equipment[i].bytes_sent;
+            overflow = (int)equipment[i].bytes_sent;
       }
 
       /*---- calculate rates and update status page periodically -----*/
@@ -2128,7 +2130,7 @@ static INT scheduler()
          for (i = 0; equipment[i].name[0]; i++) {
             eq = &equipment[i];
             eq->stats.events_sent += eq->events_sent;
-            n_events[i] += eq->events_sent;
+            n_events[i] += (int)eq->events_sent;
             eq->events_sent = 0;
          }
 
@@ -2144,13 +2146,13 @@ static INT scheduler()
                                               1000.0);
 
                if ((INT) eq->bytes_sent > max_bytes_per_sec)
-                  max_bytes_per_sec = eq->bytes_sent;
+                  max_bytes_per_sec = (INT)eq->bytes_sent;
 
                eq->bytes_sent = 0;
                n_events[i] = 0;
             }
 
-            max_bytes_per_sec = (DWORD)
+            max_bytes_per_sec = (INT)
                 ((double) max_bytes_per_sec /
                  ((actual_millitime - last_time_rate) / 1000.0));
 
