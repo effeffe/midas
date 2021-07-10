@@ -34,7 +34,7 @@ message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
 add_compile_options("-O2")
 add_compile_options("-g")
-add_compile_options("-std=c++11")
+#add_compile_options("-std=c++11")
 
 set(SYSLIB_DIR ${PROJECT_SOURCE_DIR}/lib)
 set(SYSINC_DIR ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/midasio)
@@ -541,6 +541,14 @@ if (HAVE_ROOT)
 endif(HAVE_ROOT)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/rmanao.dir/src/mana.cxx.o DESTINATION lib RENAME rmana.o)
 
+# enable c++11
+target_compile_options(objlib PRIVATE "-std=c++11")
+target_compile_options(objlib-c-compat PRIVATE "-std=c++11")
+target_compile_options(mfe PRIVATE "-std=c++11")
+target_compile_options(mana PRIVATE "-std=c++11")
+target_compile_options(mfeo PRIVATE "-std=c++11")
+target_compile_options(manao PRIVATE "-std=c++11")
+
 # keeps track of all the built libraries
 set(MIDAS_LIBRARIES
 #   objlib
@@ -583,11 +591,11 @@ add_dependencies(objlib git_revision_h)
 #####################################################################
 # sub-modules
 #####################################################################
-add_subdirectory(mjson)
-add_subdirectory(mxml)
+#add_subdirectory(mjson)
+#add_subdirectory(mxml)
 add_subdirectory(mscb)
-add_subdirectory(mvodb)
-add_subdirectory(midasio)
+#add_subdirectory(mvodb)
+#add_subdirectory(midasio)
 add_subdirectory(manalyzer)
 
 #####################################################################

@@ -54,8 +54,6 @@ foreach(PROG ${PROGS} ${TESTPROGS})
    add_executable(${PROG} ${PROG})
    target_link_libraries(${PROG} midas ${LIBS} ${DB_LIBS})
 #   set(CMAKE_CXX_FLAGS "-fsanitize=address")
-   target_link_libraries(${PROG} mjson)
-   target_link_libraries(${PROG} mxml)
 endforeach()
 
 
@@ -83,7 +81,6 @@ endif(HAVE_LM_SENSORS)
 add_executable(mhttpd mhttpd mongoose616 mgd ${PROJECT_SOURCE_DIR}/mscb/src/mscb)
 target_compile_options(mhttpd PRIVATE -DHAVE_MSCB)
 target_include_directories(mhttpd PRIVATE ${PROJECT_SOURCE_DIR}/mscb/include)
-target_link_libraries(mhttpd mjson)
 
 target_compile_options(mhttpd PRIVATE -DHAVE_MONGOOSE616 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI -DMG_ENABLE_EXTRA_ERRORS_DESC -DMG_ENABLE_IPV6 -DMG_ENABLE_HTTP_URL_REWRITES -DMG_ENABLE_HTTP_SSI=0)
 
@@ -111,7 +108,6 @@ target_compile_options(mhttpd6 PRIVATE -DHAVE_MSCB)
 target_include_directories(mhttpd6 PRIVATE ${PROJECT_SOURCE_DIR}/mscb/include)
 target_include_directories(mhttpd6 PRIVATE ${OPENSSL_INCLUDE_DIR})
 target_link_libraries(mhttpd6 ${DB_LIBS})
-target_link_libraries(mhttpd6 mjson)
 
 # mongoose flags
 target_compile_options(mhttpd6 PRIVATE -DHAVE_MONGOOSE6 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI -DMG_ENABLE_EXTRA_ERRORS_DESC)
