@@ -123,9 +123,7 @@ if (ROOT_FOUND)
       scaler_module.cxx
       )
 
-   target_include_directories(ana PUBLIC ${ROOT_INCLUDE_DIRS})
-   target_compile_options(ana PUBLIC -DHAVE_ROOT ${ROOT_CXX_FLAGS})
-   target_link_libraries(ana manalyzer_main manalyzer midas ${ROOT_LIBRARIES})
+   target_link_libraries(ana manalyzer_main)
 endif(ROOT_FOUND)
 
 #end
