@@ -7,10 +7,10 @@
 message(STATUS "MIDAS: cmake version: " ${CMAKE_VERSION})
 cmake_minimum_required(VERSION 3.0)
 
-if (NOT CMAKE_CXX_STANDARD)    # let top-level project overwrite c++ standard
-   set(CMAKE_CXX_STANDARD 11)
-endif()
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+#if (NOT CMAKE_CXX_STANDARD)    # let top-level project overwrite c++ standard
+#   set(CMAKE_CXX_STANDARD 11)
+#endif()
+#set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 #message(STATUS "MIDAS: CMAKE_CXX_FLAGS_RELWITHDEBINFO: ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
 #message(STATUS "MIDAS: CMAKE_CXX_COMPILE_FEATURES: ${CMAKE_CXX_COMPILE_FEATURES}")
@@ -31,6 +31,10 @@ else()
    set(CMAKE_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 endif()
 message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
+
+add_compile_options("-O2")
+add_compile_options("-g")
+add_compile_options("-std=c++11")
 
 set(SYSLIB_DIR ${PROJECT_SOURCE_DIR}/lib)
 set(SYSINC_DIR ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/midasio)
@@ -364,12 +368,12 @@ set(MIDAS_FOUND TRUE)
 # Default build type
 #
 
-string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}") # midas requires working assert()
-
-if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
-    message(STATUS "MIDAS: Setting default build type to \"RelWithDebInfo\", compiler flags: " ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
-    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "" FORCE)
-endif()
+#string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}") # midas requires working assert()
+#
+#if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
+#    message(STATUS "MIDAS: Setting default build type to \"RelWithDebInfo\", compiler flags: " ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+#    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "" FORCE)
+#endif()
 
 #-----------------------
 # Common flags
@@ -533,7 +537,7 @@ add_library(rmanao OBJECT src/mana)
 target_include_directories(rmanao PUBLIC ${SYSINC_DIR})
 if (HAVE_ROOT)
    target_include_directories(rmanao PUBLIC ${ROOT_INCLUDE_DIRS})
-   target_compile_options(rmanao PRIVATE -DHAVE_ROOT)
+   target_compile_options(rmanao PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
 endif(HAVE_ROOT)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/rmanao.dir/src/mana.cxx.o DESTINATION lib RENAME rmana.o)
 

@@ -33,10 +33,14 @@ project(example_experiment)
 # set default build type
 #
 
-if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
-    message(STATUS "Setting default build type to \"RelWithDebInfo\"")
-    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "" FORCE)
-endif()
+#if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
+#    message(STATUS "Setting default build type to \"RelWithDebInfo\"")
+#    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "" FORCE)
+#endif()
+
+add_compile_options("-O2")
+add_compile_options("-g")
+#add_compile_options("-std=c++11")
 
 #
 # Find MIDAS
