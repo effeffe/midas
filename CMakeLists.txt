@@ -37,7 +37,6 @@ add_compile_options("-g")
 #add_compile_options("-std=c++11")
 
 set(SYSINC_DIR ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/midasio)
-set(DRV_DIR ${PROJECT_SOURCE_DIR}/drivers)
 
 # NB: RPATH is not needed as everything is linked statically. K.O.
 ## Ensure the C-compat library can load the main library after install
