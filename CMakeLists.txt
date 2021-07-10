@@ -36,7 +36,6 @@ add_compile_options("-O2")
 add_compile_options("-g")
 #add_compile_options("-std=c++11")
 
-set(SYSLIB_DIR ${PROJECT_SOURCE_DIR}/lib)
 set(SYSINC_DIR ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/mxml ${PROJECT_SOURCE_DIR}/mjson ${PROJECT_SOURCE_DIR}/mvodb ${PROJECT_SOURCE_DIR}/midasio)
 set(DRV_DIR ${PROJECT_SOURCE_DIR}/drivers)
 
