@@ -34,11 +34,8 @@ endif()
 message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
 if (${CMAKE_INSTALL_PREFIX} STREQUAL ${PROJECT_SOURCE_DIR})
-   #set(INSTALL_INC_DIR ${BUILD_INC_DIR})
-   set(INSTALL_INC_DIR include mxml mjson mvodb midasio)
    set(MIDAS_NO_INSTALL_INCLUDE_FILES true)
 else()
-   set(INSTALL_INC_FILES include/cfortran.h include/crc32c.h include/git-revision.h include/ftplib.h include/hardware.h include/hbook.h include/history.h include/mcstd.h include/mdsupport.h include/mexcept.h include/mfbstd.h include/mfe.h include/midas_c_compat.h include/midas.h include/midasinc.h include/midas_macro.h include/mleak.h include/mrpc.h include/msystem.h include/musbstd.h include/mvmestd.h include/odbxx.h include/tmfe.h include/tmfe_rev0.h)
 endif()
 
 add_compile_options("-O2")
@@ -554,16 +551,13 @@ else()
    target_include_directories(mfe            PUBLIC $<INSTALL_INTERFACE:include>)
    target_include_directories(mana           PUBLIC $<INSTALL_INTERFACE:include>)
    target_include_directories(rmana          PUBLIC $<INSTALL_INTERFACE:include>)
+
+   install(FILES include/cfortran.h include/crc32c.h include/git-revision.h include/ftplib.h include/hardware.h include/hbook.h include/history.h include/mcstd.h include/mdsupport.h include/mexcept.h include/mfbstd.h include/mfe.h include/midas_c_compat.h include/midas.h include/midasinc.h include/midas_macro.h include/mleak.h include/mrpc.h include/msystem.h include/musbstd.h include/mvmestd.h include/odbxx.h include/tmfe.h include/tmfe_rev0.h mxml/mxml.h mxml/strlcpy.h mjson/mjson.h mvodb/mvodb.h midasio/midasio.h DESTINATION include)
 endif()
 
 install(TARGETS midas midas-shared midas-c-compat mfe mana rmana
         DESTINATION lib
         EXPORT ${PROJECT_NAME}-targets)
-        
-if (MIDAS_NO_INSTALL_INCLUDE_FILES)
-else()
-install(FILES ${INSTALL_INC_FILES} DESTINATION include)
-endif()
         
 install(EXPORT ${PROJECT_NAME}-targets DESTINATION lib)
 
