@@ -52,26 +52,26 @@ set(MFEPROGS
 
 foreach(PROG ${PROGS} ${TESTPROGS})
    add_executable(${PROG} ${PROG})
-   target_link_libraries(${PROG} midas ${DB_LIBS})
+   target_link_libraries(${PROG} midas)
 #   set(CMAKE_CXX_FLAGS "-fsanitize=address")
 endforeach()
 
 
 foreach(PROG ${MFEPROGS})
    add_executable(${PROG} ${PROG})
-   target_link_libraries(${PROG} mfe midas ${DB_LIBS})
+   target_link_libraries(${PROG} mfe midas)
 endforeach()
 
 if (HAVE_NVIDIA)
    add_executable(msysmon-nvidia msysmon)
    target_include_directories(msysmon-nvidia PRIVATE ${NVIDIA_INC})
-   target_link_libraries(msysmon-nvidia mfe midas ${DB_LIBS} ${NVIDIA_LIBS})
+   target_link_libraries(msysmon-nvidia mfe midas ${NVIDIA_LIBS})
    target_compile_options(msysmon-nvidia PRIVATE -DHAVE_NVIDIA)
 endif(HAVE_NVIDIA)
 
 if (HAVE_LM_SENSORS)
    add_executable(msysmon-lmsensors msysmon)
-   target_link_libraries(msysmon-lmsensors mfe midas ${DB_LIBS} ${libsensors})
+   target_link_libraries(msysmon-lmsensors mfe midas ${libsensors})
    target_compile_options(msysmon-lmsensors PRIVATE -DHAVE_LM_SENSORS)
 endif(HAVE_LM_SENSORS)
 
@@ -90,13 +90,13 @@ if (MBEDTLS_FOUND)
    #set(MBEDTLS_LIBS ${MBEDTLS_LIBS} -L../../../mbedtls/library -lmbedtls -lmbedx509 -L../../../mbedtls/crypto/library -lmbedcrypto)
    set(MBEDTLS_LIBS ${MBEDTLS_LIBS} mbedtls)
    target_compile_options(mhttpd PRIVATE -DMG_ENABLE_SSL -DMG_SSL_IF=2 -DMG_SSL_MBED_DUMMY_RANDOM -I../mbedtls/include)
-   target_link_libraries(mhttpd midas ${MBEDTLS_LIBS} ${DB_LIBS})
+   target_link_libraries(mhttpd midas ${MBEDTLS_LIBS})
 elseif (OPENSSL_FOUND)
    target_compile_options(mhttpd PRIVATE -DMG_ENABLE_SSL -DMG_SSL_IF=1)
    target_include_directories(mhttpd PRIVATE ${OPENSSL_INCLUDE_DIR})
-   target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${DB_LIBS})
+   target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES})
 else ()
-   target_link_libraries(mhttpd midas ${DB_LIBS})
+   target_link_libraries(mhttpd midas)
 endif(MBEDTLS_FOUND)
 
 
@@ -107,7 +107,6 @@ add_executable(mhttpd6 mhttpd mongoose6 mgd ${PROJECT_SOURCE_DIR}/mscb/src/mscb)
 target_compile_options(mhttpd6 PRIVATE -DHAVE_MSCB)
 target_include_directories(mhttpd6 PRIVATE ${PROJECT_SOURCE_DIR}/mscb/include)
 target_include_directories(mhttpd6 PRIVATE ${OPENSSL_INCLUDE_DIR})
-target_link_libraries(mhttpd6 ${DB_LIBS})
 
 # mongoose flags
 target_compile_options(mhttpd6 PRIVATE -DHAVE_MONGOOSE6 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI -DMG_ENABLE_EXTRA_ERRORS_DESC)
@@ -116,7 +115,7 @@ if (OPENSSL_FOUND)
    target_link_libraries(mhttpd6 ${OPENSSL_LIBRARIES})
 endif(OPENSSL_FOUND)
 
-target_link_libraries(mhttpd6 midas ${DB_LIBS})
+target_link_libraries(mhttpd6 midas)
 
 #
 # odbedit
@@ -141,7 +140,7 @@ if (HAVE_ROOT)
    add_executable(rmlogger mlogger)
    target_include_directories(rmlogger PUBLIC ${ROOT_INCLUDE_DIRS})
    target_compile_options(rmlogger PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
-   target_link_libraries(rmlogger midas ${ROOT_LIBRARIES} ${DB_LIBS})
+   target_link_libraries(rmlogger midas ${ROOT_LIBRARIES})
    set_target_properties(rmlogger PROPERTIES LINK_FLAGS "-Wl,-rpath,${ROOT_LIBRARY_DIR}")
 endif(HAVE_ROOT)
 
