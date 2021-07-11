@@ -52,26 +52,26 @@ set(MFEPROGS
 
 foreach(PROG ${PROGS} ${TESTPROGS})
    add_executable(${PROG} ${PROG})
-   target_link_libraries(${PROG} midas ${LIBS} ${DB_LIBS})
+   target_link_libraries(${PROG} midas ${DB_LIBS})
 #   set(CMAKE_CXX_FLAGS "-fsanitize=address")
 endforeach()
 
 
 foreach(PROG ${MFEPROGS})
    add_executable(${PROG} ${PROG})
-   target_link_libraries(${PROG} mfe midas ${LIBS} ${DB_LIBS})
+   target_link_libraries(${PROG} mfe midas ${DB_LIBS})
 endforeach()
 
 if (HAVE_NVIDIA)
    add_executable(msysmon-nvidia msysmon)
    target_include_directories(msysmon-nvidia PRIVATE ${NVIDIA_INC})
-   target_link_libraries(msysmon-nvidia mfe midas ${LIBS} ${DB_LIBS} ${NVIDIA_LIBS})
+   target_link_libraries(msysmon-nvidia mfe midas ${DB_LIBS} ${NVIDIA_LIBS})
    target_compile_options(msysmon-nvidia PRIVATE -DHAVE_NVIDIA)
 endif(HAVE_NVIDIA)
 
 if (HAVE_LM_SENSORS)
    add_executable(msysmon-lmsensors msysmon)
-   target_link_libraries(msysmon-lmsensors mfe midas ${LIBS} ${DB_LIBS} ${libsensors})
+   target_link_libraries(msysmon-lmsensors mfe midas ${DB_LIBS} ${libsensors})
    target_compile_options(msysmon-lmsensors PRIVATE -DHAVE_LM_SENSORS)
 endif(HAVE_LM_SENSORS)
 
@@ -90,13 +90,13 @@ if (MBEDTLS_FOUND)
    #set(MBEDTLS_LIBS ${MBEDTLS_LIBS} -L../../../mbedtls/library -lmbedtls -lmbedx509 -L../../../mbedtls/crypto/library -lmbedcrypto)
    set(MBEDTLS_LIBS ${MBEDTLS_LIBS} mbedtls)
    target_compile_options(mhttpd PRIVATE -DMG_ENABLE_SSL -DMG_SSL_IF=2 -DMG_SSL_MBED_DUMMY_RANDOM -I../mbedtls/include)
-   target_link_libraries(mhttpd midas ${MBEDTLS_LIBS} ${LIBS} ${DB_LIBS})
+   target_link_libraries(mhttpd midas ${MBEDTLS_LIBS} ${DB_LIBS})
 elseif (OPENSSL_FOUND)
    target_compile_options(mhttpd PRIVATE -DMG_ENABLE_SSL -DMG_SSL_IF=1)
    target_include_directories(mhttpd PRIVATE ${OPENSSL_INCLUDE_DIR})
-   target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${LIBS} ${DB_LIBS})
+   target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES} ${DB_LIBS})
 else ()
-   target_link_libraries(mhttpd midas ${LIBS} ${DB_LIBS})
+   target_link_libraries(mhttpd midas ${DB_LIBS})
 endif(MBEDTLS_FOUND)
 
 
@@ -116,14 +116,14 @@ if (OPENSSL_FOUND)
    target_link_libraries(mhttpd6 ${OPENSSL_LIBRARIES})
 endif(OPENSSL_FOUND)
 
-target_link_libraries(mhttpd6 midas ${LIBS} ${DB_LIBS})
+target_link_libraries(mhttpd6 midas ${DB_LIBS})
 
 #
 # odbedit
 #
 
 add_executable(odbedit odbedit cmdedit)
-target_link_libraries(odbedit midas ${LIBS})
+target_link_libraries(odbedit midas)
 
 #
 # lazylogger
@@ -141,7 +141,7 @@ if (HAVE_ROOT)
    add_executable(rmlogger mlogger)
    target_include_directories(rmlogger PUBLIC ${ROOT_INCLUDE_DIRS})
    target_compile_options(rmlogger PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
-   target_link_libraries(rmlogger midas ${LIBS} ${ROOT_LIBRARIES} ${DB_LIBS})
+   target_link_libraries(rmlogger midas ${ROOT_LIBRARIES} ${DB_LIBS})
    set_target_properties(rmlogger PROPERTIES LINK_FLAGS "-Wl,-rpath,${ROOT_LIBRARY_DIR}")
 endif(HAVE_ROOT)
 
