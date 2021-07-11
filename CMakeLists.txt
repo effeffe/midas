@@ -21,6 +21,7 @@ project(midas)
 # Directories
 #
 
+set(BUILD_INC_DIR include mxml mjson mvodb midasio)
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
    # in standalone mode, install under <midas>/bin
@@ -32,11 +33,17 @@ else()
 endif()
 message(STATUS "MIDAS: CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
+if (${CMAKE_INSTALL_PREFIX} STREQUAL ${PROJECT_SOURCE_DIR})
+   #set(INSTALL_INC_DIR ${BUILD_INC_DIR})
+   set(INSTALL_INC_DIR include mxml mjson mvodb midasio)
+   set(MIDAS_NO_INSTALL_INCLUDE_FILES true)
+else()
+   set(INSTALL_INC_FILES include/cfortran.h include/crc32c.h include/git-revision.h include/ftplib.h include/hardware.h include/hbook.h include/history.h include/mcstd.h include/mdsupport.h include/mexcept.h include/mfbstd.h include/mfe.h include/midas_c_compat.h include/midas.h include/midasinc.h include/midas_macro.h include/mleak.h include/mrpc.h include/msystem.h include/musbstd.h include/mvmestd.h include/odbxx.h include/tmfe.h include/tmfe_rev0.h)
+endif()
+
 add_compile_options("-O2")
 add_compile_options("-g")
 #add_compile_options("-std=c++11")
-
-set(BUILD_INC_DIR include mxml mjson mvodb midasio)
 
 # NB: RPATH is not needed as everything is linked statically. K.O.
 ## Ensure the C-compat library can load the main library after install
@@ -510,12 +517,6 @@ if (HAVE_ROOT)
    target_compile_options(rmana PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
 endif(HAVE_ROOT)
 
-install(TARGETS midas midas-shared midas-c-compat mfe mana rmana
-        DESTINATION lib
-        EXPORT ${PROJECT_NAME}-targets)
-        
-install(EXPORT ${PROJECT_NAME}-targets DESTINATION lib)
-
 # library for mfe.o
 add_library(mfeo OBJECT src/mfe)
 target_include_directories(mfeo PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
@@ -539,6 +540,33 @@ if (HAVE_ROOT)
 endif(HAVE_ROOT)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/rmanao.dir/src/mana.cxx.o DESTINATION lib RENAME rmana.o)
 
+if (MIDAS_NO_INSTALL_INCLUDE_FILES)
+   target_include_directories(midas          PUBLIC INTERFACE include mxml mjson mvodb midasio)
+   target_include_directories(midas-shared   PUBLIC INTERFACE include mxml mjson mvodb midasio)
+   target_include_directories(midas-c-compat PUBLIC INTERFACE include mxml mjson mvodb midasio)
+   target_include_directories(mfe            PUBLIC INTERFACE include mxml mjson mvodb midasio)
+   target_include_directories(mana           PUBLIC INTERFACE include mxml mjson mvodb midasio)
+   target_include_directories(rmana          PUBLIC INTERFACE include mxml mjson mvodb midasio)
+else()
+   target_include_directories(midas          PUBLIC $<INSTALL_INTERFACE:include>)
+   target_include_directories(midas-shared   PUBLIC $<INSTALL_INTERFACE:include>)
+   target_include_directories(midas-c-compat PUBLIC $<INSTALL_INTERFACE:include>)
+   target_include_directories(mfe            PUBLIC $<INSTALL_INTERFACE:include>)
+   target_include_directories(mana           PUBLIC $<INSTALL_INTERFACE:include>)
+   target_include_directories(rmana          PUBLIC $<INSTALL_INTERFACE:include>)
+endif()
+
+install(TARGETS midas midas-shared midas-c-compat mfe mana rmana
+        DESTINATION lib
+        EXPORT ${PROJECT_NAME}-targets)
+        
+if (MIDAS_NO_INSTALL_INCLUDE_FILES)
+else()
+install(FILES ${INSTALL_INC_FILES} DESTINATION include)
+endif()
+        
+install(EXPORT ${PROJECT_NAME}-targets DESTINATION lib)
+
 # enable c++11
 target_compile_options(objlib PRIVATE "-std=c++11")
 target_compile_options(objlib-c-compat PRIVATE "-std=c++11")
@@ -546,22 +574,6 @@ target_compile_options(mfe PRIVATE "-std=c++11")
 target_compile_options(mana PRIVATE "-std=c++11")
 target_compile_options(mfeo PRIVATE "-std=c++11")
 target_compile_options(manao PRIVATE "-std=c++11")
-
-# keeps track of all the built libraries
-set(MIDAS_LIBRARIES
-#   objlib
-#   objlib-c-compat
-   midas
-   midas-shared
-   midas-c-compat
-   mfe
-#   mana
-#   rmana
-#   mfeo
-#   manao
-#   rmanao
-   )
-#MESSAGE (status ${MIDAS_LIBRARIES})
 
 #####################################################################
 # generate git revision file
@@ -601,6 +613,10 @@ add_subdirectory(manalyzer)
 #####################################################################
 add_subdirectory(progs)
 add_subdirectory(examples)
+
+#####################################################################
+# generator for find_package(MIDAS)
+#####################################################################
 
 configure_file(
     ${PROJECT_SOURCE_DIR}/MidasConfig.cmake.in
