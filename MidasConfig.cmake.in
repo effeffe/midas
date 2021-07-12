@@ -16,8 +16,8 @@ paths to these directories are hard-coded and results are reported in variables:
   MIDAS_FOUND            - True if headers and requested libraries were found
   MIDAS_PACKAGE_NAME     - Midas package name
   MIDAS_INCLUDE_DIRS     - Midas include directories
-  MIDAS_LIBRARY_DIRS     - Link directories for Boost libraries
-  MIDAS_LIBRARIES        - Midas component libraries to be linked
+  MIDAS_LIBRARY_DIRS     - Midas library location
+  MIDAS_LIBRARIES        - Midas library and it's dependencies
 
 #]]
 
@@ -29,6 +29,7 @@ set (MIDAS_FOUND TRUE)
 
 set (MIDAS_PACKAGE_NAME midas )
 
-list (APPEND MIDAS_INCLUDE_DIRS @SYSINC_DIR@)
-list (APPEND MIDAS_LIBRARY_DIRS @SYSLIB_DIR@)
-list (APPEND MIDAS_LIBRARIES @MIDAS_LIBRARIES@)
+list (APPEND MIDAS_INCLUDE_DIRS @CONFIG_MIDAS_INCLUDE_DIRS@)
+list (APPEND MIDAS_LIBRARY_DIRS @CONFIG_MIDAS_LIBRARY_DIRS@)
+list (APPEND MIDAS_LIBRARIES    @CONFIG_MIDAS_LIBRARIES1@)
+list (APPEND MIDAS_LIBRARIES    @CONFIG_MIDAS_LIBRARIES2@)
