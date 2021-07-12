@@ -480,11 +480,9 @@ set_property(TARGET objlib-c-compat PROPERTY POSITION_INDEPENDENT_CODE 1)
 # static midas library
 add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
 target_compile_features(midas PUBLIC cxx_std_11)
-target_include_directories(midas PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 target_compile_definitions(midas PUBLIC ${XDEFINES})
 target_compile_options(midas PUBLIC ${XFLAGS})
 target_link_libraries(midas ${XLIBS})
-target_link_libraries(midas ${LIBS})
 
 # shared midas library
 add_library(midas-shared SHARED $<TARGET_OBJECTS:objlib>)
@@ -492,7 +490,6 @@ target_compile_features(midas-shared PUBLIC cxx_std_11)
 target_compile_definitions(midas-shared PUBLIC ${XDEFINES})
 target_compile_options(midas-shared PUBLIC ${XFLAGS})
 target_link_libraries(midas-shared ${XLIBS})
-target_link_libraries(midas-shared ${LIBS})
 
 # shared midas library with C compatible signatures for python
 add_library(midas-c-compat SHARED $<TARGET_OBJECTS:objlib-c-compat>)
