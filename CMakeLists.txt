@@ -116,7 +116,7 @@ endif()
 #
 if (NO_LOCAL_ROUTINES)
    message(STATUS "MIDAS: building with NO_LOCAL_ROUTINES")
-   add_compile_options(-DNO_LOCAL_ROUTINES=1)
+   list(APPEND XDEFINES -DNO_LOCAL_ROUTINES=1)
 endif()
 
 #
@@ -167,8 +167,8 @@ else (NO_ZLIB)
 find_package(ZLIB)
 if (ZLIB_FOUND)
    message(STATUS "MIDAS: Found ZLIB version " ${ZLIB_VERSION_STRING})
-   add_compile_options(-DHAVE_ZLIB)
-   set(LIBS ${LIBS} -lz)
+   list(APPEND XDEFINES -DHAVE_ZLIB)
+   list(APPEND XLIBS ${ZLIB_LIBRARIES})
 else ()
    message(STATUS "MIDAS: ZLIB not found")
 endif()
@@ -200,9 +200,9 @@ else (NO_CURL)
    if (CURL_FOUND)
       if (EXISTS ${CURL_INCLUDE_DIRS}/curl/curl.h)
          message(STATUS "MIDAS: Found LibCURL version " ${CURL_VERSION_STRING})
-         add_compile_options(-DHAVE_CURL)
-         set(LIBS ${LIBS} -lcurl)
-         set(HAVE_CURL true)
+         list(APPEND XDEFINES -DHAVE_CURL)
+         list(APPEND XLIBS -lcurl)
+         list(APPEND XSWITCHES -D${CURL_INCLUDE_DIR})
       else ()
          message(STATUS "MIDAS: curl.h not found")
       endif ()
@@ -251,8 +251,9 @@ else (NO_MYSQL)
    endif ()
    if (HAVE_MYSQL)
       separate_arguments(MYSQL_CFLAGS)
-      add_compile_options(-DHAVE_MYSQL ${MYSQL_CFLAGS})
-      set(DB_LIBS ${DB_LIBS} ${MYSQL_LIBS})
+      list(APPEND XDEFINES -DHAVE_MYSQL)
+      list(APPEND XFLAGS ${MYSQL_CFLAGS})
+      list(APPEND XLIBS ${MYSQL_LIBS})
       message(STATUS "MIDAS: MySQL CFLAGS: ${MYSQL_CFLAGS} and libs: ${MYSQL_LIBS}")
    endif ()
 endif (NO_MYSQL)
@@ -265,9 +266,8 @@ if (NO_ODBC)
 else (NO_ODBC)
 if (EXISTS /usr/include/sql.h)
    message(STATUS "MIDAS: Found ODBC /usr/include/sql.h")
-   set(HAVE_ODBC 1)
-   add_compile_options(-DHAVE_ODBC)
-   set(DB_LIBS ${DB_LIBS} -lodbc)
+   list(APPEND XDEFINES -DHAVE_ODBC)
+   list(APPEND XLIBS -lodbc)
 else ()
    message(STATUS "MIDAS: ODBC not found")
 endif ()
@@ -282,9 +282,8 @@ else (NO_SQLITE)
    find_package(SQLite3)
    if (SQLite3_FOUND)
       message(STATUS "MIDAS: Found SQLITE: " ${SQLite3_VERSION} " in " ${SQLite3_INCLUDE_DIRS})
-      set(HAVE_SQLITE 1)
-      add_compile_options(-DHAVE_SQLITE)
-      set(DB_LIBS ${DB_LIBS} ${SQLite3_LIBRARIES})
+      list(APPEND XDEFINES -DHAVE_SQLITE)
+      list(APPEND XLIBS ${SQLite3_LIBRARIES})
    else ()
       message(STATUS "MIDAS: SQLITE not found")
    endif()
@@ -293,7 +292,7 @@ endif (NO_SQLITE)
 #
 # FTP support for mdsupport
 #
-add_compile_options(-DHAVE_FTPLIB)
+list(APPEND XDEFINES -DHAVE_FTPLIB)
 
 #
 # Optional nvidia gpu support, HAVE_NVIDIA is a count of CPUs
@@ -325,7 +324,7 @@ endif(NO_NVIDIA)
 if (NO_SENSORS)
   message(STATUS "MIDAS (msysmon): LM_SENSORS disabled")
 else()
-  find_library(libsensors sensors) #Requires libsesnsors-dev
+  find_library(libsensors sensors) #Requires libsensors-dev
   if(libsensors STREQUAL "libsensors-NOTFOUND")
     message(STATUS "MIDAS (msysmon): LM_SENSORS libs not found")
   else()
@@ -348,8 +347,8 @@ else()
   if (OpenCV_FOUND)
     if (CURL_FOUND)
        message(STATUS "MIDAS (mlogger): Found OpenCV version " ${OpenCV_VERSION})
-       add_compile_options(-DHAVE_OPENCV)
-       set(LIBS ${LIBS} ${OpenCV_LIBS})
+       list(APPEND XDEFINES -DHAVE_OPENCV)
+       list(APPEND XLIBS ${OpenCV_LIBS})
     else()
        message(STATUS "MIDAS (mlogger): Found OpenCV but CURL missing")
     endif(CURL_FOUND)
@@ -359,6 +358,15 @@ else()
   endif()
 endif(NO_OPENCV)
 
+#
+# Find pthreads
+#
+
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+#target_link_libraries(my_app PRIVATE Threads::Threads)
+#list(APPEND XLIBS Threads::Threads)
+list(APPEND XLIBS ${CMAKE_THREAD_LIBS_INIT})
 
 #
 # Tell subprojects that we have the "midas" target already defined
@@ -396,10 +404,12 @@ endif()
 # This is for Linux
 #
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
-   # >2GB file support
-   add_definitions(-D_LARGEFILE64_SOURCE)
-   set(LIBS ${LIBS} -lpthread -lutil -lrt -ldl)
+   list(APPEND XDEFINES -D_LARGEFILE64_SOURCE) # >2GB file support
+   list(APPEND XLIBS -lutil) # forkpty()
+   list(APPEND XLIBS -lrt)   # shm_unlink()
 endif()
+
+list(APPEND XLIBS ${CMAKE_DL_LIBS})
 
 #####################################################################
 # end of conditional code
@@ -451,52 +461,42 @@ set(libsrc-c-compat
    src/midas_c_compat
    )
 
-# this is the "object library" target: compiles the sources only once
+# midas library shared sources for libmidas.a and libmidas-shared.so
 add_library(objlib OBJECT ${libsrc})
-add_library(objlib-c-compat OBJECT ${libsrc-c-compat})
-
-# shared libraries need PIC
+target_compile_features(objlib PUBLIC cxx_std_11)
+target_include_directories(objlib PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
+target_compile_definitions(objlib PUBLIC ${XDEFINES})
+target_compile_options(objlib PUBLIC ${XFLAGS})
 set_property(TARGET objlib PROPERTY POSITION_INDEPENDENT_CODE 1)
+
+# c-compatibility library for python
+add_library(objlib-c-compat OBJECT ${libsrc-c-compat})
+target_compile_features(objlib-c-compat PUBLIC cxx_std_11)
+target_include_directories(objlib-c-compat PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
+target_compile_definitions(objlib-c-compat PUBLIC ${XDEFINES})
+target_compile_options(objlib-c-compat PUBLIC ${XFLAGS})
 set_property(TARGET objlib-c-compat PROPERTY POSITION_INDEPENDENT_CODE 1)
 
 # static midas library
 add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
 target_compile_features(midas PUBLIC cxx_std_11)
+target_include_directories(midas PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
+target_compile_definitions(midas PUBLIC ${XDEFINES})
+target_compile_options(midas PUBLIC ${XFLAGS})
+target_link_libraries(midas ${XLIBS})
 target_link_libraries(midas ${LIBS})
-target_link_libraries(midas ${DB_LIBS})
 
 # shared midas library
 add_library(midas-shared SHARED $<TARGET_OBJECTS:objlib>)
 target_compile_features(midas-shared PUBLIC cxx_std_11)
+target_compile_definitions(midas-shared PUBLIC ${XDEFINES})
+target_compile_options(midas-shared PUBLIC ${XFLAGS})
+target_link_libraries(midas-shared ${XLIBS})
 target_link_libraries(midas-shared ${LIBS})
-target_link_libraries(midas-shared ${DB_LIBS})
 
-# shared midas library with C compatible signatures
+# shared midas library with C compatible signatures for python
 add_library(midas-c-compat SHARED $<TARGET_OBJECTS:objlib-c-compat>)
 target_link_libraries(midas-c-compat midas)
-target_link_libraries(midas-c-compat ${LIBS})
-if (HAVE_MYSQL)
-   target_link_libraries(midas-c-compat ${DB_LIBS})
-endif()
-
-target_include_directories(objlib PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
-if (OPENSSL_FOUND)
-   target_include_directories(objlib PRIVATE ${OPENSSL_INCLUDE_DIR})
-endif ()
-if (CURL_FOUND)
-   target_include_directories(objlib PRIVATE ${CURL_INCLUDE_DIR})
-endif ()
-
-target_include_directories(objlib-c-compat PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
-if (OPENSSL_FOUND)
-   target_include_directories(objlib-c-compat PRIVATE ${OPENSSL_INCLUDE_DIR})
-endif ()
-if (CURL_FOUND)
-   target_include_directories(objlib PRIVATE ${CURL_INCLUDE_DIR})
-endif ()
-
-# midas include is public so all programs linking to libmidas will inherit this
-target_include_directories(midas PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 
 # library for mfe
 add_library(mfe src/mfe)
