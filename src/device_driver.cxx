@@ -24,6 +24,8 @@ static int sc_thread(void *info)
    DWORD last_time;
 
    last_update = (int*)calloc(device_drv->channels, sizeof(int));
+   for (i=0 ; i<device_drv->channels ; i++)
+      last_update[i] = ss_millitime() - 20000;
    last_time = ss_millitime();
 
    // call CMD_START of device driver

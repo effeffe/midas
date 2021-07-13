@@ -777,11 +777,11 @@ Slow control device driver commands */
 #define CMD_GET_TRIP                 CMD_GET_FIRST+2
 #define CMD_GET_STATUS               CMD_GET_FIRST+3
 #define CMD_GET_TEMPERATURE          CMD_GET_FIRST+4
-#define CMD_GET_LAST                 CMD_GET_FIRST+4 /* update this if you add new commands ! */
+#define CMD_GET_DEMAND               CMD_GET_FIRST+5
+#define CMD_GET_LAST                 CMD_GET_FIRST+5 /* update this if you add new commands ! */
 
 #define CMD_GET_DIRECT               CMD_GET_LAST+1  /* direct get commands */
-#define CMD_GET_DEMAND               CMD_GET_DIRECT  // = 25
-#define CMD_GET_VOLTAGE_LIMIT        CMD_GET_DIRECT+1
+#define CMD_GET_VOLTAGE_LIMIT        CMD_GET_DIRECT  // = 25
 #define CMD_GET_CURRENT_LIMIT        CMD_GET_DIRECT+2
 #define CMD_GET_RAMPUP               CMD_GET_DIRECT+3
 #define CMD_GET_RAMPDOWN             CMD_GET_DIRECT+4
