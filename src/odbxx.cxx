@@ -1322,7 +1322,13 @@ namespace midas {
        if (m_parent_odb)
           m_parent_odb->write();
        return v;
+   }
 
+   std::string u_odb::operator=(std::string v){
+      set(v);
+      if (m_parent_odb)
+         m_parent_odb->write();
+      return v;
    }
 
    // overload all standard conversion operators

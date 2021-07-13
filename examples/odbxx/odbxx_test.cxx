@@ -91,6 +91,7 @@ int main() {
    sv[1] = "New String";
    o["String Array"] = sv;
    o["String Array"][2] = "Another String";
+   o["String Array"][3] = std::string("One more");
 
    // iterate over array
    int sum = 0;
