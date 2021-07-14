@@ -10290,6 +10290,7 @@ struct HistPlot
    bool show_run_markers = true;
    bool show_values = true;
    bool show_fill   = true;
+   bool enable_factor = false;
 
    std::vector<HistVar> vars;
 };
@@ -11021,13 +11022,21 @@ void generate_hist_graph(MVOdb* odb, Return* rr, const char *hgroup, const char 
                   p = strchr(str, '<') + 1;
                   if (*p == '=')
                      p++;
-                  lower_limit[i] = (hp.vars[i].factor * (atof(p) - hp.vars[i].voffset) + hp.vars[i].offset);
+                  if (hp.enable_factor) {
+                     lower_limit[i] = (hp.vars[i].factor * (atof(p) - hp.vars[i].voffset) + hp.vars[i].offset);
+                  } else {
+                     lower_limit[i] = atof(p);
+                  }
                }
                if (strchr(str, '>')) {
                   p = strchr(str, '>') + 1;
                   if (*p == '=')
                      p++;
-                  upper_limit[i] = (hp.vars[i].factor * (atof(p) - hp.vars[i].voffset) + hp.vars[i].offset);
+                  if (hp.enable_factor) {
+                     upper_limit[i] = (hp.vars[i].factor * (atof(p) - hp.vars[i].voffset) + hp.vars[i].offset);
+                  } else {
+                     upper_limit[i] = atof(p);
+                  }
                }
             }
          }
@@ -11095,7 +11104,9 @@ void generate_hist_graph(MVOdb* odb, Return* rr, const char *hgroup, const char 
             yy = 1E30f;
 
          /* apply factor and offset */
-         yy = hp.vars[i].factor * (yy - hp.vars[i].voffset) + hp.vars[i].offset;
+         if (hp.enable_factor) {
+            yy = hp.vars[i].factor * (yy - hp.vars[i].voffset) + hp.vars[i].offset;
+         }
 
          /* calculate ymin and ymax */
          if ((i == 0 || index != -1) && n_vp == 0)
@@ -11557,6 +11568,7 @@ void generate_hist_graph(MVOdb* odb, Return* rr, const char *hgroup, const char 
          std::string str = hp.vars[i].label.c_str();
 
          if (str.empty()) {
+            if (hp.enable_factor) {
             if (hp.vars[i].factor != 1) {
                if (hp.vars[i].offset == 0)
                   str = msprintf("%s * %1.2lG", hp.vars[i].tag_name.c_str(), hp.vars[i].factor);
@@ -11567,6 +11579,9 @@ void generate_hist_graph(MVOdb* odb, Return* rr, const char *hgroup, const char 
                   str = msprintf("%s", hp.vars[i].tag_name.c_str());
                else
                   str = msprintf("%s %c %1.5lG", hp.vars[i].tag_name.c_str(), hp.vars[i].offset < 0 ? '-' : '+', fabs(hp.vars[i].offset));
+            }
+            } else {
+               str = hp.vars[i].tag_name;
             }
          }
 
@@ -12037,7 +12052,7 @@ static bool cmp_vars(const HistVar &a, const HistVar &b)
 static void PrintHistPlot(const HistPlot& hp)
 {
    printf("hist plot: %d variables\n", (int)hp.vars.size());
-   printf("timescale: %s, minimum: %f, maximum: %f, zero_ylow: %d, log_axis: %d, show_run_markers: %d, show_values: %d, show_fill: %d\n", hp.timescale.c_str(), hp.minimum, hp.maximum, hp.zero_ylow, hp.log_axis, hp.show_run_markers, hp.show_values, hp.show_fill);
+   printf("timescale: %s, minimum: %f, maximum: %f, zero_ylow: %d, log_axis: %d, show_run_markers: %d, show_values: %d, show_fill: %d, enable_factor: %d\n", hp.timescale.c_str(), hp.minimum, hp.maximum, hp.zero_ylow, hp.log_axis, hp.show_run_markers, hp.show_values, hp.show_fill, hp.enable_factor);
    
    for (size_t i=0; i<hp.vars.size(); i++) {
       printf("var[%d] event [%s][%s] formula [%s], colour [%s] label [%s] factor %f offset %f voffset %f order %d\n", (int)i, hp.vars[i].event_name.c_str(), hp.vars[i].tag_name.c_str(), hp.vars[i].formula.c_str(), hp.vars[i].colour.c_str(), hp.vars[i].label.c_str(), hp.vars[i].factor, hp.vars[i].offset , hp.vars[i].voffset, hp.vars[i].order);
@@ -12100,6 +12115,7 @@ static void LoadHistPlotFromOdb(MVOdb* odb, HistPlot* hp, const char* group, con
    o->RB("Show run markers", &hp->show_run_markers);
    o->RB("Show values", &hp->show_values);
    o->RB("Show fill",   &hp->show_fill);
+   o->RB("Enable factor and offset", &hp->enable_factor);
 
    std::vector<std::string> hist_vars;
    std::vector<std::string> hist_formula;
@@ -12187,6 +12203,7 @@ static void LoadHistPlotFromParam(HistPlot* hp, Param* p)
    hp->show_run_markers = *p->getparam("run_markers");
    hp->show_values      = *p->getparam("show_values");
    hp->show_fill        = *p->getparam("show_fill");
+   hp->enable_factor    = *p->getparam("enable_factor");
    
    for (int index=0; ; index++) {
       char str[256];
@@ -12305,6 +12322,7 @@ static void SaveHistPlotToOdb(MVOdb* odb, const HistPlot& hp, const char* group,
    o->WB("Show run markers", hp.show_run_markers);
    o->WB("Show values", hp.show_values);
    o->WB("Show fill", hp.show_fill);
+   o->WB("Enable factor and offset", hp.enable_factor);
 
    std::vector<std::string> hist_vars;
    std::vector<std::string> hist_formula;
@@ -12516,33 +12534,39 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
       r->rsprintf("<input type=checkbox checked name=zero_ylow value=1>");
    else
       r->rsprintf("<input type=checkbox name=zero_ylow value=1>");
-   r->rsprintf("Zero Y axis\n");
-
-   r->rsprintf("&nbsp;&nbsp;");
+   r->rsprintf("Zero&nbsp;Y;&nbsp;axis\n");
 
    if (hp.log_axis)
       r->rsprintf("<input type=checkbox checked name=log_axis value=1>");
    else
       r->rsprintf("<input type=checkbox name=log_axis value=1>");
-   r->rsprintf("Logarithmic Y axis\n");
+   r->rsprintf("Logarithmic&nbsp;Y&nbsp;axis\n");
 
    if (hp.show_run_markers)
       r->rsprintf("&nbsp;&nbsp;<input type=checkbox checked name=run_markers value=1>");
    else
       r->rsprintf("&nbsp;&nbsp;<input type=checkbox name=run_markers value=1>");
-   r->rsprintf("Show run markers\n");
+   r->rsprintf("Show&nbsp;run&nbsp;markers\n");
 
    if (hp.show_values)
       r->rsprintf("&nbsp;&nbsp;<input type=checkbox checked name=show_values value=1>");
    else
       r->rsprintf("&nbsp;&nbsp;<input type=checkbox name=show_values value=1>");
-   r->rsprintf("Show values of variables\n");
+   r->rsprintf("Show&nbsp;values&nbsp;of&nbsp;variables\n");
 
    if (hp.show_fill)
       r->rsprintf("&nbsp;&nbsp;<input type=checkbox checked name=show_fill value=1>");
    else
       r->rsprintf("&nbsp;&nbsp;<input type=checkbox name=show_fill value=1>");
-   r->rsprintf("Show graph fill</td></tr>\n");
+   r->rsprintf("Show&nbsp;graph&nbsp;fill\n");
+
+   if (hp.enable_factor)
+      r->rsprintf("&nbsp;&nbsp;<input type=checkbox checked name=enable_factor value=1 onclick=\"document.form1.hcmd.value='Refresh';document.form1.submit()\">");
+   else
+      r->rsprintf("&nbsp;&nbsp;<input type=checkbox name=enable_factor value=1 onclick=\"document.form1.hcmd.value='Refresh';document.form1.submit()\">");
+   r->rsprintf("Enable&nbsp;factor&nbsp;and&nbsp;offset\n");
+
+   r->rsprintf("</td></tr>\n");
 
    /*---- events and variables ----*/
 
@@ -12704,7 +12728,13 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
    r->rsprintf("<tr><td colspan=10 style='text-align:left'>Use the \"offset\" and \"factor\" to position the individual graphics on the history plot</td></tr>\n");
    r->rsprintf("<tr><td colspan=10 style='text-align:left'>displayed_value = offset + factor*(formula(history_value) - voffset)</td></tr>\n");
    r->rsprintf("<tr><td colspan=10 style='text-align:left'>\"formula\" format is \"3*x+4\" or \"10*sin(x)\". all javascript math functions can be used</td></tr>\n");
-   r->rsprintf("<tr><th>Col<th>Event<th>Variable<th>Formula<th>Colour<th>Label<th>Order<th>Factor<th>Offset<th>VOffset</tr>\n");
+
+   r->rsprintf("<tr>\n");
+   r->rsprintf("<th>Col<th>Event<th>Variable<th>Formula<th>Colour<th>Label<th>Order");
+   if (hp.enable_factor) {
+      r->rsprintf("<th>Factor<th>Offset<th>VOffset");
+   }
+   r->rsprintf("</tr>\n");
 
    //print_vars(vars);
 
@@ -12836,9 +12866,15 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
          r->rsprintf("<td><input type=text size=8 maxlength=10 name=\"col%d\" value=%s></td>\n", (int)index, hp.vars[index].colour.c_str());
          r->rsprintf("<td><input type=text size=8 maxlength=%d name=\"lab%d\" value=\"%s\"></td>\n", NAME_LENGTH, (int)index, hp.vars[index].label.c_str());
          r->rsprintf("<td><input type=text size=3 maxlength=32 name=\"ord%d\" value=\"%d\"></td>\n", (int)index, hp.vars[index].order);
-         r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"factor%d\" value=\"%f\"></td>\n", (int)index, hp.vars[index].factor);
-         r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"offset%d\" value=\"%f\"></td>\n", (int)index, hp.vars[index].offset);
-         r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"voffset%d\" value=\"%f\"></td>\n", (int)index, hp.vars[index].voffset);
+         if (hp.enable_factor) {
+            r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"factor%d\" value=\"%f\"></td>\n", (int)index, hp.vars[index].factor);
+            r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"offset%d\" value=\"%f\"></td>\n", (int)index, hp.vars[index].offset);
+            r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"voffset%d\" value=\"%f\"></td>\n", (int)index, hp.vars[index].voffset);
+         } else {
+            r->rsprintf("<input type=hidden name=\"factor%d\" value=\"%f\">\n", (int)index, hp.vars[index].factor);
+            r->rsprintf("<input type=hidden name=\"offset%d\" value=\"%f\">\n", (int)index, hp.vars[index].offset);
+            r->rsprintf("<input type=hidden name=\"voffset%d\" value=\"%f\">\n", (int)index, hp.vars[index].voffset);
+         }
       } else {
          r->rsprintf("<td colspan=2><input type=submit name=cmdx value=\"List all variables\"></td>\n");
       }
