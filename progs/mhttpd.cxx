@@ -11569,17 +11569,26 @@ void generate_hist_graph(MVOdb* odb, Return* rr, const char *hgroup, const char 
 
          if (str.empty()) {
             if (hp.enable_factor) {
-            if (hp.vars[i].factor != 1) {
-               if (hp.vars[i].offset == 0)
-                  str = msprintf("%s * %1.2lG", hp.vars[i].tag_name.c_str(), hp.vars[i].factor);
-               else
-                  str = msprintf("%s * %1.2lG %c %1.5lG", hp.vars[i].tag_name.c_str(), hp.vars[i].factor, hp.vars[i].offset < 0 ? '-' : '+', fabs(hp.vars[i].offset));
-            } else {
-               if (hp.vars[i].offset == 0)
-                  str = msprintf("%s", hp.vars[i].tag_name.c_str());
-               else
-                  str = msprintf("%s %c %1.5lG", hp.vars[i].tag_name.c_str(), hp.vars[i].offset < 0 ? '-' : '+', fabs(hp.vars[i].offset));
-            }
+               str = hp.vars[i].tag_name;
+
+               if (hp.vars[i].voffset > 0)
+                  str += msprintf(" - %G", hp.vars[i].voffset);
+               else if (hp.vars[i].voffset < 0)
+                  str += msprintf(" + %G", -hp.vars[i].voffset);
+
+               if (hp.vars[i].factor != 1) {
+                  if (hp.vars[i].voffset == 0)
+                     str += msprintf(" * %+G", hp.vars[i].factor);
+                  else {
+                     str = msprintf("(%s) * %+G", str.c_str(), hp.vars[i].factor);
+                  }
+               }
+
+               if (hp.vars[i].offset > 0)
+                  str += msprintf(" + %G", hp.vars[i].offset);
+               else if (hp.vars[i].offset < 0)
+                  str += msprintf(" - %G", -hp.vars[i].offset);
+
             } else {
                str = hp.vars[i].tag_name;
             }
@@ -12183,6 +12192,13 @@ static void LoadHistPlotFromOdb(MVOdb* odb, HistPlot* hp, const char* group, con
       v.offset  = hist_offset[i];
       v.voffset = hist_voffset[i];
       v.order   = NextHistPlotOrder(*hp);
+
+      // one-time migration of factor and offset to formula
+      if (v.formula.empty()) {
+         if (v.factor!=1 || v.offset!=0 || v.voffset!=0) {
+            v.formula = msprintf("%g%+g*(x%+g)", v.offset, v.factor, -v.voffset);
+         }
+      }
       
       hp->vars.push_back(v);
    }
@@ -12252,7 +12268,7 @@ static void LoadHistPlotFromParam(HistPlot* hp, Param* p)
       } else {
          v.order = NextHistPlotOrder(*hp);
       }
-      
+
       hp->vars.push_back(v);
    }
    
@@ -12867,9 +12883,9 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
          r->rsprintf("<td><input type=text size=8 maxlength=%d name=\"lab%d\" value=\"%s\"></td>\n", NAME_LENGTH, (int)index, hp.vars[index].label.c_str());
          r->rsprintf("<td><input type=text size=3 maxlength=32 name=\"ord%d\" value=\"%d\"></td>\n", (int)index, hp.vars[index].order);
          if (hp.enable_factor) {
-            r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"factor%d\" value=\"%f\"></td>\n", (int)index, hp.vars[index].factor);
-            r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"offset%d\" value=\"%f\"></td>\n", (int)index, hp.vars[index].offset);
-            r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"voffset%d\" value=\"%f\"></td>\n", (int)index, hp.vars[index].voffset);
+            r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"factor%d\" value=\"%g\"></td>\n", (int)index, hp.vars[index].factor);
+            r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"offset%d\" value=\"%g\"></td>\n", (int)index, hp.vars[index].offset);
+            r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"voffset%d\" value=\"%g\"></td>\n", (int)index, hp.vars[index].voffset);
          } else {
             r->rsprintf("<input type=hidden name=\"factor%d\" value=\"%f\">\n", (int)index, hp.vars[index].factor);
             r->rsprintf("<input type=hidden name=\"offset%d\" value=\"%f\">\n", (int)index, hp.vars[index].offset);
