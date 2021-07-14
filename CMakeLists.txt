@@ -5,17 +5,11 @@
 #
 
 message(STATUS "MIDAS: cmake version: " ${CMAKE_VERSION})
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.12)
 
-#if (NOT CMAKE_CXX_STANDARD)    # let top-level project overwrite c++ standard
-#   set(CMAKE_CXX_STANDARD 11)
-#endif()
-#set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-#message(STATUS "MIDAS: CMAKE_CXX_FLAGS_RELWITHDEBINFO: ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
-#message(STATUS "MIDAS: CMAKE_CXX_COMPILE_FEATURES: ${CMAKE_CXX_COMPILE_FEATURES}")
-
-project(midas)
+project(midas
+        DESCRIPTION "MIDAS Data Acquisition System"
+        HOMEPAGE_URL "https://midas.triumf.ca")
 
 #
 # Directories
@@ -592,11 +586,7 @@ add_dependencies(objlib git_revision_h)
 #####################################################################
 # sub-modules
 #####################################################################
-#add_subdirectory(mjson)
-#add_subdirectory(mxml)
 add_subdirectory(mscb)
-#add_subdirectory(mvodb)
-#add_subdirectory(midasio)
 add_subdirectory(manalyzer)
 
 #####################################################################
