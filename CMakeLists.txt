@@ -487,18 +487,22 @@ target_link_libraries(midas-shared ${XLIBS})
 
 # shared midas library with C compatible signatures for python
 add_library(midas-c-compat SHARED $<TARGET_OBJECTS:objlib-c-compat>)
+target_compile_features(midas-c-compat PUBLIC cxx_std_11)
 target_link_libraries(midas-c-compat midas)
 
 # library for mfe
 add_library(mfe src/mfe)
+target_compile_features(mfe PUBLIC cxx_std_11)
 target_include_directories(mfe PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 
 # library for mana
 add_library(mana src/mana)
+target_compile_features(mana PUBLIC cxx_std_11)
 target_include_directories(mana PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 
 # library for rmana
 add_library(rmana src/mana)
+target_compile_features(rmana PUBLIC cxx_std_11)
 target_include_directories(rmana PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 if (HAVE_ROOT)
    target_include_directories(rmana PUBLIC ${ROOT_INCLUDE_DIRS})
@@ -507,6 +511,7 @@ endif(HAVE_ROOT)
 
 # library for mfe.o
 add_library(mfeo OBJECT src/mfe)
+target_compile_features(mfeo PUBLIC cxx_std_11)
 target_include_directories(mfeo PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 
 # this is somewhat dirty, as the path to the object dir is hardcoded and
@@ -516,11 +521,13 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/mfeo.dir/src/mfe.cxx.o DEST
 
 # library for mana.o
 add_library(manao OBJECT src/mana)
+target_compile_features(manao PUBLIC cxx_std_11)
 target_include_directories(manao PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manao.dir/src/mana.cxx.o DESTINATION lib RENAME mana.o)
 
 # library for rmana.o
 add_library(rmanao OBJECT src/mana)
+target_compile_features(rmanao PUBLIC cxx_std_11)
 target_include_directories(rmanao PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 if (HAVE_ROOT)
    target_include_directories(rmanao PUBLIC ${ROOT_INCLUDE_DIRS})
@@ -551,14 +558,6 @@ install(TARGETS midas midas-shared midas-c-compat mfe mana rmana
         EXPORT ${PROJECT_NAME}-targets)
         
 install(EXPORT ${PROJECT_NAME}-targets DESTINATION lib)
-
-# enable c++11
-target_compile_options(objlib PRIVATE "-std=c++11")
-target_compile_options(objlib-c-compat PRIVATE "-std=c++11")
-target_compile_options(mfe PRIVATE "-std=c++11")
-target_compile_options(mana PRIVATE "-std=c++11")
-target_compile_options(mfeo PRIVATE "-std=c++11")
-target_compile_options(manao PRIVATE "-std=c++11")
 
 #####################################################################
 # generate git revision file
