@@ -216,11 +216,14 @@ INT hv_read(EQUIPMENT * pequipment, int channel)
           hv_info->update_threshold[i] && (ABS(hv_info->measured[i]) > hv_info->zero_threshold[i]))
          changed = TRUE;
 
+      if (!ss_isnan(hv_info->measured[i]) && ss_isnan(hv_info->measured_mirror[i]))
+         changed = TRUE;
+
       if (act_time - hv_info->last_change[i] < min_time)
          min_time = act_time - hv_info->last_change[i];
    }
 
-   /* update if change is more than update_sensitivity or less than 20 seconds ago 
+   /* update if change is more than update_sensitivity or less than 20 seconds ago
       or last update is older than a minute */
    if (changed || (min_time < 20000 && max_diff > 0) ||
        act_time - hv_info->last_update > 60000) {
@@ -922,9 +925,14 @@ INT hv_init(EQUIPMENT * pequipment)
             status = device_driver(hv_info->driver[i], CMD_SET_CHSTATE,
                                    i - hv_info->channel_offset[i], (double)hv_info->chState[i]);
       } else {
-         status = device_driver(hv_info->driver[i], CMD_GET_DEMAND,
-                                i - hv_info->channel_offset[i], hv_info->demand + i);
-         hv_info->demand_mirror[i] = hv_info->demand[i];
+         if (hv_info->driver[i]->flags & DF_POLL_DEMAND) {
+            hv_info->demand[i] = ss_nan();
+            hv_info->demand_mirror[i] = ss_nan();
+         } else {
+            status = device_driver(hv_info->driver[i], CMD_GET_DEMAND,
+                                   i - hv_info->channel_offset[i], hv_info->demand + i);
+            hv_info->demand_mirror[i] = hv_info->demand[i];
+         }
 
          status = device_driver(hv_info->driver[i], CMD_GET_TRIP_TIME,
                                 i - hv_info->channel_offset[i], &hv_info->trip_time[i]);
@@ -1049,10 +1057,9 @@ INT hv_idle(EQUIPMENT * pequipment)
    /* do ramping */
    hv_ramp(hv_info);
 
-   if (pequipment->info.event_limit == 1) {
-      /* special flag: read all channels each time */
-      for (act = 0 ; act < hv_info->num_channels ; act++)
-         status = hv_read(pequipment, act);
+   if (hv_info->driver[0]->flags & DF_MULTITHREAD) {
+      // hv_read reads all channels
+      status = hv_read(pequipment, 0);
    } else {
       /* select next measurement channel */
       hv_info->last_channel = (hv_info->last_channel + 1) % hv_info->num_channels;
