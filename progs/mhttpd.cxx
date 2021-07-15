@@ -10274,6 +10274,7 @@ struct HistVar
    std::string formula;
    std::string colour;
    std::string label;
+   bool        show_raw_value = false;
    int         order = -1;
    double factor = 1.0;
    double offset = 0;
@@ -12065,7 +12066,7 @@ static void PrintHistPlot(const HistPlot& hp)
    printf("timescale: %s, minimum: %f, maximum: %f, zero_ylow: %d, log_axis: %d, show_run_markers: %d, show_values: %d, show_fill: %d, show_factor %d, enable_factor: %d\n", hp.timescale.c_str(), hp.minimum, hp.maximum, hp.zero_ylow, hp.log_axis, hp.show_run_markers, hp.show_values, hp.show_fill, hp.show_factor, hp.enable_factor);
    
    for (size_t i=0; i<hp.vars.size(); i++) {
-      printf("var[%d] event [%s][%s] formula [%s], colour [%s] label [%s] factor %f offset %f voffset %f order %d\n", (int)i, hp.vars[i].event_name.c_str(), hp.vars[i].tag_name.c_str(), hp.vars[i].formula.c_str(), hp.vars[i].colour.c_str(), hp.vars[i].label.c_str(), hp.vars[i].factor, hp.vars[i].offset , hp.vars[i].voffset, hp.vars[i].order);
+      printf("var[%d] event [%s][%s] formula [%s], colour [%s] label [%s] show_raw_value %d factor %f offset %f voffset %f order %d\n", (int)i, hp.vars[i].event_name.c_str(), hp.vars[i].tag_name.c_str(), hp.vars[i].formula.c_str(), hp.vars[i].colour.c_str(), hp.vars[i].label.c_str(), hp.vars[i].show_raw_value, hp.vars[i].factor, hp.vars[i].offset , hp.vars[i].voffset, hp.vars[i].order);
    }
 }
 
@@ -12132,6 +12133,7 @@ static void LoadHistPlotFromOdb(MVOdb* odb, HistPlot* hp, const char* group, con
    std::vector<std::string> hist_formula;
    std::vector<std::string> hist_colour;
    std::vector<std::string> hist_label;
+   std::vector<bool>   hist_show_raw_value;
    std::vector<double> hist_factor;
    std::vector<double> hist_offset;
    std::vector<double> hist_voffset;
@@ -12140,6 +12142,7 @@ static void LoadHistPlotFromOdb(MVOdb* odb, HistPlot* hp, const char* group, con
    o->RSA("Formula",   &hist_formula);
    o->RSA("Colour",    &hist_colour);
    o->RSA("Label",     &hist_label);
+   o->RBA("Show raw value", &hist_show_raw_value);
    o->RDA("Factor",    &hist_factor);
    o->RDA("Offset",    &hist_offset);
    o->RDA("VOffset",   &hist_voffset);
@@ -12163,6 +12166,7 @@ static void LoadHistPlotFromOdb(MVOdb* odb, HistPlot* hp, const char* group, con
    size_t num = std::max(hist_vars.size(), hist_formula.size());
    num = std::max(num, hist_colour.size());
    num = std::max(num, hist_label.size());
+   num = std::max(num, hist_show_raw_value.size());
    num = std::max(num, hist_factor.size());
    num = std::max(num, hist_offset.size());
    num = std::max(num, hist_voffset.size());
@@ -12171,6 +12175,7 @@ static void LoadHistPlotFromOdb(MVOdb* odb, HistPlot* hp, const char* group, con
    hist_formula.resize(num);
    hist_colour.resize(num);
    hist_label.resize(num);
+   hist_show_raw_value.resize(num);
    hist_factor.resize(num, 1.0);
    hist_offset.resize(num, 0.0);
    hist_voffset.resize(num, 0.0);
@@ -12190,6 +12195,7 @@ static void LoadHistPlotFromOdb(MVOdb* odb, HistPlot* hp, const char* group, con
       v.formula = hist_formula[i];
       v.colour  = hist_colour[i];
       v.label   = hist_label[i];
+      v.show_raw_value = hist_show_raw_value[i];
       v.factor  = hist_factor[i];
       v.offset  = hist_offset[i];
       v.voffset = hist_voffset[i];
@@ -12251,6 +12257,9 @@ static void LoadHistPlotFromParam(HistPlot* hp, Param* p)
       
       sprintf(str, "lab%d", index);
       v.label = p->xgetparam(str);
+      
+      sprintf(str, "raw%d", index);
+      v.show_raw_value = atoi(p->xgetparam(str).c_str());
       
       sprintf(str, "factor%d", index);
       if (p->isparam(str)) {
@@ -12348,6 +12357,7 @@ static void SaveHistPlotToOdb(MVOdb* odb, const HistPlot& hp, const char* group,
    std::vector<std::string> hist_formula;
    std::vector<std::string> hist_colour;
    std::vector<std::string> hist_label;
+   std::vector<bool>        hist_show_raw_value;
    std::vector<double> hist_factor;
    std::vector<double> hist_offset;
    std::vector<double> hist_voffset;
@@ -12357,6 +12367,7 @@ static void SaveHistPlotToOdb(MVOdb* odb, const HistPlot& hp, const char* group,
       hist_formula.push_back(hp.vars[i].formula);
       hist_colour.push_back(hp.vars[i].colour);
       hist_label.push_back(hp.vars[i].label);
+      hist_show_raw_value.push_back(hp.vars[i].show_raw_value);
       hist_factor.push_back(hp.vars[i].factor);
       hist_offset.push_back(hp.vars[i].offset);
       hist_voffset.push_back(hp.vars[i].voffset);
@@ -12367,6 +12378,7 @@ static void SaveHistPlotToOdb(MVOdb* odb, const HistPlot& hp, const char* group,
       o->WSA("Formula",   hist_formula, 256);
       o->WSA("Colour",    hist_colour, NAME_LENGTH);
       o->WSA("Label",     hist_label, NAME_LENGTH);
+      o->WBA("Show raw value", hist_show_raw_value);
       o->WDA("Factor",    hist_factor);
       o->WDA("Offset",    hist_offset);
       o->WDA("VOffset",   hist_voffset);
@@ -12375,6 +12387,7 @@ static void SaveHistPlotToOdb(MVOdb* odb, const HistPlot& hp, const char* group,
       o->Delete("Formula");
       o->Delete("Colour");
       o->Delete("Label");
+      o->Delete("Show raw value");
       o->Delete("Factor");
       o->Delete("Offset");
       o->Delete("VOffset");
@@ -12477,10 +12490,11 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
 
    r->rsprintf("<table class=\"mtable\">"); //open main table
 
-   r->rsprintf("<tr><th colspan=10 class=\"subStatusTitle\">History Panel \"%s\" / \"%s\"</th></tr>\n", hgroup, hpanel);
+   r->rsprintf("<tr><th colspan=11 class=\"subStatusTitle\">History Panel \"%s\" / \"%s\"</th></tr>\n", hgroup, hpanel);
 
    /* menu buttons */
-   r->rsprintf("<tr><td colspan=10>\n");
+   r->rsprintf("<tr><td colspan=11>\n");
+
    r->rsprintf("<input type=button value=Refresh ");
    r->rsprintf("onclick=\"document.form1.hcmd.value='Refresh';document.form1.submit()\">\n");
 
@@ -12518,7 +12532,7 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
    r->rsprintf("onclick=\"window.location.search='?cmd=oldhistory&group=%s&panel=%s&hcmd=Delete%%20panel'\">\n", hgroup, hpanel);
    r->rsprintf("</td></tr>\n");
 
-   r->rsprintf("<tr><td colspan=10>\n");
+   r->rsprintf("<tr><td colspan=11>\n");
 
    /* sort_vars */
    int sort_vars = *p->getparam("sort_vars");
@@ -12546,15 +12560,15 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
    r->rsprintf("</td></tr>\n");
 
    r->rsprintf("<tr><td colspan=4 style='text-align:right'>Time scale (in units 'm', 'h', 'd'):</td>\n");
-   r->rsprintf("<td colspan=2><input type=text size=12 name=timescale value=%s></td><td colspan=4></td></tr>\n", hp.timescale.c_str());
+   r->rsprintf("<td colspan=3><input type=text size=12 name=timescale value=%s></td><td colspan=4></td></tr>\n", hp.timescale.c_str());
 
    r->rsprintf("<tr><td colspan=4 style='text-align:right'>Minimum (set to '-inf' for autoscale):</td>\n");
-   r->rsprintf("<td colspan=2><input type=text size=12 name=minimum value=%f></td><td colspan=4></td></tr>\n", hp.minimum);
+   r->rsprintf("<td colspan=3><input type=text size=12 name=minimum value=%f></td><td colspan=4></td></tr>\n", hp.minimum);
 
    r->rsprintf("<tr><td colspan=4 style='text-align:right'>Maximum (set to 'inf' for autoscale):</td>\n");
-   r->rsprintf("<td colspan=2><input type=text size=12 name=maximum value=%f></td><td colspan=4></td></tr>\n", hp.maximum);
+   r->rsprintf("<td colspan=3><input type=text size=12 name=maximum value=%f></td><td colspan=4></td></tr>\n", hp.maximum);
 
-   r->rsprintf("<tr><td colspan=10>");
+   r->rsprintf("<tr><td colspan=11>");
    
    if (hp.zero_ylow)
       r->rsprintf("<input type=checkbox checked name=zero_ylow value=1>");
@@ -12743,13 +12757,15 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
       r->rsprintf("</tr>\n");
    }
 
-   r->rsprintf("<tr><td colspan=10 style='text-align:left'>Use the \"order\" to reorder or delete history plots. Change order values and press \"refresh\", use 0 or -1 to delete a plot</td></tr>\n");
-   r->rsprintf("<tr><td colspan=10 style='text-align:left'>Old history: displayed_value = offset + factor*(history_value - voffset)</td></tr>\n");
-   r->rsprintf("<tr><td colspan=10 style='text-align:left'>New history: displayed_value = formula(history_value)</td></tr>\n");
-   r->rsprintf("<tr><td colspan=10 style='text-align:left'>Formula format: \"3*x+4\", \"10*Math.sin(x)\", etc. all javascript math functions can be used</td></tr>\n");
+   r->rsprintf("<tr><td colspan=11 style='text-align:left'>New history: displayed_value = formula(history_value)</td></tr>\n");
+   r->rsprintf("<tr><td colspan=11 style='text-align:left'>Old history: displayed_value = offset + factor*(history_value - voffset)</td></tr>\n");
+   r->rsprintf("<tr><td colspan=11 style='text-align:left'>Formula format: \"3*x+4\", \"10*Math.sin(x)\", etc. all javascript math functions can be used</td></tr>\n");
+   r->rsprintf("<tr><td colspan=11 style='text-align:left'>To display the raw history value instead of computed formula or offset vallue, check the \"raw\" checkbox</td></tr>\n");
+   r->rsprintf("<tr><td colspan=11 style='text-align:left'>To reorder entries: enter new ordering in the \"order\" column and press \"refresh\"</td></tr>\n");
+   r->rsprintf("<tr><td colspan=11 style='text-align:left'>To delete entries: enter \"-1\" or leave blank the \"order\" column and press \"refresh\"</td></tr>\n");
 
    r->rsprintf("<tr>\n");
-   r->rsprintf("<th>Col<th>Event<th>Variable<th>Formula<th>Colour<th>Label<th>Order");
+   r->rsprintf("<th>Col<th>Event<th>Variable<th>Formula<th>Colour<th>Label<th>Raw<th>Order");
    if (hp.show_factor) {
       r->rsprintf("<th>Factor<th>Offset<th>VOffset");
    }
@@ -12884,6 +12900,10 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
          r->rsprintf("<td><input type=text size=15 maxlength=256 name=\"form%d\" value=%s></td>\n", (int)index, hp.vars[index].formula.c_str());
          r->rsprintf("<td><input type=text size=8 maxlength=10 name=\"col%d\" value=%s></td>\n", (int)index, hp.vars[index].colour.c_str());
          r->rsprintf("<td><input type=text size=8 maxlength=%d name=\"lab%d\" value=\"%s\"></td>\n", NAME_LENGTH, (int)index, hp.vars[index].label.c_str());
+         if (hp.vars[index].show_raw_value)
+            r->rsprintf("<td><input type=checkbox checked name=\"raw%d\" value=1></td>", (int)index);
+         else
+            r->rsprintf("<td><input type=checkbox name=\"raw%d\" value=1></td>", (int)index);
          r->rsprintf("<td><input type=text size=3 maxlength=32 name=\"ord%d\" value=\"%d\"></td>\n", (int)index, hp.vars[index].order);
          if (hp.show_factor) {
             r->rsprintf("<td><input type=text size=6 maxlength=32 name=\"factor%d\" value=\"%g\"></td>\n", (int)index, hp.vars[index].factor);
