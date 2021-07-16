@@ -1083,6 +1083,133 @@ class MidasClient:
         cb = midas.callbacks.make_rpc_callback(callback, self, return_success_even_on_failure)
         self.lib.c_cm_register_function(midas.RPC_JRPC, cb)
 
+    def trigger_internal_alarm(self, alarm_name, message, default_alarm_class="Alarm"):
+        """
+        Trigger an "internal" alarm (i.e. an alarm raised directly by code, rather than due
+        to an ODB condition failing or a program not running).
+
+        Example code:
+
+        ```
+        client.trigger_internal_alarm("Example", "Oh no, something went wrong!")
+        client.get_triggered_alarms()
+        # Returns {'Example': 'Oh no, something went wrong!'}
+        client.reset_alarm("Example")
+        client.get_triggered_alarms()
+        # Returns {}
+        ```
+
+        Args:
+            * alarm_name (str) - The name of this alarm. An entry will be created in the
+                ODB at `/Alarms/Alarms/<alarm_name>` if it doesn't already exist. Max 32
+                characters, and not "/" characters allowed.
+            * message (str) - The message to be displayed to users. Max 80 characters.
+            * default_alarm_class (str) - The "class" of this alarm. (i.e. what to do when 
+                this alarm is triggered). See `create_alarm_class()` for more about alarm
+                classes. If an alarm already exists called `alarm_name`, the class of that
+                alarm will not be changed.
+        """
+        c_name = ctypes.create_string_buffer(bytes(alarm_name, "utf-8"))
+        c_msg = ctypes.create_string_buffer(bytes(message, "utf-8"))
+        c_cond = ctypes.create_string_buffer(bytes(message, "utf-8"))
+        c_class = ctypes.create_string_buffer(bytes(default_alarm_class, "utf-8"))
+        c_type = ctypes.c_int(midas.AT_INTERNAL)
+        self.lib.c_al_trigger_alarm(c_name, c_msg, c_class, c_cond, c_type)
+
+    def create_evaluated_alarm(self, alarm_name, odb_condition, message=None, alarm_class="Alarm", activate_immediately=True):
+        """
+        Create an alarm that will trigger if a condition in the ODB is met.
+
+        To deactivate this alarm, set `/Alarms/Alarms/<alarm_name>/Active` to False in the ODB.
+        To completely delete this alarm, just delete `/Alarms/Alarms/<alarm_name>` from the ODB.
+
+        Args:
+            * alarm_name (str) - The name of this alarm. An entry will be created in the
+                ODB at `/Alarms/Alarms/<alarm_name>` if it doesn't already exist. Max 32
+                characters, and not "/" characters allowed.
+            * odb_condition (str) - What to check for. Examples are "/Path/to/float < 0.3"
+                and "/Path/to/boolean == y". Max 256 characters.
+            * message (str) - The message to be displayed to users. Max 80 characters. If not
+                set, the message will be the same as `odb_condition`.
+            * alarm_class (str) - The "class" of this alarm (i.e. what to do when this alarm is
+                triggered). See `create_alarm_class()` for more about alarm classes.
+            * activate_immediately (bool) - Whether to activate this alarm immediately or not.
+                (This doesn't mean it will actually trigger, just that midas will start evaluating
+                whether to trigger - "active" and "triggered" have different meanings).
+        """
+        c_name = ctypes.create_string_buffer(bytes(alarm_name, "utf-8"))
+        c_cond = ctypes.create_string_buffer(bytes(odb_condition, "utf-8"))
+
+        if message is None:
+            message = odb_condition
+
+        c_msg = ctypes.create_string_buffer(bytes(message, "utf-8"))
+        c_class = ctypes.create_string_buffer(bytes(alarm_class, "utf-8"))
+        self.lib.c_al_define_odb_alarm(c_name, c_cond, c_class, c_msg)
+
+        self.odb_set("/Alarms/Alarms/%s/Active" % alarm_name, activate_immediately)
+
+    def create_alarm_class(self, class_name, execute_command="", execute_interval_secs=0, stop_run=False):
+        """
+        Alarm classes define what to do when an alarm is triggered. All alarms belong
+        to a single class. You can create as many classes as you like. The alarm classes
+        "Alarm" and "Warning" come pre-defined by midas.
+
+        Args:
+            * class_name (str) - The name of this alarm class. An entry will be created 
+                in the ODB at `/Alarms/Classes/<class_name>` if it doesn't already exist
+            * execute_command (str) - System command to run when an alarm with this class
+                is triggered (e.g. "python /path/to/some/script.py" or "~/path/to/script.sh")
+            * execute_interval_secs (int) - How often to run the above command, in seconds. 
+                NOTE - if this is 0, THE COMMAND WILL NOT BE RUN AT ALL! If you just want the
+                command to be run once, when the alarm is first raised, set a very high value
+                like 1e9 (but < 2^31 as the value is a signed 32-bit int in the ODB).
+            * stop_run (bool) - Whether to stop the run when an alarm of this class is triggered.
+        """
+        odb_dict = collections.OrderedDict([("Write system message", True),
+                                            ("Write Elog message", False),
+                                            ("System message interval", 60),
+                                            ("System message last", ctypes.c_uint32(0)),
+                                            ("Execute command", ctypes.create_string_buffer(bytes(execute_command, "utf-8"), 256)),
+                                            ("Execute interval", ctypes.c_int32(execute_interval_secs)),
+                                            ("Execute last", ctypes.c_uint32(0)),
+                                            ("Stop run", bool(stop_run)),
+                                            ("Display BGColor", ctypes.create_string_buffer(b"red", 32)),
+                                            ("Display FGColor", ctypes.create_string_buffer(b"black", 32))])
+        self.odb_set("/Alarms/Classes/%s" % class_name, odb_dict)
+
+    def get_triggered_alarms(self):
+        """
+        Get all the alarms that have been triggered but not yet reset.
+
+        Returns:
+            dict of {str: str}. Key is the alarm name, value is the alarm message.
+        """
+        alarms = self.odb_get("/Alarms/Alarms")
+        system_active = self.odb_get("/Alarms/Alarm System active")
+
+        retval = {}
+
+        if system_active:
+            for alarm_name, state in alarms.items():
+                if state["Active"] and state["Triggered"]:
+                    retval[alarm_name] = state["Alarm Message"]
+
+        return retval
+
+    def reset_alarm(self, alarm_name):
+        """
+        Reset an alarm that is currently triggered.
+
+        Note that if it as an evaluated alarm, midas may re-trigger the alarm
+        again very quickly if the ODB condition is still met.
+
+        Args:
+            * alarm_name (str) - The name of the alarm to reset.
+        """
+        c_name = ctypes.create_string_buffer(bytes(alarm_name, "utf-8"))
+        self.lib.c_al_reset_alarm(c_name)
+
     #
     # Most users should not need to use the functions below here, as they are
     # quite low-level and helper functions for the more user-friendly interface

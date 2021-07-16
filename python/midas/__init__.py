@@ -409,7 +409,8 @@ class MidasLib(ctypes.CDLL):
         
         self.ignore_status_codes = {
             "c_cm_yield": ["SS_CLIENT_RECV", "SS_SERVER_RECV", "SS_TIMEOUT"],
-            "c_bm_open_buffer": ["BM_CREATED"]
+            "c_bm_open_buffer": ["BM_CREATED"],
+            "c_al_reset_alarm": ["AL_RESET"]
         }
         
         self.db_key_name_arg = {

@@ -27,6 +27,9 @@ extern "C" {
    INT c_example_vector(void** dest, int& arr_len);
    INT c_example_string_vector(char*** dest, int& arr_len);
 
+   INT c_al_trigger_alarm(const char *alarm_name, const char *alarm_message, const char *default_class, const char *cond_str, INT type);
+   INT c_al_reset_alarm(const char *alarm_name);
+   INT c_al_define_odb_alarm(const char *name, const char *condition, const char *aclass, const char *message);
    INT c_bm_flush_cache(INT buffer_handle, INT async_flag);
    INT c_bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle);
    INT c_bm_receive_event(INT buffer_handle, void *destination, INT * buf_size, INT async_flag);

@@ -166,6 +166,18 @@ INT c_example_string_vector(char*** dest, int& dest_len) {
    return copy_vector_string_to_c(retvec, dest, dest_len);
 }
 
+INT c_al_trigger_alarm(const char *alarm_name, const char *alarm_message, const char *default_class, const char *cond_str, INT type) {
+   return al_trigger_alarm(alarm_name, alarm_message, default_class, cond_str, type);
+}
+
+INT c_al_reset_alarm(const char *alarm_name) {
+   return al_reset_alarm(alarm_name);
+}
+
+INT c_al_define_odb_alarm(const char *name, const char *condition, const char *aclass, const char *message) {
+   return al_define_odb_alarm(name, condition, aclass, message);
+}
+
 INT c_bm_flush_cache(INT buffer_handle, INT async_flag) {
    return bm_flush_cache(buffer_handle, async_flag);
 }

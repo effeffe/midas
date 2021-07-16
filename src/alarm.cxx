@@ -820,7 +820,7 @@ INT al_get_alarms(char *result, int result_size) {
 
 /********************************************************************/
 /**
-Reset (acknoledge) alarm.
+Create an alarm that will trigger when an ODB condition is met.
 
 @param name         Alarm name, defined in /alarms/alarms
 @param class        Alarm class to be triggered
