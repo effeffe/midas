@@ -244,7 +244,7 @@ function ODBInlineEditKeydown(event, p, path, bracket) {
 
 function mie_link_to_edit(p, odb_path, bracket, cur_val, size) {
    let index;
-   let string_val = String(cur_val)
+   let string_val = String(cur_val);
 
    p.ODBsent = false;
 
@@ -303,6 +303,11 @@ function ODBInlineEdit(p, odb_path, bracket) {
       let tid = rpc.result.tid[0];
       let format = p.dataset.format;
       let size = p.dataset.size;
+      if (size === undefined) {
+        size = value.length;
+        if (size === undefined || size < 20)
+           size = 20;
+      }
       if (format) {
          if (format.length > 1) {
             if (format[0] === 'd' || format[0] === 'x' || format[0] === 'b') {
