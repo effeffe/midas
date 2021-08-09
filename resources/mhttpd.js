@@ -58,6 +58,9 @@ function mie_to_string(tid, jvalue, format) {
          let p = parseInt(format.substr(format.indexOf("f") + 1));
          return jvalue.toFixed(p);
       }
+      if (format && format.indexOf("t") !== -1) {
+         return jvalue.toLocaleString();
+      }
       return jvalue;
    }
 
@@ -91,6 +94,13 @@ function mie_to_string(tid, jvalue, format) {
                str += " / " + bin + "b";
             else
                str = bin + "b";
+         }
+         if (format[i] === "t") {
+            let loc = parseInt(jvalue).toLocaleString();
+            if (str.length > 0)
+               str += " / " + loc;
+            else
+               str = loc;
          }
       }
 
@@ -314,6 +324,11 @@ function ODBInlineEdit(p, odb_path, bracket) {
                //when going to edit consider only the first format specifier for integers
                format = String(format[0]);
             }
+         }
+         if (format == 't') {
+            // JSON parser can't cope with locale-based strings (thousands separators), so
+            // force the user to edit the value as a regular number.
+            format = undefined;
          }
       }
       let mvalue = mie_to_string(tid, value, format);
