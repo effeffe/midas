@@ -8215,7 +8215,7 @@ void show_mscb_page(Param* p, Return* r, int refresh)
             if (!ping_addr[ind])
                continue;
 
-            status = mscb_ping(fd, (unsigned short) ind, 1);
+            status = mscb_ping(fd, (unsigned short) ind, 1, 0);
             if (status == MSCB_SUCCESS) {
 
                /* node found, search next 100 as well */
@@ -8555,7 +8555,7 @@ void show_mscb_page(Param* p, Return* r, int refresh)
    mscb_set_eth_max_retry(fd, 3);
    mscb_set_max_retry(1);
 
-   status = mscb_ping(fd, cur_node, TRUE);
+   status = mscb_ping(fd, cur_node, 0, 1);
    if (status != MSCB_SUCCESS) {
       r->rsprintf("<tr><td colspan=3><b>No response from node</b></td>");
       goto mscb_error;
