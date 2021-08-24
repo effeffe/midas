@@ -927,7 +927,7 @@ namespace midas {
                BOOL b = static_cast<bool>(m_data[i]);
                memcpy(p, &b, rpc_tid_size(m_tid));
             } else {
-               memcpy(p, &m_data[i], rpc_tid_size(m_tid));
+               memcpy(p, (void*)&m_data[i], rpc_tid_size(m_tid));
             }
             p += rpc_tid_size(m_tid);
          }

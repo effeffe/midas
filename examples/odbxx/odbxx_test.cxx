@@ -164,6 +164,9 @@ int main() {
    // delete test key from ODB
    o.delete_key();
 
+   // don't clutter watch callbacks
+   midas::odb::set_debug(false);
+
    // watch ODB key for any change with lambda function
    midas::odb ow("/Experiment");
    ow.watch([](midas::odb &o) {
