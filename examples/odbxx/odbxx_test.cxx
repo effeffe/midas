@@ -22,6 +22,9 @@ int main() {
    cm_connect_experiment(NULL, NULL, "test", NULL);
    midas::odb::set_debug(true);
 
+   // delete /Test/Settings to start from scratch
+   midas::odb::delete_key("/Test/Settings");
+
    // create ODB structure...
    midas::odb o = {
       {"Int32 Key", 42},
@@ -97,7 +100,7 @@ int main() {
    int sum = 0;
    for (int e : o["Int Array"])
       sum += e;
-   std::cout << "Sum should be 27: " << sum << std::endl;
+   std::cout << "Sum should be 37: " << sum << std::endl;
 
    // create key from other key
    midas::odb oi(o["Int32 Key"]);
