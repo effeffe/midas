@@ -427,12 +427,15 @@ static INT register_equipment(void)
 
       /* set equipment Common from equipment[] list if flag is set in user frontend code */
       if (equipment_common_overwrite) {
-         // do not overwrite "enabled" flag, this is always defined by the
+         // do not overwrite "enabled" and "hidden" flags, these is always defined in the ODB
          BOOL prev_enabled;
+         BOOL prev_hidden;
          double prev_event_limit;
          int size;
          size = sizeof(prev_enabled);
-         db_get_value(hDB, hKey, "enabled", &prev_enabled, &size, TID_BOOL, FALSE);
+         db_get_value(hDB, hKey, "Enabled", &prev_enabled, &size, TID_BOOL, FALSE);
+         size = sizeof(prev_hidden);
+         db_get_value(hDB, hKey, "Hidden", &prev_hidden, &size, TID_BOOL, FALSE);
          size = sizeof(prev_event_limit);
          db_get_value(hDB, hKey, "Event limit", &prev_event_limit, &size, TID_DOUBLE, FALSE);
          status = db_set_record(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), 0);
@@ -443,7 +446,9 @@ static INT register_equipment(void)
             exit(0);
          }
          eq_info->enabled = prev_enabled;
-         db_set_value(hDB, hKey, "enabled", &prev_enabled, sizeof(prev_enabled), 1, TID_BOOL);
+         db_set_value(hDB, hKey, "Enabled", &prev_enabled, sizeof(prev_enabled), 1, TID_BOOL);
+         eq_info->hidden = prev_hidden;
+         db_set_value(hDB, hKey, "Hidden", &prev_hidden, sizeof(prev_hidden), 1, TID_BOOL);
          eq_info->event_limit = prev_event_limit;
          db_set_value(hDB, hKey, "Event limit", &prev_event_limit, sizeof(prev_event_limit), 1, TID_DOUBLE);
       } else {
