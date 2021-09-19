@@ -12,13 +12,12 @@
     .chatInput {
       line-height: 0.75em;
       margin: 0.25em;
-      padding: 3px;
       border-radius: 12px;
       border: 2px solid #00B26B;
       background-color: #EEEEEE;
       color: #111111;
       padding: 0.5em;
-      margin-top: 0em;
+      margin-top: 0;
       margin-bottom: 1em;
     }
 
@@ -217,9 +216,9 @@
       n_messages = 0;
       end_of_messages = false;
 
-      if (timer_front != undefined)
+      if (timer_front !== undefined)
          window.clearTimeout(timer_front);
-      if (timer_tail != undefined)
+      if (timer_tail !== undefined)
          window.clearTimeout(timer_tail);
 
       GetChatMsg(0, 100, function (msg) {
@@ -260,14 +259,14 @@
       var date = line.substr(13, 10);
       var e = document.createElement("div");
 
-      if (name == document.getElementById('chatName').value)
+      if (name === document.getElementById('chatName').value)
          e.className = "chatBubbleMine";
       else
          e.className = "chatBubbleTheirs";
 
       var d1 = document.createElement("div");
       var d2 = document.createElement("div");
-      if (name == document.getElementById('chatName').value)
+      if (name === document.getElementById('chatName').value)
          d1.className = "chatNameMine";
       else
          d1.className = "chatNameTheirs";
@@ -275,7 +274,7 @@
       d1.appendChild(document.createTextNode(""));
 
       now = new Date();
-      if (now.getDate() == parseInt(date.substr(8, 2)))
+      if (now.getDate() === parseInt(date.substr(8, 2)))
          d1.innerHTML = name + '&nbsp;(' + time + ')';
       else
          d1.innerHTML = name + '&nbsp;(' + time + '&nbsp;' + date + ')';
@@ -335,9 +334,9 @@
          if (msg[i] === "")
             continue;
          var t = parseInt(msg[i]);
-         if (t != -1 && t > first_tstamp)
+         if (t !== -1 && t > first_tstamp)
             first_tstamp = t;
-         if (t != -1 && (last_tstamp == 0 || t < last_tstamp))
+         if (t !== -1 && (last_tstamp === 0 || t < last_tstamp))
             last_tstamp = t;
 
          mf.appendChild(chat_format(msg[i]));
@@ -363,7 +362,7 @@
          if (n.indexOf('&'))
             n = n.substr(0, n.indexOf('&'));
 
-         if (n == document.getElementById('chatName').value) {
+         if (n === document.getElementById('chatName').value) {
             b.className = "chatBubbleMine";
             b.childNodes[0].className = "chatNameMine";
          } else {
@@ -381,9 +380,9 @@
          // remove color of elements
          var mf = document.getElementById('messageFrame');
          for (i = 3; i < mf.childNodes.length; i++) {
-            if (mf.childNodes[i].age != undefined) {
+            if (mf.childNodes[i].age !== undefined) {
                t = new Date() / 1000;
-               if (mf.childNodes[i].age != undefined) {
+               if (mf.childNodes[i].age !== undefined) {
                   if (t > mf.childNodes[i].age + 5)
                      mf.childNodes[i].style.backgroundColor = "";
                }
@@ -401,7 +400,7 @@
          if (!end_of_messages) {
 
             GetChatMsg(last_tstamp - 1, 100, function (msg) {
-               if (msg[0] == "")
+               if (msg[0] === "")
                   end_of_messages = true;
                if (!end_of_messages) {
                   chat_append(msg);
