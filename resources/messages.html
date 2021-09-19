@@ -257,7 +257,8 @@
          do {
             cursorleft += obj.offsetLeft;
             cursortop += obj.offsetTop;
-         } while (obj = obj.offsetParent);
+            obj = obj.offsetParent;
+         } while (obj);
          return [cursorleft, cursortop];
       }
    }

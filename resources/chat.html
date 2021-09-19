@@ -10,6 +10,7 @@
 
    <style>
     .chatInput {
+      font-family: verdana, tahoma, sans-serif;
       line-height: 0.75em;
       margin: 0.25em;
       border-radius: 12px;
@@ -109,18 +110,14 @@
 
 <div id="mmain">
 
-   <table width="99%" class="mtable" border="0">
-      <tr>
-         <td>
-            <input style="width:100%" type="text" id="text" autofocus="autofocus"
-                   onkeypress="return chat_kp(event)">
-         </td>
-         <td nowrap width="10%">&nbsp;<button class="mbutton" name="send" onClick="chat_send()">Send</button>&nbsp;&nbsp;Your
-            name: <input type="text" id="chatName" size="10" onkeypress="return chat_kp(event)">
-            <input type="checkbox" name="speak" id="speak" onClick="return speak_click(this);"><span id="speakLabel">Audio</span>
-         </td>
-      </tr>
-   </table>
+   <div class="chatInput">
+      <input type="text" id="text" autofocus="autofocus" style="width:99%" onkeypress="return chat_kp(event)"><br /><br />
+      <div style="text-align:center;">
+         <button class="mbutton" name="send" onClick="chat_send()">Send</button>&nbsp;&nbsp;Your
+         name: <input type="text" id="chatName" size="10" onkeypress="return chat_kp(event)">
+         <input type="checkbox" name="speak" id="speak" onClick="return speak_click(this);"><span id="speakLabel">Audio</span>
+      </div>
+   </div>
 
    <div class="chatBox" id="messageFrame">
       <div class="mtable mtableheader">Chat messages</div>
@@ -137,13 +134,26 @@
    var timer_front;
    var timer_tail;
 
+   function findPos(obj) {
+      var cursorleft = 0;
+      var cursortop = 0;
+      if (obj.offsetParent) {
+         do {
+            cursorleft += obj.offsetLeft;
+            cursortop += obj.offsetTop;
+            obj = obj.offsetParent;
+         } while (obj);
+         return [cursorleft, cursortop];
+      }
+   }
+
    function GetChatMsg(start, n, callback) {
       var request = XMLHttpRequestGeneric();
       request.onreadystatechange = function () {
-         if (this.readyState == 4 && this.status == 200) {
-            if (n > 1 || n == 0) {
+         if (this.readyState === 4 && this.status === 200) {
+            if (n > 1 || n === 0) {
                var array = request.responseText.split('\n');
-               while (array.length > 1 && array[array.length - 1] == "")
+               while (array.length > 1 && array[array.length - 1] === "")
                   array = array.slice(0, array.length - 1);
                callback(array);
             } else
@@ -158,6 +168,13 @@
 
    function SendChatMsg(user, msg) {
       var request = XMLHttpRequestGeneric();
+      request.onreadystatechange = function () {
+         if (this.readyState === 4 && this.status === 200) {
+            if (timer_front !== undefined)
+               window.clearTimeout(timer_front);
+            chat_extend_front();
+         }
+      }
 
       var url = ODBUrlBase + '?cmd=jgenmsg';
       url += '&type=' + MT_USER;
@@ -168,9 +185,9 @@
       request.send();
    }
 
-   function chat_kp(e) {
-      key = (e.which) ? e.which : event.keyCode;
-      if (key == '13') {
+   function chat_kp(event) {
+      key = event.which;
+      if (key === 13) {
          chat_send();
          return false;
       }
@@ -189,7 +206,7 @@
    function chat_send() {
       // check for name
       n = document.getElementById('chatName');
-      if (n.value == "") {
+      if (n.value === "") {
          n.style.backgroundColor = "#FF8080";
          n.style.setProperty("-webkit-transition", "background-color 400ms");
          n.style.setProperty("transition", "background-color 400ms");
@@ -250,7 +267,7 @@
    function chat_format(line) {
       var t = parseInt(line);
 
-      if (line.indexOf(" ") && (t > 0 || t == -1))
+      if (line.indexOf(" ") && (t > 0 || t === -1))
          line = line.substr(line.indexOf(" ") + 1);
 
       var name = line.substr(line.indexOf("[") + 1, line.indexOf(",") - line.indexOf("[") - 1);
