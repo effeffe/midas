@@ -17,6 +17,7 @@
 #include "experim.h"
 
 #include "WDBLib.h"
+#include "DCBLib.h"
 
 /*-- Globals -------------------------------------------------------*/
 
@@ -40,6 +41,7 @@ INT max_event_size_frag = 5 * max_event_size;
 /* buffer size to hold events */
 INT event_buffer_size = 5 * max_event_size;
 
+
 /*-- Function declarations -----------------------------------------*/
 
 INT frontend_init(void);
@@ -57,6 +59,8 @@ INT poll_event(INT source, INT count, BOOL test);
 INT interrupt_configure(INT cmd, INT source, POINTER_T adr);
 
 /*-- Equipment list ------------------------------------------------*/
+
+BOOL equipment_common_overwrite = TRUE;
 
 EQUIPMENT equipment[] = {
 
@@ -211,9 +215,9 @@ INT frontend_init()
    WD::wdb.push_back(b);
 
    // instantiate waveform processor
-   WD::wp = new WP(WD::wdb, 0);
+   WD::wp = new WP();
    WD::wp->SetAllCalib(true);
-   WD::wp->RequestAllBoards();
+   WD::wp->SetRequestedBoard(WD::wdb);
 
    // set destination port after waveform processor has been initialized
    for (auto b: WD::wdb)
@@ -237,8 +241,6 @@ INT frontend_exit()
 
 INT begin_of_run(INT run_number, char *error)
 {
-   WD::wp->ResetStatistics();
-
    // start DRS for first event
    for (auto b: WD::wdb) {
       b->ResetDrsControlFsm();
