@@ -413,46 +413,46 @@ list(APPEND XLIBS ${CMAKE_DL_LIBS})
 # Midas Library
 #
 set(libsrc
-   src/midas
-   src/odb
-   src/odbxx
-   src/device_driver
-   src/system
-   src/alarm
-   src/elog
-   src/mrpc
-   mjson/mjson
-   src/tmfe
-   mvodb/mvodb
-   mvodb/nullodb
-   mvodb/midasodb
-   mvodb/mxmlodb
-   mvodb/mjsonodb
-   midasio/midasio
-   src/json_paste
-   src/mjsonrpc
-   src/mjsonrpc_user
-   src/history
-   src/history_common
-   src/history_odbc
-   src/history_schema
-   src/history_image
-   src/lz4
-   src/lz4frame
-   src/lz4hc
-   src/xxhash
-   src/crc32c
-   src/sha256
-   src/sha512
-   src/ftplib
-   src/mdsupport
+   src/midas.cxx
+   src/odb.cxx
+   src/odbxx.cxx
+   src/device_driver.cxx
+   src/system.cxx
+   src/alarm.cxx
+   src/elog.cxx
+   src/mrpc.cxx
+   mjson/mjson.cxx
+   src/tmfe.cxx
+   mvodb/mvodb.cxx
+   mvodb/nullodb.cxx
+   mvodb/midasodb.cxx
+   mvodb/mxmlodb.cxx
+   mvodb/mjsonodb.cxx
+   midasio/midasio.cxx
+   src/json_paste.cxx
+   src/mjsonrpc.cxx
+   src/mjsonrpc_user.cxx
+   src/history.cxx
+   src/history_common.cxx
+   src/history_odbc.cxx
+   src/history_schema.cxx
+   src/history_image.cxx
+   src/lz4.cxx
+   src/lz4frame.cxx
+   src/lz4hc.cxx
+   src/xxhash.cxx
+   src/crc32c.cxx
+   src/sha256.cxx
+   src/sha512.cxx
+   src/ftplib.cxx
+   src/mdsupport.cxx
    mxml/mxml.cxx
    mxml/strlcpy.cxx
    ${GIT_REVISION}
    )
 
 set(libsrc-c-compat
-   src/midas_c_compat
+   src/midas_c_compat.cxx
    )
 
 # midas library shared sources for libmidas.a and libmidas-shared.so
@@ -510,7 +510,7 @@ if (HAVE_ROOT)
 endif(HAVE_ROOT)
 
 # library for mfe.o
-add_library(mfeo OBJECT src/mfe)
+add_library(mfeo OBJECT src/mfe.cxx)
 target_compile_features(mfeo PUBLIC cxx_std_11)
 target_include_directories(mfeo PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 
@@ -520,13 +520,13 @@ target_include_directories(mfeo PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/mfeo.dir/src/mfe.cxx.o DESTINATION lib RENAME mfe.o)
 
 # library for mana.o
-add_library(manao OBJECT src/mana)
+add_library(manao OBJECT src/mana.cxx)
 target_compile_features(manao PUBLIC cxx_std_11)
 target_include_directories(manao PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/manao.dir/src/mana.cxx.o DESTINATION lib RENAME mana.o)
 
 # library for rmana.o
-add_library(rmanao OBJECT src/mana)
+add_library(rmanao OBJECT src/mana.cxx)
 target_compile_features(rmanao PUBLIC cxx_std_11)
 target_include_directories(rmanao PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 if (HAVE_ROOT)

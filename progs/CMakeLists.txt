@@ -51,14 +51,14 @@ set(MFEPROGS
 )
 
 foreach(PROG ${PROGS} ${TESTPROGS})
-   add_executable(${PROG} ${PROG})
+   add_executable(${PROG} ${PROG}.cxx)
    target_link_libraries(${PROG} midas)
 #   set(CMAKE_CXX_FLAGS "-fsanitize=address")
 endforeach()
 
 
 foreach(PROG ${MFEPROGS})
-   add_executable(${PROG} ${PROG})
+   add_executable(${PROG} ${PROG}.cxx)
    target_link_libraries(${PROG} mfe midas)
 endforeach()
 
@@ -78,7 +78,7 @@ endif(HAVE_LM_SENSORS)
 #
 # mhttpd
 #
-add_executable(mhttpd mhttpd mongoose616 mgd ${PROJECT_SOURCE_DIR}/mscb/src/mscb)
+add_executable(mhttpd mhttpd.cxx mongoose616.cxx mgd.cxx ${PROJECT_SOURCE_DIR}/mscb/src/mscb.cxx)
 target_compile_options(mhttpd PRIVATE -DHAVE_MSCB)
 target_include_directories(mhttpd PRIVATE ${PROJECT_SOURCE_DIR}/mscb/include)
 
@@ -103,7 +103,7 @@ endif(MBEDTLS_FOUND)
 #
 # mhttpd6 (old mongoose)
 #
-add_executable(mhttpd6 mhttpd mongoose6 mgd ${PROJECT_SOURCE_DIR}/mscb/src/mscb)
+add_executable(mhttpd6 mhttpd.cxx mongoose6.cxx mgd.cxx ${PROJECT_SOURCE_DIR}/mscb/src/mscb.cxx)
 target_compile_options(mhttpd6 PRIVATE -DHAVE_MSCB)
 target_include_directories(mhttpd6 PRIVATE ${PROJECT_SOURCE_DIR}/mscb/include)
 target_include_directories(mhttpd6 PRIVATE ${OPENSSL_INCLUDE_DIR})
@@ -121,7 +121,7 @@ target_link_libraries(mhttpd6 midas)
 # odbedit
 #
 
-add_executable(odbedit odbedit cmdedit)
+add_executable(odbedit odbedit.cxx cmdedit.cxx)
 target_link_libraries(odbedit midas)
 
 #
@@ -137,7 +137,7 @@ endif (HAVE_CURL)
 #
 
 if (HAVE_ROOT)
-   add_executable(rmlogger mlogger)
+   add_executable(rmlogger mlogger.cxx)
    target_include_directories(rmlogger PUBLIC ${ROOT_INCLUDE_DIRS})
    target_compile_options(rmlogger PRIVATE -DHAVE_ROOT ${ROOT_CXX_FLAGS})
    target_link_libraries(rmlogger midas ${ROOT_LIBRARIES})
