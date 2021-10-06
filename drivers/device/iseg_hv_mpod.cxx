@@ -377,6 +377,7 @@ INT iseg_hv_mpod(INT cmd, ...)
       break;
 
    case CMD_GET_DEMAND:
+   case CMD_GET_DEMAND_DIRECT:
       info = va_arg(argptr, ISEG_HV_MPOD_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);

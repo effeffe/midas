@@ -929,7 +929,9 @@ INT hv_init(EQUIPMENT * pequipment)
             hv_info->demand[i] = ss_nan();
             hv_info->demand_mirror[i] = ss_nan();
          } else {
-            status = device_driver(hv_info->driver[i], CMD_GET_DEMAND,
+            // use CMD_GET_DEMAND_DIRECT, since demand value coming from thread has not yet
+            // been placed in buffer
+            status = device_driver(hv_info->driver[i], CMD_GET_DEMAND_DIRECT,
                                    i - hv_info->channel_offset[i], hv_info->demand + i);
             hv_info->demand_mirror[i] = hv_info->demand[i];
          }

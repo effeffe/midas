@@ -392,6 +392,7 @@ INT mscbhvr(INT cmd, ...)
       break;
 
    case CMD_GET_DEMAND:
+   case CMD_GET_DEMAND_DIRECT:
       info = va_arg(argptr, MSCBHVR_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
