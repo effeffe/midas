@@ -122,12 +122,11 @@ void image_thread(std::string name) {
             ti.tm_isdst = -1;
             time_t ft = mktime(&ti);
             double age = (ss_time() - ft)/3600.0;
-            //printf("index %d, file [%s] age %f vs %f\n", i, flist[i].c_str(), age, (double)o["Storage hours"]);
             if (age >= o["Storage hours"]) {
-               //cm_msg(MINFO, "image_thread", "Delete file \"%s\" which is %f hours old", flist[i].c_str(), age);
                std::string pathname = (path+"/"+filename);
                int error = remove(pathname.c_str());
-               if (error)
+               // suppress cases with ENOENT happening on systems with very many files
+               if (error && error != ENOENT)
                   cm_msg(MERROR, "image_thread", "Cannot remove file \"%s\", remove() errno %d (%s)", pathname.c_str(), errno, strerror(errno));
             }
 
