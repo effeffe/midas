@@ -2288,7 +2288,7 @@ int HsFileSchema::read_data(const time_t start_time,
    ::close(fd);
 
    if (bad_last_time) {
-      cm_msg(MERROR, "FileHistory::read_data", "Detected duplicated or non-monotonous data in history file \'%s\'", s->file_name.c_str());
+//      cm_msg(MERROR, "FileHistory::read_data", "Detected duplicated or non-monotonous data in history file \'%s\'", s->file_name.c_str());
    }
 
    if (debug)
@@ -2655,12 +2655,12 @@ int SchemaHistoryBase::hs_define_event(const char* event_name, time_t timestamp,
          cm_msg(MERROR, "hs_define_event", "Error: History event \'%s\' tag \'%s\' at index %d has invalid n_data %d", event_name, tags[i].name, i, tags[i].n_data);
          return HS_FILE_ERROR;
       }
-      for (int j=i+1; j<ntags; j++) {
-         if (strcasecmp(tags[i].name, tags[j].name) == 0) {
-            cm_msg(MERROR, "hs_define_event", "Error: History event \'%s\' has duplicate tag name \'%s\' at indices %d and %d", event_name, tags[i].name, i, j);
-            return HS_FILE_ERROR;
-         }
-      }
+//      for (int j=i+1; j<ntags; j++) {
+//         if (strcasecmp(tags[i].name, tags[j].name) == 0) {
+//            cm_msg(MERROR, "hs_define_event", "Error: History event \'%s\' has duplicate tag name \'%s\' at indices %d and %d", event_name, tags[i].name, i, j);
+//            return HS_FILE_ERROR;
+//         }
+//      }
    }
 
    HsSchema* s = new_event(event_name, timestamp, ntags, tags);
@@ -3527,7 +3527,7 @@ int HsSqlSchema::read_data(const time_t start_time,
    sql->Finalize();
 
    if (bad_last_time) {
-      cm_msg(MERROR, "SqlHistory::read_data", "Detected duplicate or non-monotonous data in table \"%s\"", table_name.c_str());
+//      cm_msg(MERROR, "SqlHistory::read_data", "Detected duplicate or non-monotonous data in table \"%s\"", table_name.c_str());
    }
 
    if (debug)
@@ -5039,7 +5039,7 @@ int FileHistory::read_schema(HsSchemaVector* sv, const char* event_name, const t
 
    DWORD end_time = ss_millitime();
    DWORD elapsed = end_time - start_time;
-   if (elapsed > 3000) {
+   if (elapsed > 5000) {
       cm_msg(MINFO, "FileHistory::read_schema", "Loading schema for event \"%s\" timestamp %s, operation took %d ms", event_name, TimeToString(timestamp).c_str(), (int)elapsed);
       cm_msg_flush_buffer();
    }
