@@ -322,7 +322,6 @@ struct hist_log_s {
    HNDLE hKeyVar;
    DWORD n_var;
    time_t min_period;
-   time_t max_period;
    time_t last_log;
 };
 
@@ -4521,7 +4520,7 @@ void log_history(HNDLE hDB, HNDLE hKey, void *info);
 static std::vector<MidasHistoryInterface*> mh;
 static std::vector<std::string> history_events;
 
-static int add_event(int* indexp, time_t timestamp, int event_id, const char* event_name, HNDLE hKey, int ntags, const TAG* tags, time_t min_period, time_t max_period, int hotlink)
+static int add_event(int* indexp, time_t timestamp, int event_id, const char* event_name, HNDLE hKey, int ntags, const TAG* tags, time_t min_period, int hotlink)
 {
    int status;
    int size, i;
@@ -4610,7 +4609,6 @@ static int add_event(int* indexp, time_t timestamp, int event_id, const char* ev
    hist_log[index].buffer_size = size;
    hist_log[index].buffer      = (char*)malloc(size);
    hist_log[index].min_period  = min_period;
-   hist_log[index].max_period  = max_period;
    hist_log[index].last_log    = 0;
 
    if (hist_log[index].buffer == NULL) {
@@ -4872,19 +4870,14 @@ INT open_history()
       if (status != DB_SUCCESS)
          break;
 
-      int min_period_sec = 0;
-      int max_period_millisec = 0;
+      int min_period = 0;
 
-      /* retrieve min & max period for history logging */
-      size = sizeof(min_period_sec);
-      db_get_value(hDB, hKeyEq, "Common/Log history", &min_period_sec, &size, TID_INT32, TRUE);
-      size = sizeof(max_period_millisec);
-      db_get_value(hDB, hKeyEq, "Common/Period", &max_period_millisec, &size, TID_INT32, TRUE);
-
-      time_t max_period_sec = (max_period_millisec + 999)/1000;
+      /* retrieve min period for history logging */
+      size = sizeof(min_period);
+      db_get_value(hDB, hKeyEq, "Common/Log history", &min_period, &size, TID_INT32, TRUE);
 
       /* define history tags only if log history flag is on */
-      if (min_period_sec > 0) {
+      if (min_period > 0) {
          BOOL per_variable_history = global_per_variable_history;
 
          /* get equipment name */
@@ -5086,7 +5079,7 @@ INT open_history()
 
                assert(i_tag <= n_tags);
 
-               status = add_event(&index, now, event_id, event_name, hKey, i_tag, tag, min_period_sec, max_period_sec, 1);
+               status = add_event(&index, now, event_id, event_name, hKey, i_tag, tag, min_period, 1);
                if (status != DB_SUCCESS)
                   return status;
 
@@ -5100,7 +5093,7 @@ INT open_history()
          if (!per_variable_history && i_tag>0) {
             assert(i_tag <= n_tags);
 
-            status = add_event(&index, now, eq_id, eq_name, hKeyVar, i_tag, tag, min_period_sec, max_period_sec, 1);
+            status = add_event(&index, now, eq_id, eq_name, hKeyVar, i_tag, tag, min_period, 1);
             if (status != DB_SUCCESS)
                return status;
 
@@ -5204,7 +5197,7 @@ INT open_history()
             if (histkey.type == TID_LINK)
                db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history, (void *) (POINTER_T) index);
 
-            status = add_event(&index, now, max_event_id, hist_name, hHistKey, n_var, tag, 1, 60, 0);
+            status = add_event(&index, now, max_event_id, hist_name, hHistKey, n_var, tag, 1, 0);
             if (status != DB_SUCCESS)
                return status;
 
@@ -5418,23 +5411,6 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
    DWORD end_millitime = ss_millitime();
    if (end_millitime - start_millitime > 3000)
       cm_msg(MINFO, "log_system_history", "History write operation took %d ms", end_millitime - start_millitime);
-}
-
-/*---- log_history_periodic ----------------------------------------*/
-
-void log_history_periodic() {
-   HNDLE hDB;
-   cm_get_experiment_database(&hDB, NULL);
-   time_t now = time(NULL);
-
-   // log at least once every minute for "slow" equipment
-   for (int i = 0; i < hist_log_max; i++) {
-      if (hist_log[i].hKeyVar > 0 && now - hist_log[i].last_log >= hist_log[i].max_period) {
-         if (verbose)
-            printf("Log periodic history event: \'%s\'\n", hist_log[i].event_name);
-         log_history(hDB, hist_log[i].hKeyVar, NULL);
-      }
-   }
 }
 
 /*------------------------------------------------------------------*/
@@ -6397,9 +6373,6 @@ int main(int argc, char *argv[])
          */
          db_send_changed_records();
       }
-
-      /* write periodic history */
-      log_history_periodic();
 
       /* check for auto restart */
       if (auto_restart && ss_time() > auto_restart) {
