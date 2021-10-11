@@ -30,7 +30,11 @@ static int sc_thread(void *info)
 
    // call CMD_START of device driver
    device_drv->dd(CMD_START, device_drv->dd_info, 0, NULL);
-   
+
+   // initialize setting to NAN in order not to trigger an immediate write
+   for (i = 0; i < device_drv->channels; i++)
+      device_drv->mt_buffer->channel[i].variable[CMD_SET] = (float) ss_nan();
+
    do {
       /* read one channel from device */
       for (cmd = CMD_GET_FIRST; cmd <= CMD_GET_LAST; cmd++) {
@@ -85,7 +89,8 @@ static int sc_thread(void *info)
 
                status = device_drv->dd(cmd, device_drv->dd_info, i, value);
                device_drv->mt_buffer->status = status;
-               last_update[i] = ss_millitime();
+               if (cmd == CMD_SET)
+                  last_update[i] = ss_millitime();
             }
          }
       }
