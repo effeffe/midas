@@ -16656,12 +16656,14 @@ static int handle_http_post(struct mg_connection *nc, const mg_http_message* msg
       const std::string origin_header = find_header_mg(msg, "Origin");
       const std::string ctype_header = find_header_mg(msg, "Content-Type");
 
-      if (strstr(ctype_header.c_str(), "application/json") == NULL) {
+      if (0 && strstr(ctype_header.c_str(), "application/json") == NULL) {
          std::string headers;
          headers += "HTTP/1.1 415 Unsupported Media Type\n";
          //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
 
-         //printf("sending headers: %s\n", headers.c_str());
+#warning This does not work with mongoose 7.4
+
+         printf("sending headers: %s\n", headers.c_str());
          //printf("sending reply: %s\n", reply.c_str());
 
          std::string send = headers + "\n";
@@ -16860,7 +16862,8 @@ static void handle_http_message(struct mg_connection *nc, mg_http_message* msg)
    if (method == "OPTIONS" && query_string == "mjsonrpc" && mg_http_get_header(msg, "Access-Control-Request-Method") != NULL) {
       handle_http_options_cors(nc, msg, t);
       t->fCompleted = true;
-      gTraceBuf->AddTraceMTS(t);
+      if (gTraceBuf)
+         gTraceBuf->AddTraceMTS(t);
       return;
    }
 
@@ -16889,7 +16892,8 @@ static void handle_http_message(struct mg_connection *nc, mg_http_message* msg)
 
          xmg_http_send_digest_auth_request(nc, gAuthMg->realm.c_str());
          t->fCompleted = true;
-         gTraceBuf->AddTraceMTS(t);
+         if (gTraceBuf)
+            gTraceBuf->AddTraceMTS(t);
          return;
       }
       t->fAuthOk = true;
@@ -16982,7 +16986,8 @@ static void handle_http_message(struct mg_connection *nc, mg_http_message* msg)
 
    if (response != RESPONSE_QUEUED) {
       t->fCompleted = true;
-      gTraceBuf->AddTraceMTS(t);
+      if (gTraceBuf)
+         gTraceBuf->AddTraceMTS(t);
    }
 }
 
@@ -17880,6 +17885,100 @@ int loop_mg()
 }
 #endif
 
+#ifdef HAVE_MONGOOSE74
+
+#if 0
+static void mongoose_start_thread(void (*f)(void *), void *p) {
+#ifdef _WIN32
+  _beginthread((void(__cdecl *)(void *)) f, 0, p);
+#else
+  //#define closesocket(x) close(x)
+#include <pthread.h>
+  pthread_t thread_id = (pthread_t) 0;
+  pthread_attr_t attr;
+  (void) pthread_attr_init(&attr);
+  (void) pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+  pthread_create(&thread_id, &attr, (void *(*) (void *) ) f, p);
+  pthread_attr_destroy(&attr);
+#endif
+}
+
+static void mongoose_thread_function(void *param)
+{
+   struct mg_connection *c = (struct mg_connection*)param;  // Pipe connection
+   //mg_usleep(2 * 1000000);           // Simulate long execution
+   mg_mgr_wakeup(c);                 // Wakeup event manager
+}
+#endif
+
+// HTTP request callback
+static void mongoose_fn(struct mg_connection *c, int ev, void *ev_data, void *fn_data)
+{
+   //printf("mongoose_fn:  connection %p, event %d\n", c, ev);
+
+   switch (ev) {
+   default: {
+      printf("mongoose_fn:  connection %p, event %d\n", c, ev);
+      break;
+   }
+   case MG_EV_POLL: {
+      printf("mongoose_fn:  connection %p, event %d, MG_EV_POLL\n", c, ev);
+      break;
+   }
+   case MG_EV_READ: {
+      printf("mongoose_fn:  connection %p, event %d, MG_EV_READ\n", c, ev);
+      break;
+   }
+   case MG_EV_WRITE: {
+      printf("mongoose_fn:  connection %p, event %d, MG_EV_WRITE\n", c, ev);
+      break;
+   }
+   case MG_EV_HTTP_MSG: {
+      struct mg_http_message *hm = (struct mg_http_message *) ev_data;
+      printf("mongoose_fn:  connection %p, event %d, MG_EV_HTTP_MSG, method \"%s\", URI \"%s\"\n", c, ev, mgstr(&hm->method).c_str(), mgstr(&hm->uri).c_str());
+      //if (mg_http_match_uri(hm, "/fast")) {
+      //   // Single-threaded code path, for performance comparison
+      //   // The /fast URI responds immediately
+      //mg_http_reply(c, 200, "Host: foo.com\r\n", "hi\n");
+      //} else {
+      // Multithreading code path
+      //c->label[0] = 'W';                       // Mark us as waiting for data
+      //mongoose_start_thread(mongoose_thread_function, fn_data);  // Start handling thread
+      //}
+      handle_http_message(c, hm);
+      break;
+   }
+   }
+}
+
+// Pipe event handler
+static void mongoose_pcb(struct mg_connection *c, int ev, void *ev_data, void *fn_data)
+{
+   //printf("mongoose_pcb: connection %p, event %d\n", c, ev);
+
+   switch (ev) {
+   default: {
+      printf("mongoose_pcb: connection %p, event %d\n", c, ev);
+      break;
+   }
+   case MG_EV_POLL: {
+      printf("mongoose_pcb: connection %p, event %d, MG_EV_POLL\n", c, ev);
+      break;
+   }
+   case MG_EV_READ: {
+      printf("mongoose_pcb: connection %p, event %d, MG_EV_READ\n", c, ev);
+      struct mg_connection *t;
+      for (t = c->mgr->conns; t != NULL; t = t->next) {
+         if (t->label[0] != 'W') continue;  // Ignore un-marked connections
+         mg_http_reply(t, 200, "Host: foo.com\r\n", "hi\n");  // Respond!
+         t->label[0] = 0;                                     // Clear mark
+      }
+      break;
+   }
+   }
+}
+#endif
+
 static MJsonNode* get_http_trace(const MJsonNode* params)
 {
    if (!params) {
@@ -18234,6 +18333,17 @@ int main(int argc, const char *argv[])
    }
 
    mongoose_cleanup();
+#endif
+
+#ifdef HAVE_MONGOOSE74
+   struct mg_mgr mgr;
+   struct mg_connection *pipe;  // Used to wake up event manager
+   mg_mgr_init(&mgr);
+   mg_log_set("3");
+   pipe = mg_mkpipe(&mgr, mongoose_pcb, NULL);                        // Create pipe
+   mg_http_listen(&mgr, "http://localhost:8081", mongoose_fn, pipe);  // Create listener
+   for (;;) mg_mgr_poll(&mgr, 1000);                         // Event loop
+   mg_mgr_free(&mgr);                                        // Cleanup
 #endif
 
    cm_disconnect_experiment();
