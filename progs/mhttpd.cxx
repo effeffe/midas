@@ -1891,9 +1891,6 @@ void init_menu_buttons(MVOdb* odb)
    db_get_value(hDB, 0, "/Experiment/Menu/OldHistory", &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/MSCB",       &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Sequencer",  &true_value,  &size, TID_BOOL, TRUE);
-#ifndef OLD_SEQUENCER
-   db_get_value(hDB, 0, "/Experiment/Menu/NewSequencer", &true_value,  &size, TID_BOOL, TRUE);
-#endif
    db_get_value(hDB, 0, "/Experiment/Menu/Config",     &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Example",    &false_value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Help",       &true_value,  &size, TID_BOOL, TRUE);
