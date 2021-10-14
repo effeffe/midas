@@ -15422,6 +15422,9 @@ int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace
 
 #ifdef HAVE_MONGOOSE6
 #include "mongoose6.h"
+#define HAVE_AUTH 1
+#define mg_http_message http_message
+#define mg_http_get_header mg_get_http_header
 #endif
 
 #ifdef HAVE_MONGOOSE616
@@ -15429,6 +15432,13 @@ int find_file_mg(const char* filename, std::string& path, FILE** fpp, bool trace
 #include "mongoose616.h"
 // cs_md5() in not in mongoose.h
 extern void cs_md5(char buf[33], ...);
+#define HAVE_AUTH 1
+#define mg_http_message http_message
+#define mg_http_get_header mg_get_http_header
+#endif
+
+#ifdef HAVE_MONGOOSE74
+#include "mongoose74.h"
 #endif
 
 static bool verbose_mg = false;
@@ -15443,6 +15453,7 @@ static bool multithread_mg = true;
 static struct mg_mgr mgr_mg;
 #endif
 
+#ifdef HAVE_AUTH
 struct AuthEntry {
    std::string username;
    std::string realm;
@@ -15570,6 +15581,7 @@ static bool read_passwords(Auth* auth)
 
    return have_realm;
 }
+#endif
 
 #ifdef HAVE_MONGOOSE6
 std::string find_var_mg(struct mg_str *hdr, const char* var_name)
@@ -15621,6 +15633,25 @@ std::string find_var_mg(struct mg_str *hdr, const char* var_name)
 }
 #endif
 
+#ifdef HAVE_MONGOOSE74
+std::string find_var_mg(struct mg_str *hdr, const char* var_name)
+{
+#warning find_var_mg: WRITEME!
+#if 0
+   char* buf = NULL;
+   int buf_size = 0;
+   int size = mg_http_parse_header2(hdr, var_name, &buf, buf_size);
+   if (size <= 0)
+      return "";
+   assert(buf != NULL);
+   std::string s = buf;
+   free(buf);
+   return s;
+#endif
+}
+#endif
+
+#ifdef HAVE_AUTH
 static std::string check_digest_auth(struct http_message *hm, Auth* auth)
 {
    char expected_response[33];
@@ -15698,6 +15729,7 @@ static std::string check_digest_auth(struct http_message *hm, Auth* auth)
 
    return "";
 }
+#endif
 
 #ifdef HAVE_MONGOOSE616
 
@@ -15865,12 +15897,29 @@ static bool mongoose_check_hostlist(const union socket_address *sa)
 
 #endif
 
+#ifdef HAVE_MONGOOSE6
 static std::string mgstr(const mg_str* s)
 {
    return std::string(s->p, s->len);
 }
+#endif
 
-static const std::string find_header_mg(const struct http_message *msg, const char* name)
+#ifdef HAVE_MONGOOSE616
+static std::string mgstr(const mg_str* s)
+{
+   return std::string(s->p, s->len);
+}
+#endif
+
+#ifdef HAVE_MONGOOSE74
+static std::string mgstr(const mg_str* s)
+{
+   return std::string(s->ptr, s->len);
+}
+#endif
+
+#if defined(HAVE_MONGOOSE6) || defined(HAVE_MONGOOSE616)
+static const std::string find_header_mg(const struct mg_http_message *msg, const char* name)
 {
    size_t nlen = strlen(name);
    for (int i=0; i<MG_MAX_HTTP_HEADERS; i++) {
@@ -15882,8 +15931,27 @@ static const std::string find_header_mg(const struct http_message *msg, const ch
    }
    return "";
 }
+#endif
 
-static const std::string find_cookie_mg(const struct http_message *msg, const char* cookie_name)
+#ifdef HAVE_MONGOOSE74
+static const std::string find_header_mg(const struct mg_http_message *msg, const char* name)
+{
+#warning find_header_mg: WRITEME!
+#if 0
+   size_t nlen = strlen(name);
+   for (int i=0; i<MG_MAX_HTTP_HEADERS; i++) {
+      if (msg->header_names[i].len != nlen)
+         continue;
+      if (strncmp(msg->header_names[i].p, name, nlen) != 0)
+         continue;
+      return mgstr(&msg->header_values[i]);
+   }
+#endif
+   return "";
+}
+#endif
+
+static const std::string find_cookie_mg(const struct mg_http_message *msg, const char* cookie_name)
 {
    const std::string cookies = find_header_mg(msg, "Cookie");
    if (cookies.length() < 1)
@@ -15901,6 +15969,7 @@ static const std::string find_cookie_mg(const struct http_message *msg, const ch
 
 // Generic event handler
 
+#ifdef HAVE_MONGOOSE6
 static void handle_event_mg(struct mg_connection *nc, int ev, void *ev_data)
 {
    struct mbuf *io = &nc->recv_mbuf;
@@ -15934,8 +16003,9 @@ static void handle_event_mg(struct mg_connection *nc, int ev, void *ev_data)
       break;
    }
 }
+#endif
 
-void decode_cookies(Cookies *c, const http_message* msg)
+static void decode_cookies(Cookies *c, const mg_http_message* msg)
 {
    // extract password cookies
 
@@ -15986,7 +16056,7 @@ void decode_cookies(Cookies *c, const http_message* msg)
 #define RESPONSE_QUEUED 2
 #define RESPONSE_501    3
 
-static int handle_decode_get(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
+static int handle_decode_get(struct mg_connection *nc, const mg_http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
 {
    Cookies cookies;
 
@@ -16085,7 +16155,7 @@ static std::vector<MongooseThreadObject*> gMongooseThreads;
 
 static void mongoose_thread(MongooseThreadObject*);
 
-MongooseThreadObject* FindThread(void* nc)
+static MongooseThreadObject* FindThread(void* nc)
 {
    MongooseThreadObject* last_not_connected = NULL;
    
@@ -16123,7 +16193,7 @@ MongooseThreadObject* FindThread(void* nc)
    return to;
 }
 
-void FreeThread(void* nc)
+static void FreeThread(void* nc)
 {
    for (auto it : gMongooseThreads) {
       MongooseThreadObject* to = it;
@@ -16150,7 +16220,7 @@ static void mongoose_queue(void* nc, MongooseWorkObject* w)
 
 static void mongoose_send(void* nc, MongooseWorkObject* w, const char* p1, size_t s1, const char* p2, size_t s2, bool close_flag = false);
 
-static int queue_decode_get(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
+static int queue_decode_get(struct mg_connection *nc, const mg_http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
 {
    MongooseWorkObject* w = new MongooseWorkObject();
    w->socket = nc->sock;
@@ -16166,7 +16236,7 @@ static int queue_decode_get(struct mg_connection *nc, const http_message* msg, c
    return RESPONSE_QUEUED;
 }
 
-static int queue_decode_post(struct mg_connection *nc, const http_message* msg, const char* boundary, const char* uri, const char* query_string, RequestTrace* t)
+static int queue_decode_post(struct mg_connection *nc, const mg_http_message* msg, const char* boundary, const char* uri, const char* query_string, RequestTrace* t)
 {
    MongooseWorkObject* w = new MongooseWorkObject();
    w->socket = nc->sock;
@@ -16398,7 +16468,7 @@ static int thread_work_function(void *nc, MongooseWorkObject *w)
 
 #endif
 
-static int handle_decode_post(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
+static int handle_decode_post(struct mg_connection *nc, const mg_http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
 {
 
    char boundary[256];
@@ -16419,7 +16489,11 @@ static int handle_decode_post(struct mg_connection *nc, const http_message* msg,
 
    decode_cookies(&cookies, msg);
 
+#ifdef HAVE_MONGOOSE74
+   const char* post_data = msg->body.ptr;
+#else
    const char* post_data = msg->body.p;
+#endif
    int post_data_len = msg->body.len;
 
    // lock shared strctures
@@ -16471,9 +16545,13 @@ static int handle_decode_post(struct mg_connection *nc, const http_message* msg,
    return RESPONSE_SENT;
 }
 
-static int handle_http_get(struct mg_connection *nc, const http_message* msg, const char* uri, RequestTrace* t)
+static int handle_http_get(struct mg_connection *nc, const mg_http_message* msg, const char* uri, RequestTrace* t)
 {
+#ifdef HAVE_MONGOOSE74
+   std::string query_string = mgstr(&msg->query);
+#else
    std::string query_string = mgstr(&msg->query_string);
+#endif
 
    if (trace_mg||verbose_mg)
       printf("handle_http_get: uri [%s], query [%s]\n", uri, query_string.c_str());
@@ -16554,9 +16632,13 @@ static int handle_http_get(struct mg_connection *nc, const http_message* msg, co
    return handle_decode_get(nc, msg, uri, query_string.c_str(), t);
 }
 
-static int handle_http_post(struct mg_connection *nc, const http_message* msg, const char* uri, RequestTrace* t)
+static int handle_http_post(struct mg_connection *nc, const mg_http_message* msg, const char* uri, RequestTrace* t)
 {
+#ifdef HAVE_MONGOOSE74
+   std::string query_string = mgstr(&msg->query);
+#else
    std::string query_string = mgstr(&msg->query_string);
+#endif
    std::string post_data = mgstr(&msg->body);
 
    if (trace_mg||verbose_mg)
@@ -16675,7 +16757,7 @@ static int handle_http_post(struct mg_connection *nc, const http_message* msg, c
    return handle_decode_post(nc, msg, uri, query_string.c_str(), t);
 }
 
-static void handle_http_options_cors(struct mg_connection *nc, const http_message* msg, RequestTrace* t)
+static void handle_http_options_cors(struct mg_connection *nc, const mg_http_message* msg, RequestTrace* t)
 {
    //
    // JSON-RPC CORS pre-flight request, see
@@ -16745,10 +16827,14 @@ static bool mongoose_passwords_enabled(const struct mg_connection *nc);
 static MVOdb* gProxyOdb = NULL;
 #endif
 
-static void handle_http_message(struct mg_connection *nc, http_message* msg)
+static void handle_http_message(struct mg_connection *nc, mg_http_message* msg)
 {
    std::string method = mgstr(&msg->method);
+#ifdef HAVE_MONGOOSE74
+   std::string query_string = mgstr(&msg->query);
+#else
    std::string query_string = mgstr(&msg->query_string);
+#endif
    std::string uri_encoded = mgstr(&msg->uri);
    std::string uri = UrlDecode(uri_encoded.c_str());
 
@@ -16763,13 +16849,14 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
 
    // process OPTIONS for Cross-origin (CORS) preflight request
    // see https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS
-   if (method == "OPTIONS" && query_string == "mjsonrpc" && mg_get_http_header(msg, "Access-Control-Request-Method") != NULL) {
+   if (method == "OPTIONS" && query_string == "mjsonrpc" && mg_http_get_header(msg, "Access-Control-Request-Method") != NULL) {
       handle_http_options_cors(nc, msg, t);
       t->fCompleted = true;
       gTraceBuf->AddTraceMTS(t);
       return;
    }
 
+#ifdef HAVE_AUTH
    if (gAuthMg && mongoose_passwords_enabled(nc)) {
       std::string username = check_digest_auth(msg, gAuthMg);
 
@@ -16801,6 +16888,7 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
    } else {
       t->fAuthOk = true;
    }
+#endif
 
 #ifdef HAVE_MONGOOSE616
    if (gProxyOdb && starts_with(uri, "/proxy/")) {
@@ -17179,6 +17267,7 @@ static void mongoose_thread(MongooseThreadObject* to)
 
 static bool mongoose_hostlist_enabled(const struct mg_connection *nc);
 
+#ifdef HAVE_MONGOOSE616
 static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
 {
    (void) nc;
@@ -17239,6 +17328,74 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
    }
    }
 }
+#endif
+
+#ifdef HAVE_MONGOOSE74
+static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
+{
+   (void) nc;
+   (void) ev_data;
+
+   //if (trace_mg && ev != 0) {
+   //   printf("ev_handler: connection %p, event %d\n", nc, ev);
+   //}
+
+   printf("ev_handler: connection %p, event %d\n", nc, ev);
+
+#if 0
+   switch (ev) {
+   case 0:
+      break;
+   default: { 
+      if (trace_mg) {
+         printf("ev_handler: connection %p, event %d\n", nc, ev);
+      }
+      break;
+   }
+   case MG_EV_ACCEPT:
+      if (trace_mg) {
+         printf("ev_handler: connection %p, MG_EV_ACCEPT\n", nc);
+      }
+      if (mongoose_hostlist_enabled(nc)) {
+         if (!mongoose_check_hostlist(&nc->sa)) {
+            nc->flags |= MG_F_CLOSE_IMMEDIATELY;
+         }
+      }
+      break;
+   case MG_EV_RECV:
+      if (trace_mg_recv) {
+         printf("ev_handler: connection %p, MG_EV_RECV, %d bytes\n", nc, *(int*)ev_data);
+      }
+      break;
+   case MG_EV_SEND:
+      if (trace_mg_send) {
+         printf("ev_handler: connection %p, MG_EV_SEND, %d bytes\n", nc, *(int*)ev_data);
+      }
+      break;
+   case MG_EV_HTTP_CHUNK: {
+      if (trace_mg) {
+         printf("ev_handler: connection %p, MG_EV_HTTP_CHUNK\n", nc);
+      }
+      break;
+   }
+   case MG_EV_HTTP_REQUEST: {
+      struct http_message* msg = (struct http_message*)ev_data;
+      if (trace_mg) {
+         printf("ev_handler: connection %p, MG_EV_HTTP_REQUEST \"%s\" \"%s\"\n", nc, mgstr(&msg->method).c_str(), mgstr(&msg->uri).c_str());
+      }
+      handle_http_message(nc, msg);
+      break;
+   }
+   case MG_EV_CLOSE: {
+      if (trace_mg) {
+         printf("ev_handler: connection %p, MG_EV_CLOSE\n", nc);
+      }
+      FreeThread(nc);
+   }
+   }
+#endif
+}
+#endif
 
 #define FLAG_HTTPS     (1<<0)
 #define FLAG_PASSWORDS (1<<1)
