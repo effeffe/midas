@@ -205,15 +205,6 @@ static void SaveMimetypes(MVOdb* odb)
 
 #define HTTP_ENCODING "UTF-8"
 
-#ifdef OBSOLETE
-typedef struct {
-   char user[256];
-   char msg[256];
-   time_t last_time;
-   time_t prev_time;
-} LASTMSG;
-#endif
-
 /*------------------------------------------------------------------*/
 
 const unsigned char favicon_png[] = {
@@ -1250,51 +1241,6 @@ bool send_resource(Return* r, const std::string& name, bool generate_404 = true)
 }
 
 /*------------------------------------------------------------------*/
-
-#ifdef OBSOLETE
-static LASTMSG lastMsg;
-static LASTMSG lastChatMsg;
-static LASTMSG lastTalkMsg;
-
-INT print_message(const char *message)
-{
-   time_t tm;
-   char str[80], line[256];
-
-   /* prepare time */
-   time(&tm);
-   strcpy(str, ctime(&tm));
-   str[19] = 0;
-
-   /* print message text which comes after event header */
-   strlcpy(line, str + 11, sizeof(line));
-   strlcat(line, " ", sizeof(line));
-   strlcat(line, (char *) message, sizeof(line));
-
-   if (strstr(message, ",USER]") != NULL) {
-      strlcpy(lastChatMsg.msg, line, sizeof(lastMsg.msg));
-      lastChatMsg.prev_time = lastChatMsg.last_time;
-      time(&lastChatMsg.last_time);
-   } else if (strstr(message, ",TALK]") != NULL) {
-      strlcpy(lastTalkMsg.msg, line, sizeof(lastMsg.msg));
-      lastTalkMsg.prev_time = lastTalkMsg.last_time;
-      time(&lastTalkMsg.last_time);
-   } else {
-      strlcpy(lastMsg.msg, line, sizeof(lastMsg.msg));
-      lastMsg.prev_time = lastMsg.last_time;
-      time(&lastMsg.last_time);
-   }
-
-   return SUCCESS;
-}
-
-void receive_message(HNDLE hBuf, HNDLE id, EVENT_HEADER * pheader, void *message)
-{
-   print_message((const char *)message);
-}
-#endif
-
-/*-------------------------------------------------------------------*/
 
 INT sendmail(const char* from_host, const char *smtp_host, const char *from, const char *to, const char *subject, const char *text)
 {
@@ -12187,20 +12133,6 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
 
 /*------------------------------------------------------------------*/
 
-#ifdef OBSOLETE
-void get_password(char *password)
-{
-   static char last_password[32];
-
-   if (strncmp(password, "set=", 4) == 0)
-      strlcpy(last_password, password + 4, sizeof(last_password));
-   else
-      strcpy(password, last_password);  // unsafe: do not know size of password string, has to be this way because of cm_connect_experiment() KO 27-Jul-2006
-}
-#endif
-
-/*------------------------------------------------------------------*/
-
 void send_icon(Return* r, const char *icon)
 {
    int length;
@@ -14361,28 +14293,6 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       return;
    }
 
-#ifdef OBSOLETE
-   /*---- redirect if sequencer command -----------------------------*/
-   if (equal_ustring(command, "sequencer")) {
-      str[0] = 0;
-      for (const char* p=dec_path ; *p ; p++)
-         if (*p == '/')
-            strlcat(str, "../", sizeof(str));
-      strlcat(str, "SEQ/", sizeof(str));
-      redirect(r, str);
-      return;
-   }
-#endif
-   /*---- redirect if elog command ----------------------------------*/
-
-#ifdef OBSOLETE
-   if (equal_ustring(command, "elog")) {
-      get_elog_url(str, sizeof(str));
-      redirect(r, str);
-      return;
-   }
-#endif
-
    /*---- history command -------------------------------------------*/
 
    if (equal_ustring(command, "oldhistory")) {
@@ -14587,14 +14497,6 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       return;
    }
 
-#ifdef OBSOLETE
-   if (equal_ustring(command, "Create ELog from this page")) {
-      strlcpy(str, dec_path, sizeof(str));
-      show_elog_page(p, r, a, dec_path, str, sizeof(str));
-      return;
-   }
-#endif
-
    if (equal_ustring(command, "Create ELog from this page")) {
       std::string redir;
       redir += "?cmd=New+elog";
@@ -14611,34 +14513,12 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       return;
    }
 
-#ifdef OBSOLETE
-   if (equal_ustring(command, "Submit query")) {
-      show_elog_submit_query(p, r, dec_path, 0);
-      return;
-   }
-#endif
-
    if (equal_ustring(command, "elog_att")) {
       Lock(t);
       show_elog_attachment(p, r, dec_path);
       Unlock(t);
       return;
    }
-
-#ifdef OBSOLETE
-   if (strncmp(dec_path, "EL/", 3) == 0) {
-      if (equal_ustring(command, "new") || equal_ustring(command, "edit")
-          || equal_ustring(command, "reply")) {
-         sprintf(str, "%s?cmd=%s", dec_path, command);
-         if (!check_web_password(r, dec_path, c->cookie_wpwd.c_str(), str))
-            return;
-      }
-
-      strlcpy(str, dec_path + 3, sizeof(str));
-      show_elog_page(p, r, a, dec_path, str, sizeof(str));
-      return;
-   }
-#endif
 
    /*---- accept command --------------------------------------------*/
 
@@ -14788,15 +14668,6 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
    }
 
    if (equal_ustring(command, "Cancel \'Stop after current run\'")) {
-      Lock(t);
-      show_seq_page(p, r);
-      Unlock(t);
-      return;
-   }
-#endif
-
-#ifdef OBSOLETE
-   if (strncmp(dec_path, "SEQ/", 4) == 0) {
       Lock(t);
       show_seq_page(p, r);
       Unlock(t);
@@ -18159,14 +18030,6 @@ int main(int argc, const char *argv[])
       return 1;
    }
 
-#endif
-
-#ifdef OBSOLETE   
-   /* place a request for system messages */
-   cm_msg_register(receive_message);
-
-   /* redirect message display, turn on message logging */
-   cm_set_msg_print(MT_ALL, MT_ALL, print_message);
 #endif
 
 #ifdef HAVE_MONGOOSE6
