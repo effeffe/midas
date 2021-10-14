@@ -126,7 +126,7 @@ void image_thread(std::string name) {
                std::string pathname = (path+"/"+filename);
                int error = remove(pathname.c_str());
                // suppress cases with ENOENT happening on systems with very many files
-               if (error && error != ENOENT)
+               if (error && errno != ENOENT)
                   cm_msg(MERROR, "image_thread", "Cannot remove file \"%s\", remove() errno %d (%s)", pathname.c_str(), errno, strerror(errno));
             }
 
