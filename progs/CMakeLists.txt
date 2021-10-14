@@ -78,11 +78,11 @@ endif(HAVE_LM_SENSORS)
 #
 # mhttpd
 #
-add_executable(mhttpd mhttpd.cxx mongoose616.cxx mgd.cxx ${PROJECT_SOURCE_DIR}/mscb/src/mscb.cxx)
+add_executable(mhttpd mhttpd.cxx mongoose74.cxx mgd.cxx ${PROJECT_SOURCE_DIR}/mscb/src/mscb.cxx)
 target_compile_options(mhttpd PRIVATE -DHAVE_MSCB)
 target_include_directories(mhttpd PRIVATE ${PROJECT_SOURCE_DIR}/mscb/include)
 
-target_compile_options(mhttpd PRIVATE -DHAVE_MONGOOSE616 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI -DMG_ENABLE_EXTRA_ERRORS_DESC -DMG_ENABLE_IPV6 -DMG_ENABLE_HTTP_URL_REWRITES -DMG_ENABLE_HTTP_SSI=0)
+target_compile_options(mhttpd PRIVATE -DHAVE_MONGOOSE74 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI -DMG_ENABLE_EXTRA_ERRORS_DESC -DMG_ENABLE_IPV6 -DMG_ENABLE_HTTP_URL_REWRITES -DMG_ENABLE_HTTP_SSI=0)
 
 if (MBEDTLS_FOUND)
    #add_compile_options(-I../mbedtls/include)
@@ -97,6 +97,31 @@ elseif (OPENSSL_FOUND)
    target_link_libraries(mhttpd midas ${OPENSSL_LIBRARIES})
 else ()
    target_link_libraries(mhttpd midas)
+endif(MBEDTLS_FOUND)
+
+
+#
+# mhttpd616 (old mongoose)
+#
+add_executable(mhttpd616 mhttpd.cxx mongoose616.cxx mgd.cxx ${PROJECT_SOURCE_DIR}/mscb/src/mscb.cxx)
+target_compile_options(mhttpd616 PRIVATE -DHAVE_MSCB)
+target_include_directories(mhttpd616 PRIVATE ${PROJECT_SOURCE_DIR}/mscb/include)
+
+target_compile_options(mhttpd616 PRIVATE -DHAVE_MONGOOSE616 -DMG_ENABLE_THREADS -DMG_DISABLE_CGI -DMG_ENABLE_EXTRA_ERRORS_DESC -DMG_ENABLE_IPV6 -DMG_ENABLE_HTTP_URL_REWRITES -DMG_ENABLE_HTTP_SSI=0)
+
+if (MBEDTLS_FOUND)
+   #add_compile_options(-I../mbedtls/include)
+   #add_compile_options(-I../../../mbedtls/include -I../../../mbedtls/crypto/include)
+   #set(MBEDTLS_LIBS ${MBEDTLS_LIBS} -L../../../mbedtls/library -lmbedtls -lmbedx509 -L../../../mbedtls/crypto/library -lmbedcrypto)
+   set(MBEDTLS_LIBS ${MBEDTLS_LIBS} mbedtls)
+   target_compile_options(mhttpd616 PRIVATE -DMG_ENABLE_SSL -DMG_SSL_IF=2 -DMG_SSL_MBED_DUMMY_RANDOM -I../mbedtls/include)
+   target_link_libraries(mhttpd616 midas ${MBEDTLS_LIBS})
+elseif (OPENSSL_FOUND)
+   target_compile_options(mhttpd616 PRIVATE -DMG_ENABLE_SSL -DMG_SSL_IF=1)
+   target_include_directories(mhttpd616 PRIVATE ${OPENSSL_INCLUDE_DIR})
+   target_link_libraries(mhttpd616 midas ${OPENSSL_LIBRARIES})
+else ()
+   target_link_libraries(mhttpd616 midas)
 endif(MBEDTLS_FOUND)
 
 
@@ -148,7 +173,7 @@ endif(HAVE_ROOT)
 # Installation
 #
 
-install(TARGETS ${PROGS} ${MFEPROGS} mhttpd mhttpd6 odbedit DESTINATION bin)
+install(TARGETS ${PROGS} ${MFEPROGS} mhttpd mhttpd6 mhttpd616 odbedit DESTINATION bin)
 
 if (HAVE_NVIDIA)
    install(TARGETS msysmon-nvidia DESTINATION bin)
