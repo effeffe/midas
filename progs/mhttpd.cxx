@@ -32,7 +32,7 @@
 #include "mscb.h"
 #endif
 
-#define OLD_SEQUENCER 1
+//#define OLD_SEQUENCER 1
 
 #ifdef OLD_SEQUENCER
 #include "sequencer.h"
