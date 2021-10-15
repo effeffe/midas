@@ -17832,36 +17832,44 @@ static void mongoose_fn(struct mg_connection *c, int ev, void *ev_data, void *fn
 
    switch (ev) {
    default: {
-      printf("mongoose_fn:  connection %p, event %d\n", c, ev);
+      if (trace_mg)
+         printf("mongoose_fn:  connection %p, event %d\n", c, ev);
       break;
    }
    case MG_EV_POLL: {
-      printf("mongoose_fn:  connection %p, event %d, MG_EV_POLL\n", c, ev);
+      if (trace_mg)
+         printf("mongoose_fn:  connection %p, event %d, MG_EV_POLL\n", c, ev);
       break;
    }
    case MG_EV_CONNECT: {
-      printf("mongoose_fn:  connection %p, event %d, MG_EV_CONNECT\n", c, ev);
+      if (trace_mg)
+         printf("mongoose_fn:  connection %p, event %d, MG_EV_CONNECT\n", c, ev);
       break;
    }
    case MG_EV_ACCEPT: {
-      printf("mongoose_fn:  connection %p, event %d, MG_EV_ACCEPT\n", c, ev);
+      if (trace_mg)
+         printf("mongoose_fn:  connection %p, event %d, MG_EV_ACCEPT\n", c, ev);
       break;
    }
    case MG_EV_READ: {
-      printf("mongoose_fn:  connection %p, event %d, MG_EV_READ\n", c, ev);
+      if (trace_mg)
+         printf("mongoose_fn:  connection %p, event %d, MG_EV_READ\n", c, ev);
       break;
    }
    case MG_EV_WRITE: {
-      printf("mongoose_fn:  connection %p, event %d, MG_EV_WRITE\n", c, ev);
+      if (trace_mg)
+         printf("mongoose_fn:  connection %p, event %d, MG_EV_WRITE\n", c, ev);
       break;
    }
    case MG_EV_CLOSE: {
-      printf("mongoose_fn:  connection %p, event %d, MG_EV_CLOSE\n", c, ev);
+      if (trace_mg)
+         printf("mongoose_fn:  connection %p, event %d, MG_EV_CLOSE\n", c, ev);
       break;
    }
    case MG_EV_HTTP_MSG: {
       struct mg_http_message *hm = (struct mg_http_message *) ev_data;
-      printf("mongoose_fn:  connection %p, event %d, MG_EV_HTTP_MSG, method \"%s\", URI \"%s\"\n", c, ev, mgstr(&hm->method).c_str(), mgstr(&hm->uri).c_str());
+      if (trace_mg)
+         printf("mongoose_fn:  connection %p, event %d, MG_EV_HTTP_MSG, method \"%s\", URI \"%s\"\n", c, ev, mgstr(&hm->method).c_str(), mgstr(&hm->uri).c_str());
       //if (mg_http_match_uri(hm, "/fast")) {
       //   // Single-threaded code path, for performance comparison
       //   // The /fast URI responds immediately
@@ -17875,7 +17883,8 @@ static void mongoose_fn(struct mg_connection *c, int ev, void *ev_data, void *fn
       break;
    }
    case MG_EV_HTTP_CHUNK: {
-      printf("mongoose_fn:  connection %p, event %d, MG_EV_CHUNK\n", c, ev);
+      if (trace_mg)
+         printf("mongoose_fn:  connection %p, event %d, MG_EV_CHUNK\n", c, ev);
       break;
    }
    }
@@ -17888,15 +17897,18 @@ static void mongoose_pcb(struct mg_connection *c, int ev, void *ev_data, void *f
 
    switch (ev) {
    default: {
-      printf("mongoose_pcb: connection %p, event %d\n", c, ev);
+      if (trace_mg)
+         printf("mongoose_pcb: connection %p, event %d\n", c, ev);
       break;
    }
    case MG_EV_POLL: {
-      printf("mongoose_pcb: connection %p, event %d, MG_EV_POLL\n", c, ev);
+      if (trace_mg)
+         printf("mongoose_pcb: connection %p, event %d, MG_EV_POLL\n", c, ev);
       break;
    }
    case MG_EV_READ: {
-      printf("mongoose_pcb: connection %p, event %d, MG_EV_READ\n", c, ev);
+      if (trace_mg)
+         printf("mongoose_pcb: connection %p, event %d, MG_EV_READ\n", c, ev);
       struct mg_connection *t;
       for (t = c->mgr->conns; t != NULL; t = t->next) {
          if (t->label[0] != 'W') continue;  // Ignore un-marked connections
