@@ -45,7 +45,7 @@ INT read_scaler_event(char *pevent, INT off);
 
 /*-- Equipment list ------------------------------------------------*/
 
-BOOL equipment_common_overwrite = FALSE;
+BOOL equipment_common_overwrite = TRUE;
 
 EQUIPMENT equipment[] = {
 
@@ -97,8 +97,8 @@ EQUIPMENT equipment[] = {
 
 INT frontend_init()
 {
-   /* for this demo, use two readout threads */
-   for (int i=0 ; i<2 ; i++) {
+   /* for this demo, use three readout threads */
+   for (int i=0 ; i<3 ; i++) {
       
       /* create a ring buffer for each thread */
       create_event_rb(i);
@@ -192,6 +192,9 @@ INT trigger_thread(void *param)
    
    /* tell framework that we are alive */
    signal_readout_thread_active(index, TRUE);
+
+   /* set name of thread as seen by OS */
+   ss_thread_set_name(std::string(equipment[0].name) + "RT" + std::to_string(index));
    
    /* Initialize hardware here ... */
    printf("Start readout thread %d\n", index);
@@ -200,27 +203,30 @@ INT trigger_thread(void *param)
    rbh = get_event_rbh(index);
    
    while (is_readout_thread_enabled()) {
-      
-      /* obtain buffer space */
-      status = rb_get_wp(rbh, (void **)&pevent, 0);
-      if (!is_readout_thread_enabled())
-         break;
-      if (status == DB_TIMEOUT) {
+
+      if (!readout_enabled()) {
+         // do not produce events when run is stopped
          ss_sleep(10);
          continue;
       }
-      if (status != DB_SUCCESS)
-         break;
-      
+
       /* check for new event (poll) */
-      status = ss_sleep(10); // for this demo, just sleep a bit
-      
+      status = ss_sleep(100); // for this demo, just sleep a bit
+
       if (status) { // if event available, read it out
-         
+
+         // check once more in case state changed during the poll
          if (!is_readout_thread_enabled())
             break;
-         
-         bm_compose_event(pevent, 1, 0, 0, equipment[0].serial_number++);
+
+         // obtain buffer space
+         do {
+            status = rb_get_wp(rbh, (void **) &pevent, 0);
+            if (status == DB_TIMEOUT)
+               ss_sleep(10);
+         } while (status != DB_SUCCESS);
+
+         bm_compose_event_threadsafe(pevent, 1, 0, 0, &equipment[0].serial_number);
          pdata = (WORD *)(pevent + 1);
          
          /* init bank structure */
@@ -236,7 +242,7 @@ INT trigger_thread(void *param)
          bk_close(pdata, padc);
          
          pevent->data_size = bk_size(pdata);
-         
+
          /* send event to ring buffer */
          rb_increment_wp(rbh, sizeof(EVENT_HEADER) + pevent->data_size);
       }

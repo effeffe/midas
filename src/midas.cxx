@@ -7814,7 +7814,8 @@ char event[1000];
 @param serial serial number
 @return BM_SUCCESS
 */
-INT bm_compose_event(EVENT_HEADER *event_header, short int event_id, short int trigger_mask, DWORD size, DWORD serial) {
+INT bm_compose_event(EVENT_HEADER *event_header, short int event_id, short int trigger_mask, DWORD size, DWORD serial)
+{
    event_header->event_id = event_id;
    event_header->trigger_mask = trigger_mask;
    event_header->data_size = size;
@@ -7824,6 +7825,23 @@ INT bm_compose_event(EVENT_HEADER *event_header, short int event_id, short int t
    return BM_SUCCESS;
 }
 
+INT bm_compose_event_threadsafe(EVENT_HEADER *event_header, short int event_id, short int trigger_mask, DWORD size, DWORD *serial)
+{
+   static std::mutex mutex;
+
+   event_header->event_id = event_id;
+   event_header->trigger_mask = trigger_mask;
+   event_header->data_size = size;
+   event_header->time_stamp = ss_time();
+   {
+      std::lock_guard<std::mutex> lock(mutex);
+      event_header->serial_number = *serial;
+      *serial = *serial + 1;
+      // implicit unlock
+   }
+
+   return BM_SUCCESS;
+}
 
 /**dox***************************************************************/
 #ifndef DOXYGEN_SHOULD_SKIP_THIS

@@ -2296,6 +2296,26 @@ INT ss_thread_kill(midas_thread_t thread_id)
 }
 
 /*------------------------------------------------------------------*/
+
+INT EXPRT ss_thread_set_name(std::string name)
+{
+#if defined(OS_DARWIN)
+
+   pthread_setname_np(name.c_str());
+   return SS_SUCCESS;
+
+#elif defined(OS_UNIX)
+
+   pthread_t thread = pthread_self();
+   pthread_setname_np(thread, name.c_str());
+   return SS_SUCCESS;
+
+#else
+   return 0;
+#endif
+}
+
+/*------------------------------------------------------------------*/
 static INT skip_semaphore_handle = -1;
 static int semaphore_trace = 0;
 static int semaphore_nest_level = 0;

@@ -1161,6 +1161,7 @@ typedef struct eqpmnt {
    DWORD odb_in;                        /**< # updated ODB -> FE                       */
    DWORD bytes_sent;                    /**< number of bytes sent                      */
    DWORD events_sent;                   /**< number of events sent                     */
+   DWORD events_collected;              /**< number of collected events for EQ_USER    */
    EQUIPMENT_STATS stats;
 } EQUIPMENT;
 
@@ -1783,6 +1784,8 @@ Data conversion flags */
    INT EXPRT bm_compose_event(EVENT_HEADER * event_header,
                               short int event_id, short int trigger_mask,
                               DWORD size, DWORD serial);
+   INT EXPRT bm_compose_event_threadsafe(EVENT_HEADER *event_header,
+                              short int event_id, short int trigger_mask, DWORD size, DWORD *serial);
    INT EXPRT bm_request_event(INT buffer_handle,
                               short int event_id,
                               short int trigger_mask,

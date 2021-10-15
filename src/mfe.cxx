@@ -87,6 +87,8 @@ void display(BOOL bInit);
 void rotate_wheel(void);
 BOOL logger_root(void);
 static INT check_polled_events(void);
+static INT check_user_events(void);
+static int flush_user_events(void);
 
 /*------------------------------------------------------------------*/
 
@@ -108,6 +110,9 @@ static INT tr_start(INT rn, char *error)
 {
    INT i, status;
 
+   /* flush all buffers with EQ_USER events */
+   flush_user_events();
+
    /* disable interrupts or readout thread
     * if somehow it was not stopped from previous run */
    readout_enable(FALSE);
@@ -116,6 +121,7 @@ static INT tr_start(INT rn, char *error)
    for (i = 0; equipment[i].name[0]; i++) {
       equipment[i].serial_number = 0;
       equipment[i].subevent_number = 0;
+      equipment[i].events_collected = 0;
       equipment[i].stats.events_sent = 0;
       equipment[i].stats.events_per_sec = 0;
       equipment[i].stats.kbytes_per_sec = 0;
@@ -161,6 +167,9 @@ static INT tr_stop(INT rn, char *error)
 
    /* check if event(s) happened just before disabling the trigger */
    if ((i = check_polled_events()) > 0) {
+      // cm_msg(MINFO, "tr_stop", "sent remaining %d polled events", i);
+   }
+   if ((i = check_user_events()) > 0) {
       // cm_msg(MINFO, "tr_stop", "sent remaining %d polled events", i);
    }
 
@@ -1256,7 +1265,7 @@ static int _readout_thread(void *param)
 
 static int receive_trigger_event(EQUIPMENT *eq)
 {
-   int i, status;
+   int index, status;
    EVENT_HEADER *prb = NULL, *pevent;
    void *p;
 
@@ -1270,54 +1279,86 @@ static int receive_trigger_event(EQUIPMENT *eq)
    }
 #endif
 
-   for (i=0 ; get_event_rbh(i) ; i++) {
-      status = rb_get_rp(get_event_rbh(i), &p, 10);
-      prb = (EVENT_HEADER *)p;
-      if (status == DB_TIMEOUT)
-         return 0;
+   // search all ring buffers for next event
+   int serial = eq->events_collected;
 
-      pevent = prb;
+   status = 0;
+   for (index=0 ; get_event_rbh(index) ; index++) {
+      status = rb_get_rp(get_event_rbh(index), &p, 10);
+      prb = (EVENT_HEADER *) p;
+      if (status == DB_SUCCESS && prb->serial_number == serial)
+         break;
+   }
 
-      /* send event */
-      if (pevent->data_size) {
-         if (eq->buffer_handle) {
-
-            /* save event in temporary buffer to push it to the ODB later */
-            if (eq->info.read_on & RO_ODB)
-               memcpy(event_buffer, pevent, pevent->data_size + sizeof(EVENT_HEADER));
-
-            /* send first event to ODB if logger writes in root format */
-            if (pevent->serial_number == 0)
-               if (logger_root())
-                  update_odb(pevent, eq->hkey_variables, eq->format);
-
-            status = rpc_send_event(eq->buffer_handle, pevent,
-                                    pevent->data_size + sizeof(EVENT_HEADER),
-                                    BM_WAIT, rpc_mode);
-
-            if (status != SUCCESS) {
-               cm_msg(MERROR, "receive_trigger_event", "rpc_send_event error %d", status);
-               return -1;
-            }
-
-            eq->bytes_sent += pevent->data_size + sizeof(EVENT_HEADER);
-
-            if (eq->info.num_subevents)
-               eq->events_sent += eq->subevent_number;
-            else
-               eq->events_sent++;
-
-            rotate_wheel();
-         }
-      }
-
-      rb_increment_rp(get_event_rbh(i), sizeof(EVENT_HEADER) + prb->data_size);
-   } // for rbh[]
-
-   if (prb == NULL)
+   if (get_event_rbh(index) == 0)
       return 0;
 
+   pevent = prb;
+
+   /* send event */
+   if (pevent->data_size) {
+      if (eq->buffer_handle) {
+
+         /* save event in temporary buffer to push it to the ODB later */
+         if (eq->info.read_on & RO_ODB)
+            memcpy(event_buffer, pevent, pevent->data_size + sizeof(EVENT_HEADER));
+
+         /* send first event to ODB if logger writes in root format */
+         if (pevent->serial_number == 0)
+            if (logger_root())
+               update_odb(pevent, eq->hkey_variables, eq->format);
+
+         status = rpc_send_event(eq->buffer_handle, pevent,
+                                 pevent->data_size + sizeof(EVENT_HEADER),
+                                 BM_WAIT, rpc_mode);
+
+         if (status != SUCCESS) {
+            cm_msg(MERROR, "receive_trigger_event", "rpc_send_event error %d", status);
+            return -1;
+         }
+
+         eq->bytes_sent += pevent->data_size + sizeof(EVENT_HEADER);
+
+         if (eq->info.num_subevents)
+            eq->events_sent += eq->subevent_number;
+         else
+            eq->events_sent++;
+
+         eq->events_collected++;
+
+         rotate_wheel();
+      }
+   }
+
+   rb_increment_rp(get_event_rbh(index), sizeof(EVENT_HEADER) + prb->data_size);
    return prb->data_size;
+}
+
+/*------------------------------------------------------------------*/
+
+static int flush_user_events()
+{
+   int index, status;
+   EVENT_HEADER *pevent;
+   void *p;
+
+   for (int idx = 0; equipment[idx].name[0] ; idx++) {
+      EQUIPMENT *eq = &equipment[idx];
+
+      if (eq->info.eq_type == EQ_USER) {
+         for (index = 0; get_event_rbh(index); index++) {
+            do {
+               status = rb_get_rp(get_event_rbh(index), &p, 10);
+               pevent = (EVENT_HEADER *) p;
+               if (status == DB_SUCCESS) {
+                  rb_increment_rp(get_event_rbh(index), sizeof(EVENT_HEADER) + pevent->data_size);
+               }
+            } while (status == DB_SUCCESS);
+         }
+      }
+   }
+
+   return FE_SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
@@ -1718,6 +1759,45 @@ static INT check_polled_events(void)
              eq->stats.events_sent + eq->events_sent >= eq_info->event_limit)
             break;
       }
+   }
+
+   return events_sent;
+}
+
+/*------------------------------------------------------------------*/
+
+static INT check_user_events(void)
+{
+   EQUIPMENT_INFO *eq_info;
+   EQUIPMENT *eq;
+   DWORD size;
+   INT idx, events_sent;
+
+   events_sent = 0;
+
+   /*---- loop over equipment table -------------------------------*/
+   for (idx = 0;; idx++) {
+      eq = &equipment[idx];
+      eq_info = &eq->info;
+
+      /* check if end of equipment list */
+      if (!eq->name[0])
+         break;
+
+      if (!eq_info->enabled)
+         continue;
+
+      if (eq->status != FE_SUCCESS)
+         continue;
+
+      if ((eq_info->eq_type & (EQ_INTERRUPT | EQ_MULTITHREAD | EQ_USER)) == 0)
+         continue;
+
+      do {
+         size = receive_trigger_event(eq);
+         if (size > 0)
+            events_sent++;
+      } while (size > 0);
    }
 
    return events_sent;
