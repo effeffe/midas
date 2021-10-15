@@ -17837,8 +17837,8 @@ static void mongoose_fn(struct mg_connection *c, int ev, void *ev_data, void *fn
       break;
    }
    case MG_EV_POLL: {
-      if (trace_mg)
-         printf("mongoose_fn:  connection %p, event %d, MG_EV_POLL\n", c, ev);
+      //if (trace_mg)
+      //   printf("mongoose_fn:  connection %p, event %d, MG_EV_POLL\n", c, ev);
       break;
    }
    case MG_EV_CONNECT: {
@@ -17902,8 +17902,8 @@ static void mongoose_pcb(struct mg_connection *c, int ev, void *ev_data, void *f
       break;
    }
    case MG_EV_POLL: {
-      if (trace_mg)
-         printf("mongoose_pcb: connection %p, event %d, MG_EV_POLL\n", c, ev);
+      //if (trace_mg)
+      //   printf("mongoose_pcb: connection %p, event %d, MG_EV_POLL\n", c, ev);
       break;
    }
    case MG_EV_READ: {
@@ -18279,13 +18279,21 @@ int main(int argc, const char *argv[])
 
 #ifdef HAVE_MONGOOSE74
    struct mg_mgr mgr;
-   struct mg_connection *pipe;  // Used to wake up event manager
    mg_mgr_init(&mgr);
-   mg_log_set("3");
-   pipe = mg_mkpipe(&mgr, mongoose_pcb, NULL);                        // Create pipe
+   //mg_log_set("3");
+   struct mg_connection *pipe = mg_mkpipe(&mgr, mongoose_pcb, NULL);
    mg_http_listen(&mgr, "http://localhost:8081", mongoose_fn, pipe);  // Create listener
-   for (;;) mg_mgr_poll(&mgr, 1000);                         // Event loop
-   mg_mgr_free(&mgr);                                        // Cleanup
+   for (;;) {
+      if (_abort) break;
+      gMutex.lock();
+      /* check for shutdown message */
+      status = cm_yield(0);
+      if (status == RPC_SHUTDOWN)
+         break;
+      gMutex.unlock();
+      mg_mgr_poll(&mgr, 10);
+   }
+   mg_mgr_free(&mgr);
 #endif
 
    cm_disconnect_experiment();
