@@ -15633,24 +15633,6 @@ std::string find_var_mg(struct mg_str *hdr, const char* var_name)
 }
 #endif
 
-#ifdef HAVE_MONGOOSE74
-std::string find_var_mg(struct mg_str *hdr, const char* var_name)
-{
-#warning find_var_mg: WRITEME!
-#if 0
-   char* buf = NULL;
-   int buf_size = 0;
-   int size = mg_http_parse_header2(hdr, var_name, &buf, buf_size);
-   if (size <= 0)
-      return "";
-   assert(buf != NULL);
-   std::string s = buf;
-   free(buf);
-   return s;
-#endif
-}
-#endif
-
 #ifdef HAVE_AUTH
 static std::string check_digest_auth(struct http_message *hm, Auth* auth)
 {
@@ -15936,18 +15918,16 @@ static const std::string find_header_mg(const struct mg_http_message *msg, const
 #ifdef HAVE_MONGOOSE74
 static const std::string find_header_mg(const struct mg_http_message *msg, const char* name)
 {
-   printf("find_header_mg: find \"%s\"\n", name);
-#warning find_header_mg: WRITEME!
-#if 0
+   //printf("find_header_mg: find \"%s\"\n", name);
    size_t nlen = strlen(name);
    for (int i=0; i<MG_MAX_HTTP_HEADERS; i++) {
-      if (msg->header_names[i].len != nlen)
+      if (msg->headers[i].name.len != nlen)
          continue;
-      if (strncmp(msg->header_names[i].p, name, nlen) != 0)
+      if (strncmp(msg->headers[i].name.ptr, name, nlen) != 0)
          continue;
-      return mgstr(&msg->header_values[i]);
+      //printf("header %d: [%s] [%s]\n", i, mgstr(&msg->headers[i].name).c_str(), mgstr(&msg->headers[i].value).c_str());
+      return mgstr(&msg->headers[i].value);
    }
-#endif
    return "";
 }
 #endif
@@ -16112,7 +16092,7 @@ static int handle_decode_get(struct mg_connection *nc, const mg_http_message* ms
       // decode_get() has no Content-Length header.
       // must close the connection.
 #ifdef HAVE_MONGOOSE74
-#warning WRITEME!
+      nc->is_draining = 1;
 #else
       nc->flags |= MG_F_SEND_AND_CLOSE;
 #endif
@@ -16543,7 +16523,7 @@ static int handle_decode_post(struct mg_connection *nc, const mg_http_message* m
       // decode_get() has no Content-Length header.
       // must close the connection.
 #ifdef HAVE_MONGOOSE74
-#warning WRITEME!
+      nc->is_draining = 1;
 #else
       nc->flags |= MG_F_SEND_AND_CLOSE;
 #endif
@@ -16660,14 +16640,14 @@ static int handle_http_post(struct mg_connection *nc, const mg_http_message* msg
       if (strstr(ctype_header.c_str(), "application/json") == NULL) {
 #ifdef HAVE_MONGOOSE74
          t->fTimeProcessed = GetTimeSec();
-         mg_http_reply(nc, 415, NULL, "Content-Type should be application/json!\n"); // "Host: foo.com\r\n", "hi\n");
+         mg_http_reply(nc, 415, NULL, "Content-Type should be application/json!\n");
          t->fTimeSent = GetTimeSec();
 #else
          std::string headers;
          headers += "HTTP/1.1 415 Unsupported Media Type\n";
          //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
 
-         printf("sending headers: %s\n", headers.c_str());
+         //printf("sending headers: %s\n", headers.c_str());
          //printf("sending reply: %s\n", reply.c_str());
 
          std::string send = headers + "\n";
@@ -16981,7 +16961,7 @@ static void handle_http_message(struct mg_connection *nc, mg_http_message* msg)
          printf("handle_http_message: sending 501 Not Implemented error\n");
 
 #ifdef HAVE_MONGOOSE74
-#warning WRITEME!
+      mg_http_reply(nc, 501, NULL, "Unknown request!\n");
 #else
       std::string response = "501 Not Implemented";
       mg_send_head(nc, 501, response.length(), NULL); // 501 Not Implemented
@@ -17025,11 +17005,7 @@ static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data
          mg_printf(nc, "HTTP/1.1 302 Found\r\nLocation: https://%s%s\r\n\r\n",
                    ((std::string*)(nc->user_data))->c_str(),
                    mgstr(&msg->uri).c_str());
-#ifdef HAVE_MONGOOSE74
-#warning WRITEME!
-#else
          nc->flags |= MG_F_SEND_AND_CLOSE;
-#endif
       }
       break;
    default:
@@ -17355,73 +17331,6 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
       FreeThread(nc);
    }
    }
-}
-#endif
-
-#ifdef HAVE_MONGOOSE74
-static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
-{
-   (void) nc;
-   (void) ev_data;
-
-   //if (trace_mg && ev != 0) {
-   //   printf("ev_handler: connection %p, event %d\n", nc, ev);
-   //}
-
-   printf("ev_handler: connection %p, event %d\n", nc, ev);
-
-#if 0
-   switch (ev) {
-   case 0:
-      break;
-   default: { 
-      if (trace_mg) {
-         printf("ev_handler: connection %p, event %d\n", nc, ev);
-      }
-      break;
-   }
-   case MG_EV_ACCEPT:
-      if (trace_mg) {
-         printf("ev_handler: connection %p, MG_EV_ACCEPT\n", nc);
-      }
-      if (mongoose_hostlist_enabled(nc)) {
-         if (!mongoose_check_hostlist(&nc->sa)) {
-            nc->flags |= MG_F_CLOSE_IMMEDIATELY;
-         }
-      }
-      break;
-   case MG_EV_RECV:
-      if (trace_mg_recv) {
-         printf("ev_handler: connection %p, MG_EV_RECV, %d bytes\n", nc, *(int*)ev_data);
-      }
-      break;
-   case MG_EV_SEND:
-      if (trace_mg_send) {
-         printf("ev_handler: connection %p, MG_EV_SEND, %d bytes\n", nc, *(int*)ev_data);
-      }
-      break;
-   case MG_EV_HTTP_CHUNK: {
-      if (trace_mg) {
-         printf("ev_handler: connection %p, MG_EV_HTTP_CHUNK\n", nc);
-      }
-      break;
-   }
-   case MG_EV_HTTP_REQUEST: {
-      struct http_message* msg = (struct http_message*)ev_data;
-      if (trace_mg) {
-         printf("ev_handler: connection %p, MG_EV_HTTP_REQUEST \"%s\" \"%s\"\n", nc, mgstr(&msg->method).c_str(), mgstr(&msg->uri).c_str());
-      }
-      handle_http_message(nc, msg);
-      break;
-   }
-   case MG_EV_CLOSE: {
-      if (trace_mg) {
-         printf("ev_handler: connection %p, MG_EV_CLOSE\n", nc);
-      }
-      FreeThread(nc);
-   }
-   }
-#endif
 }
 #endif
 
@@ -17930,12 +17839,24 @@ static void mongoose_fn(struct mg_connection *c, int ev, void *ev_data, void *fn
       printf("mongoose_fn:  connection %p, event %d, MG_EV_POLL\n", c, ev);
       break;
    }
+   case MG_EV_CONNECT: {
+      printf("mongoose_fn:  connection %p, event %d, MG_EV_CONNECT\n", c, ev);
+      break;
+   }
+   case MG_EV_ACCEPT: {
+      printf("mongoose_fn:  connection %p, event %d, MG_EV_ACCEPT\n", c, ev);
+      break;
+   }
    case MG_EV_READ: {
       printf("mongoose_fn:  connection %p, event %d, MG_EV_READ\n", c, ev);
       break;
    }
    case MG_EV_WRITE: {
       printf("mongoose_fn:  connection %p, event %d, MG_EV_WRITE\n", c, ev);
+      break;
+   }
+   case MG_EV_CLOSE: {
+      printf("mongoose_fn:  connection %p, event %d, MG_EV_CLOSE\n", c, ev);
       break;
    }
    case MG_EV_HTTP_MSG: {
@@ -17951,6 +17872,10 @@ static void mongoose_fn(struct mg_connection *c, int ev, void *ev_data, void *fn
       //mongoose_start_thread(mongoose_thread_function, fn_data);  // Start handling thread
       //}
       handle_http_message(c, hm);
+      break;
+   }
+   case MG_EV_HTTP_CHUNK: {
+      printf("mongoose_fn:  connection %p, event %d, MG_EV_CHUNK\n", c, ev);
       break;
    }
    }
