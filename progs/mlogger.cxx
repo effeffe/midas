@@ -5134,9 +5134,8 @@ INT open_history()
          }
 
          if (verbose)
-            printf
-                ("\n==================== History link \"%s\", ID %d  =======================\n",
-                 hist_name, max_event_id);
+            printf("\n==================== History link \"%s\", ID %d  =======================\n",
+                   hist_name, max_event_id);
 
          /* count subkeys in link */
          for (i = n_var = 0;; i++) {
@@ -5197,7 +5196,7 @@ INT open_history()
             if (histkey.type == TID_LINK)
                db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history, (void *) (POINTER_T) index);
 
-            status = add_event(&index, now, max_event_id, hist_name, hHistKey, n_var, tag, 1, 0);
+            status = add_event(&index, now, max_event_id, hist_name, hHistKey, n_var, tag, 0, 0);
             if (status != DB_SUCCESS)
                return status;
 
