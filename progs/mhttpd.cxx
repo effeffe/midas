@@ -15936,6 +15936,7 @@ static const std::string find_header_mg(const struct mg_http_message *msg, const
 #ifdef HAVE_MONGOOSE74
 static const std::string find_header_mg(const struct mg_http_message *msg, const char* name)
 {
+   printf("find_header_mg: find \"%s\"\n", name);
 #warning find_header_mg: WRITEME!
 #if 0
    size_t nlen = strlen(name);
@@ -16656,12 +16657,15 @@ static int handle_http_post(struct mg_connection *nc, const mg_http_message* msg
       const std::string origin_header = find_header_mg(msg, "Origin");
       const std::string ctype_header = find_header_mg(msg, "Content-Type");
 
-      if (0 && strstr(ctype_header.c_str(), "application/json") == NULL) {
+      if (strstr(ctype_header.c_str(), "application/json") == NULL) {
+#ifdef HAVE_MONGOOSE74
+         t->fTimeProcessed = GetTimeSec();
+         mg_http_reply(nc, 415, NULL, "Content-Type should be application/json!\n"); // "Host: foo.com\r\n", "hi\n");
+         t->fTimeSent = GetTimeSec();
+#else
          std::string headers;
          headers += "HTTP/1.1 415 Unsupported Media Type\n";
          //headers += "Date: Sat, 08 Jul 2006 12:04:08 GMT\n";
-
-#warning This does not work with mongoose 7.4
 
          printf("sending headers: %s\n", headers.c_str());
          //printf("sending reply: %s\n", reply.c_str());
@@ -16673,6 +16677,7 @@ static int handle_http_post(struct mg_connection *nc, const mg_http_message* msg
          mg_send(nc, send.c_str(), send.length());
 
          t->fTimeSent = GetTimeSec();
+#endif
 
          return RESPONSE_SENT;
       }
