@@ -10156,19 +10156,25 @@ static void SplitEventAndTagNames(std::string var_name, std::string& event_name,
       event_name = var_name;
    } else { 
       size_t split_pos;
-      bool uses_per_variable_naming = (var_name.find("/") != std::string::npos);
+      size_t slash_pos = var_name.find("/");
+      bool uses_per_variable_naming = (slash_pos != std::string::npos);
 
       if (uses_per_variable_naming && colons.size() % 2 == 1) {
-         // Special case - split at the middle colon as the user has a colon in the tag name.
-         // In the per-variable naming scheme, event EVENT_NAME and tag TAG:NAME is stored 
-         // in the ODB as EVENT_NAME/TAG:NAME:TAG:NAME.
-         // Logger has already warned people that having colons in the equipment/event 
-         // names is a bad idea, so we only need to worry about them in the tag name.
-         split_pos = colons[colons.size() / 2];
+         size_t middle_colon_pos = colons[colons.size() / 2];
+         std::string slash_to_mid = var_name.substr(slash_pos + 1, middle_colon_pos - slash_pos - 1);
+         std::string mid_to_end = var_name.substr(middle_colon_pos + 1);
+
+         if (slash_to_mid == mid_to_end) {
+            // Special case - we have a string of the form Beamlime/GS2:FC1:GS2:FC1.
+            // Logger has already warned people that having colons in the equipment/event 
+            // names is a bad idea, so we only need to worry about them in the tag name.
+            split_pos = middle_colon_pos;
+         } else {
+            // We have a string of the form Beamlime/Demand:GS2:FC1. Split at the first colon.
+            split_pos = colons[0];
+         }
       } else {
          // Normal case - split at the fist colon.
-         // Either not using per-variable naming (EVENT_NAME:TAG:NAME)
-         // or not colons in the tag name at all.
          split_pos = colons[0];
       }
 

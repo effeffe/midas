@@ -1071,23 +1071,38 @@ function binarySearch(array, target) {
 }
 
 function splitEventAndTagName(var_name) {
-   let pieces = var_name.split(":");
-   let uses_per_variable_naming = (var_name.indexOf("/") != -1);
-   let event_name, tag_name;
+   let colons = [];
 
-   if (uses_per_variable_naming && pieces.length % 2 == 0) {
-      // Special case - split at the middle colon as the user has a colon in the tag name.
-      // In the per-variable naming scheme, event EVENT_NAME and tag TAG:NAME is stored 
-      // in the ODB as EVENT_NAME/TAG:NAME:TAG:NAME.
-      // Logger has already warned people that having colons in the equipment/event 
-      // names is a bad idea, so we only need to worry about them in the tag name.
-      event_name = pieces.slice(0, pieces.length/2).join(":");
-      tag_name = pieces.slice(pieces.length/2).join(":");
+   for (let i = 0; i < var_name.length; i++) {
+      if (var_name[i] == ':') {
+         colons.push(i);
+      }
+   }
+
+   let slash_pos = var_name.indexOf("/");
+   let uses_per_variable_naming = (slash_pos != -1);
+
+   if (uses_per_variable_naming && colons.length % 2 == 1) {
+      let middle_colon_pos = colons[Math.floor(colons.length / 2)];
+      let slash_to_mid = var_name.substr(slash_pos + 1, middle_colon_pos - slash_pos - 1);
+      let mid_to_end = var_name.substr(middle_colon_pos + 1);
+
+      if (slash_to_mid == mid_to_end) {
+         // Special case - we have a string of the form Beamlime/GS2:FC1:GS2:FC1.
+         // Logger has already warned people that having colons in the equipment/event 
+         // names is a bad idea, so we only need to worry about them in the tag name.
+         split_pos = middle_colon_pos;
+      } else {
+         // We have a string of the form Beamlime/Demand:GS2:FC1. Split at the first colon.
+         split_pos = colons[0];
+      }
    } else {
       // Normal case - split at the fist colon.
-      event_name = pieces[0];
-      tag_name = pieces.slice(1).join(":");
+      split_pos = colons[0];
    }
+
+   let event_name = var_name.substr(0, split_pos);
+   let tag_name = var_name.substr(split_pos + 1);
 
    return [event_name, tag_name];
 }
