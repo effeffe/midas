@@ -493,8 +493,9 @@ MhistoryGraph.prototype.loadInitialData = function () {
       this.odb.Colour = new Array(this.odb.Colour);
 
    this.odb["Variables"].forEach(v => {
-      this.events.push(v.substr(0, v.indexOf(':')));
-      let t = v.substr(v.indexOf(':') + 1);
+      let event_and_tag = splitEventAndTagName(v);
+      this.events.push(event_and_tag[0]);
+      let t = event_and_tag[1];
       if (t.indexOf('[') !== -1) {
          this.tags.push(t.substr(0, t.indexOf('[')));
          this.index.push(parseInt(t.substr(t.indexOf('[') + 1)));
@@ -1067,6 +1068,28 @@ function binarySearch(array, target) {
    }
 
    return middleIndex;
+}
+
+function splitEventAndTagName(var_name) {
+   let pieces = var_name.split(":");
+   let uses_per_variable_naming = (var_name.indexOf("/") != -1);
+   let event_name, tag_name;
+
+   if (uses_per_variable_naming && pieces.length % 2 == 0) {
+      // Special case - split at the middle colon as the user has a colon in the tag name.
+      // In the per-variable naming scheme, event EVENT_NAME and tag TAG:NAME is stored 
+      // in the ODB as EVENT_NAME/TAG:NAME:TAG:NAME.
+      // Logger has already warned people that having colons in the equipment/event 
+      // names is a bad idea, so we only need to worry about them in the tag name.
+      event_name = pieces.slice(0, pieces.length/2).join(":");
+      tag_name = pieces.slice(pieces.length/2).join(":");
+   } else {
+      // Normal case - split at the fist colon.
+      event_name = pieces[0];
+      tag_name = pieces.slice(1).join(":");
+   }
+
+   return [event_name, tag_name];
 }
 
 MhistoryGraph.prototype.mouseEvent = function (e) {
@@ -2168,10 +2191,11 @@ MhistoryGraph.prototype.draw = function () {
       // determine width of widest label
       this.odb["Variables"].forEach((v, i) => {
          let width;
-         if (this.odb.Label[i] !== "")
+         if (this.odb.Label[i] !== "") {
             width = ctx.measureText(this.odb.Label[i]).width;
-         else
-            width = ctx.measureText(v.substr(v.indexOf(':') + 1)).width;
+         } else {
+            width = ctx.measureText(splitEventAndTagName(v)[1]).width;
+         }
 
          width += 20; // space between name and value
 
@@ -2232,7 +2256,7 @@ MhistoryGraph.prototype.draw = function () {
          if (this.odb.Label[i] !== "")
             ctx.fillText(this.odb.Label[i], xLabel + 25, 40 + yLabel);
          else
-            ctx.fillText(v.substr(v.indexOf(':') + 1), xLabel + 25, 40 + yLabel);
+            ctx.fillText(splitEventAndTagName(v)[1], xLabel + 25, 40 + yLabel);
 
          ctx.textAlign = "right";
          if (this.v[i].length > 0) {

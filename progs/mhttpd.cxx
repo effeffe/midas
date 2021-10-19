@@ -10139,6 +10139,44 @@ static int NextHistPlotOrder(const HistPlot& hp)
    return order + 10;
 }
 
+static void SplitEventAndTagNames(std::string var_name, std::string& event_name, std::string& tag_name) {
+   event_name = "";
+   tag_name = "";
+
+   std::vector<size_t> colons;
+
+   for (size_t i = 0; i < var_name.size(); i++) {
+      if (var_name[i] == ':') {
+         colons.push_back(i);
+      }
+   }
+
+   if (colons.size() == 0) {
+      // No colons - leave the tag name empty
+      event_name = var_name;
+   } else { 
+      size_t split_pos;
+      bool uses_per_variable_naming = (var_name.find("/") != std::string::npos);
+
+      if (uses_per_variable_naming && colons.size() % 2 == 1) {
+         // Special case - split at the middle colon as the user has a colon in the tag name.
+         // In the per-variable naming scheme, event EVENT_NAME and tag TAG:NAME is stored 
+         // in the ODB as EVENT_NAME/TAG:NAME:TAG:NAME.
+         // Logger has already warned people that having colons in the equipment/event 
+         // names is a bad idea, so we only need to worry about them in the tag name.
+         split_pos = colons[colons.size() / 2];
+      } else {
+         // Normal case - split at the fist colon.
+         // Either not using per-variable naming (EVENT_NAME:TAG:NAME)
+         // or not colons in the tag name at all.
+         split_pos = colons[0];
+      }
+
+      event_name = var_name.substr(0, split_pos);
+      tag_name = var_name.substr(split_pos + 1);
+   }
+}
+
 static void LoadHistPlotFromOdb(MVOdb* odb, HistPlot* hp, const char* group, const char* panel)
 {
    std::string path = "History/Display/";
@@ -10217,14 +10255,7 @@ static void LoadHistPlotFromOdb(MVOdb* odb, HistPlot* hp, const char* group, con
    for (size_t i=0; i<num; i++) {
       HistVar v;
 
-      size_t pos = hist_vars[i].find(":");
-      if (pos != std::string::npos) {
-         v.event_name = hist_vars[i].substr(0, pos);
-         v.tag_name = hist_vars[i].substr(pos+1);
-      } else {
-         v.event_name = hist_vars[i];
-         v.tag_name = "";
-      }
+      SplitEventAndTagNames(hist_vars[i], v.event_name, v.tag_name);
 
       v.formula = hist_formula[i];
       v.colour  = hist_colour[i];
@@ -10338,15 +10369,17 @@ static void AddHistPlotSelectedParam(HistPlot& hp, Param* p)
       std::string par = p->getparam(str);
       if (par.length() < 1)
          continue;
+
+      std::string event_name, tag_name;
+      SplitEventAndTagNames(par, event_name, tag_name);
       
-      std::string::size_type pos = par.find(':');
-      if (pos == std::string::npos)
+      if (tag_name == "")
          continue;
       
       HistVar v;
       
-      v.event_name = par.substr(0, pos);
-      v.tag_name   = par.substr(pos+1);
+      v.event_name = event_name;
+      v.tag_name   = tag_name;
       v.colour     = NextHistPlotColour(hp);
       v.order      = NextHistPlotOrder(hp);
       
