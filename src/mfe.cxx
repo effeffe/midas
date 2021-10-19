@@ -1280,7 +1280,7 @@ static int receive_trigger_event(EQUIPMENT *eq)
 #endif
 
    // search all ring buffers for next event
-   int serial = eq->events_collected;
+   DWORD serial = eq->events_collected;
 
    status = 0;
    for (index=0 ; get_event_rbh(index) ; index++) {
