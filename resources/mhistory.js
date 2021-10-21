@@ -903,16 +903,17 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
 
          // initial data
          let formula = this.odb["Formula"];
+         if (Array.isArray(formula))
+            formula = formula[index];
 
          let x = undefined;
          let v = undefined;
-         if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
-            let f = formula[index];
+         if (formula !== undefined && formula !== "") {
             let n = nData[index];
             for (let j = 0; j < n; j++) {
                this.data[index].time.push(array[i++]);
                x = array[i++];
-               v = eval(f);
+               v = eval(formula);
                this.data[index].value.push(v);
             }
          } else {
@@ -929,17 +930,18 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
 
          // add data to the left
          let formula = this.odb["Formula"];
+         if (Array.isArray(formula))
+            formula = formula[index];
 
          let t1 = [];
          let v1 = [];
          let x = undefined;
-         if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
-            let f = formula[index];
+         if (formula !== undefined && formula !== "") {
             let n = nData[index];
             for (let j = 0; j < n; j++) {
                let t = array[i++];
                x = array[i++];
-               let v = eval(f);
+               let v = eval(formula);
                if (t < this.data[index].time[0]) {
                   t1.push(t);
                   v1.push(v);
@@ -963,14 +965,16 @@ MhistoryGraph.prototype.receiveData = function (rpc) {
 
          // add data to the right
          let formula = this.odb["Formula"];
+         if (Array.isArray(formula))
+            formula = formula[index];
 
          let x = undefined;
-         if (formula !== undefined && formula[index] !== undefined && formula[index] !== "") {
+         if (formula !== undefined && formula !== "") {
             let n = nData[index];
             for (let j = 0; j < n; j++) {
                let t = array[i++];
                x = array[i++];
-               let v = eval(formula[index]);
+               let v = eval(formula);
 
                // add data to the right
                if (t > this.data[index].time[this.data[index].time.length - 1]) {
