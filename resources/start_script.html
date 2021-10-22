@@ -142,6 +142,7 @@ function cancel() {
       td.align = "center";
       write_back[name] = i;
       write_path[name] = path + "/" + name;
+      write_bool[name] = (type === TID_BOOL);
 
       tr.appendChild(td);
 
