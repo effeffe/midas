@@ -1222,6 +1222,7 @@ void sequencer()
       seq.ssubroutine_call_line[seq.stack_index-1] = 0;
       seq.stack_index --;
       db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
+      return;
    }
 
    /* check for last line of script */
