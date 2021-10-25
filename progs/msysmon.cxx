@@ -945,7 +945,6 @@ INT frontend_init()
 
 INT frontend_exit()
 {
-   printf("frontend_exit!\n");
    return SUCCESS;
 }
 
@@ -953,31 +952,6 @@ INT frontend_exit()
 
 INT begin_of_run(INT run_number, char *error)
 {
-   printf("begin_of_run %d\n", run_number);
-
-   int fail = 0;
-   int status;
-   int size;
-
-   size = sizeof(fail);
-   status = db_get_value(hDB, hSet, "fail_begin_of_run", &fail, &size, TID_INT, TRUE);
-   assert(status == DB_SUCCESS);
-
-   if (fail) {
-      printf("fail_begin_of_run: returning error status %d\n", fail);
-      return fail;
-   }
-   
-   
-   int s = 0;
-   size = sizeof(s);
-   status = db_get_value(hDB, hSet, "sleep_begin_of_run", &s, &size, TID_INT, TRUE);
-   assert(status == DB_SUCCESS);
-   
-   if (s) {
-      printf("sleep_begin_of_run: calling ss_sleep(%d)\n", s);
-      ss_sleep(s);
-   }
    return SUCCESS;
 }
 
@@ -985,8 +959,6 @@ INT begin_of_run(INT run_number, char *error)
 
 INT end_of_run(INT run_number, char *error)
 {
-   printf("end_of_run %d\n", run_number);
-
    return SUCCESS;
 }
 
@@ -994,21 +966,6 @@ INT end_of_run(INT run_number, char *error)
 
 INT pause_run(INT run_number, char *error)
 {
-   printf("pause_run %d\n", run_number);
-
-   int fail = 0;
-   int status;
-   int size;
-
-   size = sizeof(fail);
-   status = db_get_value(hDB, hSet, "fail_pause_run", &fail, &size, TID_INT, TRUE);
-   assert(status == DB_SUCCESS);
-
-   if (fail) {
-      printf("fail_pause_run: returning error status %d\n", fail);
-      return fail;
-   }
-   
    return SUCCESS;
 }
 
@@ -1016,21 +973,6 @@ INT pause_run(INT run_number, char *error)
 
 INT resume_run(INT run_number, char *error)
 {
-   printf("resume_run %d\n", run_number);
-
-   int fail = 0;
-   int status;
-   int size;
-
-   size = sizeof(fail);
-   status = db_get_value(hDB, hSet, "fail_resume_run", &fail, &size, TID_INT, TRUE);
-   assert(status == DB_SUCCESS);
-
-   if (fail) {
-      printf("fail_resume_run: returning error status %d\n", fail);
-      return fail;
-   }
-
    return SUCCESS;
 }
 
