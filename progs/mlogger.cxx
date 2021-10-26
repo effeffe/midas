@@ -5176,8 +5176,11 @@ INT open_history()
                db_enum_key(hDB, hHistKey, i, &hVarKey);
                if (db_get_key(hDB, hVarKey, &varkey) == DB_SUCCESS) {
                   /* hot-link individual values */
-                  if (histkey.type == TID_KEY)
-                     db_open_record(hDB, hVarKey, NULL, varkey.total_size, MODE_READ, log_system_history, (void *) (POINTER_T) index);
+                  if (histkey.type == TID_KEY) {
+                     db_close_record(hDB, hVarKey);
+                     db_open_record(hDB, hVarKey, NULL, varkey.total_size, MODE_READ, log_system_history,
+                                    (void *) (POINTER_T) index);
+                  }
 
                   strcpy(tag[n_var].name, linkkey.name);
                   tag[n_var].type = varkey.type;
@@ -5193,8 +5196,10 @@ INT open_history()
             }
 
             /* hot-link whole subtree */
-            if (histkey.type == TID_LINK)
+            if (histkey.type == TID_LINK) {
+               db_close_record(hDB, hHistKey);
                db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history, (void *) (POINTER_T) index);
+            }
 
             status = add_event(&index, now, max_event_id, hist_name, hHistKey, n_var, tag, 0, 0);
             if (status != DB_SUCCESS)
