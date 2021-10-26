@@ -5129,7 +5129,7 @@ INT open_history()
 
          db_get_key(hDB, hHistKey, &key);
          if (key.type != TID_KEY) {
-            cm_msg(MERROR, "open_history", "Only subkeys allows in /history/links");
+            cm_msg(MERROR, "open_history", "Only subkeys allows in /history/Links");
             continue;
          }
 
@@ -5177,7 +5177,7 @@ INT open_history()
                if (db_get_key(hDB, hVarKey, &varkey) == DB_SUCCESS) {
                   /* hot-link individual values */
                   if (histkey.type == TID_KEY) {
-                     db_close_record(hDB, hVarKey);
+                     db_close_record(hDB, hVarKey); // close previously opened record
                      db_open_record(hDB, hVarKey, NULL, varkey.total_size, MODE_READ, log_system_history,
                                     (void *) (POINTER_T) index);
                   }
@@ -5197,7 +5197,7 @@ INT open_history()
 
             /* hot-link whole subtree */
             if (histkey.type == TID_LINK) {
-               db_close_record(hDB, hHistKey);
+               db_close_record(hDB, hHistKey); // close previously opened record
                db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history, (void *) (POINTER_T) index);
             }
 
@@ -5281,7 +5281,7 @@ void close_history()
 
    /* close system history */
    status = db_find_key(hDB, 0, "/History/Links", &hKeyRoot);
-   if (status != DB_SUCCESS) {
+   if (status == DB_SUCCESS) {
       for (i = 0;; i++) {
          status = db_enum_key(hDB, hKeyRoot, i, &hKey);
          if (status == DB_NO_MORE_SUBKEYS)
