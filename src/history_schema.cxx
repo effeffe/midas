@@ -2637,30 +2637,45 @@ int SchemaHistoryBase::hs_define_event(const char* event_name, time_t timestamp,
             fEvents[i] = NULL;
          }
 
-   // check for duplicate tag names
+   // check for wrong types etc
    for (int i=0; i<ntags; i++) {
       if (strlen(tags[i].name) < 1) {
          cm_msg(MERROR, "hs_define_event", "Error: History event \'%s\' has empty name at index %d", event_name, i);
          return HS_FILE_ERROR;
       }
       if (tags[i].type <= 0 || tags[i].type >= TID_LAST) {
-         cm_msg(MERROR, "hs_define_event", "Error: History event \'%s\' tag \'%s\' at index %d has invalid type %d", event_name, tags[i].name, i, tags[i].type);
+         cm_msg(MERROR, "hs_define_event", "Error: History event \'%s\' tag \'%s\' at index %d has invalid type %d",
+                event_name, tags[i].name, i, tags[i].type);
          return HS_FILE_ERROR;
       }
       if (tags[i].type == TID_STRING) {
-         cm_msg(MERROR, "hs_define_event", "Error: History event \'%s\' tag \'%s\' at index %d has forbidden type TID_STRING", event_name, tags[i].name, i);
+         cm_msg(MERROR, "hs_define_event",
+                "Error: History event \'%s\' tag \'%s\' at index %d has forbidden type TID_STRING", event_name,
+                tags[i].name, i);
          return HS_FILE_ERROR;
       }
       if (tags[i].n_data <= 0) {
-         cm_msg(MERROR, "hs_define_event", "Error: History event \'%s\' tag \'%s\' at index %d has invalid n_data %d", event_name, tags[i].name, i, tags[i].n_data);
+         cm_msg(MERROR, "hs_define_event", "Error: History event \'%s\' tag \'%s\' at index %d has invalid n_data %d",
+                event_name, tags[i].name, i, tags[i].n_data);
          return HS_FILE_ERROR;
       }
-//      for (int j=i+1; j<ntags; j++) {
-//         if (strcasecmp(tags[i].name, tags[j].name) == 0) {
-//            cm_msg(MERROR, "hs_define_event", "Error: History event \'%s\' has duplicate tag name \'%s\' at indices %d and %d", event_name, tags[i].name, i, j);
-//            return HS_FILE_ERROR;
-//         }
-//      }
+   }
+
+   // check for duplicate names. Done by sorting, since this takes only O(N*log*N))
+   std::vector<std::string> names;
+   for (int i=0; i<ntags; i++) {
+      std::string str(tags[i].name);
+      std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+      names.push_back(str);
+   }
+   std::sort(names.begin(), names.end());
+   for (int i=0; i<ntags-1; i++) {
+      if (names[i] == names[i + 1]) {
+         cm_msg(MERROR, "hs_define_event",
+                "Error: History event \'%s\' has duplicate tag name \'%s\'", event_name,
+                names[i].c_str());
+         return HS_FILE_ERROR;
+      }
    }
 
    HsSchema* s = new_event(event_name, timestamp, ntags, tags);

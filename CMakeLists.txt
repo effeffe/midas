@@ -32,10 +32,6 @@ if (${CMAKE_INSTALL_PREFIX} STREQUAL ${PROJECT_SOURCE_DIR})
 else()
 endif()
 
-add_compile_options("-O2")
-add_compile_options("-g")
-#add_compile_options("-std=c++11")
-
 # NB: RPATH is not needed as everything is linked statically. K.O.
 ## Ensure the C-compat library can load the main library after install
 #set(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
