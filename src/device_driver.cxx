@@ -23,6 +23,9 @@ static int sc_thread(void *info)
    unsigned int current_time;
    DWORD last_time;
 
+   ss_thread_set_name(std::string("SC:")+device_drv->equipment_name);
+   auto s = ss_thread_get_name();
+
    last_update = (int*)calloc(device_drv->channels, sizeof(int));
    for (i=0 ; i<device_drv->channels ; i++)
       last_update[i] = ss_millitime() - 20000;
@@ -35,18 +38,30 @@ static int sc_thread(void *info)
    for (i = 0; i < device_drv->channels; i++)
       device_drv->mt_buffer->channel[i].variable[CMD_SET] = (float) ss_nan();
 
+   int skip = 0;
    do {
-      /* read one channel from device */
-      for (cmd = CMD_GET_FIRST; cmd <= CMD_GET_LAST; cmd++) {
-         value = (float)ss_nan();
-         status = device_drv->dd(cmd, device_drv->dd_info, current_channel, &value);
+      /* read one channel from device, skip if time limit is set */
 
-         ss_mutex_wait_for(device_drv->mutex, 1000);
-         device_drv->mt_buffer->channel[current_channel].variable[cmd] = value;
-         device_drv->mt_buffer->status = status;
-         ss_mutex_release(device_drv->mutex);
+      /* limit data rate if defined in equipment list */
+      if (device_drv->pequipment && device_drv->pequipment->event_limit && current_channel == 0) {
+         if (ss_millitime() - last_time < (DWORD)device_drv->pequipment->event_limit)
+            skip = 1;
+         else {
+            skip = 0;
+            last_time = ss_millitime();
+         }
+      }
 
-         // printf("TID %d: channel %d, value %f\n", ss_gettid(), current_channel, value);
+      if (!skip) {
+         for (cmd = CMD_GET_FIRST; cmd <= CMD_GET_LAST; cmd++) {
+            value = (float) ss_nan();
+            status = device_drv->dd(cmd, device_drv->dd_info, current_channel, &value);
+
+            ss_mutex_wait_for(device_drv->mutex, 1000);
+            device_drv->mt_buffer->channel[current_channel].variable[cmd] = value;
+            device_drv->mt_buffer->status = status;
+            ss_mutex_release(device_drv->mutex);
+         }
       }
 
       /* switch to next channel in next loop */
@@ -95,14 +110,7 @@ static int sc_thread(void *info)
          }
       }
 
-      /* limit data rate if defined in equipment list */
-      if (current_channel == 0)
-         if (device_drv->pequipment && device_drv->pequipment->event_limit) {
-            while (ss_millitime() - last_time < (DWORD)device_drv->pequipment->event_limit &&
-                   !device_drv->stop_thread)
-               ss_sleep(10);
-            last_time = ss_millitime();
-         }
+      ss_sleep(10); // don't eat all CPU
 
    } while (device_drv->stop_thread == 0);
 

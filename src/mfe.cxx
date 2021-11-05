@@ -789,7 +789,9 @@ static INT initialize_equipment(void)
          set_equipment_status(equipment[idx].name, "Initializing...", "yellowLight");
 
          /* resolve duplicate device names */
-         for (i = 0; equipment[idx].driver[i].name[0]; i++)
+         for (i = 0; equipment[idx].driver[i].name[0]; i++) {
+            equipment[idx].driver[i].equipment_name = equipment[idx].name;
+
             for (j = i + 1; equipment[idx].driver[j].name[0]; j++)
                if (equal_ustring(equipment[idx].driver[i].name,
                                  equipment[idx].driver[j].name)) {
@@ -806,6 +808,7 @@ static INT initialize_equipment(void)
 
                   break;
                }
+         }
 
          /* loop over equipment list and call class driver's init method */
          if (eq_info->enabled) {
