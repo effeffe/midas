@@ -458,8 +458,10 @@ static INT register_equipment(void)
          db_set_value(hDB, hKey, "Enabled", &prev_enabled, sizeof(prev_enabled), 1, TID_BOOL);
          eq_info->hidden = prev_hidden;
          db_set_value(hDB, hKey, "Hidden", &prev_hidden, sizeof(prev_hidden), 1, TID_BOOL);
-         eq_info->event_limit = prev_event_limit;
-         db_set_value(hDB, hKey, "Event limit", &prev_event_limit, sizeof(prev_event_limit), 1, TID_DOUBLE);
+         if ((eq_info->eq_type & EQ_SLOW) == 0) {
+            eq_info->event_limit = prev_event_limit;
+            db_set_value(hDB, hKey, "Event limit", &prev_event_limit, sizeof(prev_event_limit), 1, TID_DOUBLE);
+         }
       } else {
          size = sizeof(EQUIPMENT_INFO);
          status = db_get_record(hDB, hKey, eq_info, &size, 0);
@@ -843,10 +845,6 @@ static INT initialize_equipment(void)
             set_equipment_status(equipment[idx].name, "Disabled", "yellowLight");
          }
 
-         /* now start threads if requested */
-         if (equipment[idx].status == FE_SUCCESS || equipment[idx].status == FE_PARTIALLY_DISABLED)
-            equipment[idx].cd(CMD_START, &equipment[idx]);   /* start threads for this equipment */
-
          /* remember that we have slowcontrol equipment (needed later for scheduler) */
          slowcont_eq = TRUE;
 
@@ -862,6 +860,16 @@ static INT initialize_equipment(void)
             cm_register_function(RPC_MANUAL_TRIG, manual_trigger);
 
          manual_trig_flag = TRUE;
+      }
+   }
+
+   /* start threads after all equipment has been initialized */
+   for (idx = 0; equipment[idx].name[0]; idx++) {
+      eq_info = &equipment[idx].info;
+
+      if (eq_info->eq_type & EQ_SLOW) {
+         if (equipment[idx].status == FE_SUCCESS || equipment[idx].status == FE_PARTIALLY_DISABLED)
+            equipment[idx].cd(CMD_START, &equipment[idx]);   /* start threads for this equipment */
       }
    }
 
