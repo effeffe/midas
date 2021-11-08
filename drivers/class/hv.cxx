@@ -959,8 +959,8 @@ INT hv_init(EQUIPMENT * pequipment)
                                    i - hv_info->channel_offset[i], &hv_info->crateMap[i]);
       }
       printf("%s: %d\r", pequipment->name, i+1);
+      fflush(stdout);
    }
-   printf("\n");
 
    db_set_record(hDB, hv_info->hKeyDemand, hv_info->demand,
                  hv_info->num_channels * sizeof(float), 0);
@@ -1022,9 +1022,11 @@ INT hv_init(EQUIPMENT * pequipment)
                            TID_FLOAT);
 
             printf("%s: %d\r", pequipment->name, i+1);
+            fflush(stdout);
          }
       }
    }
+   printf("\n");
 
    pequipment->odb_out++;
    
