@@ -2315,6 +2315,18 @@ INT EXPRT ss_thread_set_name(std::string name)
 #endif
 }
 
+std::string EXPRT ss_thread_get_name()
+{
+#if defined(OS_UNIX)
+   char str[256];
+   pthread_t thread = pthread_self();
+   pthread_getname_np(thread, str, sizeof(str));
+   return std::string(str);
+#else
+   return "";
+#endif
+}
+
 /*------------------------------------------------------------------*/
 static INT skip_semaphore_handle = -1;
 static int semaphore_trace = 0;

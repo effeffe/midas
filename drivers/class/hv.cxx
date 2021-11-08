@@ -354,7 +354,9 @@ INT hv_ramp(HV_INFO * hv_info)
 
    for (i = 0; i < hv_info->num_channels; i++) {
 
-      if (hv_info->demand[i] != hv_info->demand_mirror[i]) {
+      if (!ss_isnan(hv_info->demand[i]) &&
+          (hv_info->demand[i] != hv_info->demand_mirror[i])) {
+
          /* check if to ramp up or down */
          if ((hv_info->demand[i] >= 0.f) && (hv_info->demand_mirror[i] > 0.f)) {
             switch_tag = FALSE;
@@ -442,7 +444,8 @@ void hv_demand(INT hDB, INT hKey, void *info)
    for (i = 0; i < hv_info->num_channels; i++) {
       /* if device can do hardware ramping, just set value */   
       if (hv_info->driver[i]->flags & DF_HW_RAMP) {
-         if (hv_info->demand[i] != hv_info->demand_mirror[i]) {
+         if (!ss_isnan(hv_info->demand[i]) &&
+             (hv_info->demand[i] != hv_info->demand_mirror[i])) {
             device_driver(hv_info->driver[i], CMD_SET,
                           i - hv_info->channel_offset[i], hv_info->demand[i]);
             hv_info->last_change[i] = ss_millitime();

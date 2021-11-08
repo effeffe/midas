@@ -613,6 +613,7 @@ typedef struct {
    midas_thread_t EXPRT ss_thread_create(INT(*func) (void *), void *param);
    INT EXPRT ss_thread_kill(midas_thread_t thread_id);
    INT EXPRT ss_thread_set_name(std::string name);
+   std::string ss_thread_get_name();
    INT EXPRT ss_get_struct_align(void);
    INT EXPRT ss_get_struct_padding(void);
    INT EXPRT ss_timezone(void);
