@@ -183,7 +183,6 @@ INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...)
          /* create dedicated thread for this device */
          device_drv->mt_buffer->thread_id = ss_thread_create(sc_thread, device_drv);
       }
-      device_drv->dd(CMD_START, device_drv->dd_info);
       break;
 
    case CMD_CLOSE:
