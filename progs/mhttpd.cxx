@@ -9666,7 +9666,7 @@ void generate_hist_graph(MVOdb* odb, Return* rr, const char *hgroup, const char 
          }
 
          if (strlen(var_status[i]) > 1) {
-            char xstr[256];
+            char xstr[300];
             sprintf(xstr," (%s)", var_status[i]);
             str += xstr;
          }
