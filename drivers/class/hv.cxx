@@ -757,6 +757,7 @@ INT hv_init(EQUIPMENT * pequipment)
          return FE_ERR_ODB;
       
       if (pequipment->driver[i].enabled) {
+         printf("Connect %s\n", pequipment->driver[i].name);
          status = device_driver(&pequipment->driver[i], CMD_INIT, hKey);
          if (status != FE_SUCCESS) {
             free_mem(hv_info);
@@ -958,7 +959,7 @@ INT hv_init(EQUIPMENT * pequipment)
             status = device_driver(hv_info->driver[i], CMD_GET_CRATEMAP,
                                    i - hv_info->channel_offset[i], &hv_info->crateMap[i]);
       }
-      printf("%s: %d\r", pequipment->name, i+1);
+      printf("Init %s channel %d\r", pequipment->name, i+1);
       fflush(stdout);
    }
 
@@ -1021,7 +1022,7 @@ INT hv_init(EQUIPMENT * pequipment)
                            sizeof(float) * hv_info->num_channels, hv_info->num_channels,
                            TID_FLOAT);
 
-            printf("%s: %d\r", pequipment->name, i+1);
+            printf("Read %s channel %d\r", pequipment->name, i+1);
             fflush(stdout);
          }
       }
