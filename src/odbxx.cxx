@@ -186,7 +186,7 @@ namespace midas {
       }
    }
 
-   // Constructor for strings
+   // Constructor for C strings
    odb::odb(const char *v) : odb() {
       if (v[0] == '/') {
          std::string s(v);
