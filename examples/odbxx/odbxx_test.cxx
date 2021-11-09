@@ -85,7 +85,6 @@ int main() {
    std::cout << "Arrays size is " << o["Int Array"].size() << std::endl;
 
    // auto-enlarge arrays
-   o.set_auto_enlarge_array(true);
    o["Int Array"][10] = 10;
 
    // test with a string vector
@@ -116,7 +115,6 @@ int main() {
    // create ODB entries on-the-fly
    midas::odb ot;
    ot.connect("/Test/Settings/OTF");// this forces /Test/OTF to be created if not already there
-   ot.set_auto_enlarge_array(true);
    ot["Int32 Key"] = 1;             // create all these keys with different types
    ot["Double Key"] = 1.23;
    ot["String Key"] = "Hello";

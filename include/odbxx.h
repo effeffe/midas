@@ -490,6 +490,7 @@ namespace midas {
       odb() :
               m_flags{(1 << odb_flags::AUTO_REFRESH_READ) |
                       (1 << odb_flags::AUTO_REFRESH_WRITE) |
+                      (1 << odb_flags::AUTO_ENLARGE_ARRAY) |
                       (1 << odb_flags::AUTO_CREATE)},
               m_tid{0},
               m_data{nullptr},
