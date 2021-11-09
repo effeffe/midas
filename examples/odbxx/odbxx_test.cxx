@@ -116,17 +116,20 @@ int main() {
    // create ODB entries on-the-fly
    midas::odb ot;
    ot.connect("/Test/Settings/OTF");// this forces /Test/OTF to be created if not already there
+   ot.set_auto_enlarge_array(true);
    ot["Int32 Key"] = 1;             // create all these keys with different types
    ot["Double Key"] = 1.23;
    ot["String Key"] = "Hello";
    ot["Int Array"] = std::array<int, 10>{};
    ot["Subdir"]["Int32 Key"] = 42;
    ot["String Array"] = std::vector<std::string>{"S1", "S2", "S3"};
+   ot["Other String Array"][0] = "OSA0";
+   ot["Other String Array"][1] = "OSA1";
 
    // create key with default value
-   i = ot["Int32 Key"](123);        // key exists already -> use key value
-   i = ot["New Int32 Key"](123);    // key does not exist -> set it to default value 123
-   std::string s1 = ot["New String Key"]("Hi"); // same for strings
+   i = ot["Int32 Key"](123);        // key exists already (created above) -> use key value i=1
+   i = ot["New Int32 Key"](123);    // key does not exist -> set it to default value 123 i=123
+   //  std::string s1 = ot["New String Key"]("Hi"); // same for strings
    std::cout << ot << std::endl;
 
    o.read();                        // re-read the underlying ODB tree which got changed by above OTF code

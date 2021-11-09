@@ -76,8 +76,13 @@ namespace midas {
          return false;
       HNDLE hkey;
       auto status = db_find_key(m_hDB, 0, name.c_str(), &hkey);
-      if (status != DB_SUCCESS)
+      if (status != DB_SUCCESS) {
+         if (m_debug)
+            std::cout << "Delete key " + name << " not found in ODB" << std::endl;
          return status;
+      }
+      if (m_debug)
+         std::cout << "Delete ODB key " + name << std::endl;
       return db_delete_key(m_hDB, hkey, false);
    }
 
@@ -769,7 +774,7 @@ namespace midas {
          if (is_auto_create()) {
             int status = db_create_key(m_hDB, 0, m_name.c_str(), m_tid);
             if (status != DB_SUCCESS && status != DB_CREATED && status != DB_KEY_EXIST)
-               mthrow("Cannot create ODB key \"" + m_name + "\", status" + std::to_string(status));
+               mthrow("Cannot create ODB key \"" + m_name + "\", status =" + std::to_string(status));
             db_find_link(m_hDB, 0, m_name.c_str(), &m_hKey);
             if (m_debug)
                std::cout << "Created ODB key " + get_full_path() << std::endl;
@@ -843,6 +848,9 @@ namespace midas {
             m_data[i].get_odb().write();
          return;
       }
+
+      if (m_tid == 0 && m_data[0].get_tid() != 0)
+         m_tid = m_data[0].get_tid();
 
       if (m_tid < 1 || m_tid >= TID_LAST)
          mthrow("Invalid TID for ODB key \"" + get_full_path() + "\"");
@@ -1257,60 +1265,80 @@ namespace midas {
 
    // overload assignment operators
    uint8_t u_odb::operator=(uint8_t v) {
+      if (m_tid == 0)
+         m_tid = TID_UINT8;
       set(v);
       if (m_parent_odb)
          m_parent_odb->write();
       return v;
    }
    int8_t u_odb::operator=(int8_t v) {
+      if (m_tid == 0)
+         m_tid = TID_INT8;
       set(v);
       if (m_parent_odb)
          m_parent_odb->write();
       return v;
    }
    uint16_t u_odb::operator=(uint16_t v) {
+      if (m_tid == 0)
+         m_tid = TID_UINT16;
       set(v);
       if (m_parent_odb)
          m_parent_odb->write();
       return v;
    }
    int16_t u_odb::operator=(int16_t v) {
+      if (m_tid == 0)
+         m_tid = TID_INT16;
       set(v);
       if (m_parent_odb)
          m_parent_odb->write();
       return v;
    }
    uint32_t u_odb::operator=(uint32_t v) {
+      if (m_tid == 0)
+         m_tid = TID_UINT32;
       set(v);
       if (m_parent_odb)
          m_parent_odb->write();
       return v;
    }
    int32_t u_odb::operator=(int32_t v) {
+      if (m_tid == 0)
+         m_tid = TID_INT32;
       set(v);
       if (m_parent_odb)
          m_parent_odb->write();
       return v;
    }
    bool u_odb::operator=(bool v) {
+      if (m_tid == 0)
+         m_tid = TID_BOOL;
       set(v);
       if (m_parent_odb)
          m_parent_odb->write();
       return v;
    }
    float u_odb::operator=(float v) {
+      if (m_tid == 0)
+         m_tid = TID_FLOAT;
       set(v);
       if (m_parent_odb)
          m_parent_odb->write();
       return v;
    }
    double u_odb::operator=(double v) {
+      if (m_tid == 0)
+         m_tid = TID_DOUBLE;
       set(v);
       if (m_parent_odb)
          m_parent_odb->write();
       return v;
    }
    const char * u_odb::operator=(const char * v) {
+      if (m_tid == 0)
+         m_tid = TID_STRING;
       set(v);
       if (m_parent_odb)
          m_parent_odb->write();
@@ -1318,6 +1346,8 @@ namespace midas {
    }
 
    std::string * u_odb::operator=(std::string * v){
+      if (m_tid == 0)
+         m_tid = TID_STRING;
        set(*v);
        if (m_parent_odb)
           m_parent_odb->write();
@@ -1325,6 +1355,8 @@ namespace midas {
    }
 
    std::string u_odb::operator=(std::string v){
+      if (m_tid == 0)
+         m_tid = TID_STRING;
       set(v);
       if (m_parent_odb)
          m_parent_odb->write();

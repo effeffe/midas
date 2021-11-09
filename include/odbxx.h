@@ -783,12 +783,21 @@ namespace midas {
          if (index < 0)
             throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" + get_full_path() + "[0..." + std::to_string(m_num_values - 1) + "]\"");
 
-         if (index >= m_num_values) {
+         if (index == 0 && m_num_values == 0) {
+            // initialize this
+            m_num_values = 1;
+            m_tid = 0;
+            m_data = new u_odb[1]{};
+            m_data[0].set_tid(m_tid);
+            m_data[0].set_parent(this);
+            m_last_index = 0;
+            return m_data[0];
+         } else if (index >= m_num_values) {
             if (is_auto_enlarge_array()) {
                resize_mdata(index+1);
                write(index);
             } else {
-               throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" + get_full_path() + "[0..." + std::to_string(m_num_values - 1) + "]\"");
+               throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" + get_full_path() + "[0..." + std::to_string(m_num_values - 1) + "]\", please consider set_auto_enlarge_array(true)");
             }
          }
 
