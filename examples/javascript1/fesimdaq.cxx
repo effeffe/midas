@@ -153,7 +153,7 @@ INT frontend_init()
 {
 
   
-  int status = db_check_record(hDB, 0, "/Equipment/SIMDAQ/Settings", strcomb(simdaqsettings_str), TRUE);
+  int status = db_check_record(hDB, 0, "/Equipment/SIMDAQ/Settings", strcomb1(simdaqsettings_str).c_str(), TRUE);
   printf("Status %i\n",status);
   if (status == DB_STRUCT_MISMATCH) {
     cm_msg(MERROR, "init_simdaqsettings", "Aborting on mismatching /Equipment/SIMDAQ/Settings");

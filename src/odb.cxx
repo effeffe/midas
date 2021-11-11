@@ -13215,7 +13215,7 @@ int main(unsigned int argc,char **argv)
   cm_get_experiment_database(&hDB, &hKey);
 
   // Create a default structure in ODB
-  db_create_record(hDB, 0, "My statistics", strcomb(my_stat));
+  db_create_record(hDB, 0, "My statistics", strcomb1(my_stat).c_str());
 
   // Retrieve key for that strucutre in ODB
   if (db_find_key(hDB, 0, "My statistics", &hKey) != DB_SUCCESS)

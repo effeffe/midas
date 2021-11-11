@@ -2162,7 +2162,7 @@ INT cm_set_client_info(HNDLE hDB, HNDLE *hKeyClient, const char *host_name,
 
       /* define /programs entry */
       sprintf(str, "/Programs/%s", orig_name);
-      db_create_record(hDB, 0, str, strcomb(program_info_str));
+      db_create_record(hDB, 0, str, strcomb1(program_info_str).c_str());
 
       /* save handle for ODB and client */
       cm_set_experiment_database(hDB, hKey);

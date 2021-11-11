@@ -128,7 +128,7 @@ INT frontend_init()
    HNDLE hKey;
 
    // create Settings structure in ODB
-   db_create_record(hDB, 0, "Equipment/Clock Reset/Settings", strcomb(cr_settings_str));
+   db_create_record(hDB, 0, "Equipment/Clock Reset/Settings", strcomb1(cr_settings_str).c_str());
    db_find_key(hDB, 0, "/Equipment/Clock Reset", &hKey);
    assert(hKey);
 

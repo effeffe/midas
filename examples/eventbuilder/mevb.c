@@ -652,7 +652,7 @@ INT tr_start(INT rn, char *error)
    /* Get / Set Settings */
    sprintf(str, "/Equipment/%s/Settings", equipment[0].name);
    if (db_find_key(hDB, 0, str, &hEqkey) != DB_SUCCESS) {
-      status = db_create_record(hDB, 0, str, strcomb(ebuilder_str));
+      status = db_create_record(hDB, 0, str, strcomb1(ebuilder_str).c_str());
    }
 
    /* Keep Key on Ebuilder/Settings */
@@ -1296,7 +1296,7 @@ int main(int argc, char **argv)
    /* Set Initial EB/Settings */
    sprintf(str, "/Equipment/%s/Settings", equipment[0].name);
    if (db_find_key(hDB, 0, str, &hEqkey) != DB_SUCCESS) {
-      status = db_create_record(hDB, 0, str, strcomb(ebuilder_str));
+      status = db_create_record(hDB, 0, str, strcomb1(ebuilder_str).c_str());
    }
 
    if (auto_restart && restart_count > 0)

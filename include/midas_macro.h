@@ -156,7 +156,7 @@ INT frontend_init()
    cm_get_experiment_database(&hdb, &hkey);
 
 #ifdef EXP_PARAM_DEFINED
-   db_create_record(hdb, 0, "/Experiment/Run Parameters", strcomb(exp_param_str));
+   db_create_record(hdb, 0, "/Experiment/Run Parameters", strcomb1(exp_param_str).c_str());
    db_find_key(hdb, 0, "/Experiment/Run Parameters", &hkey);
    if (db_open_record(hdb, hkey, &exp_param,
                       sizeof(exp_param), MODE_READ, NULL, NULL) != DB_SUCCESS) {
@@ -165,7 +165,7 @@ INT frontend_init()
    }
 #endif
 #ifdef TRIGGER_SETTINGS_DEFINED
-   db_create_record(hdb, 0, "/Equipment/Trigger/Settings", strcomb(trigger_settings_str));
+   db_create_record(hdb, 0, "/Equipment/Trigger/Settings", strcomb1(trigger_settings_str).c_str());
    db_find_key(hdb, 0, "/Equipment/Trigger/Settings", &hkey);
    if (db_open_record(hdb, hkey, &trigger_settings,
                       sizeof(trigger_settings), MODE_READ,
@@ -175,7 +175,7 @@ INT frontend_init()
    }
 #endif
 #ifdef SCALER_SETTINGS_DEFINED
-   db_create_record(hdb, 0, "/Equipment/Scaler/Settings", strcomb(scaler_settings_str));
+   db_create_record(hdb, 0, "/Equipment/Scaler/Settings", strcomb1(scaler_settings_str).c_str());
    db_find_key(hdb, 0, "/Equipment/Scaler/Settings", &hkey);
    if (db_open_record(hdb, hkey, &scaler_settings,
                       sizeof(scaler_settings), MODE_READ, NULL, NULL) != DB_SUCCESS) {

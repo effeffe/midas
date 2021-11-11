@@ -240,7 +240,7 @@ INT frontend_init()
 
   /* Map /equipment/Trigger/settings for the sequencer */
   sprintf(set_str, "/Equipment/Trigger/Settings");
-  status = db_create_record(hDB, 0, set_str, strcomb(trigger_settings_str));
+  status = db_create_record(hDB, 0, set_str, strcomb1(trigger_settings_str).c_str());
   status = db_find_key (hDB, 0, set_str, &hSet);
   if (status != DB_SUCCESS)
     cm_msg(MINFO,"FE","Key %s not found", set_str);

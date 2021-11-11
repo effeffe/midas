@@ -246,7 +246,7 @@ INT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const ch
       db_find_key(hDB, 0, alarm_path, &hkeyalarm);
       if (!hkeyalarm) {
          /* alarm must be an internal analyzer alarm, so create a default alarm */
-         status = db_create_record(hDB, 0, alarm_path, strcomb(alarm_odb_str));
+         status = db_create_record(hDB, 0, alarm_path, strcomb1(alarm_odb_str).c_str());
          db_find_key(hDB, 0, alarm_path, &hkeyalarm);
          if (!hkeyalarm) {
             cm_msg(MERROR, "al_trigger_alarm",
@@ -269,11 +269,11 @@ INT al_trigger_alarm(const char *alarm_name, const char *alarm_message, const ch
       }
 
       size = sizeof(a);
-      status = db_get_record1(hDB, hkeyalarm, &a, &size, 0, strcomb(alarm_odb_str));
+      status = db_get_record1(hDB, hkeyalarm, &a, &size, 0, strcomb1(alarm_odb_str).c_str());
       if (status != DB_SUCCESS || a.type < 1 || a.type > AT_LAST) {
          /* make sure alarm record has right structure */
          size = sizeof(a);
-         status = db_get_record1(hDB, hkeyalarm, &a, &size, 0, strcomb(alarm_odb_str));
+         status = db_get_record1(hDB, hkeyalarm, &a, &size, 0, strcomb1(alarm_odb_str).c_str());
          if (status != DB_SUCCESS) {
             cm_msg(MERROR, "al_trigger_alarm", "Cannot get alarm record for alarm \"%s\", db_get_record1() status %d",
                    alarm_path, status);
@@ -399,7 +399,7 @@ INT al_trigger_class(const char *alarm_class, const char *alarm_message, BOOL fi
    }
 
    size = sizeof(ac);
-   status = db_get_record1(hDB, hkeyclass, &ac, &size, 0, strcomb(alarm_class_str));
+   status = db_get_record1(hDB, hkeyclass, &ac, &size, 0, strcomb1(alarm_class_str).c_str());
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "al_trigger_class", "Cannot get alarm class record \"%s\", db_get_record1() status %d", str,
              status);
@@ -503,7 +503,7 @@ INT al_reset_alarm(const char *alarm_name) {
    }
 
    size = sizeof(a);
-   status = db_get_record1(hDB, hkeyalarm, &a, &size, 0, strcomb(alarm_str));
+   status = db_get_record1(hDB, hkeyalarm, &a, &size, 0, strcomb1(alarm_str).c_str());
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "al_reset_alarm", "Cannot get alarm record");
       return AL_ERROR_ODB;
@@ -517,7 +517,7 @@ INT al_reset_alarm(const char *alarm_name) {
    }
 
    size = sizeof(ac);
-   status = db_get_record1(hDB, hkeyclass, &ac, &size, 0, strcomb(alarm_class_str));
+   status = db_get_record1(hDB, hkeyclass, &ac, &size, 0, strcomb1(alarm_class_str).c_str());
    if (status != DB_SUCCESS) {
       cm_msg(MERROR, "al_reset_alarm", "Cannot get alarm class record");
       return AL_ERROR_ODB;
@@ -610,14 +610,14 @@ INT al_check() {
       db_find_key(hDB, 0, "/Alarms/Alarms", &hkeyroot);
       if (!hkeyroot) {
          /* create default ODB alarm */
-         status = db_create_record(hDB, 0, "/Alarms/Alarms/Demo ODB", strcomb(alarm_odb_str));
+         status = db_create_record(hDB, 0, "/Alarms/Alarms/Demo ODB", strcomb1(alarm_odb_str).c_str());
          db_find_key(hDB, 0, "/Alarms/Alarms", &hkeyroot);
          if (!hkeyroot) {
             ss_semaphore_release(semaphore);
             return AL_SUCCESS;
          }
 
-         status = db_create_record(hDB, 0, "/Alarms/Alarms/Demo periodic", strcomb(alarm_periodic_str));
+         status = db_create_record(hDB, 0, "/Alarms/Alarms/Demo periodic", strcomb1(alarm_periodic_str).c_str());
          db_find_key(hDB, 0, "/Alarms/Alarms", &hkeyroot);
          if (!hkeyroot) {
             ss_semaphore_release(semaphore);
@@ -625,8 +625,8 @@ INT al_check() {
          }
 
          /* create default alarm classes */
-         status = db_create_record(hDB, 0, "/Alarms/Classes/Alarm", strcomb(alarm_class_str));
-         status = db_create_record(hDB, 0, "/Alarms/Classes/Warning", strcomb(alarm_class_str));
+         status = db_create_record(hDB, 0, "/Alarms/Classes/Alarm", strcomb1(alarm_class_str).c_str());
+         status = db_create_record(hDB, 0, "/Alarms/Classes/Warning", strcomb1(alarm_class_str).c_str());
          if (status != DB_SUCCESS) {
             ss_semaphore_release(semaphore);
             return AL_SUCCESS;
@@ -643,12 +643,12 @@ INT al_check() {
          db_get_key(hDB, hkey, &key);
 
          size = sizeof(a);
-         status = db_get_record1(hDB, hkey, &a, &size, 0, strcomb(alarm_odb_str));
+         status = db_get_record1(hDB, hkey, &a, &size, 0, strcomb1(alarm_odb_str).c_str());
          if (status != DB_SUCCESS || a.type < 1 || a.type > AT_LAST) {
             /* make sure alarm record has right structure */
-            db_check_record(hDB, hkey, "", strcomb(alarm_odb_str), TRUE);
+            db_check_record(hDB, hkey, "", strcomb1(alarm_odb_str).c_str(), TRUE);
             size = sizeof(a);
-            status = db_get_record1(hDB, hkey, &a, &size, 0, strcomb(alarm_odb_str));
+            status = db_get_record1(hDB, hkey, &a, &size, 0, strcomb1(alarm_odb_str).c_str());
             if (status != DB_SUCCESS || a.type < 1 || a.type > AT_LAST) {
                cm_msg(MERROR, "al_check", "Cannot get alarm record");
                continue;
@@ -697,7 +697,7 @@ INT al_check() {
                continue;
 
             size = sizeof(program_info);
-            status = db_get_record1(hDB, hkey, &program_info, &size, 0, strcomb(program_info_str));
+            status = db_get_record1(hDB, hkey, &program_info, &size, 0, strcomb1(program_info_str).c_str());
             if (status != DB_SUCCESS) {
                cm_msg(MERROR, "al_check",
                       "Cannot get program info record for program \"%s\", db_get_record1() status %d", key.name,
@@ -837,7 +837,7 @@ INT EXPRT al_define_odb_alarm(const char *name, const char *condition, const cha
 
    snprintf(str, sizeof(str), "/Alarms/Alarms/%s", name);
 
-   db_create_record(hDB, 0, str, strcomb(alarm_odb_str));
+   db_create_record(hDB, 0, str, strcomb1(alarm_odb_str).c_str());
    db_find_key(hDB, 0, str, &hKey);
    if (!hKey)
       return DB_NO_MEMORY;

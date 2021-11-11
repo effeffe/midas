@@ -3598,7 +3598,7 @@ INT hs_define_panel(const char *group, const char *panel, const std::vector<std:
 
    snprintf(str, sizeof(str), "/History/Display/%s/%s", group, panel);
 
-   db_create_record(hDB, 0, str, strcomb(history_panel_str));
+   db_create_record(hDB, 0, str, strcomb1(history_panel_str).c_str());
    db_find_key(hDB, 0, str, &hKey);
    if (!hKey)
       return DB_NO_MEMORY;

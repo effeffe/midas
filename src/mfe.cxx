@@ -528,8 +528,7 @@ static INT register_equipment(void)
                if (bank_list->type == TID_STRUCT) {
                   sprintf(str, "/Equipment/%s/Variables/%s", equipment[idx].name,
                           bank_list->name);
-                  status =
-                      db_check_record(hDB, 0, str, strcomb((const char**)bank_list->init_str), TRUE);
+                  status = db_check_record(hDB, 0, str, strcomb1((const char **)bank_list->init_str).c_str(), TRUE);
                   if (status != DB_SUCCESS) {
                      printf("Cannot check/create record \"%s\", status = %d\n", str,
                             status);

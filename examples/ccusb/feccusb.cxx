@@ -236,7 +236,7 @@ INT frontend_init() {
   
   // create the ODB Settings if not existing under Equipment/<eqname>/
   // If already existing, don't change anything 
-  status = db_create_record(hDB, 0, set_str, strcomb(ccusb_settings_str));
+  status = db_create_record(hDB, 0, set_str, strcomb1(ccusb_settings_str).c_str());
   if (status != DB_SUCCESS) {
     cm_msg(MERROR, "ccusb", "cannot create record (%s)", set_str);
     return FE_ERR_ODB;
