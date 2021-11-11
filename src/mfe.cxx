@@ -789,9 +789,15 @@ static INT initialize_equipment(void)
 
          set_equipment_status(equipment[idx].name, "Initializing...", "yellowLight");
 
+         if (equipment[idx].driver == nullptr) {
+            cm_msg(MERROR, "initialize_equipment", "Found slow control equipment \"%s\" with no device driver list, aborting",
+                   equipment[idx].name);
+            return FE_ERR_DRIVER;
+         }
+
          /* resolve duplicate device names */
          for (i = 0; equipment[idx].driver[i].name[0]; i++) {
-            equipment[idx].driver[i].equipment_name = equipment[idx].name;
+            equipment[idx].driver[i].pequipment_name = new std::string(equipment[idx].name);
 
             for (j = i + 1; equipment[idx].driver[j].name[0]; j++)
                if (equal_ustring(equipment[idx].driver[i].name,
@@ -813,7 +819,6 @@ static INT initialize_equipment(void)
 
          /* loop over equipment list and call class driver's init method */
          if (eq_info->enabled) {
-            printf("%s:\r", equipment[idx].name);
             equipment[idx].status = equipment[idx].cd(CMD_INIT, &equipment[idx]);
 
             if (equipment[idx].status == FE_SUCCESS)

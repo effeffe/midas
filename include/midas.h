@@ -1138,7 +1138,7 @@ typedef struct {
    INT stop_thread;                   /**< flag used to stop the thread      */
    MUTEX_T *mutex;                    /**< mutex for buffer                  */
    EQUIPMENT_INFO *pequipment;        /**< pointer to equipment              */
-   std::string equipment_name;        /**< name of equipment                 */
+   std::string *pequipment_name;        /**< name of equipment                 */
 } DEVICE_DRIVER;
 
 typedef struct eqpmnt {

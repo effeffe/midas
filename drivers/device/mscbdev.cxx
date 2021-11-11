@@ -25,12 +25,13 @@ extern void mfe_error(const char *error);
 typedef struct {
    char mscb_device[256];
    char pwd[32];
-   BOOL debug;
+   int debug;
    int retries;
    int *mscb_address;
    unsigned char *mscb_index;
    int *var_size;
    float *var_cache;
+   char *label;
 } MSCBDEV_SETTINGS;
 
 typedef struct {
@@ -51,6 +52,8 @@ INT addr_changed(HNDLE hDB, HNDLE hKey, void *arg)
 
    /* get info about MSCB channels */
    for (i = 0; i < info->num_channels; i++) {
+      printf("  %d\r", i);
+      fflush(stdout);
       status = mscb_info_variable(info->fd, info->mscbdev_settings.mscb_address[i],
                                   info->mscbdev_settings.mscb_index[i], &var_info);
       if (status == MSCB_SUCCESS) {
@@ -58,6 +61,7 @@ INT addr_changed(HNDLE hDB, HNDLE hKey, void *arg)
             info->mscbdev_settings.var_size[i] = -1;
          else
             info->mscbdev_settings.var_size[i] = var_info.width;
+         strlcpy(info->mscbdev_settings.label+i*16, var_info.name, 16);
       } else {
          info->mscbdev_settings.var_size[i] = 0;
          cm_msg(MERROR, "addr_changed", "Cannot read from address %d at submaster %s", 
@@ -65,6 +69,7 @@ INT addr_changed(HNDLE hDB, HNDLE hKey, void *arg)
          return FE_ERR_HW;
       }
    }
+   printf("\n");
 
    return FE_SUCCESS;
 }
@@ -89,6 +94,7 @@ INT mscbdev_init(HNDLE hkey, MSCBDEV_INFO **pinfo, INT channels, func_t *bd)
    info->mscbdev_settings.mscb_index = (unsigned char*) calloc(channels, sizeof(INT));
    info->mscbdev_settings.var_size = (int*) calloc(channels, sizeof(INT));
    info->mscbdev_settings.var_cache = (float*) calloc(channels, sizeof(float));
+   info->mscbdev_settings.label = (char*) calloc(channels, 16);
    for (i = 0; i < channels; i++)
       info->mscbdev_settings.var_cache[i] = (float) ss_nan();
 
@@ -109,7 +115,7 @@ INT mscbdev_init(HNDLE hkey, MSCBDEV_INFO **pinfo, INT channels, func_t *bd)
 
    size = sizeof(info->mscbdev_settings.debug);
    info->mscbdev_settings.debug = 0;
-   status = db_get_value(hDB, hkey, "Debug", &info->mscbdev_settings.debug, &size, TID_BOOL, TRUE);
+   status = db_get_value(hDB, hkey, "Debug", &info->mscbdev_settings.debug, &size, TID_INT32, TRUE);
    if (status != DB_SUCCESS)
       return FE_ERR_ODB;
 
@@ -298,6 +304,12 @@ INT mscbdev_get(MSCBDEV_INFO * info, INT channel, float *pvalue)
 
 INT mscbdev_get_label(MSCBDEV_INFO * info, INT channel, char *name)
 {
+
+   strlcpy(name, info->mscbdev_settings.label+channel*16, NAME_LENGTH);
+   name[8] = 0;
+   return MSCB_SUCCESS;
+
+   /*
    int status;
    MSCB_INFO_VAR var_info;
 
@@ -309,6 +321,7 @@ INT mscbdev_get_label(MSCBDEV_INFO * info, INT channel, char *name)
    }
 
    return status;
+   */
 }
 
 /*---- device driver entry point -----------------------------------*/

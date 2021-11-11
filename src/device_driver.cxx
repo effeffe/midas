@@ -23,7 +23,7 @@ static int sc_thread(void *info)
    unsigned int current_time;
    DWORD last_time;
 
-   ss_thread_set_name(std::string("SC:")+device_drv->equipment_name);
+   ss_thread_set_name(std::string("SC:")+ *device_drv->pequipment_name);
    auto s = ss_thread_get_name();
 
    last_update = (int*)calloc(device_drv->channels, sizeof(int));
@@ -161,10 +161,10 @@ INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...)
                   device_drv->mt_buffer->channel[i].variable[j] = (float)ss_nan();
 
             /* get default names for this driver already now */
-            for (i = 0; i < device_drv->channels; i++)
+            for (i = 0; i < device_drv->channels; i++) {
                device_drv->dd(CMD_GET_LABEL, device_drv->dd_info, i,
-                                 device_drv->mt_buffer->channel[i].label);
-
+                              device_drv->mt_buffer->channel[i].label);
+            }
             /* create semaphore */
             status = ss_mutex_create(&device_drv->mutex, FALSE);
             if (status != SS_CREATED && status != SS_SUCCESS)
