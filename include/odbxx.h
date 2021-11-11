@@ -156,6 +156,8 @@ namespace midas {
          m_string = new std::string(s);
       }
 
+      void set_string_size(std::string s, int size);
+
       void set_string_ptr(std::string *s) {
          m_string = s;
       }
@@ -408,7 +410,6 @@ namespace midas {
       int m_tid;
       // vector containing data for this object
       u_odb *m_data;
-
       // name of ODB entry
       std::string m_name;
       // number of values of ODB entry
@@ -796,7 +797,7 @@ namespace midas {
          } else if (index >= m_num_values) {
             if (is_auto_enlarge_array()) {
                resize_mdata(index+1);
-               write(index);
+               write(index, 0);
             } else {
                throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" + get_full_path() + "[0..." + std::to_string(m_num_values - 1) + "]\", please consider set_auto_enlarge_array(true)");
             }
@@ -1068,8 +1069,8 @@ namespace midas {
 
       void read();
       void read(int index);
-      void write();
-      void write(int index);
+      void write(int str_size = 0);
+      void write(int index, int str_size);
       std::string print();
       std::string dump();
       void print(std::string &s, int indent);

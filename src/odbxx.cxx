@@ -688,11 +688,19 @@ namespace midas {
          } else {
             std::string s;
             get(s, false, false);
-            if (m_num_values > 1)
-               std::cout << "Get ODB key \"" + get_full_path() + "[0..." +
-                            std::to_string(m_num_values - 1) + "]\": [" + s + "]" << std::endl;
-            else
-               std::cout << "Get ODB key \"" + get_full_path() + "\": " + s << std::endl;
+            if (m_num_values > 1) {
+               if (m_tid == TID_STRING || m_tid == TID_LINK)
+                  std::cout << "Get ODB key \"" + get_full_path() + "[0..." +
+                               std::to_string(m_num_values - 1) + "]\": [\"" + s + "\"]" << std::endl;
+               else
+                  std::cout << "Get ODB key \"" + get_full_path() + "[0..." +
+                               std::to_string(m_num_values - 1) + "]\": [" + s + "]" << std::endl;
+            } else {
+               if (m_tid == TID_STRING || m_tid == TID_LINK)
+                  std::cout << "Get ODB key \"" + get_full_path() + "\": \"" + s + "\"" << std::endl;
+               else
+                  std::cout << "Get ODB key \"" + get_full_path() + "\": " + s << std::endl;
+            }
          }
       }
    }
@@ -759,14 +767,17 @@ namespace midas {
       if (m_debug) {
          std::string s;
          m_data[index].get(s);
-         std::cout << "Get ODB key \"" + get_full_path() + "[" +
-                      std::to_string(index) + "]\": [" + s + "]" << std::endl;
-
+         if (m_tid == TID_STRING || m_tid == TID_LINK)
+            std::cout << "Get ODB key \"" + get_full_path() + "[" +
+                         std::to_string(index) + "]\": [\"" + s + "\"]" << std::endl;
+         else
+            std::cout << "Get ODB key \"" + get_full_path() + "[" +
+                         std::to_string(index) + "]\": [" + s + "]" << std::endl;
       }
    }
 
    // push individual member of an array
-   void odb::write(int index) {
+   void odb::write(int index, int str_size) {
       if (!is_connected_odb())
          return;
 
@@ -799,18 +810,29 @@ namespace midas {
             int size = key.item_size;
             if (key.item_size == 0 || !is_preserve_string_size())
                size = s.size() + 1;
+            if (str_size > 0)
+               size = str_size;
             status = db_set_data(m_hDB, m_hKey, s.c_str(), size, 1, m_tid);
          } else {
             if (key.item_size == 0)
                key.item_size = s.size() + 1;
+            if (str_size > 0) {
+               if (key.item_size > 0 && key.item_size != str_size) {
+                  std::cout << "ODB string size mismatch for \"" << get_full_path() <<
+                  "\" (" << key.item_size << " vs " << str_size << "). ODB key recreated."
+                            << std::endl;
+                  status = db_set_data(m_hDB, m_hKey, s.c_str(), str_size, 1, m_tid);
+               }
+               key.item_size = str_size;
+            }
             status = db_set_data_index(m_hDB, m_hKey, s.c_str(), key.item_size, index, m_tid);
          }
          if (m_debug) {
             if (m_num_values > 1)
-               std::cout << "Set ODB key \"" + get_full_path() + "[" + std::to_string(index) + "]\" = " + s
-                         << std::endl;
+               std::cout << "Set ODB key \"" + get_full_path() + "[" + std::to_string(index) + "]\" = \"" + s
+                         + "\"" << std::endl;
             else
-               std::cout << "Set ODB key \"" + get_full_path() + "\" = " + s << std::endl;
+               std::cout << "Set ODB key \"" + get_full_path() + "\" = \"" + s + "\""<< std::endl;
          }
       } else {
          u_odb u = m_data[index];
@@ -836,7 +858,7 @@ namespace midas {
    }
 
    // write all members of an array to the ODB
-   void odb::write() {
+   void odb::write(int str_size) {
 
       // check if deleted
       if (is_deleted())
@@ -861,13 +883,13 @@ namespace midas {
 
       // if index operator [] returned previously a certain index, write only this one
       if (m_last_index != -1) {
-         write(m_last_index);
+         write(m_last_index, str_size);
          m_last_index = -1;
          return;
       }
 
       if (m_num_values == 1) {
-         write(0);
+         write(0, 0);
          return;
       }
 
@@ -1361,6 +1383,13 @@ namespace midas {
       if (m_parent_odb)
          m_parent_odb->write();
       return v;
+   }
+
+   void u_odb::set_string_size(std::string v, int size) {
+      m_tid = TID_STRING;
+      set(v);
+      if (m_parent_odb)
+         m_parent_odb->write(size);
    }
 
    // overload all standard conversion operators
