@@ -27,6 +27,7 @@ typedef struct {
    char pwd[32];
    int debug;
    int retries;
+   int pause;
    int *mscb_address;
    unsigned char *mscb_index;
    int *var_size;
@@ -119,6 +120,12 @@ INT mscbdev_init(HNDLE hkey, MSCBDEV_INFO **pinfo, INT channels, func_t *bd)
    if (status != DB_SUCCESS)
       return FE_ERR_ODB;
 
+   size = sizeof(info->mscbdev_settings.pause);
+   info->mscbdev_settings.pause = 0;
+   status = db_get_value(hDB, hkey, "Pause", &info->mscbdev_settings.pause, &size, TID_INT32, TRUE);
+   if (status != DB_SUCCESS)
+      return FE_ERR_ODB;
+
    size = sizeof(info->mscbdev_settings.retries);
    info->mscbdev_settings.retries = 10;
    status = db_get_value(hDB, hkey, "Retries", &info->mscbdev_settings.retries, &size, TID_INT, TRUE);
@@ -154,6 +161,9 @@ INT mscbdev_init(HNDLE hkey, MSCBDEV_INFO **pinfo, INT channels, func_t *bd)
 
    /* set number of retries */
    mscb_set_eth_max_retry(info->fd, info->mscbdev_settings.retries);
+
+   /* set communication pause */
+   mscb_set_eth_pause(info->fd, info->mscbdev_settings.pause);
 
    /* write back device */
    status = db_set_value(hDB, hkey, "Device", &info->mscbdev_settings.mscb_device,
