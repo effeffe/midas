@@ -24,7 +24,6 @@ static int sc_thread(void *info)
    DWORD last_time;
 
    ss_thread_set_name(std::string("SC:")+ *device_drv->pequipment_name);
-   auto s = ss_thread_get_name();
 
    last_update = (int*)calloc(device_drv->channels, sizeof(int));
    for (i=0 ; i<device_drv->channels ; i++)
@@ -40,75 +39,80 @@ static int sc_thread(void *info)
 
    int skip = 0;
    do {
-      /* read one channel from device, skip if time limit is set */
 
-      /* limit data rate if defined in equipment list */
-      if (device_drv->pequipment && device_drv->pequipment->event_limit && current_channel == 0) {
-         if (ss_millitime() - last_time < (DWORD)device_drv->pequipment->event_limit)
-            skip = 1;
-         else {
-            skip = 0;
-            last_time = ss_millitime();
-         }
-      }
+      // only operate if enabled
+      if (device_drv->pequipment->enabled) {
 
-      if (!skip) {
-         for (cmd = CMD_GET_FIRST; cmd <= CMD_GET_LAST; cmd++) {
-            value = (float) ss_nan();
-            status = device_drv->dd(cmd, device_drv->dd_info, current_channel, &value);
+         /* read one channel from device, skip if time limit is set */
 
-            ss_mutex_wait_for(device_drv->mutex, 1000);
-            device_drv->mt_buffer->channel[current_channel].variable[cmd] = value;
-            device_drv->mt_buffer->status = status;
-            ss_mutex_release(device_drv->mutex);
-         }
-      }
-
-      /* switch to next channel in next loop */
-      current_channel = (current_channel + 1) % device_drv->channels;
-
-      /* check for priority channel */
-      current_time = ss_millitime();
-      i = (current_priority_channel + 1) % device_drv->channels;
-      while (!(current_time - last_update[i] < 10000)) {
-         i = (i + 1) % device_drv->channels;
-         if (i == current_priority_channel) {
-            /* non found, so finish */
-            break;
-         }
-      }
-
-      /* updated channel found, so read it additionally */
-      if (current_time - last_update[i] < 10000) {
-         current_priority_channel = i;
-
-         for (cmd = CMD_GET_FIRST; cmd <= CMD_GET_LAST; cmd++) {
-            status = device_drv->dd(cmd, device_drv->dd_info, i, &value);
-
-            ss_mutex_wait_for(device_drv->mutex, 1000);
-            device_drv->mt_buffer->channel[i].variable[cmd] = value;
-            device_drv->mt_buffer->status = status;
-            ss_mutex_release(device_drv->mutex);
-         }
-      }
-
-      /* check if anything to write to device */
-      for (i = 0; i < device_drv->channels; i++) {
-
-         for (cmd = CMD_SET_FIRST; cmd <= CMD_SET_LAST; cmd++) {
-            if (!ss_isnan(device_drv->mt_buffer->channel[i].variable[cmd])) {
-               ss_mutex_wait_for(device_drv->mutex, 1000);
-               value = device_drv->mt_buffer->channel[i].variable[cmd];
-               device_drv->mt_buffer->channel[i].variable[cmd] = (float) ss_nan();
-               ss_mutex_release(device_drv->mutex);
-
-               status = device_drv->dd(cmd, device_drv->dd_info, i, value);
-               device_drv->mt_buffer->status = status;
-               if (cmd == CMD_SET)
-                  last_update[i] = ss_millitime();
+         /* limit data rate if defined in equipment list */
+         if (device_drv->pequipment && device_drv->pequipment->event_limit && current_channel == 0) {
+            if (ss_millitime() - last_time < (DWORD) device_drv->pequipment->event_limit) {
+               skip = 1;
+            } else {
+               skip = 0;
+               last_time = ss_millitime();
             }
          }
-      }
+
+         if (!skip) {
+            for (cmd = CMD_GET_FIRST; cmd <= CMD_GET_LAST; cmd++) {
+               value = (float) ss_nan();
+               status = device_drv->dd(cmd, device_drv->dd_info, current_channel, &value);
+
+               ss_mutex_wait_for(device_drv->mutex, 1000);
+               device_drv->mt_buffer->channel[current_channel].variable[cmd] = value;
+               device_drv->mt_buffer->status = status;
+               ss_mutex_release(device_drv->mutex);
+            }
+         }
+
+         /* switch to next channel in next loop */
+         current_channel = (current_channel + 1) % device_drv->channels;
+
+         /* check for priority channel */
+         current_time = ss_millitime();
+         i = (current_priority_channel + 1) % device_drv->channels;
+         while (!(current_time - last_update[i] < 10000)) {
+            i = (i + 1) % device_drv->channels;
+            if (i == current_priority_channel) {
+               /* non found, so finish */
+               break;
+            }
+         }
+
+         /* updated channel found, so read it additionally */
+         if (current_time - last_update[i] < 10000) {
+            current_priority_channel = i;
+
+            for (cmd = CMD_GET_FIRST; cmd <= CMD_GET_LAST; cmd++) {
+               status = device_drv->dd(cmd, device_drv->dd_info, i, &value);
+
+               ss_mutex_wait_for(device_drv->mutex, 1000);
+               device_drv->mt_buffer->channel[i].variable[cmd] = value;
+               device_drv->mt_buffer->status = status;
+               ss_mutex_release(device_drv->mutex);
+            }
+         }
+
+         /* check if anything to write to device */
+         for (i = 0; i < device_drv->channels; i++) {
+
+            for (cmd = CMD_SET_FIRST; cmd <= CMD_SET_LAST; cmd++) {
+               if (!ss_isnan(device_drv->mt_buffer->channel[i].variable[cmd])) {
+                  ss_mutex_wait_for(device_drv->mutex, 1000);
+                  value = device_drv->mt_buffer->channel[i].variable[cmd];
+                  device_drv->mt_buffer->channel[i].variable[cmd] = (float) ss_nan();
+                  ss_mutex_release(device_drv->mutex);
+
+                  status = device_drv->dd(cmd, device_drv->dd_info, i, value);
+                  device_drv->mt_buffer->status = status;
+                  if (cmd == CMD_SET)
+                     last_update[i] = ss_millitime();
+               }
+            }
+         }
+      } // enabled
 
       ss_sleep(10); // don't eat all CPU
 

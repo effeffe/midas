@@ -517,7 +517,7 @@ INT multi_init(EQUIPMENT * pequipment)
    for (i = 0; i < m_info->num_channels_output; i++) {
       if (m_info->driver_output[i]->flags & DF_PRIO_DEVICE) {
          /* read default value directly from device bypassing multi-thread buffer */
-         device_driver(m_info->driver_output[i], CMD_GET_DEMAND,
+         device_driver(m_info->driver_output[i], CMD_GET_DEMAND_DIRECT,
                        i - m_info->channel_offset_output[i],
                        &m_info->output_mirror[i]);
       } else {

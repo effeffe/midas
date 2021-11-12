@@ -238,8 +238,9 @@ INT mscbdev_read_all(MSCBDEV_INFO * info)
             status = mscb_read(info->fd, addr, i_start, buffer, &size);
             if (info->mscbdev_settings.var_size[v_start] == -1)
                DWORD_SWAP(buffer);
-         } else
+         } else {
             status = mscb_read_range(info->fd, addr, i_start, i_stop, buffer, &size);
+         }
 
          if (status != MSCB_SUCCESS) {
             /* only produce error once every minute */
@@ -371,7 +372,6 @@ INT mscbdev(INT cmd, ...)
       break;
 
    case CMD_GET:
-   case CMD_GET_DEMAND:
       info = va_arg(argptr, MSCBDEV_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);
@@ -385,7 +385,14 @@ INT mscbdev(INT cmd, ...)
       status = mscbdev_get_label(info, channel, name);
       break;
 
-   default:
+   case CMD_GET_DEMAND_DIRECT:
+      info = va_arg(argptr, MSCBDEV_INFO *);
+      channel = va_arg(argptr, INT);
+      pvalue = va_arg(argptr, float *);
+      status = mscbdev_get(info, channel, pvalue);
+      break;
+
+      default:
       break;
    }
 
