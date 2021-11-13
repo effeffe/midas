@@ -389,7 +389,7 @@ INT multi_init(EQUIPMENT *pequipment) {
          return FE_ERR_ODB;
 
       if (pequipment->driver[i].enabled && pequipment->driver[i].channels > 0) {
-         printf("Connect %s:%s\n", pequipment->name, pequipment->driver[i].name);
+         printf("Connecting %s:%s...\n", pequipment->name, pequipment->driver[i].name);
          status = device_driver(&pequipment->driver[i], CMD_INIT, hKey);
          if (status != FE_SUCCESS) {
             free_mem(m_info);
