@@ -50,8 +50,7 @@ typedef struct {
 
 /*----------------------------------------------------------------------------*/
 
-static void free_mem(MULTI_INFO * m_info)
-{
+static void free_mem(MULTI_INFO *m_info) {
    free(m_info->names_input);
    free(m_info->names_output);
 
@@ -78,8 +77,7 @@ static void free_mem(MULTI_INFO * m_info)
 
 /*----------------------------------------------------------------------------*/
 
-void multi_read(EQUIPMENT * pequipment, int channel)
-{
+void multi_read(EQUIPMENT *pequipment, int channel) {
    int i, status;
    DWORD actual_time;
    MULTI_INFO *m_info;
@@ -94,20 +92,21 @@ void multi_read(EQUIPMENT * pequipment, int channel)
                                 i - m_info->channel_offset_input[i],
                                 &m_info->var_input[i]);
          if (status != FE_SUCCESS)
-            m_info->var_input[i] = (float)ss_nan();
+            m_info->var_input[i] = (float) ss_nan();
          else
             m_info->var_input[i] = m_info->var_input[i] * m_info->factor_input[i] -
-               m_info->offset_input[i];
-   } else {
+                                   m_info->offset_input[i];
+      }
+   else {
       status = device_driver(m_info->driver_input[channel], CMD_GET,
                              channel - m_info->channel_offset_input[channel],
                              &m_info->var_input[channel]);
       if (status != FE_SUCCESS)
-         m_info->var_input[channel] = (float)ss_nan();
+         m_info->var_input[channel] = (float) ss_nan();
       else
          m_info->var_input[channel] =
-            m_info->var_input[channel] * m_info->factor_input[channel] -
-            m_info->offset_input[channel];
+                 m_info->var_input[channel] * m_info->factor_input[channel] -
+                 m_info->offset_input[channel];
    }
 
    /* check if significant change since last ODB update */
@@ -145,8 +144,7 @@ void multi_read(EQUIPMENT * pequipment, int channel)
 
 /*----------------------------------------------------------------------------*/
 
-void multi_read_output(EQUIPMENT * pequipment, int channel)
-{
+void multi_read_output(EQUIPMENT *pequipment, int channel) {
    float value;
    MULTI_INFO *m_info;
    HNDLE hDB;
@@ -159,7 +157,7 @@ void multi_read_output(EQUIPMENT * pequipment, int channel)
 
    value = (value + m_info->offset_output[channel]) / m_info->factor_output[channel];
 
-   if (value != m_info->output_mirror[channel]) {
+   if (!ss_isnan(value) && value != m_info->output_mirror[channel]) {
       m_info->output_mirror[channel] = value;
       m_info->var_output[channel] = value;
 
@@ -173,8 +171,7 @@ void multi_read_output(EQUIPMENT * pequipment, int channel)
 
 /*----------------------------------------------------------------------------*/
 
-void multi_output(INT hDB, INT hKey, void *info)
-{
+void multi_output(INT hDB, INT hKey, void *info) {
    INT i;
    MULTI_INFO *m_info;
    EQUIPMENT *pequipment;
@@ -186,7 +183,7 @@ void multi_output(INT hDB, INT hKey, void *info)
       /* only set channel if demand value differs */
       if (m_info->var_output[i] != m_info->output_mirror[i]) {
          m_info->output_mirror[i] =
-             m_info->var_output[i] * m_info->factor_output[i] - m_info->offset_output[i];
+                 m_info->var_output[i] * m_info->factor_output[i] - m_info->offset_output[i];
 
          device_driver(m_info->driver_output[i], CMD_SET,
                        i - m_info->channel_offset_output[i],
@@ -199,8 +196,7 @@ void multi_output(INT hDB, INT hKey, void *info)
 
 /*------------------------------------------------------------------*/
 
-void multi_update_label(INT hDB, INT hKey, void *info)
-{
+void multi_update_label(INT hDB, INT hKey, void *info) {
    INT i;
    MULTI_INFO *m_info;
    EQUIPMENT *pequipment;
@@ -222,8 +218,7 @@ void multi_update_label(INT hDB, INT hKey, void *info)
 
 /*----------------------------------------------------------------------------*/
 
-INT multi_init(EQUIPMENT * pequipment)
-{
+INT multi_init(EQUIPMENT *pequipment) {
    int status, size, i, j, index, ch_offset;
    char str[256];
    HNDLE hDB, hKey, hNamesIn, hNamesOut;
@@ -276,7 +271,7 @@ INT multi_init(EQUIPMENT * pequipment)
       m_info->channel_offset_input = (INT *) calloc(m_info->num_channels_input, sizeof(INT));
       m_info->driver_input = (DEVICE_DRIVER **) calloc(m_info->num_channels_input, sizeof(void *));
    }
-   
+
    if (m_info->num_channels_output) {
       m_info->names_output = (char *) calloc(m_info->num_channels_output, NAME_LENGTH);
       m_info->var_output = (float *) calloc(m_info->num_channels_output, sizeof(float));
@@ -286,7 +281,7 @@ INT multi_init(EQUIPMENT * pequipment)
       m_info->channel_offset_output = (INT *) calloc(m_info->num_channels_output, sizeof(DWORD));
       m_info->driver_output = (DEVICE_DRIVER **) calloc(m_info->num_channels_output, sizeof(void *));
    }
- 
+
    /*---- Create/Read settings ----*/
 
    if (m_info->num_channels_input) {
@@ -436,7 +431,7 @@ INT multi_init(EQUIPMENT * pequipment)
       for (i = 0; i < m_info->num_channels_input; i++) {
          sprintf(m_info->names_input + NAME_LENGTH * i, "Input Channel %d", i);
          device_driver(m_info->driver_input[i], CMD_GET_LABEL,
-                       i - m_info->channel_offset_input[i], 
+                       i - m_info->channel_offset_input[i],
                        m_info->names_input + NAME_LENGTH * i);
 
          /* merge existing names with labels from driver */
@@ -449,7 +444,7 @@ INT multi_init(EQUIPMENT * pequipment)
             size = sizeof(str);
             db_get_data_index(hDB, hKey, str, &size, i, TID_STRING);
             if (!str[0])
-               db_set_data_index(hDB, hKey, m_info->names_input+NAME_LENGTH*i, NAME_LENGTH, i, TID_STRING);
+               db_set_data_index(hDB, hKey, m_info->names_input + NAME_LENGTH * i, NAME_LENGTH, i, TID_STRING);
          }
       }
    }
@@ -457,8 +452,8 @@ INT multi_init(EQUIPMENT * pequipment)
    if (m_info->num_channels_output) {
       for (i = 0; i < m_info->num_channels_output; i++) {
          sprintf(m_info->names_output + NAME_LENGTH * i, "Output Channel %d", i);
-         device_driver(m_info->driver_output[i], CMD_GET_LABEL, 
-                       i - m_info->channel_offset_output[i], 
+         device_driver(m_info->driver_output[i], CMD_GET_LABEL,
+                       i - m_info->channel_offset_output[i],
                        m_info->names_output + NAME_LENGTH * i);
 
          /* merge existing names with labels from driver */
@@ -471,7 +466,7 @@ INT multi_init(EQUIPMENT * pequipment)
             size = sizeof(str);
             db_get_data_index(hDB, hKey, str, &size, i, TID_STRING);
             if (!str[0])
-               db_set_data_index(hDB, hKey, m_info->names_output+NAME_LENGTH*i, NAME_LENGTH, i, TID_STRING);
+               db_set_data_index(hDB, hKey, m_info->names_output + NAME_LENGTH * i, NAME_LENGTH, i, TID_STRING);
          }
 
       }
@@ -509,7 +504,7 @@ INT multi_init(EQUIPMENT * pequipment)
 
       /* open hot link to output record */
       db_open_record(hDB, m_info->hKeyOutput, m_info->var_output,
-                     m_info->num_channels_output * (int)sizeof(float),
+                     m_info->num_channels_output * (int) sizeof(float),
                      MODE_READ, multi_output, pequipment);
    }
 
@@ -523,7 +518,7 @@ INT multi_init(EQUIPMENT * pequipment)
       } else {
          /* use default value from ODB */
          m_info->output_mirror[i] = m_info->var_output[i] * m_info->factor_output[i] -
-             m_info->offset_output[i];
+                                    m_info->offset_output[i];
 
          device_driver(m_info->driver_output[i], CMD_SET,
                        i - m_info->channel_offset_output[i],
@@ -533,7 +528,7 @@ INT multi_init(EQUIPMENT * pequipment)
 
    if (m_info->num_channels_output)
       db_set_record(hDB, m_info->hKeyOutput, m_info->output_mirror,
-                    m_info->num_channels_output * (int)sizeof(float), 0);
+                    m_info->num_channels_output * (int) sizeof(float), 0);
 
    /* initially read all input channels */
    if (m_info->num_channels_input && (m_info->driver_input[0]->flags & DF_QUICKSTART) == 0)
@@ -541,14 +536,13 @@ INT multi_init(EQUIPMENT * pequipment)
 
    if (partially_disabled)
       return FE_PARTIALLY_DISABLED;
-   
+
    return FE_SUCCESS;
 }
 
 /*----------------------------------------------------------------------------*/
 
-INT multi_exit(EQUIPMENT * pequipment)
-{
+INT multi_exit(EQUIPMENT *pequipment) {
    INT i;
 
    free_mem((MULTI_INFO *) pequipment->cd_info);
@@ -562,12 +556,11 @@ INT multi_exit(EQUIPMENT * pequipment)
 
 /*----------------------------------------------------------------------------*/
 
-INT multi_start(EQUIPMENT * pequipment)
-{
+INT multi_start(EQUIPMENT *pequipment) {
    INT i;
 
    /* call start method of device drivers */
-   for (i = 0; pequipment->driver[i].dd != NULL ; i++)
+   for (i = 0; pequipment->driver[i].dd != NULL; i++)
       if (pequipment->driver[i].flags & DF_MULTITHREAD) {
          pequipment->driver[i].pequipment = &pequipment->info;
          device_driver(&pequipment->driver[i], CMD_START);
@@ -578,12 +571,11 @@ INT multi_start(EQUIPMENT * pequipment)
 
 /*----------------------------------------------------------------------------*/
 
-INT multi_stop(EQUIPMENT * pequipment)
-{
+INT multi_stop(EQUIPMENT *pequipment) {
    INT i;
 
    /* call close method of device drivers */
-   for (i = 0; pequipment->driver[i].dd != NULL && pequipment->driver[i].flags & DF_MULTITHREAD ; i++)
+   for (i = 0; pequipment->driver[i].dd != NULL && pequipment->driver[i].flags & DF_MULTITHREAD; i++)
       device_driver(&pequipment->driver[i], CMD_STOP);
 
    return FE_SUCCESS;
@@ -591,50 +583,27 @@ INT multi_stop(EQUIPMENT * pequipment)
 
 /*----------------------------------------------------------------------------*/
 
-INT multi_idle(EQUIPMENT * pequipment)
-{
+INT multi_idle(EQUIPMENT *pequipment) {
    int i;
    MULTI_INFO *m_info;
 
    m_info = (MULTI_INFO *) pequipment->cd_info;
 
-   if (m_info->last_channel < m_info->num_channels_input) {
-      /* read input channel */
-      multi_read(pequipment, m_info->last_channel);
-      m_info->last_channel++;
-   } else {
-      if (!m_info->num_channels_output) {
-         m_info->last_channel = 0;
-      } else {
-         /* search output channel with DF_PRIO_DEV */
-         for (i = m_info->last_channel - m_info->num_channels_input;
-              i < m_info->num_channels_output; i++)
-            if (m_info->driver_output[i]->flags & DF_PRIO_DEVICE)
-               break;
+   /* read input channels */
+   for (i = 0; i < m_info->num_channels_input; i++)
+      multi_read(pequipment, i);
 
-         if (i < m_info->num_channels_output) {
-            /* read output channel */
-            multi_read_output(pequipment, i);
-
-            m_info->last_channel = i + m_info->num_channels_input;
-            if (m_info->last_channel <
-                m_info->num_channels_input + m_info->num_channels_output - 1)
-               m_info->last_channel++;
-            else
-               m_info->last_channel = 0;
-         } else
-            m_info->last_channel = 0;
-      }
-   }
-
+   /* read output channels */
+   for (i = 0; i < m_info->num_channels_output; i++)
+      if (m_info->driver_output[i]->flags & DF_PRIO_DEVICE)
+         multi_read_output(pequipment, i);
 
    return FE_SUCCESS;
 }
 
 /*----------------------------------------------------------------------------*/
 
-INT cd_multi_read(char *pevent, int offset)
-{
+INT cd_multi_read(char *pevent, int offset) {
    float *pdata;
    MULTI_INFO *m_info;
    EQUIPMENT *pequipment;
@@ -658,7 +627,7 @@ INT cd_multi_read(char *pevent, int offset)
 
       /* create INPT bank */
       if (m_info->num_channels_input) {
-         bk_create(pevent, "INPT", TID_FLOAT, (void **)&pdata);
+         bk_create(pevent, "INPT", TID_FLOAT, (void **) &pdata);
          memcpy(pdata, m_info->var_input, sizeof(float) * m_info->num_channels_input);
          pdata += m_info->num_channels_input;
          bk_close(pevent, pdata);
@@ -666,7 +635,7 @@ INT cd_multi_read(char *pevent, int offset)
 
       /* create OUTP bank */
       if (m_info->num_channels_output) {
-         bk_create(pevent, "OUTP", TID_FLOAT, (void **)&pdata);
+         bk_create(pevent, "OUTP", TID_FLOAT, (void **) &pdata);
          memcpy(pdata, m_info->var_output, sizeof(float) * m_info->num_channels_output);
          pdata += m_info->num_channels_output;
          bk_close(pevent, pdata);
@@ -707,35 +676,34 @@ INT cd_multi_read(char *pevent, int offset)
 
 /*----------------------------------------------------------------------------*/
 
-INT cd_multi(INT cmd, EQUIPMENT * pequipment)
-{
+INT cd_multi(INT cmd, EQUIPMENT *pequipment) {
    INT status;
 
    switch (cmd) {
-   case CMD_INIT:
-      status = multi_init(pequipment);
-      break;
+      case CMD_INIT:
+         status = multi_init(pequipment);
+         break;
 
-   case CMD_EXIT:
-      status = multi_exit(pequipment);
-      break;
+      case CMD_EXIT:
+         status = multi_exit(pequipment);
+         break;
 
-   case CMD_START:
-      status = multi_start(pequipment);
-      break;
+      case CMD_START:
+         status = multi_start(pequipment);
+         break;
 
-   case CMD_STOP:
-      status = multi_stop(pequipment);
-      break;
+      case CMD_STOP:
+         status = multi_stop(pequipment);
+         break;
 
-   case CMD_IDLE:
-      status = multi_idle(pequipment);
-      break;
+      case CMD_IDLE:
+         status = multi_idle(pequipment);
+         break;
 
-   default:
-      cm_msg(MERROR, "Multimeter class driver", "Received unknown command %d", cmd);
-      status = FE_ERR_DRIVER;
-      break;
+      default:
+         cm_msg(MERROR, "Multimeter class driver", "Received unknown command %d", cmd);
+         status = FE_ERR_DRIVER;
+         break;
    }
 
    return status;

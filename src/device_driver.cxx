@@ -159,6 +159,11 @@ INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...)
             device_drv->mt_buffer->channel = (DD_MT_CHANNEL *) calloc(device_drv->channels, sizeof(DD_MT_CHANNEL));
             assert(device_drv->mt_buffer->channel);
 
+            /* set all get values to NaN */
+            for (i=0 ; i<device_drv->channels ; i++)
+               for (j=CMD_GET_FIRST ; j<=CMD_GET_LAST ; j++)
+                  device_drv->mt_buffer->channel[i].variable[j] = (float)ss_nan();
+
             /* set all set values to NaN */
             for (i=0 ; i<device_drv->channels ; i++)
                for (j=CMD_SET_FIRST ; j<=CMD_SET_LAST ; j++)
