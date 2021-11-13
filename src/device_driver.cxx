@@ -65,6 +65,7 @@ static int sc_thread(void *info)
                device_drv->mt_buffer->status = status;
                ss_mutex_release(device_drv->mutex);
             }
+            device_drv->mt_buffer->channel[current_channel].n_read++;
          }
 
          /* switch to next channel in next loop */
@@ -159,10 +160,14 @@ INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...)
             device_drv->mt_buffer->channel = (DD_MT_CHANNEL *) calloc(device_drv->channels, sizeof(DD_MT_CHANNEL));
             assert(device_drv->mt_buffer->channel);
 
+            /* initialize n_read for all channels */
+            for (i=0 ; i<device_drv->channels ; i++)
+               device_drv->mt_buffer->channel[i].n_read = 0;
+
             /* set all get values to NaN */
             for (i=0 ; i<device_drv->channels ; i++)
                for (j=CMD_GET_FIRST ; j<=CMD_GET_LAST ; j++)
-                  device_drv->mt_buffer->channel[i].variable[j] = (float)ss_nan();
+                  device_drv->mt_buffer->channel[i].variable[j] = (float) ss_nan();
 
             /* set all set values to NaN */
             for (i=0 ; i<device_drv->channels ; i++)
@@ -263,6 +268,8 @@ INT device_driver(DEVICE_DRIVER * device_drv, INT cmd, ...)
             ss_mutex_wait_for(device_drv->mutex, 1000);
             *pvalue = device_drv->mt_buffer->channel[channel].variable[cmd];
             status = device_drv->mt_buffer->status;
+            if (device_drv->mt_buffer->channel[channel].n_read < 1)
+               status = FE_NOT_YET_READ;
             ss_mutex_release(device_drv->mutex);
          } else
             status = device_drv->dd(cmd, device_drv->dd_info, channel, pvalue);

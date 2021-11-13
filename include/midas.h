@@ -709,6 +709,7 @@ System message types */
 #define FE_ERR_DISABLED             604   /**< - */
 #define FE_ERR_DRIVER               605   /**< - */
 #define FE_PARTIALLY_DISABLED       606   /**< - */
+#define FE_NOT_YET_READ             607   /**< - */
 
 /**
 History error code */
@@ -1048,6 +1049,7 @@ typedef struct {
 typedef struct {
    float variable[CMD_GET_LAST+1];    /**< Array for various values          */
    char  label[NAME_LENGTH];          /**< Array for channel labels          */
+   int   n_read;                      /**< Number of reads                   */
 } DD_MT_CHANNEL;
 
 typedef struct {

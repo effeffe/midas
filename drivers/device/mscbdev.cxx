@@ -372,6 +372,7 @@ INT mscbdev(INT cmd, ...)
       break;
 
    case CMD_GET:
+   case CMD_GET_DIRECT:
       info = va_arg(argptr, MSCBDEV_INFO *);
       channel = va_arg(argptr, INT);
       pvalue = va_arg(argptr, float *);

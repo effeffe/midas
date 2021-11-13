@@ -86,11 +86,16 @@ void multi_read(EQUIPMENT *pequipment, int channel) {
    m_info = (MULTI_INFO *) pequipment->cd_info;
    cm_get_experiment_database(&hDB, NULL);
 
-   if (channel == -1 || m_info->driver_input[channel]->flags & DF_MULTITHREAD)
+   if (channel == -1)
       for (i = 0; i < m_info->num_channels_input; i++) {
-         status = device_driver(m_info->driver_input[i], CMD_GET,
-                                i - m_info->channel_offset_input[i],
-                                &m_info->var_input[i]);
+         if (m_info->driver_input[i]->flags & DF_MULTITHREAD)
+            status = device_driver(m_info->driver_input[i], CMD_GET_DIRECT,
+                                   i - m_info->channel_offset_input[i],
+                                   &m_info->var_input[i]);
+         else
+            status = device_driver(m_info->driver_input[i], CMD_GET,
+                                   i - m_info->channel_offset_input[i],
+                                   &m_info->var_input[i]);
          if (status != FE_SUCCESS)
             m_info->var_input[i] = (float) ss_nan();
          else
@@ -107,6 +112,9 @@ void multi_read(EQUIPMENT *pequipment, int channel) {
          m_info->var_input[channel] =
                  m_info->var_input[channel] * m_info->factor_input[channel] -
                  m_info->offset_input[channel];
+
+      if (status == FE_NOT_YET_READ)
+         return;
    }
 
    /* check if significant change since last ODB update */
