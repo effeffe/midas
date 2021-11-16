@@ -72,27 +72,29 @@ static int sc_thread(void *info)
          current_channel = (current_channel + 1) % device_drv->channels;
 
          /* check for priority channel */
-         current_time = ss_millitime();
-         i = (current_priority_channel + 1) % device_drv->channels;
-         while (!(current_time - last_update[i] < 10000)) {
-            i = (i + 1) % device_drv->channels;
-            if (i == current_priority_channel) {
-               /* non found, so finish */
-               break;
+         if (device_drv->flags & DF_PRIORITY_READ) {
+            current_time = ss_millitime();
+            i = (current_priority_channel + 1) % device_drv->channels;
+            while (!(current_time - last_update[i] < 10000)) {
+               i = (i + 1) % device_drv->channels;
+               if (i == current_priority_channel) {
+                  /* non found, so finish */
+                  break;
+               }
             }
-         }
 
-         /* updated channel found, so read it additionally */
-         if (current_time - last_update[i] < 10000) {
-            current_priority_channel = i;
+            /* updated channel found, so read it additionally */
+            if (current_time - last_update[i] < 10000) {
+               current_priority_channel = i;
 
-            for (cmd = CMD_GET_FIRST; cmd <= CMD_GET_LAST; cmd++) {
-               status = device_drv->dd(cmd, device_drv->dd_info, i, &value);
+               for (cmd = CMD_GET_FIRST; cmd <= CMD_GET_LAST; cmd++) {
+                  status = device_drv->dd(cmd, device_drv->dd_info, i, &value);
 
-               ss_mutex_wait_for(device_drv->mutex, 1000);
-               device_drv->mt_buffer->channel[i].variable[cmd] = value;
-               device_drv->mt_buffer->status = status;
-               ss_mutex_release(device_drv->mutex);
+                  ss_mutex_wait_for(device_drv->mutex, 1000);
+                  device_drv->mt_buffer->channel[i].variable[cmd] = value;
+                  device_drv->mt_buffer->status = status;
+                  ss_mutex_release(device_drv->mutex);
+               }
             }
          }
 

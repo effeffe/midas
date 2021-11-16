@@ -153,6 +153,7 @@ void multi_read(EQUIPMENT *pequipment, int channel) {
 /*----------------------------------------------------------------------------*/
 
 void multi_read_output(EQUIPMENT *pequipment, int channel) {
+   int i, status;
    float value;
    MULTI_INFO *m_info;
    HNDLE hDB;
@@ -160,23 +161,49 @@ void multi_read_output(EQUIPMENT *pequipment, int channel) {
    m_info = (MULTI_INFO *) pequipment->cd_info;
    cm_get_experiment_database(&hDB, NULL);
 
-   device_driver(m_info->driver_output[channel], CMD_GET,
-                 channel - m_info->channel_offset_output[channel], &value);
+   if (channel == -1) {
+      for (i = 0; i < m_info->num_channels_output; i++) {
+         if (m_info->driver_output[i]->flags & DF_MULTITHREAD)
+            status = device_driver(m_info->driver_output[i], CMD_GET_DIRECT,
+                                   i - m_info->channel_offset_output[i],
+                                   &value);
+         else
+            status = device_driver(m_info->driver_output[i], CMD_GET,
+                                   i - m_info->channel_offset_input[i],
+                                   &value);
 
-   value = (value + m_info->offset_output[channel]) / m_info->factor_output[channel];
+         value = (value + m_info->offset_output[i]) / m_info->factor_output[i];
 
-   if (!ss_isnan(value) &&
-       (value != m_info->output_mirror[channel] ||        // write if changed
-        ss_time() > m_info->last_update_output + 60)) {     // write at least once per minute
+         m_info->last_update_output = ss_time();
+         m_info->output_mirror[i] = value;
+         m_info->var_output[i] = value;
 
-      m_info->last_update_output = ss_time();
-      m_info->output_mirror[channel] = value;
-      m_info->var_output[channel] = value;
+         db_set_record(hDB, m_info->hKeyOutput, m_info->output_mirror,
+                       m_info->num_channels_output * sizeof(float), 0);
 
-      db_set_record(hDB, m_info->hKeyOutput, m_info->output_mirror,
-                    m_info->num_channels_output * sizeof(float), 0);
-
+      }
       pequipment->odb_out++;
+
+   } else {
+
+      device_driver(m_info->driver_output[channel], CMD_GET,
+                    channel - m_info->channel_offset_output[channel], &value);
+
+      value = (value + m_info->offset_output[channel]) / m_info->factor_output[channel];
+
+      if (!ss_isnan(value) &&
+          (value != m_info->output_mirror[channel] ||        // write if changed
+           ss_time() > m_info->last_update_output + 60)) {     // write at least once per minute
+
+         m_info->last_update_output = ss_time();
+         m_info->output_mirror[channel] = value;
+         m_info->var_output[channel] = value;
+
+         db_set_record(hDB, m_info->hKeyOutput, m_info->output_mirror,
+                       m_info->num_channels_output * sizeof(float), 0);
+
+         pequipment->odb_out++;
+      }
    }
 
 }
@@ -545,6 +572,11 @@ INT multi_init(EQUIPMENT *pequipment) {
    /* initially read all input channels */
    if (m_info->num_channels_input && (m_info->driver_input[0]->flags & DF_QUICKSTART) == 0)
       multi_read(pequipment, -1);
+
+   /* initially read all output channels */
+   if (m_info->num_channels_output && (m_info->driver_output[0]->flags & DF_QUICKSTART) == 0 &&
+           (m_info->driver_output[0]->flags & DF_PRIO_DEVICE))
+      multi_read_output(pequipment, -1);
 
    if (partially_disabled)
       return FE_PARTIALLY_DISABLED;

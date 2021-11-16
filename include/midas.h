@@ -1036,6 +1036,7 @@ typedef struct {
 #define DF_REPORT_CRATEMAP    (1<<10) //*< reports an integer encoding size and occupancy of HV crate */
 #define DF_QUICKSTART         (1<<11) //*< do not read channels initially during init to speed up startup */
 #define DF_POLL_DEMAND        (1<<12) //*< continously read demand value from device */
+#define DF_PRIORITY_READ      (1<<13) //*< read channel with priority after setting */
 
 /** @addtogroup msectionh
  *  @{  */
@@ -1140,7 +1141,8 @@ typedef struct {
    INT stop_thread;                   /**< flag used to stop the thread      */
    MUTEX_T *mutex;                    /**< mutex for buffer                  */
    EQUIPMENT_INFO *pequipment;        /**< pointer to equipment              */
-   std::string *pequipment_name;        /**< name of equipment                 */
+   std::string *pequipment_name;      /**< name of equipment                 */
+   BOOL priority_read;                /**< read channel with priority after set */
 } DEVICE_DRIVER;
 
 typedef struct eqpmnt {
