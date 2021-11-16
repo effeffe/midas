@@ -36,6 +36,7 @@ typedef struct {
    INT num_vars;       // Number of all variables
    char *cmd_str;       // Command string
    char *type_str;      // Type string
+   BOOL debug;
 } VXI_INFO;
 
 const char *vars_onoff[] = {"OFF", "ON"};
@@ -60,6 +61,12 @@ INT vxi11dev_init(HNDLE hKey, void **pinfo, INT nvars) {
    /* IP address */
    size = sizeof(info->ip_address);
    status = db_get_value(hDB, hKey, "IP address", &info->ip_address, &size, TID_STRING, TRUE);
+   if (status != DB_SUCCESS)
+      return FE_ERR_ODB;
+
+   size = sizeof(info->debug);
+   info->debug = false;
+   status = db_get_value(hDB, hKey, "Debug", &info->debug, &size, TID_BOOL, TRUE);
    if (status != DB_SUCCESS)
       return FE_ERR_ODB;
 
@@ -150,6 +157,9 @@ INT vxi11dev_set(VXI_INFO *info, INT channel, float value) {
       }
    }
 
+   if (info->debug)
+      printf(">>> \"%s\" -> %s\n", cmd, info->ip_address);
+
    // send command
    long ret = vxi11_send(info->clink, cmd);
    if (ret != 0) {
@@ -173,6 +183,9 @@ INT vxi11dev_get(VXI_INFO *info, INT channel, float *pvalue) {
    strlcpy(cmd_base, info->cmd_str + channel * CMD_LENGTH, CMD_LENGTH);
    sprintf(cmd, "%s?", cmd_base);
 
+   if (info->debug)
+      printf("\"%s\" -> %s ", cmd, info->ip_address);
+
    // send and receive from device
    memset(buf, 0, sizeof(buf));
    long ret = vxi11_send_and_receive(info->clink, cmd, buf, sizeof(buf), VXI11_READ_TIMEOUT);
@@ -181,6 +194,9 @@ INT vxi11dev_get(VXI_INFO *info, INT channel, float *pvalue) {
    }
    if (buf[strlen(buf)-1] == '\n')
       buf[strlen(buf)-1] = 0;
+
+   if (info->debug)
+      printf("-> \"%s\"\n", buf);
 
    // variable type
    char type_this[TYPE_LENGTH];
@@ -215,12 +231,6 @@ INT vxi11dev_get(VXI_INFO *info, INT channel, float *pvalue) {
       }
    }
 
-   return FE_SUCCESS;
-}
-
-/*----------------------------------------------------------------------------*/
-
-INT vxi11dev_get_demand(VXI_INFO *info, INT channel, float *pvalue) {
    return FE_SUCCESS;
 }
 
@@ -260,6 +270,7 @@ INT vxi11dev(INT cmd, ...) {
          break;
 
       case CMD_GET:
+      case CMD_GET_DIRECT:
          info = va_arg(argptr, VXI_INFO *);
          channel = va_arg(argptr, INT);
          pvalue = va_arg(argptr, float *);
@@ -267,10 +278,6 @@ INT vxi11dev(INT cmd, ...) {
          break;
 
       case CMD_GET_DEMAND:
-         info = va_arg(argptr, VXI_INFO *);
-         channel = va_arg(argptr, INT);
-         pvalue = va_arg(argptr, float *);
-         status = vxi11dev_get_demand(info, channel, pvalue);
          break;
 
       case CMD_GET_LABEL:
