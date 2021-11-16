@@ -5,6 +5,8 @@
 
 #include "vxi11.h"
 
+#ifdef __APPLE__
+
 bool_t xdr_long(XDR *xdrs, long *pl) {
    int *p = (int *) pl;
    return xdr_long(xdrs, p);
@@ -14,6 +16,8 @@ bool_t xdr_u_long(XDR *xdrs, unsigned long *pl) {
    unsigned int *p = (unsigned int *) pl;
    return xdr_u_long(xdrs, p);
 }
+
+#endif
 
 bool_t
 xdr_Device_Link(XDR *xdrs, Device_Link *objp) {
