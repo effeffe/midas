@@ -23,7 +23,8 @@ typedef struct {
    INT num_channels_input, num_channels_output;
    INT format;
    INT last_channel;
-   DWORD last_update;
+   DWORD last_update_input;
+   DWORD last_update_output;
 
    /* items in /Variables record */
    char *names_input, *names_output;
@@ -79,7 +80,6 @@ static void free_mem(MULTI_INFO *m_info) {
 
 void multi_read(EQUIPMENT *pequipment, int channel) {
    int i, status;
-   DWORD actual_time;
    MULTI_INFO *m_info;
    HNDLE hDB;
 
@@ -135,9 +135,9 @@ void multi_read(EQUIPMENT *pequipment, int channel) {
 
    /* update if change is more than update_sensitivity or last update more
       than a minute ago */
-   actual_time = ss_millitime();
-   if (i < m_info->num_channels_input || actual_time - m_info->last_update > 60000) {
-      m_info->last_update = actual_time;
+   if (i < m_info->num_channels_input || ss_time() - m_info->last_update_input > 60) {
+
+      m_info->last_update_input = ss_time();
 
       for (i = 0; i < m_info->num_channels_input; i++)
          m_info->input_mirror[i] = m_info->var_input[i];
@@ -165,7 +165,11 @@ void multi_read_output(EQUIPMENT *pequipment, int channel) {
 
    value = (value + m_info->offset_output[channel]) / m_info->factor_output[channel];
 
-   if (!ss_isnan(value) && value != m_info->output_mirror[channel]) {
+   if (!ss_isnan(value) &&
+       (value != m_info->output_mirror[channel] ||        // write if changed
+        ss_time() > m_info->last_update_output + 60)) {     // write at least once per minute
+
+      m_info->last_update_output = ss_time();
       m_info->output_mirror[channel] = value;
       m_info->var_output[channel] = value;
 

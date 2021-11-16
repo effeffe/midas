@@ -63,7 +63,7 @@ INT vxi11dev_init(HNDLE hKey, void **pinfo, INT nvars) {
    if (status != DB_SUCCESS)
       return FE_ERR_ODB;
 
-   cm_msg(MINFO, "vxi11dev_init", "vxi11 initialization with IP: %s", info->ip_address);
+   printf("VXI11 connect to %s...", info->ip_address);
    status = FE_SUCCESS;
 
    /* open connection */
@@ -71,10 +71,10 @@ INT vxi11dev_init(HNDLE hKey, void **pinfo, INT nvars) {
    int ret = vxi11_open_device(info->ip_address, info->clink);
    if (ret != 0) {
       status = FE_ERR_DRIVER;
+      printf("\n");
       cm_msg(MERROR, "vxi11dev_init", "vxi11dev driver error: %d", ret);
-   } else {
-      cm_msg(MINFO, "vxi11dev_init", "vxi11dev initialized successfully.");
-   }
+   } else
+      printf("OK\n");
 
    /* nvars */
    info->num_vars = nvars;
@@ -174,15 +174,13 @@ INT vxi11dev_get(VXI_INFO *info, INT channel, float *pvalue) {
    sprintf(cmd, "%s?", cmd_base);
 
    // send and receive from device
-   long ret = vxi11_send_and_receive(info->clink, cmd, buf, 256, VXI11_READ_TIMEOUT * 10);
+   memset(buf, 0, sizeof(buf));
+   long ret = vxi11_send_and_receive(info->clink, cmd, buf, sizeof(buf), VXI11_READ_TIMEOUT);
    if (ret != 0) {
       cm_msg(MINFO, "vxi11dev_get", "unusual return value in vxi11_send_and_receive: %ld", ret);
    }
-   std::string buf_str = buf;
-   int index = buf_str.find('\n');
-   if (index >= 0) {
-      buf[index] = '\0';
-   }
+   if (buf[strlen(buf)-1] == '\n')
+      buf[strlen(buf)-1] = 0;
 
    // variable type
    char type_this[TYPE_LENGTH];
