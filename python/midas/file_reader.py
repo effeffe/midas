@@ -99,6 +99,7 @@ except RuntimeError:
 
 """
 import gzip
+import bz2
 import struct
 import midas
 import midas.event
@@ -196,6 +197,8 @@ class MidasFile:
                 raise ImportError("lz4 package not found - install using 'pip install lz4'")
         elif path.endswith(".gz"):
             self.file = gzip.open(path, "rb")
+        elif path.endswith(".bz2"):
+            self.file = bz2.open(path, "rb")
         else:
             self.file = open(path, "rb")
     
