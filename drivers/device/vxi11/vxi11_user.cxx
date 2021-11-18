@@ -455,9 +455,8 @@ int vxi11_send(CLIENT *client, VXI11_LINK *link, const char *cmd, unsigned long 
    unsigned int bytes_left = len;
    char *send_cmd;
 
-   send_cmd = new char[len];
-   strcpy(send_cmd, cmd);
-   // memcpy(send_cmd, cmd, len);
+   send_cmd = new char[len+1];
+   memcpy(send_cmd, cmd, len+1);
 
    write_parms.lid = link->lid;
    write_parms.io_timeout = VXI11_DEFAULT_TIMEOUT;

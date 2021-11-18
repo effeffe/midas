@@ -900,9 +900,11 @@ int set_equipment_status(const char *name, const char *equipment_status, const c
       db_find_key(hDB, 0, str, &hKey);
       assert(hKey);
 
-      status = db_set_value(hDB, hKey, "Status", equipment_status, 256, 1, TID_STRING);
+      strlcpy(str, equipment_status, sizeof(str));
+      status = db_set_value(hDB, hKey, "Status", str, 256, 1, TID_STRING);
       assert(status == DB_SUCCESS);
-      status = db_set_value(hDB, hKey, "Status color", status_class, 32, 1, TID_STRING);
+      strlcpy(str, status_class, sizeof(str));
+      status = db_set_value(hDB, hKey, "Status color", str, 32, 1, TID_STRING);
       assert(status == DB_SUCCESS);
    }
 
