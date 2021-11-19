@@ -2197,6 +2197,9 @@ INT db_close_database(HNDLE hDB)
       /* delete semaphore */
       ss_semaphore_delete(pdb->semaphore, destroy_flag);
 
+      /* delete mutex */
+      ss_mutex_delete(pdb->mutex);
+
       /* update _database_entries */
       if (hDB == _database_entries)
          _database_entries--;
