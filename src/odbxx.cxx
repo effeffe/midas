@@ -812,7 +812,10 @@ namespace midas {
                size = s.size() + 1;
             if (str_size > 0)
                size = str_size;
-            status = db_set_data(m_hDB, m_hKey, s.c_str(), size, 1, m_tid);
+            char *ss = (char *)malloc(size+1);
+            strlcpy(ss, s.c_str(), size);
+            status = db_set_data(m_hDB, m_hKey, ss, size, 1, m_tid);
+            free(ss);
          } else {
             if (key.item_size == 0)
                key.item_size = s.size() + 1;
