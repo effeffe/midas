@@ -109,6 +109,7 @@ namespace midas {
       const char *operator=(const char *v);
       std::string *operator=(std::string * v);
       std::string operator=(std::string v);
+      u_odb &operator=(u_odb u);
 
       // Overload the Conversion Operators
       operator uint8_t();

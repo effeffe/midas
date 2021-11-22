@@ -1388,6 +1388,13 @@ namespace midas {
       return v;
    }
 
+   u_odb& u_odb::operator=(u_odb u){
+      m_string = u.m_string;
+      m_tid    = u.m_tid;
+      m_parent_odb = nullptr;
+      return *this;
+   }
+
    void u_odb::set_string_size(std::string v, int size) {
       m_tid = TID_STRING;
       set(v);
@@ -1397,55 +1404,67 @@ namespace midas {
 
    // overload all standard conversion operators
    u_odb::operator uint8_t() {
-      m_parent_odb->set_last_index(-1);
+      if (m_parent_odb)
+         m_parent_odb->set_last_index(-1);
       return get<uint8_t>();
    }
    u_odb::operator int8_t() {
+      if (m_parent_odb)
          m_parent_odb->set_last_index(-1);
       return get<int8_t>();
    }
    u_odb::operator uint16_t() {
+      if (m_parent_odb)
          m_parent_odb->set_last_index(-1);
       return get<uint16_t>();
    }
    u_odb::operator int16_t() {
+      if (m_parent_odb)
          m_parent_odb->set_last_index(-1);
       return get<int16_t>();
    }
    u_odb::operator uint32_t() {
-      m_parent_odb->set_last_index(-1);
+      if (m_parent_odb)
+         m_parent_odb->set_last_index(-1);
       return get<uint32_t>();
    }
    u_odb::operator int32_t() {
-      m_parent_odb->set_last_index(-1);
+      if (m_parent_odb)
+         m_parent_odb->set_last_index(-1);
       return get<int32_t>();
    }
    u_odb::operator bool() {
-      m_parent_odb->set_last_index(-1);
+      if (m_parent_odb)
+         m_parent_odb->set_last_index(-1);
       return get<bool>();
    }
    u_odb::operator float() {
-      m_parent_odb->set_last_index(-1);
+      if (m_parent_odb)
+         m_parent_odb->set_last_index(-1);
       return get<float>();
    }
    u_odb::operator double() {
-      m_parent_odb->set_last_index(-1);
+      if (m_parent_odb)
+         m_parent_odb->set_last_index(-1);
       return get<double>();
    }
    u_odb::operator std::string() {
-      m_parent_odb->set_last_index(-1);
+      if (m_parent_odb)
+         m_parent_odb->set_last_index(-1);
       std::string s;
       get(s);
       return s;
    }
    u_odb::operator const char *() {
-      m_parent_odb->set_last_index(-1);
+      if (m_parent_odb)
+         m_parent_odb->set_last_index(-1);
       if (m_tid != TID_STRING && m_tid != TID_LINK)
          mthrow("Only ODB string keys can be converted to \"const char *\"");
       return m_string->c_str();
    }
    u_odb::operator midas::odb&() {
-      m_parent_odb->set_last_index(-1);
+      if (m_parent_odb)
+         m_parent_odb->set_last_index(-1);
       if (m_tid != TID_KEY)
          mthrow("Only ODB directories can be converted to \"midas::odb &\"");
       return *m_odb;
