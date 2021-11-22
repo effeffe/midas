@@ -104,31 +104,31 @@ INT mscbdev_init(HNDLE hkey, MSCBDEV_INFO **pinfo, INT channels, func_t *bd)
    /* create settings record */
    size = sizeof(info->mscbdev_settings.mscb_device);
    strcpy(info->mscbdev_settings.mscb_device, "usb0");
-   status = db_get_value(hDB, hkey, "Device", &info->mscbdev_settings.mscb_device, &size, TID_STRING, TRUE);
+   status = db_get_value(hDB, hkey, "MSCB Device", &info->mscbdev_settings.mscb_device, &size, TID_STRING, TRUE);
    if (status != DB_SUCCESS)
       return FE_ERR_ODB;
 
    size = sizeof(info->mscbdev_settings.pwd);
    info->mscbdev_settings.pwd[0] = 0;
-   status = db_get_value(hDB, hkey, "Pwd", &info->mscbdev_settings.pwd, &size, TID_STRING, TRUE);
+   status = db_get_value(hDB, hkey, "MSCB Pwd", &info->mscbdev_settings.pwd, &size, TID_STRING, TRUE);
    if (status != DB_SUCCESS)
       return FE_ERR_ODB;
 
    size = sizeof(info->mscbdev_settings.debug);
    info->mscbdev_settings.debug = 0;
-   status = db_get_value(hDB, hkey, "Debug", &info->mscbdev_settings.debug, &size, TID_INT32, TRUE);
+   status = db_get_value(hDB, hkey, "MSCB Debug", &info->mscbdev_settings.debug, &size, TID_INT32, TRUE);
    if (status != DB_SUCCESS)
       return FE_ERR_ODB;
 
    size = sizeof(info->mscbdev_settings.pause);
    info->mscbdev_settings.pause = 0;
-   status = db_get_value(hDB, hkey, "Pause", &info->mscbdev_settings.pause, &size, TID_INT32, TRUE);
+   status = db_get_value(hDB, hkey, "MSCB Pause", &info->mscbdev_settings.pause, &size, TID_INT32, TRUE);
    if (status != DB_SUCCESS)
       return FE_ERR_ODB;
 
    size = sizeof(info->mscbdev_settings.retries);
    info->mscbdev_settings.retries = 10;
-   status = db_get_value(hDB, hkey, "Retries", &info->mscbdev_settings.retries, &size, TID_INT, TRUE);
+   status = db_get_value(hDB, hkey, "MSCB Retries", &info->mscbdev_settings.retries, &size, TID_INT, TRUE);
    if (status != DB_SUCCESS)
       return FE_ERR_ODB;
 
