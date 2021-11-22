@@ -91,6 +91,7 @@ namespace midas {
 
       // Setters and getters
       void set_parent(odb *o) { m_parent_odb = o; }
+      odb *get_parent() { return m_parent_odb; }
 
       void set_tid(int tid) { m_tid = tid; }
 
@@ -109,7 +110,6 @@ namespace midas {
       const char *operator=(const char *v);
       std::string *operator=(std::string * v);
       std::string operator=(std::string v);
-      u_odb &operator=(u_odb u);
 
       // Overload the Conversion Operators
       operator uint8_t();

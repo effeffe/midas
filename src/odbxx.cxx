@@ -840,6 +840,7 @@ namespace midas {
       } else {
          u_odb u = m_data[index];
          if (m_tid == TID_BOOL) {
+            u.set_parent(nullptr);
             BOOL b = static_cast<bool>(u); // "bool" is only 1 Byte, BOOL is 4 Bytes
             status = db_set_data_index(m_hDB, m_hKey, &b, rpc_tid_size(m_tid), index, m_tid);
          } else {
@@ -1386,13 +1387,6 @@ namespace midas {
       if (m_parent_odb)
          m_parent_odb->write();
       return v;
-   }
-
-   u_odb& u_odb::operator=(u_odb u){
-      m_string = u.m_string;
-      m_tid    = u.m_tid;
-      m_parent_odb = nullptr;
-      return *this;
    }
 
    void u_odb::set_string_size(std::string v, int size) {
