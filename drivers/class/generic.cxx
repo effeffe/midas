@@ -251,7 +251,6 @@ INT gen_init(EQUIPMENT * pequipment)
          }
       }
 
-                                                                                            
       /* check enabled flag */
       size = sizeof(pequipment->driver[i].enabled);
       pequipment->driver[i].enabled = 1;
@@ -262,11 +261,14 @@ INT gen_init(EQUIPMENT * pequipment)
          return FE_ERR_ODB;
       
       if (pequipment->driver[i].enabled) {
+         printf("Connecting %s:%s...", pequipment->name, pequipment->driver[i].name);
+         fflush(stdout);
          status = device_driver(&pequipment->driver[i], CMD_INIT, hKey);
          if (status != FE_SUCCESS) {
             free_mem(gen_info);
             return status;
          }
+         printf("OK\n");
       }
    }
 
