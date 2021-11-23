@@ -244,7 +244,8 @@ namespace midas {
    // Resize an ODB key
    void odb::resize(int size) {
       resize_mdata(size);
-      write();
+      if (this->is_auto_refresh_write())
+         write();
    }
 
    std::string odb::print() {
@@ -1294,7 +1295,7 @@ namespace midas {
       if (m_tid == 0)
          m_tid = TID_UINT8;
       set(v);
-      if (m_parent_odb)
+      if (m_parent_odb && m_parent_odb->is_auto_refresh_write())
          m_parent_odb->write();
       return v;
    }
@@ -1302,7 +1303,7 @@ namespace midas {
       if (m_tid == 0)
          m_tid = TID_INT8;
       set(v);
-      if (m_parent_odb)
+      if (m_parent_odb && m_parent_odb->is_auto_refresh_write())
          m_parent_odb->write();
       return v;
    }
@@ -1310,7 +1311,7 @@ namespace midas {
       if (m_tid == 0)
          m_tid = TID_UINT16;
       set(v);
-      if (m_parent_odb)
+      if (m_parent_odb && m_parent_odb->is_auto_refresh_write())
          m_parent_odb->write();
       return v;
    }
@@ -1318,7 +1319,7 @@ namespace midas {
       if (m_tid == 0)
          m_tid = TID_INT16;
       set(v);
-      if (m_parent_odb)
+      if (m_parent_odb && m_parent_odb->is_auto_refresh_write())
          m_parent_odb->write();
       return v;
    }
@@ -1326,7 +1327,7 @@ namespace midas {
       if (m_tid == 0)
          m_tid = TID_UINT32;
       set(v);
-      if (m_parent_odb)
+      if (m_parent_odb && m_parent_odb->is_auto_refresh_write())
          m_parent_odb->write();
       return v;
    }
@@ -1334,7 +1335,7 @@ namespace midas {
       if (m_tid == 0)
          m_tid = TID_INT32;
       set(v);
-      if (m_parent_odb)
+      if (m_parent_odb && m_parent_odb->is_auto_refresh_write())
          m_parent_odb->write();
       return v;
    }
@@ -1342,7 +1343,7 @@ namespace midas {
       if (m_tid == 0)
          m_tid = TID_BOOL;
       set(v);
-      if (m_parent_odb)
+      if (m_parent_odb && m_parent_odb->is_auto_refresh_write())
          m_parent_odb->write();
       return v;
    }
@@ -1350,7 +1351,7 @@ namespace midas {
       if (m_tid == 0)
          m_tid = TID_FLOAT;
       set(v);
-      if (m_parent_odb)
+      if (m_parent_odb && m_parent_odb->is_auto_refresh_write())
          m_parent_odb->write();
       return v;
    }
@@ -1358,7 +1359,7 @@ namespace midas {
       if (m_tid == 0)
          m_tid = TID_DOUBLE;
       set(v);
-      if (m_parent_odb)
+      if (m_parent_odb && m_parent_odb->is_auto_refresh_write())
          m_parent_odb->write();
       return v;
    }
@@ -1366,7 +1367,7 @@ namespace midas {
       if (m_tid == 0)
          m_tid = TID_STRING;
       set(v);
-      if (m_parent_odb)
+      if (m_parent_odb && m_parent_odb->is_auto_refresh_write())
          m_parent_odb->write();
       return v;
    }
@@ -1375,7 +1376,7 @@ namespace midas {
       if (m_tid == 0)
          m_tid = TID_STRING;
        set(*v);
-       if (m_parent_odb)
+      if (m_parent_odb && m_parent_odb->is_auto_refresh_write())
           m_parent_odb->write();
        return v;
    }
@@ -1384,7 +1385,7 @@ namespace midas {
       if (m_tid == 0)
          m_tid = TID_STRING;
       set(v);
-      if (m_parent_odb)
+      if (m_parent_odb && m_parent_odb->is_auto_refresh_write())
          m_parent_odb->write();
       return v;
    }
@@ -1392,7 +1393,7 @@ namespace midas {
    void u_odb::set_string_size(std::string v, int size) {
       m_tid = TID_STRING;
       set(v);
-      if (m_parent_odb)
+      if (m_parent_odb && m_parent_odb->is_auto_refresh_write())
          m_parent_odb->write(size);
    }
 
@@ -1485,7 +1486,7 @@ namespace midas {
       else
          mthrow("Invalid arithmetic operation for ODB key \"" +
                 m_parent_odb->get_full_path() + "\"");
-      if (write)
+      if (write && m_parent_odb->is_auto_refresh_write())
          m_parent_odb->write();
    }
 
@@ -1510,7 +1511,7 @@ namespace midas {
       else
          mthrow("Invalid operation for ODB key \"" +
                 m_parent_odb->get_full_path() + "\"");
-      if (write)
+      if (write && m_parent_odb->is_auto_refresh_write())
          m_parent_odb->write();
    }
 
