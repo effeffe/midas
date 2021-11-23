@@ -368,8 +368,12 @@ namespace midas {
             if (status != DB_SUCCESS && status != DB_CREATED && status != DB_KEY_EXIST)
                mthrow("Cannot create ODB key \"" + m_name + "\", status" + std::to_string(status));
             db_find_link(m_hDB, 0, m_name.c_str(), &m_hKey);
-            if (m_debug)
-               std::cout << "Created ODB key " + get_full_path() << std::endl;
+            if (m_debug) {
+               if (m_name[0] == '/')
+                  std::cout << "Created ODB key \"" + m_name + "\"" << std::endl;
+               else
+                  std::cout << "Created ODB key \"" + get_full_path() + "\"" << std::endl;
+            }
             // strip path from name
             if (m_name.find_last_of('/') != std::string::npos)
                m_name = m_name.substr(m_name.find_last_of('/') + 1);
@@ -539,8 +543,12 @@ namespace midas {
             status = db_find_link(m_hDB, 0, path.c_str(), &m_hKey);
             if (status != DB_SUCCESS)
                mthrow("ODB key \"" + path + "\" not found after creation");
-            if (m_debug)
-               std::cout << "Created ODB key " + get_full_path() << std::endl;
+            if (m_debug) {
+               if (path[0] == '/')
+                  std::cout << "Created ODB key \"" + path + "\"" << std::endl;
+               else
+                  std::cout << "Created ODB key \"" + get_full_path() + "\"" << std::endl;
+            }
          } else
             mthrow("ODB key \"" + path + "\" cannot be found");
          return true;
@@ -788,8 +796,12 @@ namespace midas {
             if (status != DB_SUCCESS && status != DB_CREATED && status != DB_KEY_EXIST)
                mthrow("Cannot create ODB key \"" + m_name + "\", status =" + std::to_string(status));
             db_find_link(m_hDB, 0, m_name.c_str(), &m_hKey);
-            if (m_debug)
-               std::cout << "Created ODB key " + get_full_path() << std::endl;
+            if (m_debug) {
+               if (m_name[0] == '/')
+                  std::cout << "Created ODB key \"" + m_name + "\"" << std::endl;
+               else
+                  std::cout << "Created ODB key \"" + get_full_path() + "\"" << std::endl;
+            }
             // strip path from name
             if (m_name.find_last_of('/') != std::string::npos)
                m_name = m_name.substr(m_name.find_last_of('/') + 1);
@@ -904,8 +916,12 @@ namespace midas {
             if (status != DB_SUCCESS && status != DB_CREATED && status != DB_KEY_EXIST)
                mthrow("Cannot create ODB key \"" + m_name + "\", status" + std::to_string(status));
             db_find_link(m_hDB, 0, m_name.c_str(), &m_hKey);
-            if (m_debug)
-               std::cout << "Created ODB key " + get_full_path() << std::endl;
+            if (m_debug) {
+               if (m_name[0] == '/')
+                  std::cout << "Created ODB key \"" + m_name + "\"" << std::endl;
+               else
+                  std::cout << "Created ODB key \"" + get_full_path() + "\"" << std::endl;
+            }
             // strip path from name
             if (m_name.find_last_of('/') != std::string::npos)
                m_name = m_name.substr(m_name.find_last_of('/') + 1);
