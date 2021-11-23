@@ -166,9 +166,11 @@ INT mscbhvr_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
    }
 
    /* read all values from HVR devices */
+   if (channels > 200)
+      printf("\n");
    for (i=0 ; i<channels ; i++) {
 
-      if (i % 10 == 0)
+      if (channels > 200 && i % 10 == 0)
          printf("%s: %d\r", key.name, i);
 
       status = mscbhvr_read_all(info, i);
@@ -177,7 +179,8 @@ INT mscbhvr_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
       
       cm_periodic_tasks();
    }
-   printf("%s: %d\n", key.name, i);
+   if (channels > 200)
+      printf("%s: %d\n", key.name, i);
 
    /* turn on HV main switch */
    flag = 3;
