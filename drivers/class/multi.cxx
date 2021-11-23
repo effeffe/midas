@@ -153,7 +153,7 @@ void multi_read(EQUIPMENT *pequipment, int channel) {
 /*----------------------------------------------------------------------------*/
 
 void multi_read_output(EQUIPMENT *pequipment, int channel) {
-   int i, status;
+   int i;
    float value;
    MULTI_INFO *m_info;
    HNDLE hDB;
@@ -164,13 +164,13 @@ void multi_read_output(EQUIPMENT *pequipment, int channel) {
    if (channel == -1) {
       for (i = 0; i < m_info->num_channels_output; i++) {
          if (m_info->driver_output[i]->flags & DF_MULTITHREAD)
-            status = device_driver(m_info->driver_output[i], CMD_GET_DIRECT,
-                                   i - m_info->channel_offset_output[i],
-                                   &value);
+            device_driver(m_info->driver_output[i], CMD_GET_DIRECT,
+                          i - m_info->channel_offset_output[i],
+                          &value);
          else
-            status = device_driver(m_info->driver_output[i], CMD_GET,
-                                   i - m_info->channel_offset_input[i],
-                                   &value);
+            device_driver(m_info->driver_output[i], CMD_GET,
+                          i - m_info->channel_offset_input[i],
+                          &value);
 
          value = (value + m_info->offset_output[i]) / m_info->factor_output[i];
 
