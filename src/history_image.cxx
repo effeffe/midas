@@ -88,7 +88,7 @@ int mkpath(std::string dir, mode_t mode)
 
 void image_thread(std::string name) {
    DWORD last_check_delete = 0;
-   midas::odb o("/History/Images/"+name);
+   midas::odb o(("/History/Images/"+name).c_str());
 #ifdef HAVE_OPENCV
    cv::VideoCapture* cap = new cv::VideoCapture();
    //Track the number of times we have failed to connect to prevent error spam
