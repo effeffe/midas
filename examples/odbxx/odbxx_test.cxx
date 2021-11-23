@@ -105,12 +105,17 @@ int main() {
    midas::odb oi(o["Int32 Key"]);
    oi = 123;
 
-   // test auto refresh
-   std::cout << oi << std::endl;    // each read access reads value from ODB
-   oi.set_auto_refresh_read(false); // turn off auto refresh
-   std::cout << oi << std::endl;    // this does not read value from ODB
-   oi.read();                       // this forces a manual read
+   // test auto refresh read
+   std::cout << oi << std::endl;     // each read access reads value from ODB
+   oi.set_auto_refresh_read(false);  // turn off auto refresh
+   std::cout << oi << std::endl;     // this does not read value from ODB
+   oi.read();                        // this forces a manual read
    std::cout << oi << std::endl;
+
+   // test auto refresh write
+   oi.set_auto_refresh_write(false); // turn off auto refresh write
+   oi = 321;                         // this does not write a value to the ODB
+   oi.write();                       // this forces a manual write
 
    // create ODB entries on-the-fly
    midas::odb ot;

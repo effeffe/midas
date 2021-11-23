@@ -656,11 +656,14 @@ namespace midas {
             m_data[0].set_tid(m_tid);
             m_data[0].set_parent(this);
             m_data[0].set(v);
-            write();
+            if (this->is_auto_refresh_write())
+               write();
          } else {
             for (int i = 0; i < m_num_values; i++)
                m_data[i].set(v);
-            write();
+
+            if (this->is_auto_refresh_write())
+               write();
          }
          return v;
       }
@@ -690,7 +693,9 @@ namespace midas {
          for (int i = 0; i < m_num_values; i++)
             m_data[i].set(v[i]);
 
-         write();
+         if (this->is_auto_refresh_write())
+            write();
+
          return v;
       }
 
@@ -719,7 +724,8 @@ namespace midas {
          for (int i = 0; i < m_num_values; i++)
             m_data[i].set(arr[i]);
 
-         write();
+         if (this->is_auto_refresh_write())
+            write();
          return arr;
       }
 
@@ -798,7 +804,8 @@ namespace midas {
          } else if (index >= m_num_values) {
             if (is_auto_enlarge_array()) {
                resize_mdata(index+1);
-               write(index, 0);
+               if (this->is_auto_refresh_write())
+                  write(index, 0);
             } else {
                throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" + get_full_path() + "[0..." + std::to_string(m_num_values - 1) + "]\", please consider set_auto_enlarge_array(true)");
             }
@@ -832,11 +839,13 @@ namespace midas {
                m_data[0].set_tid(m_tid);
                m_data[0].set_parent(this);
                m_data[0].set(v);
-               write();
+               if (this->is_auto_refresh_write())
+                  write();
             } else {
                for (int i = 0; i < m_num_values; i++)
                   m_data[i].set(v);
-               write();
+               if (this->is_auto_refresh_write())
+                  write();
             }
          }
          return *this;
@@ -922,7 +931,8 @@ namespace midas {
             read();
          for (int i = 0; i < m_num_values; i++)
             m_data[i].add(1, false);
-         write();
+         if (this->is_auto_refresh_write())
+            write();
          return *this;
       }
 
@@ -933,7 +943,8 @@ namespace midas {
             read();
          for (int i = 0; i < m_num_values; i++)
             m_data[i].add(1, false);
-         write();
+         if (this->is_auto_refresh_write())
+            write();
          return o;
       }
 
@@ -942,7 +953,8 @@ namespace midas {
             read();
          for (int i = 0; i < m_num_values; i++)
             m_data[i].add(-1, false);
-         write();
+         if (this->is_auto_refresh_write())
+            write();
          return *this;
       }
 
@@ -953,7 +965,8 @@ namespace midas {
             read();
          for (int i = 0; i < m_num_values; i++)
             m_data[i].add(-1, false);
-         write();
+         if (this->is_auto_refresh_write())
+            write();
          return o;
       }
 
@@ -962,7 +975,8 @@ namespace midas {
             read();
          for (int i = 0; i < m_num_values; i++)
             m_data[i].add(d, false);
-         write();
+         if (this->is_auto_refresh_write())
+            write();
          return *this;
       }
 
@@ -971,7 +985,8 @@ namespace midas {
             read();
          for (int i = 0; i < m_num_values; i++)
             m_data[i].add(-d, false);
-         write();
+         if (this->is_auto_refresh_write())
+            write();
          return *this;
       }
 
@@ -980,7 +995,8 @@ namespace midas {
             read();
          for (int i = 0; i < m_num_values; i++)
             m_data[i].mult(d, false);
-         write();
+         if (this->is_auto_refresh_write())
+            write();
          return *this;
       }
 
@@ -991,7 +1007,8 @@ namespace midas {
             mthrow("Division by zero");
          for (int i = 0; i < m_num_values; i++)
             m_data[i].mult(1 / d, false);
-         write();
+         if (this->is_auto_refresh_write())
+            write();
          return *this;
       }
 
