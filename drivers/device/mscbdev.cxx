@@ -53,8 +53,6 @@ INT addr_changed(HNDLE hDB, HNDLE hKey, void *arg)
 
    /* get info about MSCB channels */
    for (i = 0; i < info->num_channels; i++) {
-      printf("  %d\r", i);
-      fflush(stdout);
       status = mscb_info_variable(info->fd, info->mscbdev_settings.mscb_address[i],
                                   info->mscbdev_settings.mscb_index[i], &var_info);
       if (status == MSCB_SUCCESS) {
@@ -70,7 +68,6 @@ INT addr_changed(HNDLE hDB, HNDLE hKey, void *arg)
          return FE_ERR_HW;
       }
    }
-   printf("\n");
 
    return FE_SUCCESS;
 }
