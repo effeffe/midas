@@ -522,9 +522,6 @@ namespace midas {
          m_data[0].set_parent(this);
       }
 
-      // Constructor for strings
-      odb(const char *v);
-
       // Constructor with std::initializer_list
       odb(std::initializer_list<std::pair<const char *, midas::odb>> list) : odb() {
          m_tid = TID_KEY;
@@ -599,12 +596,13 @@ namespace midas {
       }
 
       // Constructor for std::string
-      odb(const std::string &s) : odb() {
-         // Construct object from initializer_list
-         m_num_values = 1;
-         m_data = new u_odb[1]{new std::string{s}};
-         m_tid = m_data[0].get_tid();
-         m_data[0].set_parent(this);
+      odb(const std::string &str) : odb() {
+         odb_from_string(str);
+      }
+
+      // Constructor for C strings
+      odb(const char *v) : odb() {
+         odb_from_string(std::string(v));
       }
 
       // Constructor with const char * array
@@ -1076,11 +1074,11 @@ namespace midas {
       static void set_debug(bool flag) { m_debug = flag; }
       static bool get_debug() { return m_debug; }
       static int create(const char *name, int type = TID_KEY);
-      static bool exists(std::string name);
-      static int delete_key(std::string name);
+      static bool exists(const std::string &name);
+      static int delete_key(const std::string &name);
 
-
-      void connect(std::string path, std::string name, bool write_defaults, bool delete_keys_not_in_defaults = false);
+      void odb_from_string(const std::string &s);
+      void connect(const std::string &path, const std::string &name, bool write_defaults, bool delete_keys_not_in_defaults = false);
       void connect(std::string str, bool write_defaults = false, bool delete_keys_not_in_defaults = false);
       void connect_and_fix_structure(std::string path);
       static bool is_connected_odb() { return m_connected_odb; }

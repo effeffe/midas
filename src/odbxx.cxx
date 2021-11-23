@@ -61,7 +61,7 @@ namespace midas {
    }
 
    // check if a key exists in the ODB
-   bool odb::exists(std::string name) {
+   bool odb::exists(const std::string &name) {
       init_hdb();
       if (!odb::is_connected_odb())
          return false;
@@ -70,7 +70,7 @@ namespace midas {
    }
 
    // delete a key in the ODB
-   int odb::delete_key(std::string name) {
+   int odb::delete_key(const std::string &name) {
       init_hdb();
       if (!odb::is_connected_odb())
          return false;
@@ -115,6 +115,37 @@ namespace midas {
       if (m_tid == TID_KEY) {
          for (int i = 0; i < m_num_values; i++)
             m_data[i].get_odb().set_flags_recursively(f);
+      }
+   }
+
+   void odb::odb_from_string(const std::string &str) {
+      if (str[0] == '/') {
+         std::string s(str);
+         if (!read_key(s))
+            mthrow("ODB key \"" + s + "\" not found in ODB");
+
+         if (m_tid == TID_KEY) {
+            std::vector<std::string> name;
+            m_num_values = get_subkeys(name);
+            delete[] m_data;
+            m_data = new midas::u_odb[m_num_values]{};
+            for (int i = 0; i < m_num_values; i++) {
+               std::string k(s);
+               k += "/" + name[i];
+               auto *o = new midas::odb(k.c_str());
+               o->set_parent(this);
+               m_data[i].set_tid(TID_KEY);
+               m_data[i].set_parent(this);
+               m_data[i].set(o);
+            }
+         } else
+            read();
+      } else {
+         // Construct object from initializer_list
+         m_num_values = 1;
+         m_data = new u_odb[1]{new std::string{str}};
+         m_tid = m_data[0].get_tid();
+         m_data[0].set_parent(this);
       }
    }
 
@@ -188,38 +219,6 @@ namespace midas {
             // simply pass basic types
             m_data[i] = o.m_data[i];
          }
-      }
-   }
-
-   // Constructor for C strings
-   odb::odb(const char *v) : odb() {
-      if (v[0] == '/') {
-         std::string s(v);
-         if (!read_key(s))
-            mthrow("ODB key \"" + s + "\" not found in ODB");
-
-         if (m_tid == TID_KEY) {
-            std::vector<std::string> name;
-            m_num_values = get_subkeys(name);
-            delete[] m_data;
-            m_data = new midas::u_odb[m_num_values]{};
-            for (int i = 0; i < m_num_values; i++) {
-               std::string k(s);
-               k += "/" + name[i];
-               midas::odb *o = new midas::odb(k.c_str());
-               o->set_parent(this);
-               m_data[i].set_tid(TID_KEY);
-               m_data[i].set_parent(this);
-               m_data[i].set(o);
-            }
-         } else
-            read();
-      } else {
-         // Construct object from initializer_list
-         m_num_values = 1;
-         m_data = new u_odb[1]{new std::string{v}};
-         m_tid = m_data[0].get_tid();
-         m_data[0].set_parent(this);
       }
    }
 
@@ -1124,12 +1123,12 @@ namespace midas {
    }
 
    // write function with separated path and key name
-   void odb::connect(std::string path, std::string name, bool write_defaults, bool delete_keys_not_in_defaults) {
+   void odb::connect(const std::string &p, const std::string &name, bool write_defaults, bool delete_keys_not_in_defaults) {
       init_hdb();
 
       if (!name.empty())
          m_name = name;
-      path += "/" + m_name;
+      std::string path(p + "/" + m_name);
 
       HNDLE hKey;
       int status = db_find_link(m_hDB, 0, path.c_str(), &hKey);
