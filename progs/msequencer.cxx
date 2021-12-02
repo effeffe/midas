@@ -1512,8 +1512,6 @@ void sequencer()
             if (mxml_get_attribute(pn, "notify"))
                notify = atoi(mxml_get_attribute(pn, "notify"));
             
-            if (key.item_size < 32)
-               key.item_size = 32;
             db_set_data_index1(hDB, hKey, data, key.item_size, index1, key.type, notify);
             seq.current_line_number++;
          }
