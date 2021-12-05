@@ -137,7 +137,7 @@
                { "path": "/History/Display/Default/Trigger rate/Show run markers", "type" : TID_BOOL},
                { "path": "/History/Display/Default/Trigger rate/Label", "type" : TID_STRING, "string_length": 32},
                { "path": "/History/Display/Default/Trigger rate/Colour", "type" : TID_STRING, "string_length": 32},
-               { "path": "/History/Display/Default/Trigger rate/Formula", "type" : TID_STRING, "string_length": 256},
+               { "path": "/History/Display/Default/Trigger rate/Formula", "type" : TID_STRING, "string_length": 64},
             ];
             mjsonrpc_db_create(keys).then(function(rpc) {
 
@@ -224,7 +224,7 @@
             } else {
                h +=    "<td colspan=2 class=\"titleCell\"><a href=\"" + baseURL + "&group=All\">ALL</a></td>\n";
             }
-            h +=    "/<tr>";
+            h +=    "</tr>";
 
 
             Object.keys(historyDisplay).forEach(group => {

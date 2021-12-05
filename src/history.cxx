@@ -3575,7 +3575,7 @@ values for everything else
 "Maximum = FLOAT : inf",\
 "Label = STRING : [32] ",\
 "Colour = STRING : [32] ",\
-"Formula = STRING : [256] ",\
+"Formula = STRING : [64] ",\
 "Show fill = BOOL : y",\
 "",\
 NULL }
@@ -3609,7 +3609,7 @@ INT hs_define_panel(const char *group, const char *panel, const std::vector<std:
       db_set_data_index(hDB, hKeyVar, v.c_str(), 64, i, TID_STRING);
 
       str[0] = 0;
-      db_set_value_index(hDB, hKey, "Formula", str, 256, i, TID_STRING, false);
+      db_set_value_index(hDB, hKey, "Formula", str, 64, i, TID_STRING, false);
       db_set_value_index(hDB, hKey, "Label", str, 32, i, TID_STRING, false);
       db_set_value_index(hDB, hKey, "Colour", color[i < 16 ? i : 16], 32, i, TID_STRING, false);
 

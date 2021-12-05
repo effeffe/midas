@@ -10447,8 +10447,8 @@ static void SaveHistPlotToOdb(MVOdb* odb, const HistPlot& hp, const char* group,
    }
 
    if (hp.vars.size() > 0) {
-      o->WSA("Variables", hist_vars, 256);
-      o->WSA("Formula",   hist_formula, 256);
+      o->WSA("Variables", hist_vars, 64);
+      o->WSA("Formula",   hist_formula, 64);
       o->WSA("Colour",    hist_colour, NAME_LENGTH);
       o->WSA("Label",     hist_label, NAME_LENGTH);
       o->WBA("Show raw value", hist_show_raw_value);
@@ -11726,7 +11726,7 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
          char str[256];
          strcpy(str, "System:Trigger per sec.");
          strcpy(str + 2 * NAME_LENGTH, "System:Trigger kB per sec.");
-         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Variables", str, NAME_LENGTH * 4, 2, TID_STRING);
+         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Variables", str, 64, 2, TID_STRING);
          strcpy(str, "1h");
          db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Time Scale", str, NAME_LENGTH, 1, TID_STRING);
 
@@ -11738,8 +11738,8 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
          db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Show run markers", &i, sizeof(BOOL), 1, TID_BOOL);
 
          strcpy(str, "");
-         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Formula", str, 256, 1, TID_STRING);
-         db_set_value_index(hDB, 0, "/History/Display/Default/Trigger rate/Formula", str, 256, 1, TID_STRING, FALSE);
+         db_set_value(hDB, 0, "/History/Display/Default/Trigger rate/Formula", str, 64, 1, TID_STRING);
+         db_set_value_index(hDB, 0, "/History/Display/Default/Trigger rate/Formula", str, 64, 1, TID_STRING, FALSE);
       }
 
       db_find_key(hDB, 0, "/History/Display", &hkey);
