@@ -89,46 +89,57 @@ INT mscbhvr_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
    if (status != DB_SUCCESS)
       return FE_ERR_ODB;
 
-   /* calculate address from block address */
    info->settings.address = (int*)calloc(sizeof(INT), channels);
    assert(info->settings.address);
 
-   block_channels = channels;
-   status = db_find_key(hDB, hkey, "Block address", &hsubkey);
+   status = db_find_key(hDB, hkey, "MSCB address", &hsubkey);
    if (status == DB_SUCCESS) {
-      db_get_key(hDB, hsubkey, &adrkey);
-      index = 0;
-      for (i=0 ; i<adrkey.num_values ; i++) {
-         size = sizeof(block_address);
-         status = db_find_key(hDB, hkey, "Block address", &hsubkey);
+      /* obtain individual addresses */
+      for (i = 0; i < channels; i++) {
+         int address = 0;
+         size = sizeof(address);
+         status = db_get_data_index(hDB, hsubkey, &address, &size, i, TID_INT);
          assert(status == DB_SUCCESS);
-         status = db_get_data_index(hDB, hsubkey, &block_address, &size, i, TID_INT);
-         assert(status == DB_SUCCESS);
-         size = sizeof(block_channels);
-         db_find_key(hDB, hkey, "Block channels", &hsubkey);
-         assert(status == DB_SUCCESS);
-         status = db_get_data_index(hDB, hsubkey, &block_channels, &size, i, TID_INT);
-         assert(status == DB_SUCCESS);
-
-         for (j = 0 ; j<block_channels && index < channels ; j++)
-            info->settings.address[index++] = block_address + j;
+         info->settings.address[i] = address;
       }
    } else {
-      block_address = 0;
-      size = sizeof(INT);
-      status = db_set_value(hDB, hkey, "Block address", &block_address, size, 1, TID_INT);
-      if (status != DB_SUCCESS)
-         return FE_ERR_ODB;
+      /* calculate address from block address */
       block_channels = channels;
-      size = sizeof(INT);
-      status = db_set_value(hDB, hkey, "Block channels", &block_channels, size, 1, TID_INT);
-      if (status != DB_SUCCESS)
-         return FE_ERR_ODB;
+      status = db_find_key(hDB, hkey, "Block address", &hsubkey);
+      if (status == DB_SUCCESS) {
+         db_get_key(hDB, hsubkey, &adrkey);
+         index = 0;
+         for (i = 0; i < adrkey.num_values; i++) {
+            size = sizeof(block_address);
+            status = db_find_key(hDB, hkey, "Block address", &hsubkey);
+            assert(status == DB_SUCCESS);
+            status = db_get_data_index(hDB, hsubkey, &block_address, &size, i, TID_INT);
+            assert(status == DB_SUCCESS);
+            size = sizeof(block_channels);
+            db_find_key(hDB, hkey, "Block channels", &hsubkey);
+            assert(status == DB_SUCCESS);
+            status = db_get_data_index(hDB, hsubkey, &block_channels, &size, i, TID_INT);
+            assert(status == DB_SUCCESS);
 
-      for (j = 0 ; j<block_channels ; j++)
-         info->settings.address[j] = j;
+            for (j = 0; j < block_channels && index < channels; j++)
+               info->settings.address[index++] = block_address + j;
+         }
+      } else {
+         block_address = 0;
+         size = sizeof(INT);
+         status = db_set_value(hDB, hkey, "Block address", &block_address, size, 1, TID_INT);
+         if (status != DB_SUCCESS)
+            return FE_ERR_ODB;
+         block_channels = channels;
+         size = sizeof(INT);
+         status = db_set_value(hDB, hkey, "Block channels", &block_channels, size, 1, TID_INT);
+         if (status != DB_SUCCESS)
+            return FE_ERR_ODB;
+
+         for (j = 0; j < block_channels; j++)
+            info->settings.address[j] = j;
+      }
    }
-
 
    /* open device on MSCB */
    info->fd = mscb_init(info->settings.mscb_device, NAME_LENGTH, info->settings.pwd, info->settings.debug);
@@ -199,6 +210,8 @@ INT mscbhvr_read_all(MSCBHVR_INFO * info, int i)
    unsigned char buffer[256], *pbuf;
    char str[256];
 
+   // printf("## mscbhvr_read_all addr %d\n", i);
+
    size = sizeof(buffer);
    status = mscb_read_range(info->fd, info->settings.address[i], 0, 12, buffer, &size);
    if (status != MSCB_SUCCESS) {
@@ -265,6 +278,8 @@ INT mscbhvr_exit(MSCBHVR_INFO * info)
 
 INT mscbhvr_set(MSCBHVR_INFO * info, INT channel, float value)
 {
+   // printf("## mscbhvr_set channdl %d addr %d\n", channel, info->settings.address[channel]);
+
    mscb_write(info->fd, info->settings.address[channel], 1, &value, 4);
    return FE_SUCCESS;
 }
@@ -286,7 +301,7 @@ INT mscbhvr_get(MSCBHVR_INFO * info, INT channel, float *pvalue)
       return FE_SUCCESS;
    }
 
-   // printf("get: %d %03d %04d  \r", info->fd, channel, info->settings.address[channel]);
+   // printf("## mscbhvr_get channel %d addr %d\n", channel, info->settings.address[channel]);
 
    size = sizeof(buffer);
    status = mscb_read_range(info->fd, info->settings.address[channel], 2, 3, buffer, &size);
