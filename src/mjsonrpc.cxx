@@ -1004,6 +1004,35 @@ static MJsonNode* js_db_paste(const MJsonNode* params)
    return mjsonrpc_make_result("status", sresult);
 }
 
+static MJsonNode* js_db_save(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("Save ODB subtree to file");
+      doc->P("path", MJSON_STRING, "ODB path");
+      doc->P("filename", MJSON_STRING, "Filename so save ODB contents to");
+      doc->R("status", MJSON_INT, "return status of db_save");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   std::string path = mjsonrpc_get_param(params, "path", &error)->GetString();
+   std::string filename = mjsonrpc_get_param(params, "filename", &error)->GetString();
+
+   HNDLE hDB, hKey;
+   cm_get_experiment_database(&hDB, NULL);
+
+   int status = db_find_key(hDB, 0, path.c_str(), &hKey);
+   if (status != DB_SUCCESS) {
+      return mjsonrpc_make_result("status",  MJsonNode::MakeInt(status));
+   }
+
+   status = db_save(hDB, hKey, filename.c_str(), FALSE);
+
+   return mjsonrpc_make_result("status",  MJsonNode::MakeInt(status));
+}
+
 static MJsonNode* js_db_create(const MJsonNode* params)
 {
    if (!params) {
@@ -3808,6 +3837,7 @@ void mjsonrpc_init()
    // interface to odb functions
    mjsonrpc_add_handler("db_copy",     js_db_copy);
    mjsonrpc_add_handler("db_paste",    js_db_paste);
+   mjsonrpc_add_handler("db_save",     js_db_save);
    mjsonrpc_add_handler("db_get_values", js_db_get_values);
    mjsonrpc_add_handler("db_ls",       js_db_ls);
    mjsonrpc_add_handler("db_create", js_db_create);

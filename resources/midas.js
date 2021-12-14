@@ -695,6 +695,33 @@ function mjsonrpc_db_paste(paths, values, id) {
    return mjsonrpc_call("db_paste", req, id);
 }
 
+function mjsonrpc_db_save(path, filename, id) {
+   /// \ingroup mjsonrpc_js
+   /// Write part of ODB to file.
+   ///
+   /// RPC method: "db_save"
+   ///
+   /// \code
+   /// mjsonrpc_db_save("/runinfo", "runinfo.odb"]).then(function(rpc) {
+   ///    var req    = rpc.request; // reference to the rpc request
+   ///    var id     = rpc.id;      // rpc response id (should be same as req.id)
+   ///    var status = rpc.result.status;  // return status of MIDAS cm_msg1()
+   ///    ...
+   /// }).catch(function(error) {
+   ///    mjsonrpc_error_alert(error);
+   /// });
+   /// \endcode
+   /// @param[in] ODB paths (string)
+   /// @param[in] filename (string)
+   /// @param[in] id optional request id (see JSON-RPC specs) (object)
+   /// @returns new Promise
+   ///
+   var req = new Object();
+   req.path = path;
+   req.filename = filename;
+   return mjsonrpc_call("db_save", req, id);
+}
+
 function mjsonrpc_db_set_value(path, value, id) {
    /// \ingroup mjsonrpc_js
    /// Write value info ODB.
