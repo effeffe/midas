@@ -242,6 +242,16 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
 	              }).catch(function(error) { mjsonrpc_error_alert(error); });'>
       </p>
 
+      <h2>mjsonrpc_db_load()</h2>
+
+      <p>
+         <input type=button value='Push me'
+                onClick='
+	              mjsonrpc_db_load("runinfo.odb").then(function(rpc) {
+                 mjsonrpc_debug_alert(rpc);
+	              }).catch(function(error) { mjsonrpc_error_alert(error); });'>
+      </p>
+
       <h2>mjsonrpc_db_ls()</h2>
 
       <p>
