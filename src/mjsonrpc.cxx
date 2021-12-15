@@ -935,7 +935,14 @@ static MJsonNode* js_db_paste(const MJsonNode* params)
       const MJsonNode* v = (*values)[i];
       assert(v != NULL);
 
-      if (path.find("[") != std::string::npos) {
+      if (path.find("[*]") != std::string::npos) {
+
+         KEY key;
+         db_get_key(hDB, hkey, &key);
+         for (int j=0 ; j<key.num_values ; j++)
+            status = db_paste_json_node(hDB, hkey, j, v);
+
+      } else if (path.find("[") != std::string::npos) {
          std::vector<unsigned> list;
          status = parse_array_index_list("js_db_paste", path.c_str(), &list);
 
@@ -973,24 +980,24 @@ static MJsonNode* js_db_paste(const MJsonNode* params)
 
             MJsonNode *ssresult = MJsonNode::MakeArray();
 
-            for (unsigned i=0; i<list.size(); i++) {
-               const MJsonNode* vv = (*vvalues)[i];
+            for (unsigned j =0; j <list.size(); j++) {
+               const MJsonNode* vv = (*vvalues)[j];
 
                if (vv == NULL) {
-                  cm_msg(MERROR, "js_db_paste", "internal error: NULL array value at index %d for array path \"%s\"", i, path.c_str());
+                  cm_msg(MERROR, "js_db_paste", "internal error: NULL array value at index %d for array path \"%s\"", j, path.c_str());
                   sresult->AddToArray(MJsonNode::MakeInt(DB_TYPE_MISMATCH));
                   continue;
                }
 
-               status = db_paste_json_node(hDB, hkey, list[i], vv);
+               status = db_paste_json_node(hDB, hkey, list[j], vv);
                ssresult->AddToArray(MJsonNode::MakeInt(status));
             }
             
             sresult->AddToArray(ssresult);
          } else {
             MJsonNode *ssresult = MJsonNode::MakeArray();
-            for (unsigned i=0; i<list.size(); i++) {
-               status = db_paste_json_node(hDB, hkey, list[i], v);
+            for (unsigned j =0; j <list.size(); j++) {
+               status = db_paste_json_node(hDB, hkey, list[j], v);
                ssresult->AddToArray(MJsonNode::MakeInt(status));
             }
             sresult->AddToArray(ssresult);
