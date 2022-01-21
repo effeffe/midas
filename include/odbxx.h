@@ -1100,6 +1100,7 @@ namespace midas {
       bool is_subkey(std::string str);
       HNDLE get_hkey() { return m_hKey; }
       std::string get_full_path();
+      midas::odb get_parent_obj();
       int get_tid() { return m_tid; }
       int get_num_values() { return m_num_values; }
       std::string get_name() { return m_name; }
