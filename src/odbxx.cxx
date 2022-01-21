@@ -236,19 +236,11 @@ namespace midas {
    }
 
    // return parent object
-   midas::odb odb::get_parent_obj() {
-      if (m_parent) {
-         return new midas::odb(m_parent);
-      }
-      if (!is_connected_odb())
-         return nullptr;
-
+   std::string odb::get_parent_path() {
       std::string s = get_full_path();
       std::size_t i = s.find_last_of("/");
       s = s.substr(0, i);
-
-      midas::odb *o = new midas::odb(s.c_str());
-      return *o;
+      return s;
    }
 
    // return size of ODB key
