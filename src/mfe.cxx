@@ -2574,6 +2574,12 @@ int main(int argc, char *argv[])
       return 1;
    }
 
+   if (event_buffer_size > 100 * 1024*1024) {
+      cm_msg(MERROR, "mainFE", "event_buffer_size %d exceeds 100 MB\n", event_buffer_size);
+      ss_sleep(5000);
+      return 1;
+   }
+
 #ifdef OS_VXWORKS
    /* override event_buffer_size in case of VxWorks
       take remaining free memory and use 20% of it for rb_ */
