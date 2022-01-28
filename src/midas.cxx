@@ -16828,7 +16828,9 @@ int rb_increment_wp(int handle, int size)
       rb[h].ep = new_wp;
       new_wp = rb[h].buffer;
       assert(rb[h].rp != rb[h].buffer);
-   }
+   } else
+      if (new_wp > rb[h].ep)
+         rb[h].ep = new_wp;
 
    rb[h].wp = new_wp;
 
@@ -16949,8 +16951,8 @@ int rb_increment_rp(int handle, int size)
 
    new_rp = rb[h].rp + size;
 
-   /* wrap around if not enough space left */
-   if (new_rp + rb[h].max_event_size > rb[h].buffer + rb[h].size)
+   /* wrap around if end pointer reached */
+   if (new_rp >= rb[h].ep && rb[h].wp < rb[h].ep)
       new_rp = rb[h].buffer;
 
    rb[handle - 1].rp = new_rp;
