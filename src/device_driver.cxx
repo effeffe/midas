@@ -98,6 +98,25 @@ static int sc_thread(void *info)
             }
          }
 
+         // copy potential set value to get/get_demand buffers to avoid old value there to be copied to ODB
+         for (i = 0; i < device_drv->channels; i++) {
+
+            for (cmd = CMD_SET_FIRST; cmd <= CMD_SET_LAST; cmd++) {
+               if (!ss_isnan(device_drv->mt_buffer->channel[i].variable[cmd])) {
+                  ss_mutex_wait_for(device_drv->mutex, 1000);
+                  value = device_drv->mt_buffer->channel[i].variable[cmd];
+                  ss_mutex_release(device_drv->mutex);
+
+                  if (cmd == CMD_SET) {
+                     ss_mutex_wait_for(device_drv->mutex, 1000);
+                     device_drv->mt_buffer->channel[i].variable[CMD_GET] = value;
+                     device_drv->mt_buffer->channel[i].variable[CMD_GET_DEMAND] = value;
+                     ss_mutex_release(device_drv->mutex);
+                  }
+               }
+            }
+         }
+
          /* check if anything to write to device */
          for (i = 0; i < device_drv->channels; i++) {
 
@@ -110,13 +129,8 @@ static int sc_thread(void *info)
 
                   status = device_drv->dd(cmd, device_drv->dd_info, i, value);
                   device_drv->mt_buffer->status = status;
-                  if (cmd == CMD_SET) {
+                  if (cmd == CMD_SET)
                      last_update[i] = ss_millitime();
-
-                     // copy to get/get_demand buffers to avoid old value there to be copied to ODB
-                     device_drv->mt_buffer->channel[i].variable[CMD_GET] = value;
-                     device_drv->mt_buffer->channel[i].variable[CMD_GET_DEMAND] = value;
-                  }
                }
             }
          }
