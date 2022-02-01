@@ -110,8 +110,13 @@ static int sc_thread(void *info)
 
                   status = device_drv->dd(cmd, device_drv->dd_info, i, value);
                   device_drv->mt_buffer->status = status;
-                  if (cmd == CMD_SET)
+                  if (cmd == CMD_SET) {
                      last_update[i] = ss_millitime();
+
+                     // copy to get/get_demand buffers to avoid old value there to be copied to ODB
+                     device_drv->mt_buffer->channel[i].variable[CMD_GET] = value;
+                     device_drv->mt_buffer->channel[i].variable[CMD_GET_DEMAND] = value;
+                  }
                }
             }
          }
