@@ -16,6 +16,8 @@
 #include <assert.h>
 #include <string.h>
 #include <vector>
+#include <iostream>
+#include <sstream>
 
 #define XNAME_LENGTH 256
 
@@ -124,6 +126,24 @@ static std::string qtoString(int v)
 static std::string q(const char* s)
 {
    return "\"" + std::string(s) + "\"";
+}
+
+/*------------------------------------------------------------------*/
+
+bool is_valid_number(char *str)
+{
+   std::string s(str);
+   std::stringstream ss;
+   ss << s;
+   double num = 0;
+   ss >> num;
+   if (ss.good())
+      return false;
+   else if (num == 0 && s[0] != 0)
+      return false;
+   else if (s[0] == 0)
+      return false;
+   return true;
 }
 
 /*------------------------------------------------------------------*/
@@ -369,10 +389,7 @@ int eval_condition(SEQUENCER& seq, const char *condition)
       return -1;
    if (!eval_var(seq, value2_str, value2_var, sizeof(value2_var)))
       return -1;
-   for (i=0 ; i<(int)strlen(value1_var) ; i++)
-      if (strchr("0123456789.+-Ee", value1_var[i]) == NULL)
-         break;
-   if (i < (int)strlen(value1_var) || strlen(value1_var) == 0) {
+   if (!is_valid_number(value1_var) || !is_valid_number(value2_str)) {
       // string comparison
       if (strcmp(op, "=") == 0)
          return equal_ustring(value1_var, value2_var) ? 1 : 0;
@@ -385,12 +402,6 @@ int eval_condition(SEQUENCER& seq, const char *condition)
    }
    
    // numeric comparison
-   for (i=0 ; i<(int)strlen(value2_var) ; i++)
-      if (strchr("0123456789.+-Ee", value2_var[i]) != NULL)
-         break;
-   if (i == (int)strlen(value2_var))
-      return -1;
-
    value1 = strtod(value1_var, NULL);
    value2 = strtod(value2_var, NULL);
    
