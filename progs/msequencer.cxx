@@ -372,7 +372,7 @@ int eval_condition(SEQUENCER& seq, const char *condition)
    for (i=0 ; i<(int)strlen(value1_var) ; i++)
       if (strchr("0123456789.+-Ee", value1_var[i]) == NULL)
          break;
-   if (i < (int)strlen(value1_var)) {
+   if (i < (int)strlen(value1_var) || strlen(value1_var) == 0) {
       // string comparison
       if (strcmp(op, "=") == 0)
          return equal_ustring(value1_var, value2_var) ? 1 : 0;
