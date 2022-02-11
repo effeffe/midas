@@ -45,13 +45,13 @@ BOOL frontend_call_loop = FALSE;
 INT display_period = 3000;
 
 /* maximum event size produced by this frontend */
-INT max_event_size = 10000;
+INT max_event_size = 1024 * 1024; // 1 MB
 
 /* maximum event size for fragmented events (EQ_FRAGMENTED) */
-INT max_event_size_frag = 5 * 1024 * 1024;
+INT max_event_size_frag = 5 * 1024 * 1024; // 5 MB
 
 /* buffer size to hold events */
-INT event_buffer_size = 100 * 10000;
+INT event_buffer_size = 10 * 1024 * 1024; // 10 MB, must be > 2 * max_event_size
 
 /*-- Function declarations -----------------------------------------*/
 

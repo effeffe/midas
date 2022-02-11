@@ -1988,7 +1988,7 @@ static INT scheduler()
                               "Event size %ld larger than maximum size %d for frag. ev.",
                               (long) (pevent->data_size + sizeof(EVENT_HEADER)),
                               max_event_size_frag);
-                        assert(FALSE);
+                        pevent->data_size = 0;
                      }
                   } else {
                      if (pevent->data_size + sizeof(EVENT_HEADER) > (DWORD) max_event_size) {
@@ -1996,7 +1996,7 @@ static INT scheduler()
                               "Event size %ld larger than maximum size %d",
                               (long) (pevent->data_size + sizeof(EVENT_HEADER)),
                               max_event_size);
-                        assert(FALSE);
+                        pevent->data_size = 0;
                      }
                   }
 

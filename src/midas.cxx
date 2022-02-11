@@ -16095,10 +16095,20 @@ INT bk_close(void *event, void *pdata) {
       return pbk32->data_size;
    } else {
       BANK *pbk = (BANK *) ((char *) (((BANK_HEADER *) event) + 1) + ((BANK_HEADER *) event)->data_size);
-      pbk->data_size = (WORD) ((char *) pdata - (char *) (pbk + 1));
+      uint32_t size = (uint32_t) ((char *) pdata - (char *) (pbk + 1));
+      if (size > 0xFFFF) {
+         printf("Error: Bank size %d exceeds 16-bit limit of 65526, please use bk_init32() to create a 32-bit bank\n", size);
+         size = 0;
+      }
+      pbk->data_size = (WORD) (size);
       if (pbk->type == TID_STRUCT && pbk->data_size == 0)
          printf("Warning: TID_STRUCT bank %c%c%c%c has zero size\n", pbk->name[0], pbk->name[1], pbk->name[2], pbk->name[3]);
-      ((BANK_HEADER *) event)->data_size += sizeof(BANK) + ALIGN8(pbk->data_size);
+      size = ((BANK_HEADER *) event)->data_size + sizeof(BANK) + ALIGN8(pbk->data_size);
+      if (size > 0xFFFF) {
+         printf("Error: Bank size %d exceeds 16-bit limit of 65526, please use bk_init32() to create a 32-bit bank\n", size);
+         size = 0;
+      }
+      ((BANK_HEADER *) event)->data_size = size;
       return pbk->data_size;
    }
 }
