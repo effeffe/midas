@@ -1054,7 +1054,7 @@ static MJsonNode* js_db_load(const MJsonNode* params)
 
    std::string filename = mjsonrpc_get_param(params, "filename", &error)->GetString();
 
-   HNDLE hDB, hKey;
+   HNDLE hDB;
    cm_get_experiment_database(&hDB, NULL);
    int status = db_load(hDB, 0, filename.c_str(), FALSE);
 
