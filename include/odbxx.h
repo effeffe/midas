@@ -620,7 +620,7 @@ namespace midas {
       }
 
       template<typename T>
-      int detect_type(const T &v) {
+      int detect_type(const T &) {
          if (std::is_same<T, uint8_t>::value)
             return TID_UINT8;
          else if (std::is_same<T, int8_t>::value)
