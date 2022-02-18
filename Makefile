@@ -38,6 +38,9 @@ help:
 	@echo "   make mini      --- minimal build, results are in linux/{bin,lib}"
 	@echo "   make cleanmini --- remove everything build by make mini"
 	@echo ""
+	@echo "   make sanitize  --- gcc sanitized build, results are in linux-sanitize/{bin,lib}"
+	@echo "   make cleansanitize --- remove everything build by make sanitize"
+	@echo ""
 	@echo "   make remoteonly      --- minimal build, remote connetion only, results are in linux-remoteonly/{bin,lib}"
 	@echo "   make cleanremoteonly --- remove everything build by make remoteonly"
 	@echo ""
@@ -603,6 +606,9 @@ linux32:
 linux64:
 	$(MAKE) mini OS_DIR=linux-m64 USERFLAGS=-m64
 
+sanitize:
+	$(MAKE) mini OS_DIR=linux-sanitize USERFLAGS="-fsanitize=address"
+
 clean:: clean32 clean64 cleanarm cleanemcraft
 
 clean32:
@@ -610,6 +616,9 @@ clean32:
 
 clean64:
 	$(MAKE) OS_DIR=linux-m64 cleanmini
+
+cleansanitize:
+	$(MAKE) OS_DIR=linux-sanitize cleanmini
 
 crosscompile:
 	echo OSTYPE=$(OSTYPE)
