@@ -838,10 +838,11 @@ static INT cm_msg_send_event(DWORD ts, INT message_type, const char *send_messag
          memcpy(event + sizeof(EVENT_HEADER), send_message, len + 1);
 
          /* setup the event header and send the message */
-         bm_compose_event(pevent, EVENTID_MESSAGE, (WORD) message_type, event_length, 0);
+         bm_compose_event(pevent, EVENTID_MESSAGE, (WORD) message_type, len + 1, 0);
          if (ts)
             pevent->time_stamp = ts;
-         bm_send_event(_msg_buffer, pevent, pevent->data_size + sizeof(EVENT_HEADER), BM_WAIT);
+         //printf("cm_msg_send_event: len %d, header %d, allocated %d, data_size %d, bm_send_event %p+%d\n", (int)len, (int)sizeof(EVENT_HEADER), event_length, pevent->data_size, pevent, (int)(pevent->data_size + sizeof(EVENT_HEADER)));
+         bm_send_event(_msg_buffer, pevent, 0, BM_WAIT);
       }
    }
 
@@ -7810,28 +7811,28 @@ char event[1000];
 @param event_header pointer to the event header
 @param event_id event ID of the event
 @param trigger_mask trigger mask of the event
-@param size size if the data part of the event in bytes
+@param data_size size if the data part of the event in bytes
 @param serial serial number
 @return BM_SUCCESS
 */
-INT bm_compose_event(EVENT_HEADER *event_header, short int event_id, short int trigger_mask, DWORD size, DWORD serial)
+INT bm_compose_event(EVENT_HEADER *event_header, short int event_id, short int trigger_mask, DWORD data_size, DWORD serial)
 {
    event_header->event_id = event_id;
    event_header->trigger_mask = trigger_mask;
-   event_header->data_size = size;
+   event_header->data_size = data_size;
    event_header->time_stamp = ss_time();
    event_header->serial_number = serial;
 
    return BM_SUCCESS;
 }
 
-INT bm_compose_event_threadsafe(EVENT_HEADER *event_header, short int event_id, short int trigger_mask, DWORD size, DWORD *serial)
+INT bm_compose_event_threadsafe(EVENT_HEADER *event_header, short int event_id, short int trigger_mask, DWORD data_size, DWORD *serial)
 {
    static std::mutex mutex;
 
    event_header->event_id = event_id;
    event_header->trigger_mask = trigger_mask;
-   event_header->data_size = size;
+   event_header->data_size = data_size;
    event_header->time_stamp = ss_time();
    {
       std::lock_guard<std::mutex> lock(mutex);
@@ -8988,6 +8989,7 @@ static void bm_write_to_buffer_locked(BUFFER_HEADER *pheader, int sg_n, const ch
       //memcpy(pdata + pheader->write_pointer, pevent, event_size);
       char* wptr = pdata + pheader->write_pointer;
       for (int i=0; i<sg_n; i++) {
+         //printf("memcpy %p+%d\n", sg_ptr[i], (int)sg_len[i]);
          memcpy(wptr, sg_ptr[i], sg_len[i]);
          wptr += sg_len[i];
       }
@@ -15366,7 +15368,7 @@ INT rpc_server_receive_event(int idx, RPC_SERVER_ACCEPTION* sa, int timeout_msec
       INT *pbh = (INT *) xbuf;
       EVENT_HEADER *pevent = (EVENT_HEADER *) (pbh + 1);
       
-      status = bm_send_event(*pbh, pevent, pevent->data_size + sizeof(EVENT_HEADER), timeout_msec);
+      status = bm_send_event(*pbh, pevent, 0, timeout_msec);
 
       //printf("rpc_server_receiv: buffer_handle %d, event_id 0x%04x, serial 0x%08x, data_size %d, status %d\n", *pbh, pevent->event_id, pevent->serial_number, pevent->data_size, status);
       
