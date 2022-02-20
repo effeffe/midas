@@ -5277,13 +5277,14 @@ void maybe_flush_history(time_t now)
 
 void close_history()
 {
-   INT i, status;
-   HNDLE hKeyRoot, hKey;
+   INT status;
+   HNDLE hKeyRoot;
 
    /* close system history */
    status = db_find_key(hDB, 0, "/History/Links", &hKeyRoot);
    if (status == DB_SUCCESS) {
-      for (i = 0;; i++) {
+      for (int i = 0;; i++) {
+         HNDLE hKey;
          status = db_enum_key(hDB, hKeyRoot, i, &hKey);
          if (status == DB_NO_MORE_SUBKEYS)
             break;
@@ -5292,7 +5293,7 @@ void close_history()
    }
 
    /* close event history */
-   for (i = 1; i < hist_log_max; i++)
+   for (int i = 1; i < hist_log_max; i++)
       if (hist_log[i].hKeyVar) {
          db_close_record(hDB, hist_log[i].hKeyVar);
          hist_log[i].hKeyVar = 0;
@@ -5301,8 +5302,13 @@ void close_history()
          hist_log[i].buffer = NULL;
       }
 
-   for (unsigned h=0; h<mh.size(); h++)
-      status  = mh[h]->hs_disconnect();
+   for (unsigned h=0; h<mh.size(); h++) {
+      mh[h]->hs_disconnect();
+      delete mh[h];
+      mh[h] = NULL;
+   }
+
+   mh.clear();
 }
 
 /*---- log_history -------------------------------------------------*/
