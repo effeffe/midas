@@ -5293,7 +5293,7 @@ void close_history()
    }
 
    /* close event history */
-   for (int i = 1; i < hist_log_max; i++)
+   for (int i = 0; i < hist_log_max; i++)
       if (hist_log[i].hKeyVar) {
          db_close_record(hDB, hist_log[i].hKeyVar);
          hist_log[i].hKeyVar = 0;
