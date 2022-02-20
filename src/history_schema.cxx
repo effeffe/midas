@@ -3067,7 +3067,7 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
                hs_status[j] = HS_SUCCESS;
          }
 
-      delete smap[s];
+      delete[] smap[s];
       smap[s] = NULL;
    }
 
