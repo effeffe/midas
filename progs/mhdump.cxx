@@ -498,6 +498,20 @@ int main(int argc,char*argv[])
             readHst(argv[iarg]);
          }
 
+   // make leak sanitizer happy, delete everything we allocated.
+   for (auto& ei: gTags) {
+      if (ei.second) {
+         for (auto& ti: ei.second->tags) {
+            if (ti.second) {
+               delete ti.second;
+            }
+         }
+         ei.second->tags.clear();
+         delete ei.second;
+      }
+   }
+   gTags.clear();
+
    return 0;
 }
 
