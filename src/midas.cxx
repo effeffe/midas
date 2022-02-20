@@ -12124,6 +12124,17 @@ INT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown)
             _client_connections_mutex.lock();
          }
       }
+      for (unsigned i = 0; i < _client_connections.size(); i++) {
+         RPC_CLIENT_CONNECTION* c = _client_connections[i];
+         //printf("client connection %d %p\n", i, c);
+         if (c) {
+            //printf("client connection %d %p connected %d\n", i, c, c->connected);
+            if (!c->connected) {
+               delete c;
+               _client_connections[i] = NULL;
+            }
+         }
+      }
       _client_connections_mutex.unlock();
 
       /* close server connection from other clients */
