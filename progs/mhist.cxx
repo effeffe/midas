@@ -873,6 +873,8 @@ int main(int argc, char *argv[])
    else
       display_range_hist(mh, event_name.c_str(), start_time, end_time, interval, var_name, index1, index2);
 
+   delete mh;
+
    cm_disconnect_experiment();
 
    return 0;
