@@ -607,7 +607,7 @@ linux64:
 	$(MAKE) mini OS_DIR=linux-m64 USERFLAGS=-m64
 
 sanitize:
-	$(MAKE) mini OS_DIR=linux-sanitize USERFLAGS="-fsanitize=address"
+	$(MAKE) mini OS_DIR=linux-sanitize USERFLAGS="-fsanitize=address -fsanitize=leak -fsanitize=undefined"
 
 clean:: clean32 clean64 cleanarm cleanemcraft
 
@@ -691,6 +691,7 @@ runtest:
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "sh \"sample frontend\""
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "sh logger"
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "sh mhttpd"
+	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/odbedit -c "save testexpt.json"
 	cut -b25- < testexpt/midas.log | sed 's/checksum: 0x.*, .* bytes/checksum: (omitted)/'
 
 testmhttpd:
