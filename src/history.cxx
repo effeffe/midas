@@ -2576,7 +2576,9 @@ public:
 
                cm_msg(MINFO, "add_event", "Converting old event %d (%s) tags to new style", event_id, event_name);
 
-               status = db_set_data(fDB, hKey, event_name, kLength, 1, TID_STRING);
+               strlcpy(buf, event_name, kLength);
+
+               status = db_set_data(fDB, hKey, buf, kLength, 1, TID_STRING);
                assert(status == DB_SUCCESS);
 
                sprintf(buf, "/History/Tags/Tags %d", event_id);
@@ -2703,7 +2705,9 @@ public:
             status = db_find_key(fDB, 0, buf, &hKey);
             assert(status == DB_SUCCESS);
 
-            status = db_set_data(fDB, hKey, event_name, kLength, 1, TID_STRING);
+            strlcpy(buf, event_name, kLength);
+
+            status = db_set_data(fDB, hKey, buf, kLength, 1, TID_STRING);
             assert(status == DB_SUCCESS);
 
             for (int i=0; i<ntags; i++) {
