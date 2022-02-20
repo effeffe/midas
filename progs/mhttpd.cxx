@@ -17379,7 +17379,7 @@ static int mongoose_init(MVOdb* odb, bool no_passwords, bool no_hostlist, const 
    odb->RI("https port", &https_port, true);
    odb->RB("https port passwords", &https_port_passwords, true);
    odb->RB("https port host list", &https_port_hostlist, true);
-   odb->RSA("Host list", &hostlist, true, 10, 32);
+   odb->RSA("Host list", &hostlist, true, 10, 256);
    odb->RB("Enable IPv6", &enable_ipv6, true);
 
    // populate the MIME.types table
@@ -17496,6 +17496,12 @@ static void mongoose_cleanup()
    
    //closesocket(s_sock[0]);
    //closesocket(s_sock[1]);
+
+   // make leak sanitizer happy!
+   for (auto e : gHostlistCache) {
+      delete e;
+   }
+   gHostlistCache.clear();
 }
 
 #endif
