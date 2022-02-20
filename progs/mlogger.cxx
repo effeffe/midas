@@ -3815,8 +3815,9 @@ std::string get_value(HNDLE hDB, HNDLE hDir, const char* name)
 void set_value(HNDLE hDB, HNDLE hDir, const char* name, const std::string& set, const std::string& def)
 {
    std::string s = set + " (one of:" + def + ")";
-   const char* value = s.c_str();
    int  size = 256; // MUST match record definition // strlen(value);
+   s.reserve(size);
+   const char* value = s.c_str();
    db_set_value(hDB, hDir, name, value, size, 1, TID_STRING);
 }
 
