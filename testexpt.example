@@ -106,6 +106,7 @@ Event 2, "Periodic", size 40, 1 tags.
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh \"sample frontend\""
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh logger"
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh mhttpd"
+MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "save testexpt.json"
 cut -b25- < testexpt/midas.log | sed 's/checksum: 0x.*, .* bytes/checksum: (omitted)/'
 [system.cxx:1052:ss_shm_delete,ERROR] shm_unlink(SHM)
 [ODBInit,LOG] Program ODBInit on host localhost started
