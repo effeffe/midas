@@ -6908,8 +6908,13 @@ static INT db_set_data_wlocked(DATABASE_HEADER* pheader, KEY* pkey, const void *
    else
       pkey->item_size = rpc_tid_size(type);
    
-   /* copy data */
-   memcpy((char *) pheader + pkey->data, data, data_size);
+   if ((type == TID_STRING || type == TID_LINK)) {
+      /* copy string up to NUL termination */
+      strlcpy((char *) pheader + pkey->data, (const char*)data, data_size);
+   } else {
+      /* copy data */
+      memcpy((char *) pheader + pkey->data, data, data_size);
+   }
    
    /* update time */
    pkey->last_written = ss_time();
