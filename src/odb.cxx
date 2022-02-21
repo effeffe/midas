@@ -1998,14 +1998,16 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    /*
     update the client count
     */
-   pheader->num_clients = 0;
-   pheader->max_client_index = 0;
+   int num_clients = 0;
+   int max_client_index = 0;
    for (i = 0; i < MAX_CLIENTS; i++) {
       if (pheader->client[i].pid == 0)
          continue;
-      pheader->num_clients++;
-      pheader->max_client_index = i + 1;
+      num_clients++;
+      max_client_index = i + 1;
    }
+   pheader->num_clients = num_clients;
+   pheader->max_client_index = max_client_index;
 
    /*fprintf(stderr,"num_clients: %d, max_client: %d\n",pheader->num_clients,pheader->max_client_index); */
 
