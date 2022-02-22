@@ -1233,6 +1233,43 @@ namespace midas {
       set_deleted(true);
    }
 
+   void odb::set_mode(int mode) {
+      // set mode of ODB key
+      // default is MODE_READ | MODE_WRITE | MODE_DELETE
+
+      init_hdb();
+
+      // keep the name for debugging
+      m_name = get_full_path();
+
+      // set mode in ODB
+      int status = db_set_mode(m_hDB, m_hKey, mode, TRUE);
+
+      if (status != DB_SUCCESS && status != DB_INVALID_HANDLE)
+         mthrow("db_set_mode for ODB key \"" + m_name +
+                "\" returnd error code " + std::to_string(status));
+
+      if (m_debug)
+         std::cout << "Set mode of ODB key \"" + m_name + "\" to " << mode << std::endl;
+   }
+
+   int odb::get_mode() {
+      init_hdb();
+
+      // keep the name for debugging
+      m_name = get_full_path();
+
+      // set mode in ODB
+      KEY key;
+      int status = db_get_key(m_hDB, m_hKey, &key);
+
+      if (status != DB_SUCCESS && status != DB_INVALID_HANDLE)
+         mthrow("db_get_mode for ODB key \"" + m_name +
+                "\" returnd error code " + std::to_string(status));
+
+      return key.access_mode;
+   }
+
    void odb::watch(std::function<void(midas::odb &)> f) {
       if (m_hKey == 0)
          mthrow("watch() called for ODB key \"" + m_name +

@@ -1106,6 +1106,9 @@ namespace midas {
       std::string get_name() { return m_name; }
 
       void fix_order(std::vector<std::string> target_subkey_order);
+
+      void set_mode(int mode);
+      int get_mode();
    };
 
    //---- midas::odb friend functions -------------------------------
