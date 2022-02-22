@@ -12,9 +12,12 @@ project(midas
         HOMEPAGE_URL "https://midas.triumf.ca")
 
 #
-# user following line to activate address sanitizer
+# option for address sanitizer, turn on via "ccmake .." in build directory
 #
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+option(USE_ADDRESS_SANITIZER "Enable address sanitizer" FALSE)
+if (USE_ADDRESS_SANITIZER)
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+endif()
 
 #
 # Directories

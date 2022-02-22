@@ -20,4 +20,4 @@ set_env.sh
 examples/experiment/*.o
 midas.srctrl*
 MidasConfig.cmake
-cmake-build-debug-coverage
+cmake-build-*
