@@ -8362,7 +8362,7 @@ Copy an ODB subtree in ASCII format from a buffer
 */
 INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
 {
-   char title[MAX_STRING_LENGTH]; // FIXME: no overflow, not sure if it should be MAX_ODB_PATH or longer. K.O.
+   char title[MAX_STRING_LENGTH];
    char *data;
    const char *pold;
    INT data_size, index;
@@ -8418,7 +8418,7 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
          if (strchr(line, '=') && line[0] != ';') {
             char key_name[MAX_ODB_PATH];
             char test_str[MAX_ODB_PATH];
-            char data_str[MAX_STRING_LENGTH + 50]; // FIXME: not sure if this should be max line length. K.O.
+            char data_str[10*MAX_STRING_LENGTH];
 
             /* copy type info and data */
             char* pline = strrchr(line, '=') + 1;
