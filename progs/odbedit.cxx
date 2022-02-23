@@ -2814,19 +2814,10 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
       /* test 3 */
       else if (param[0][0] == 't' && param[0][1] == '3') {
-#if 1
-         HNDLE hParent;
-         KEY key;
-
-         db_find_key(hDB, 0, "/Logger/Channels/0/Statistics", &hKey);
-         db_get_parent(hDB, hKey, &hParent);
-         db_get_key(hDB, hParent, &key);
-         printf("Name: %s\n", key.name);
-
-         db_get_parent(hDB, hParent, &hParent);
-         db_get_key(hDB, hParent, &key);
-         printf("Name: %s\n", key.name);
-#endif
+         // test address sanitizer
+         int a[10];
+         i = 11;
+         i = a[i];
       }
 
       /* exit/quit */
