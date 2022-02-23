@@ -123,6 +123,7 @@ endif()
 #
 # Optional ROOT support
 #
+option(NO_ROOT "Disable ROOT support" FALSE)
 if (NO_ROOT)
    message(STATUS "MIDAS: ROOT support is disabled via NO_ROOT")
    unset(HAVE_ROOT)
