@@ -17,6 +17,9 @@ project(midas
 option(USE_ADDRESS_SANITIZER "Enable address sanitizer" FALSE)
 if (USE_ADDRESS_SANITIZER)
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+   message(STATUS "MIDAS: Enabled address sanitizer")
+else()
+   message(STATUS "MIDAS: Disabled address sanitizer")
 endif()
 
 #
