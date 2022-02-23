@@ -462,7 +462,7 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
       pl = buf;
       library = FALSE;
       for (n_lines=0 ; *pl ; n_lines++) {
-         lines = (char **)realloc(lines, sizeof(char *)*n_lines+1);
+         lines = (char **)realloc(lines, sizeof(char *)*(n_lines+1));
          lines[n_lines] = pl;
          if (strchr(pl, '\n')) {
             pe = strchr(pl, '\n');
