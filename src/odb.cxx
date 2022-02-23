@@ -6910,7 +6910,7 @@ static INT db_set_data_wlocked(DATABASE_HEADER* pheader, KEY* pkey, const void *
    else
       pkey->item_size = rpc_tid_size(type);
    
-   if ((type == TID_STRING || type == TID_LINK)) {
+   if ((type == TID_STRING || type == TID_LINK) && pkey->num_values == 1) {
       /* copy string up to NUL termination */
       strlcpy((char *) pheader + pkey->data, (const char*)data, data_size);
    } else {

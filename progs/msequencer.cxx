@@ -508,9 +508,6 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
             strlcat(msl_include, ".msl", size);
             strlcat(xml_include, ".xml", size);
 
-            strlcpy(error, "Including file ", error_size);
-            strlcat(error, msl_include, error_size);
-            strlcat(error, ", ", error_size);
             include_error = error + strlen(error);
             include_error_size = error_size - strlen(error);
 
@@ -519,7 +516,7 @@ static BOOL msl_parse(HNDLE hDB, MVOdb* odb, const char *filename, const char* x
             free(xml_include);
 
             if(!include_status){
-               //report the errror on CALL line instead of the one in included file
+               // report the errror on CALL line instead of the one in included file
                *error_line = n_lines+1;
                return FALSE;
             }
