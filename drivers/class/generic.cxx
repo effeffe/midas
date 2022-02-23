@@ -457,7 +457,7 @@ INT cd_gen_read(char *pevent, int offset)
 
       return 2 * sizeof(float) * gen_info->num_channels;
    } else if (gen_info->format == FORMAT_MIDAS) {
-      bk_init(pevent);
+      bk_init32(pevent);
 
       /* create DMND bank */
       bk_create(pevent, "DMND", TID_FLOAT, (void **)&pdata);

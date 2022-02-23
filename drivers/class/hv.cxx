@@ -1127,7 +1127,7 @@ INT cd_hv_read(char *pevent, int offset)
 
       return ( 4 * sizeof(float) + sizeof(DWORD) )* hv_info->num_channels;
    } else if (hv_info->format == FORMAT_MIDAS) {
-      bk_init(pevent);
+      bk_init32(pevent);
 
       /* create DMND bank */
       bk_create(pevent, "DMND", TID_FLOAT, (void **)&pdata);

@@ -669,7 +669,7 @@ INT cd_multi_read(char *pevent, int offset) {
 
       return sizeof(float) * (m_info->num_channels_input + m_info->num_channels_output);
    } else if (m_info->format == FORMAT_MIDAS) {
-      bk_init(pevent);
+      bk_init32(pevent);
 
       /* create INPT bank */
       if (m_info->num_channels_input) {
