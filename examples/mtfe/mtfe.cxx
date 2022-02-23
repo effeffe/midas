@@ -30,13 +30,13 @@ BOOL frontend_call_loop = FALSE;
 INT display_period = 3000;
 
 /* maximum event size produced by this frontend */
-INT max_event_size = 10000;
+INT max_event_size = 1024 * 1024;
 
 /* maximum event size for fragmented events (EQ_FRAGMENTED) */
-INT max_event_size_frag = 5 * 1024 * 1024;
+INT max_event_size_frag = 32 * 1024 * 1024;
 
 /* buffer size to hold events */
-INT event_buffer_size = 100 * 10000;
+INT event_buffer_size = 4 * max_event_size;
 
 /*-- Function declarations -----------------------------------------*/
 
@@ -230,13 +230,13 @@ INT trigger_thread(void *param)
          pdata = (WORD *)(pevent + 1);
          
          /* init bank structure */
-         bk_init(pdata);
+         bk_init32(pdata);
          
          /* create ADC0 bank */
          bk_create(pdata, "ADC0", TID_WORD, (void **)&padc);
          
          /* just put in some random numbers in this demo */
-         for (i=0 ; i<10 ; i++)
+         for (i=0 ; i<1024; i++)
             *padc++ = rand() % 1024;
          
          bk_close(pdata, padc);

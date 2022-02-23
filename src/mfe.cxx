@@ -2574,8 +2574,11 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   if (event_buffer_size > 100 * 1024*1024) {
-      cm_msg(MERROR, "mainFE", "event_buffer_size %d exceeds 100 MB\n", event_buffer_size);
+   int max_allowed_buffer_size = 1024 * 1024 * 1024; // 1 GB If this value is too large, the end-of-run
+                                                     // might take quite long to drain a full buffer
+   if (event_buffer_size > max_allowed_buffer_size) {
+      cm_msg(MERROR, "mainFE", "event_buffer_size %d MB exceeds maximum allowed size of %d MB\n",
+             event_buffer_size/1024/1024, max_allowed_buffer_size/1024/1024);
       ss_sleep(5000);
       return 1;
    }

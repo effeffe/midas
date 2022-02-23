@@ -16841,8 +16841,11 @@ int rb_increment_wp(int handle, int size)
 
    h = handle - 1;
 
-   if ((DWORD) size > rb[h].max_event_size)
-      return DB_INVALID_PARAM;
+   if ((DWORD) size > rb[h].max_event_size) {
+      cm_msg(MERROR, "rb_increment_wp", "event size of %d MB larger than max_event_size of %d MB",
+             size/1024/1024, rb[h].max_event_size/1024/1024);
+      abort();
+   }
 
    new_wp = rb[h].wp + size;
 
