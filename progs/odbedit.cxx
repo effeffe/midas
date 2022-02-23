@@ -2815,9 +2815,9 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
       /* test 3 */
       else if (param[0][0] == 't' && param[0][1] == '3') {
          // test address sanitizer
-         int a[10];
-         i = 11;
-         i = a[i];
+         int *a = (int *)malloc(sizeof(int) * 10);
+         i = a[11];
+         free(a);
       }
 
       /* exit/quit */
