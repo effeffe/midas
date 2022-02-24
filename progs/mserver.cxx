@@ -386,6 +386,7 @@ int main(int argc, char **argv)
       cm_set_experiment_semaphore(semaphore_alarm, semaphore_elog, semaphore_history, semaphore_msg);
 
       rpc_server_loop();
+      rpc_server_shutdown();
 
       ss_suspend_exit();
    }
