@@ -15104,7 +15104,7 @@ INT rpc_server_callback(struct callback_addr *pcallback)
 
    _mserver_acception = sa;
 
-   //printf("rpc_server_callback: _server_acception %p, idx %d\n", _server_acception, idx);
+   //printf("rpc_server_callback: _mserver_acception %p\n", _mserver_acception);
 
    /* send my own computer id */
    hw_type = rpc_get_option(0, RPC_OHW_TYPE);
@@ -15503,10 +15503,12 @@ INT rpc_server_shutdown(void)
 
 \********************************************************************/
 {
+   //printf("rpc_server_shutdown!\n");
+
    struct linger ling;
 
    /* close all open connections */
-   for (unsigned idx = 0; idx < _server_acceptions.size(); idx++)
+   for (unsigned idx = 0; idx < _server_acceptions.size(); idx++) {
       if (_server_acceptions[idx] && _server_acceptions[idx]->recv_sock != 0) {
          RPC_SERVER_ACCEPTION* sa = _server_acceptions[idx];
          /* lingering needed for PCTCP */
@@ -15529,6 +15531,21 @@ INT rpc_server_shutdown(void)
          sa->send_sock = 0;
          sa->event_sock = 0;
       }
+   }
+
+   /* avoid memory leak */
+   for (unsigned idx = 0; idx < _server_acceptions.size(); idx++) {
+      RPC_SERVER_ACCEPTION* sa = _server_acceptions[idx];
+      if (sa) {
+         //printf("rpc_server_shutdown: %d %p %p\n", idx, sa, _mserver_acception);
+         if (sa == _mserver_acception) {
+            // do not leave behind a stale pointer!
+            _mserver_acception = NULL;
+         }
+         delete sa;
+         _server_acceptions[idx] = NULL;
+      }
+   }
 
    if (_rpc_registered) {
       closesocket(_rpc_listen_socket);
