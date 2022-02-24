@@ -2776,78 +2776,64 @@ void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
    int i;
    /* check online databases */
    for (i = 0; i < _database_entries; i++) {
-      if (_database[i].attached) {
-         int must_unlock = 0;
-         if (_database[i].protect) {
-            must_unlock = 1;
-            db_lock_database(i + 1);
-            db_allow_write_locked(&_database[i], "db_cleanup");
-         }
-         assert(_database[i].database_header);
-         /* update the last_activity entry to show that we are alive */
-         DATABASE_HEADER* pheader = _database[i].database_header;
-         DATABASE_CLIENT* pclient = db_get_my_client_locked(&_database[i]); // FIXME: ODB is not locked here!
-         pclient->last_activity = actual_time;
+      DATABASE *pdb = &_database[i];
+      if (!pdb->attached) // empty slot
+         continue;
 
-         /* don't check other clients if interval is stange */
-         if (wrong_interval) {
-            if (must_unlock) {
-               db_unlock_database(i + 1);
-            }
+      db_lock_database(i + 1);
+      db_allow_write_locked(pdb, "db_cleanup");
+
+      DATABASE_HEADER* pheader = pdb->database_header;
+      DATABASE_CLIENT* pclient = db_get_my_client_locked(pdb);
+      
+      /* update the last_activity entry to show that we are alive */
+      pclient->last_activity = actual_time;
+      
+      /* don't check other clients if interval is stange */
+      if (wrong_interval) {
+         db_unlock_database(i + 1);
+         continue;
+      }
+      
+      db_err_msg *msg = NULL;
+      
+      /* now check other clients */
+      int j;
+      for (j = 0; j < pheader->max_client_index; j++) {
+         DATABASE_CLIENT *pdbclient = &pheader->client[j];
+         int client_pid = pdbclient->pid;
+         if (client_pid == 0) // empty slot
+            continue;
+         
+         if (!ss_pid_exists(client_pid)) {
+            db_msg(&msg, MINFO, "db_cleanup", "Client \'%s\' on database \'%s\' pid %d does not exist and db_cleanup called by %s removed it", pdbclient->name, pheader->name, client_pid, who);
+            
+            db_delete_client_wlocked(pheader, j, &msg);
+            db_delete_client_info_wlocked(i+1, pheader, client_pid, &msg);
+            
             continue;
          }
-
-         db_err_msg *msg = NULL;
-
-         /* now check other clients */
-         int j;
-         for (j = 0; j < pheader->max_client_index; j++) {
-            DATABASE_CLIENT *pdbclient = &pheader->client[j];
-            int client_pid = pdbclient->pid;
-            if (client_pid == 0)
-               continue;
-            BOOL dead = !ss_pid_exists(client_pid);
-            /* If client process has no activity, clear its buffer entry. */
-            if (dead ||
-                (pdbclient->watchdog_timeout > 0 &&
-                 actual_time - pdbclient->last_activity > pdbclient->watchdog_timeout)
-                ) {
-               
-               db_lock_database(i + 1);
-
-               /* now make again the check with the buffer locked */
-               actual_time = ss_millitime();
-               if (dead ||
-                   (pdbclient->watchdog_timeout &&
-                    actual_time > pdbclient->last_activity &&
-                    actual_time - pdbclient->last_activity > pdbclient->watchdog_timeout)
-                   ) {
-
-                  db_allow_write_locked(&_database[i], "db_cleanup");
-                  
-                  if (dead) {
-                     cm_msg(MINFO, "db_cleanup", "Client \'%s\' on database \'%s\' removed by db_cleanup called by %s because pid %d does not exist", pdbclient->name, pheader->name, who, client_pid);
-                  } else {
-                     cm_msg(MINFO, "db_cleanup", "Client \'%s\' (PID %d) on database \'%s\' removed by db_cleanup called by %s (idle %1.1lfs,TO %1.0lfs)",
-                            pdbclient->name, client_pid, pheader->name,
-                            who,
-                            (actual_time - pdbclient->last_activity) / 1000.0,
-                            pdbclient->watchdog_timeout / 1000.0);
-                  }
-
-                  db_delete_client_wlocked(pheader, j, &msg);
-                  db_delete_client_info_wlocked(i+1, pheader, client_pid, &msg);
-               }
-
-               db_unlock_database(i + 1);
-            }
+         
+         /* now make again the check with the buffer locked */
+         actual_time = ss_millitime();
+         if ((pdbclient->watchdog_timeout &&
+              actual_time > pdbclient->last_activity &&
+              actual_time - pdbclient->last_activity > pdbclient->watchdog_timeout)
+             ) {
+            db_msg(&msg, MINFO, "db_cleanup", "Client \'%s\' on database \'%s\' pid %d timed out and db_cleanup called by %s removed it (idle %1.1lfs,TO %1.0lfs)",
+                   pdbclient->name, pheader->name, client_pid,
+                   who,
+                   (actual_time - pdbclient->last_activity) / 1000.0,
+                   pdbclient->watchdog_timeout / 1000.0);
+            
+            db_delete_client_wlocked(pheader, j, &msg);
+            db_delete_client_info_wlocked(i+1, pheader, client_pid, &msg);
          }
-         if (must_unlock) {
-            db_unlock_database(i + 1);
-         }
-         if (msg)
-            db_flush_msg(&msg);
       }
+      
+      db_unlock_database(i + 1);
+      if (msg)
+         db_flush_msg(&msg);
    }
 #endif
 }
