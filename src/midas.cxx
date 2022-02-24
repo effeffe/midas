@@ -1950,45 +1950,10 @@ Delete client info from database
 @return CM_SUCCESS
 */
 INT cm_delete_client_info(HNDLE hDB, INT pid) {
-#ifdef LOCAL_ROUTINES
-
    /* only do it if local */
    if (!rpc_is_remote()) {
-      INT status;
-      HNDLE hKey;
-      char str[256];
-
-      if (!pid)
-         pid = ss_getpid();
-
-      /* make operation atomic by locking database */
-      db_lock_database(hDB);
-
-      sprintf(str, "System/Clients/%0d", pid);
-      status = db_find_key1(hDB, 0, str, &hKey);
-
-      if (status == DB_NO_KEY) {
-         db_unlock_database(hDB);
-         return DB_SUCCESS;
-      }
-
-      if (status != DB_SUCCESS) {
-         db_unlock_database(hDB);
-         return status;
-      }
-
-      /* unlock client entry and delete it without locking DB */
-      db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE | MODE_DELETE, 2);
-      db_delete_key1(hDB, hKey, 1, TRUE);
-
-      db_unlock_database(hDB);
-
-      /* touch notify key to inform others */
-      status = 0;
-      db_set_value(hDB, 0, "/System/Client Notify", &status, sizeof(status), 1, TID_INT32);
+      db_delete_client_info(hDB, pid);
    }
-#endif                          /*LOCAL_ROUTINES */
-
    return CM_SUCCESS;
 }
 

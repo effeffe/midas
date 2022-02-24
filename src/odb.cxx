@@ -2667,10 +2667,112 @@ INT db_update_last_activity(DWORD millitime)
 
 #endif // LOCAL_ROUTINES
 
+#ifdef LOCAL_ROUTINES
+static void db_delete_client_wlocked(DATABASE_HEADER* pheader, int jclient, db_err_msg** msg)
+{
+   DATABASE_CLIENT* pdbclient = &pheader->client[jclient];
+
+   /* decrement notify_count for open records and clear exclusive mode */
+   int k;
+   for (k = 0; k < pdbclient->max_index; k++)
+      if (pdbclient->open_record[k].handle) {
+         KEY* pkey = (KEY *) ((char *) pheader + pdbclient->open_record[k].handle);
+         if (pkey->notify_count > 0)
+            pkey->notify_count--;
+         
+         if (pdbclient->open_record[k].access_mode & MODE_WRITE)
+            db_set_mode_wlocked(pheader, pkey, (WORD) (pkey->access_mode & ~MODE_EXCLUSIVE), 2, msg);
+      }
+   
+   /* clear entry from client structure in buffer header */
+   memset(pdbclient, 0, sizeof(DATABASE_CLIENT));
+   
+   /* calculate new max_client_index entry */
+   for (k = MAX_CLIENTS - 1; k >= 0; k--)
+      if (pheader->client[k].pid != 0)
+         break;
+   pheader->max_client_index = k + 1;
+   
+   /* count new number of clients */
+   int nc;
+   for (k = MAX_CLIENTS - 1, nc = 0; k >= 0; k--)
+      if (pheader->client[k].pid != 0)
+         nc++;
+   pheader->num_clients = nc;
+}
+#endif
+
+#ifdef LOCAL_ROUTINES
+static int db_delete_client_info_wlocked(HNDLE hDB, DATABASE_HEADER* pheader, int pid, db_err_msg** msg)
+{
+   if (!pid)
+      pid = ss_getpid();
+
+   char str[256];
+   int status = 0;
+
+   sprintf(str, "System/Clients/%0d", pid);
+   KEY* pkey = (KEY*)db_find_pkey_locked(pheader, NULL, str, &status, msg);
+   if (!pkey) {
+      return status;
+   }
+   
+   status = db_set_mode_wlocked(pheader, pkey, MODE_READ | MODE_WRITE | MODE_DELETE, 2, msg);
+   HNDLE hKey = db_pkey_to_hkey(pheader, pkey);
+   status = db_delete_key1(hDB, hKey, 1, TRUE);
+   int32_t data = 0;
+   db_set_value_wlocked(pheader, hDB, 0, "/System/Client Notify", &data, sizeof(data), 1, TID_INT32, msg);
+
+   return status;
+}
+#endif
+
+/********************************************************************/
+/**
+Delete client info from database
+@param hDB               Database handle
+@param pid               PID of entry to delete, zero for this process.
+@return CM_SUCCESS
+*/
+int db_delete_client_info(HNDLE hDB, int pid)
+{
+#ifdef LOCAL_ROUTINES
+   if (hDB > _database_entries || hDB <= 0) {
+      cm_msg(MERROR, "db_delete_client_info", "invalid database handle");
+      return DB_INVALID_HANDLE;
+   }
+   
+   if (!_database[hDB - 1].attached) {
+      cm_msg(MERROR, "db_delete_client_info", "invalid database handle");
+      return DB_INVALID_HANDLE;
+   }
+   
+   /* lock database */
+   db_lock_database(hDB);
+
+   DATABASE *pdb = &_database[hDB - 1];
+   DATABASE_HEADER *pheader = pdb->database_header;
+
+   db_allow_write_locked(pdb, "db_delete_client_info");
+
+   db_err_msg* msg = NULL;
+
+   int status = db_delete_client_info_wlocked(hDB, pheader, pid, &msg);
+   
+   db_unlock_database(hDB);
+
+   if (msg)
+      db_flush_msg(&msg);
+
+   return status;
+#else
+   return DB_SUCCESS;
+#endif
+}
+
 void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
 {
 #ifdef LOCAL_ROUTINES
-   int status;
    int i;
    /* check online databases */
    for (i = 0; i < _database_entries; i++) {
@@ -2694,6 +2796,8 @@ void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
             }
             continue;
          }
+
+         db_err_msg *msg = NULL;
 
          /* now check other clients */
          int j;
@@ -2731,37 +2835,8 @@ void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
                             pdbclient->watchdog_timeout / 1000.0);
                   }
 
-                  /* decrement notify_count for open records and clear exclusive mode */
-                  int k;
-                  for (k = 0; k < pdbclient->max_index; k++)
-                     if (pdbclient->open_record[k].handle) {
-                        KEY* pkey = (KEY *) ((char *) pheader + pdbclient->open_record[k].handle);
-                        if (pkey->notify_count > 0)
-                           pkey->notify_count--;
-
-                        if (pdbclient->open_record[k].access_mode & MODE_WRITE)
-                           db_set_mode(i + 1, pdbclient->open_record[k].handle, (WORD) (pkey->access_mode & ~MODE_EXCLUSIVE), 2);
-                     }
-
-                  status = cm_delete_client_info(i + 1, client_pid);
-                  if (status != CM_SUCCESS)
-                     cm_msg(MERROR, "db_cleanup", "Cannot delete client info for client \'%s\', pid %d from database \'%s\', cm_delete_client_info() status %d", pdbclient->name, client_pid, pheader->name, status);
-
-                  /* clear entry from client structure in buffer header */
-                  memset(&(pheader->client[j]), 0, sizeof(DATABASE_CLIENT));
-
-                  /* calculate new max_client_index entry */
-                  for (k = MAX_CLIENTS - 1; k >= 0; k--)
-                     if (pheader->client[k].pid != 0)
-                        break;
-                  pheader->max_client_index = k + 1;
-
-                  /* count new number of clients */
-                  int nc;
-                  for (k = MAX_CLIENTS - 1, nc = 0; k >= 0; k--)
-                     if (pheader->client[k].pid != 0)
-                        nc++;
-                  pheader->num_clients = nc;
+                  db_delete_client_wlocked(pheader, j, &msg);
+                  db_delete_client_info_wlocked(i+1, pheader, client_pid, &msg);
                }
 
                db_unlock_database(i + 1);
@@ -2770,6 +2845,8 @@ void db_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
          if (must_unlock) {
             db_unlock_database(i + 1);
          }
+         if (msg)
+            db_flush_msg(&msg);
       }
    }
 #endif
@@ -2786,6 +2863,8 @@ void db_cleanup2(const char* client_name, int ignore_timeout, DWORD actual_time,
          /* update the last_activity entry to show that we are alive */
          
          db_lock_database(i + 1);
+
+         db_err_msg *msg = NULL;
 
          DATABASE* pdb = &_database[i];
 
@@ -2830,46 +2909,14 @@ void db_cleanup2(const char* client_name, int ignore_timeout, DWORD actual_time,
                                who,
                                (now - pdbclient->last_activity) / 1000.0, interval / 1000.0);
                      }
-                     
-                     /* decrement notify_count for open records and clear exclusive mode */
-                     int k;
-                     for (k = 0; k < pdbclient->max_index; k++)
-                        if (pdbclient->open_record[k].handle) {
-                          KEY* pkey = (KEY *) ((char *) pheader + pdbclient->open_record[k].handle);
-                           if (pkey->notify_count > 0)
-                              pkey->notify_count--;
-                           
-                           if (pdbclient->open_record[k].access_mode & MODE_WRITE)
-                              db_set_mode(i + 1, pdbclient->open_record[k].handle, (WORD) (pkey->access_mode & ~MODE_EXCLUSIVE), 2);
-                        }
-                     
-                     /* clear entry from client structure in buffer header */
-                     memset(&(pheader->client[j]), 0, sizeof(DATABASE_CLIENT));
-                     
-                     /* calculate new max_client_index entry */
-                     for (k = MAX_CLIENTS - 1; k >= 0; k--)
-                        if (pheader->client[k].pid != 0)
-                           break;
-                     pheader->max_client_index = k + 1;
-                     
-                     /* count new number of clients */
-                     int nc;
-                     for (k = MAX_CLIENTS - 1, nc = 0; k >= 0; k--)
-                        if (pheader->client[k].pid != 0)
-                           nc++;
-                     pheader->num_clients = nc;
+
+                     db_delete_client_wlocked(pheader, j, &msg);
+                     db_delete_client_info_wlocked(i+1, pheader, client_pid, &msg);
                      
                      bDeleted = TRUE;
                   }
                   
-                  
-                  /* delete client entry after unlocking db */
                   if (bDeleted) {
-                     int status;
-                     status = cm_delete_client_info(i + 1, client_pid);
-                     if (status != CM_SUCCESS)
-                        cm_msg(MERROR, "db_cleanup2", "cannot delete client info, cm_delete_client_into() status %d", status);
-                     
                      /* go again though whole list */
                      j = 0;
                   }
@@ -2878,6 +2925,8 @@ void db_cleanup2(const char* client_name, int ignore_timeout, DWORD actual_time,
          }
          
          db_unlock_database(i + 1);
+         if (msg)
+            db_flush_msg(&msg);
       }
    }
 }
@@ -2967,15 +3016,34 @@ that client from the /system/client tree.
 */
 INT db_check_client(HNDLE hDB, HNDLE hKeyClient)
 {
+   if (hDB > _database_entries || hDB <= 0) {
+      cm_msg(MERROR, "db_check_client", "invalid database handle");
+      return DB_INVALID_HANDLE;
+   }
+   
+   if (!_database[hDB - 1].attached) {
+      cm_msg(MERROR, "db_check_client", "invalid database handle");
+      return DB_INVALID_HANDLE;
+   }
+
    KEY key;
    INT status;
    char name[NAME_LENGTH];
    
    db_lock_database(hDB);
+
+   db_err_msg* msg = NULL;
+
+   DATABASE *pdb = &_database[hDB - 1];
+   DATABASE_HEADER *pheader = pdb->database_header;
    
    status = db_get_key(hDB, hKeyClient, &key);
-   if (status != DB_SUCCESS)
+   if (status != DB_SUCCESS) {
+      db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
       return CM_NO_CLIENT;
+   }
    
    int client_pid = atoi(key.name);
    
@@ -2987,12 +3055,12 @@ INT db_check_client(HNDLE hDB, HNDLE hKeyClient)
    
    if (status != DB_SUCCESS) {
       db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
       return CM_NO_CLIENT;
    }
    
-   if (_database[hDB - 1].attached) {
-      DATABASE_HEADER *pheader = _database[hDB - 1].database_header;
-
+   if (pdb->attached) {
       bool dead = false;
       bool found = false;
       
@@ -3014,23 +3082,29 @@ INT db_check_client(HNDLE hDB, HNDLE hKeyClient)
       
       if (!found || dead) {
          /* client not found : delete ODB stucture */
+
+         db_allow_write_locked(pdb, "db_check_client");
          
-         status = cm_delete_client_info(hDB, client_pid);
+         status = db_delete_client_info_wlocked(hDB, pheader, client_pid, &msg);
          
-         if (status != CM_SUCCESS)
-            cm_msg(MERROR, "db_check_client", "Cannot delete client info for client \'%s\', pid %d, cm_delete_client_info() status %d", name, client_pid, status);
+         if (status != DB_SUCCESS)
+            db_msg(&msg, MERROR, "db_check_client", "Cannot delete client info for client \'%s\', pid %d, db_delete_client_info() status %d", name, client_pid, status);
          else if (!found)
-            cm_msg(MINFO, "db_check_client", "Deleted entry \'/System/Clients/%d\' for client \'%s\' because it is not connected to ODB", client_pid, name);
+            db_msg(&msg, MINFO, "db_check_client", "Deleted entry \'/System/Clients/%d\' for client \'%s\' because it is not connected to ODB", client_pid, name);
          else if (dead)
-            cm_msg(MINFO, "db_check_client", "Deleted entry \'/System/Clients/%d\' for client \'%s\' because process pid %d does not exists", client_pid, name, client_pid);
+            db_msg(&msg, MINFO, "db_check_client", "Deleted entry \'/System/Clients/%d\' for client \'%s\' because process pid %d does not exists", client_pid, name, client_pid);
          
          db_unlock_database(hDB);
+         if (msg)
+            db_flush_msg(&msg);
          
          return CM_NO_CLIENT;
       }
    }
    
    db_unlock_database(hDB);
+   if (msg)
+      db_flush_msg(&msg);
 
    return DB_SUCCESS;
 }

@@ -1929,6 +1929,7 @@ Data conversion flags */
    INT EXPRT db_sscanf(const char *string, void *data, INT * data_size, INT index, DWORD type);
    INT db_get_watchdog_info(HNDLE hDB, const char *client_name, DWORD * timeout, DWORD * last);
    INT EXPRT db_update_last_activity(DWORD millitime);
+   INT EXPRT db_delete_client_info(HNDLE hDB, int pid);
 
    char EXPRT *strcomb(const char **list);
    std::string EXPRT strcomb1(const char **list);
