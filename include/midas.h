@@ -946,7 +946,7 @@ typedef struct {
 typedef struct {
    char name[NAME_LENGTH];            /**< name of buffer             */
    INT num_clients;                   /**< no of active clients       */
-   INT max_client_index;              /**< index of last client       */
+   INT max_client_index;              /**< index of last client + 1   */
    INT size;                          /**< size of data area in bytes */
    INT read_pointer;                  /**< read pointer               */
    INT write_pointer;                 /**< write pointer              */

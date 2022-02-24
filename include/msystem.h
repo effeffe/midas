@@ -418,7 +418,7 @@ typedef struct {
    char name[NAME_LENGTH];      /* name of database           */
    INT version;                 /* database version           */
    INT num_clients;             /* no of active clients       */
-   INT max_client_index;        /* index of last client       */
+   INT max_client_index;        /* index of last client + 1   */
    INT key_size;                /* size of key area in bytes  */
    INT data_size;               /* size of data area in bytes */
    INT root_key;                /* root key offset            */
