@@ -2880,11 +2880,28 @@ void db_cleanup2(const char* client_name, int ignore_timeout, DWORD actual_time,
          int j;
          for (j = 0; j < pheader->max_client_index; j++) {
             DATABASE_CLIENT* pdbclient = &pheader->client[j];
-            if (j != pdb->client_index && pdbclient->pid &&
-                (client_name == NULL || client_name[0] == 0
+            if (j == pdb->client_index) // do not check ourselves
+               continue;
+            if (!pdbclient->pid) // empty slot
+               continue;
+            if ((client_name == NULL || client_name[0] == 0
                  || strncmp(pdbclient->name, client_name, strlen(client_name)) == 0)) {
                int client_pid = pdbclient->pid;
-               BOOL dead = !ss_pid_exists(client_pid);
+
+               if (!ss_pid_exists(client_pid)) {
+                  db_msg(&msg, MINFO, "db_cleanup2", "Client \'%s\' on database \'%s\' pid %d does not exist and db_cleanup2 called by %s removed it",
+                         pdbclient->name, pheader->name,
+                         client_pid,
+                         who);
+
+                  db_delete_client_wlocked(pheader, j, &msg);
+                  db_delete_client_info_wlocked(i+1, pheader, client_pid, &msg);
+
+                  /* go again though whole list */
+                  j = 0;
+                  continue;
+               }
+
                DWORD interval;
                if (ignore_timeout)
                   interval = 2 * WATCHDOG_INTERVAL;
@@ -2893,33 +2910,18 @@ void db_cleanup2(const char* client_name, int ignore_timeout, DWORD actual_time,
                
                /* If client process has no activity, clear its buffer entry. */
                
-               if (dead || (interval > 0 && now - pdbclient->last_activity > interval)) {
-                  int bDeleted = FALSE;
-                  
-                  /* now make again the check with the buffer locked */
-                  if (dead || (interval > 0 && now - pdbclient->last_activity > interval)) {
-                     if (dead) {
-                        cm_msg(MINFO, "db_cleanup2", "Client \'%s\' on \'%s\' removed by db_cleanup2 called by %s because pid %d does not exist",
-                               pdbclient->name, pheader->name,
-                               who,
-                               client_pid);
-                     } else {
-                        cm_msg(MINFO, "db_cleanup2", "Client \'%s\' on \'%s\' removed by db_cleanup2 called by %s (idle %1.1lfs,TO %1.0lfs)",
-                               pdbclient->name, pheader->name,
-                               who,
-                               (now - pdbclient->last_activity) / 1000.0, interval / 1000.0);
-                     }
+               if ((interval > 0 && now - pdbclient->last_activity > interval)) {
+                  db_msg(&msg, MINFO, "db_cleanup2", "Client \'%s\' on database \'%s\' timed out and db_cleanup2 called by %s removed it (idle %1.1lfs,TO %1.0lfs)",
+                         pdbclient->name, pheader->name,
+                         who,
+                         (now - pdbclient->last_activity) / 1000.0, interval / 1000.0);
 
-                     db_delete_client_wlocked(pheader, j, &msg);
-                     db_delete_client_info_wlocked(i+1, pheader, client_pid, &msg);
-                     
-                     bDeleted = TRUE;
-                  }
+                  db_delete_client_wlocked(pheader, j, &msg);
+                  db_delete_client_info_wlocked(i+1, pheader, client_pid, &msg);
                   
-                  if (bDeleted) {
-                     /* go again though whole list */
-                     j = 0;
-                  }
+                  /* go again though whole list */
+                  j = 0;
+                  continue;
                }
             }
          }

@@ -48,6 +48,10 @@ endif()
 #set(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
 #set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
+add_compile_options("-O2") 
+add_compile_options("-g") 
+#add_compile_options("-std=c++11") 
+
 #####################################################################
 # Nothing needs to be modified after this line
 #####################################################################
@@ -391,6 +395,9 @@ set(MIDAS_FOUND TRUE)
 # Common flags
 #
 add_compile_options(-Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
+
+add_compile_options(-fsanitize=address -fsanitize=leak -fsanitize=undefined)
+add_link_options(-fsanitize=address -fsanitize=leak -fsanitize=undefined)
 
 #####################################################################
 # Conditional code for various OS'es
