@@ -140,9 +140,8 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
       INT size, fh, status, run_number, semaphore, idx, offset = 0, tail_size = 0;
       struct tm *tms = NULL;
       char file_name[256+256+100];
-      char afile_name[3][256];
+      char afile_name[3][256+256];
       char dir[256];
-      char str[256];
       char start_str[80], end_str[80], last[80], date[80], thread[80], attachment[256];
       HNDLE hDB;
       time_t now;
@@ -234,7 +233,8 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
                time(&now);
                tms = localtime(&now);
 
-               strcpy(str, p);
+               char str[256];
+               strlcpy(str, p, sizeof(str));
                sprintf(afile_name[idx], "%02d%02d%02d_%02d%02d%02d_%s",
                        tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday,
                        tms->tm_hour, tms->tm_min, tms->tm_sec, str);
@@ -276,7 +276,8 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
 
       if (bedit) {
          /* edit existing message */
-         strcpy(str, tag);
+         char str[256];
+         strlcpy(str, tag, sizeof(str));
          if (strchr(str, '.')) {
             offset = atoi(strchr(str, '.') + 1);
             *strchr(str, '.') = 0;
@@ -468,6 +469,7 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
             if (status == EL_SUCCESS) {
                /* position to next thread location */
                lseek(fh, 72, SEEK_CUR);
+               char str[256];
                memset(str, 0, sizeof(str));
                xread(filename, fh, str, 16);
                lseek(fh, -16, SEEK_CUR);
