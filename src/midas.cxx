@@ -15221,6 +15221,12 @@ INT rpc_server_receive_rpc(int idx, RPC_SERVER_ACCEPTION* sa)
 
    cm_msg_flush_buffer();
 
+   if (buf) {
+      free(buf);
+      buf = NULL;
+      bufsize = 0;
+   }
+
    /* disconnect from experiment as MIDAS server */
    if (rpc_is_mserver()) {
       HNDLE hDB, hKey;
