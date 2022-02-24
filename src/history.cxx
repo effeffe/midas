@@ -1634,6 +1634,8 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
 
             if (cp < 0)
                cp = 0;
+            if (cp >= cache_size)
+               cp = cache_size - sizeof(irec);
          } while (abs(delta) > 1 && pirec->time != start_time);
          pirec = (INDEX_RECORD *) (cache + cp);
          if (pirec->time > start_time)
