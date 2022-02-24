@@ -655,7 +655,7 @@ td.meterCell{
 
 .chatBox {
    text-align: left;
-   overflow: scroll;
+   overflow: auto;
    line-height: 0.75em;
    margin-top: 0.25em;
    margin-bottom: 0.25em;
