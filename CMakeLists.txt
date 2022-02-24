@@ -12,11 +12,27 @@ project(midas
         HOMEPAGE_URL "https://midas.triumf.ca")
 
 #
+# specify default build type if none is defined with ccmake
+#
+if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+   set(CMAKE_BUILD_TYPE RelWithDebInfo)
+   message(STATUS "MIDAS: Setting build type to '${CMAKE_BUILD_TYPE}' as non was specified")
+endif()
+message(STATUS "MIDAS: Curent build type is '${CMAKE_BUILD_TYPE}'")
+
+#
 # option for address sanitizer, turn on via "ccmake .." in build directory
 #
 option(USE_ADDRESS_SANITIZER "Enable address sanitizer" FALSE)
 if (USE_ADDRESS_SANITIZER)
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+   if (${CMAKE_SYSTEM_NAME} MATCHES Darwin)
+      add_compile_options(-fsanitize=address)
+      add_link_options(-fsanitize=address)
+   else()
+      add_compile_options(-fsanitize=address -fsanitize=leak -fsanitize=undefined)
+      add_link_options(-fsanitize=address -fsanitize=leak -fsanitize=undefined)
+   endif()
+
    message(STATUS "MIDAS: Enabled address sanitizer")
 else()
    message(STATUS "MIDAS: Disabled address sanitizer")
@@ -47,10 +63,6 @@ endif()
 ## Ensure the C-compat library can load the main library after install
 #set(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
 #set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-
-add_compile_options("-O2") 
-add_compile_options("-g") 
-#add_compile_options("-std=c++11") 
 
 #####################################################################
 # Nothing needs to be modified after this line
@@ -392,12 +404,9 @@ set(MIDAS_FOUND TRUE)
 #endif()
 
 #-----------------------
-# Common flags
+# Compiler warning flags
 #
 add_compile_options(-Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
-
-add_compile_options(-fsanitize=address -fsanitize=leak -fsanitize=undefined)
-add_link_options(-fsanitize=address -fsanitize=leak -fsanitize=undefined)
 
 #####################################################################
 # Conditional code for various OS'es
