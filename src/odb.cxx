@@ -3026,9 +3026,7 @@ INT db_check_client(HNDLE hDB, HNDLE hKeyClient)
       return DB_INVALID_HANDLE;
    }
 
-   KEY key;
-   INT status;
-   char name[NAME_LENGTH];
+   int status;
    
    db_lock_database(hDB);
 
@@ -3037,19 +3035,30 @@ INT db_check_client(HNDLE hDB, HNDLE hKeyClient)
    DATABASE *pdb = &_database[hDB - 1];
    DATABASE_HEADER *pheader = pdb->database_header;
    
-   status = db_get_key(hDB, hKeyClient, &key);
-   if (status != DB_SUCCESS) {
+   const KEY* pkey = db_get_pkey(pheader, hKeyClient, &status, "db_check_client", &msg);
+
+   if (!pkey) {
       db_unlock_database(hDB);
       if (msg)
          db_flush_msg(&msg);
       return CM_NO_CLIENT;
    }
    
-   int client_pid = atoi(key.name);
+   int client_pid = atoi(pkey->name);
+
+   const KEY* pkey_name = db_find_pkey_locked(pheader, pkey, "Name", &status, &msg);
+
+   if (!pkey_name) {
+      db_unlock_database(hDB);
+      if (msg)
+         db_flush_msg(&msg);
+      return CM_NO_CLIENT;
+   }
    
+   char name[256];
    name[0] = 0;
    int size = sizeof(name);
-   status = db_get_value(hDB, hKeyClient, "Name", name, &size, TID_STRING, FALSE);
+   status = db_get_data_locked(pheader, pkey_name, 0, name, &size, TID_STRING, &msg);
    
    //fprintf(stderr, "db_check_client: hkey %d, status %d, pid %d, name \'%s\'\n", hKeyClient, status, client_pid, name);
    
@@ -3060,53 +3069,49 @@ INT db_check_client(HNDLE hDB, HNDLE hKeyClient)
       return CM_NO_CLIENT;
    }
    
-   if (pdb->attached) {
-      bool dead = false;
-      bool found = false;
-      
-      /* loop through clients */
-      for (int i = 0; i < pheader->max_client_index; i++) {
-         DATABASE_CLIENT *pclient = &pheader->client[i];
-         if (pclient->pid == client_pid) {
-            found = true;
-            break;
-         }
-      }
-
-      if (found) {
-         /* check that the client is still running: PID still exists */
-         if (!ss_pid_exists(client_pid)) {
-            dead = true;
-         }
-      }
-      
-      if (!found || dead) {
-         /* client not found : delete ODB stucture */
-
-         db_allow_write_locked(pdb, "db_check_client");
-         
-         status = db_delete_client_info_wlocked(hDB, pheader, client_pid, &msg);
-         
-         if (status != DB_SUCCESS)
-            db_msg(&msg, MERROR, "db_check_client", "Cannot delete client info for client \'%s\', pid %d, db_delete_client_info() status %d", name, client_pid, status);
-         else if (!found)
-            db_msg(&msg, MINFO, "db_check_client", "Deleted entry \'/System/Clients/%d\' for client \'%s\' because it is not connected to ODB", client_pid, name);
-         else if (dead)
-            db_msg(&msg, MINFO, "db_check_client", "Deleted entry \'/System/Clients/%d\' for client \'%s\' because process pid %d does not exists", client_pid, name, client_pid);
-         
-         db_unlock_database(hDB);
-         if (msg)
-            db_flush_msg(&msg);
-         
-         return CM_NO_CLIENT;
+   bool dead = false;
+   bool found = false;
+   
+   /* loop through clients */
+   for (int i = 0; i < pheader->max_client_index; i++) {
+      DATABASE_CLIENT *pclient = &pheader->client[i];
+      if (pclient->pid == client_pid) {
+         found = true;
+         break;
       }
    }
    
+   if (found) {
+      /* check that the client is still running: PID still exists */
+      if (!ss_pid_exists(client_pid)) {
+         dead = true;
+      }
+   }
+
+   status = DB_SUCCESS;
+   
+   if (!found || dead) {
+      /* client not found : delete ODB stucture */
+      
+      db_allow_write_locked(pdb, "db_check_client");
+      
+      status = db_delete_client_info_wlocked(hDB, pheader, client_pid, &msg);
+      
+      if (status != DB_SUCCESS)
+         db_msg(&msg, MERROR, "db_check_client", "Cannot delete client info for client \'%s\', pid %d, db_delete_client_info() status %d", name, client_pid, status);
+      else if (!found)
+         db_msg(&msg, MINFO, "db_check_client", "Deleted entry \'/System/Clients/%d\' for client \'%s\' because it is not connected to ODB", client_pid, name);
+      else if (dead)
+         db_msg(&msg, MINFO, "db_check_client", "Deleted entry \'/System/Clients/%d\' for client \'%s\' because process pid %d does not exists", client_pid, name, client_pid);
+      
+      status = CM_NO_CLIENT;
+   }
+
    db_unlock_database(hDB);
    if (msg)
       db_flush_msg(&msg);
 
-   return DB_SUCCESS;
+   return status;
 }
 
 #endif // LOCAL_ROUTINES
