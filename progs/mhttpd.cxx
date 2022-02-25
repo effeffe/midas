@@ -17338,7 +17338,7 @@ static int mongoose_listen(const char* address, int flags)
 
    mg_set_protocol_http_websocket(nc);
 
-   int* flagsp = new int;
+   int* flagsp = (int*)malloc(sizeof(int));
    *flagsp = flags;
    nc->user_data = flagsp;
 
@@ -17491,6 +17491,16 @@ static void mongoose_poll(int msec = 200)
 static void mongoose_cleanup()
 {
    s_shutdown = true;
+
+   if (s_mgr.active_connections) {
+      struct mg_connection* nc = s_mgr.active_connections;
+      while (nc) {
+         //printf("nc %p, next %p, user_data %p\n", nc, nc->next, nc->user_data);
+         free(nc->user_data);
+         nc->user_data = NULL;
+         nc = nc->next;
+      }
+   }
    
    mg_mgr_free(&s_mgr);
    
