@@ -16112,11 +16112,22 @@ struct MongooseWorkObject
 
 struct MongooseThreadObject
 {
+   bool         fIsRunning = false;
    std::thread* fThread = NULL; // thread
    void*        fNc     = NULL; // thread is attached to this network connection
    std::mutex   fMutex;
    std::deque<MongooseWorkObject*> fQueue;
    std::condition_variable fNotify;
+
+   //MongooseThreadObject() // ctor
+   //{
+   //   printf("MongooseThreadObject %p created!\n", this);
+   //}
+
+   //~MongooseThreadObject() // dtor
+   //{
+   //   printf("MongooseThreadObject %p destroyed!\n", this);
+   //}
 };
 
 static std::vector<MongooseThreadObject*> gMongooseThreads;
@@ -16125,6 +16136,8 @@ static void mongoose_thread(MongooseThreadObject*);
 
 MongooseThreadObject* FindThread(void* nc)
 {
+   //printf("FindThread: nc %p, thread %s\n", nc, ss_tid_to_string(ss_gettid()).c_str());
+
    MongooseThreadObject* last_not_connected = NULL;
    
    for (auto it : gMongooseThreads) {
@@ -16156,13 +16169,14 @@ MongooseThreadObject* FindThread(void* nc)
    printf("Mongoose web server is using %d threads\n", (int)gMongooseThreads.size());
 
    to->fThread = new std::thread(mongoose_thread, to);
-   to->fThread->detach();
 
    return to;
 }
 
 void FreeThread(void* nc)
 {
+   //printf("FreeThread, nc %p\n", nc);
+
    for (auto it : gMongooseThreads) {
       MongooseThreadObject* to = it;
       if (to->fNc == nc) {
@@ -17177,17 +17191,26 @@ void *worker_thread_proc(void *param)
 
 static void mongoose_thread(MongooseThreadObject* to)
 {
-   //printf("to %p, nc %p: thread started!\n", to, to->fNc);
+   //printf("to %p, nc %p: thread %p started!\n", to, to->fNc, to->fThread);
 
    std::unique_lock<std::mutex> ulm(to->fMutex, std::defer_lock);
+
+   to->fIsRunning = true;
    
    while ((! _abort) && (! s_shutdown)) {
       MongooseWorkObject *w = NULL;
 
       ulm.lock();
       while (to->fQueue.empty()) {
-         //printf("to %p, nc %p: waiting!\n", to, to->fNc);
+         //printf("to %p, nc %p, thread %p: waiting!\n", to, to->fNc, to->fThread);
          to->fNotify.wait(ulm);
+         if (_abort || s_shutdown) {
+            break;
+         }
+      }
+
+      if (_abort || s_shutdown) {
+         break;
       }
       
       w = to->fQueue.front();
@@ -17212,7 +17235,9 @@ static void mongoose_thread(MongooseThreadObject* to)
       delete w;
    }
 
-   //printf("to %p, nc %p: thread finished!\n", to, to->fNc);
+   to->fIsRunning = false;
+
+   //printf("to %p, nc %p: thread %p finished!\n", to, to->fNc, to->fThread);
 }
 
 static bool mongoose_hostlist_enabled(const struct mg_connection *nc);
@@ -17239,7 +17264,10 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
       if (trace_mg) {
          printf("ev_handler: connection %p, MG_EV_ACCEPT\n", nc);
       }
-      if (mongoose_hostlist_enabled(nc)) {
+      if (s_shutdown) {
+         //printf("XXX nc %p!\n", nc);
+         nc->flags |= MG_F_CLOSE_IMMEDIATELY;
+      } else if (mongoose_hostlist_enabled(nc)) {
          if (!mongoose_check_hostlist(&nc->sa)) {
             nc->flags |= MG_F_CLOSE_IMMEDIATELY;
          }
@@ -17248,6 +17276,10 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
    case MG_EV_RECV:
       if (trace_mg_recv) {
          printf("ev_handler: connection %p, MG_EV_RECV, %d bytes\n", nc, *(int*)ev_data);
+      }
+      if (s_shutdown) {
+         //printf("RRR nc %p!\n", nc);
+         nc->flags |= MG_F_CLOSE_IMMEDIATELY;
       }
       break;
    case MG_EV_SEND:
@@ -17259,6 +17291,10 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
       if (trace_mg) {
          printf("ev_handler: connection %p, MG_EV_HTTP_CHUNK\n", nc);
       }
+      if (s_shutdown) {
+         //printf("RRR1 nc %p!\n", nc);
+         nc->flags |= MG_F_CLOSE_IMMEDIATELY;
+      }
       break;
    }
    case MG_EV_HTTP_REQUEST: {
@@ -17266,39 +17302,45 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
       if (trace_mg) {
          printf("ev_handler: connection %p, MG_EV_HTTP_REQUEST \"%s\" \"%s\"\n", nc, mgstr(&msg->method).c_str(), mgstr(&msg->uri).c_str());
       }
-      handle_http_message(nc, msg);
+      if (s_shutdown) {
+         //printf("RRR2 nc %p!\n", nc);
+         nc->flags |= MG_F_CLOSE_IMMEDIATELY;
+      } else {
+         handle_http_message(nc, msg);
+      }
       break;
    }
    case MG_EV_CLOSE: {
       if (trace_mg) {
          printf("ev_handler: connection %p, MG_EV_CLOSE\n", nc);
       }
+      //printf("CCC nc %p!\n", nc);
       FreeThread(nc);
    }
    }
 }
 
-#define FLAG_HTTPS     (1<<0)
-#define FLAG_PASSWORDS (1<<1)
-#define FLAG_HOSTLIST  (1<<2)
+#define FLAG_HTTPS     MG_F_USER_1
+#define FLAG_PASSWORDS MG_F_USER_2
+#define FLAG_HOSTLIST  MG_F_USER_3
 
 static bool mongoose_passwords_enabled(const struct mg_connection *nc)
 {
    int flags = 0;
-   if (nc && nc->listener && nc->listener->user_data) {
-      flags = *(int*)nc->listener->user_data;
+   if (nc && nc->listener) {
+      flags = nc->listener->flags;
    }
-   //printf("mongoose_passwords_enabled: nc %p, listener %p, user_data %p, flags 0x%x\n", nc, nc->listener, nc->listener->user_data, flags);
+   //printf("mongoose_passwords_enabled: nc %p, listener %p, flags 0x%lx, user_data %p, flags 0x%x\n", nc, nc->listener, nc->listener->flags, nc->listener->user_data, flags);
    return flags & FLAG_PASSWORDS;
 }
 
 static bool mongoose_hostlist_enabled(const struct mg_connection *nc)
 {
    int flags = 0;
-   if (nc && nc->listener && nc->listener->user_data) {
-      flags = *(int*)nc->listener->user_data;
+   if (nc && nc->listener) {
+      flags = nc->listener->flags;
    }
-   //printf("mongoose_hostlist_enabled: nc %p, listener %p, user_data %p, flags 0x%x\n", nc, nc->listener, nc->listener->user_data, flags);
+   //printf("mongoose_hostlist_enabled: nc %p, listener %p, flags 0x%lx, user_data %p, flags 0x%x\n", nc, nc->listener, nc->listener->flags, nc->listener->user_data, flags);
    return flags & FLAG_HOSTLIST;
 }
 
@@ -17340,9 +17382,7 @@ static int mongoose_listen(const char* address, int flags)
 
    mg_set_protocol_http_websocket(nc);
 
-   int* flagsp = (int*)malloc(sizeof(int));
-   *flagsp = flags;
-   nc->user_data = flagsp;
+   nc->flags |= flags;
 
    printf("Mongoose web server listening on %s address \"%s\", passwords %s, hostlist %s\n", (flags&FLAG_HTTPS)?"https":"http", address, (flags&FLAG_PASSWORDS)?"enabled":"OFF", (flags&FLAG_HOSTLIST)?"enabled":"OFF");
 
@@ -17492,28 +17532,58 @@ static void mongoose_poll(int msec = 200)
 
 static void mongoose_cleanup()
 {
+   printf("Mongoose web server shutting down\n");
+
    s_shutdown = true;
 
+   // close listener sockets
    if (s_mgr.active_connections) {
       struct mg_connection* nc = s_mgr.active_connections;
       while (nc) {
-         //printf("nc %p, next %p, user_data %p\n", nc, nc->next, nc->user_data);
-         void *ptr = nc->user_data;
-         nc->user_data = NULL;
-         // check for duplicate pointers to user_data
-         struct mg_connection* nc1 = nc->next;
-         while (nc1) {
-            //printf("nc1 %p, next %p, user_data %p\n", nc1, nc1->next, nc1->user_data);
-            if (nc1->user_data == ptr)
-               nc1->user_data = NULL;
-            nc1 = nc1->next;
+         //printf("nc %p, next %p, user_data %p, listener %p, flags %lu\n", nc, nc->next, nc->user_data, nc->listener, nc->flags);
+         if (nc->flags & MG_F_LISTENING) {
+            nc->flags |= MG_F_CLOSE_IMMEDIATELY;
          }
-         //printf("nc %p, free %p\n", nc, ptr);
-         free(ptr);
          nc = nc->next;
       }
    }
-   
+
+   // tell threads to shut down
+   for (auto it : gMongooseThreads) {
+      MongooseThreadObject* to = it;
+      to->fNotify.notify_one();
+   }
+
+   // wait until all threads stop
+   for (int i=0; i<10; i++) {
+      int count_running = 0;
+      for (auto it : gMongooseThreads) {
+         MongooseThreadObject* to = it;
+         //printf("AAA6C %p thread %p running %d!\n", to, to->fThread, to->fIsRunning);
+         if (to->fIsRunning) {
+            count_running++;
+         }
+      }
+      printf("Mongoose web server shutting down, %d threads still running\n", count_running);
+      if (count_running == 0)
+         break;
+      mongoose_poll(1000);
+   }
+
+   // delete thread objects
+   for (auto it : gMongooseThreads) {
+      MongooseThreadObject* to = it;
+      //printf("AAA7B %p thread %p running %d!\n", to, to->fThread, to->fIsRunning);
+      if (to->fIsRunning) {
+         cm_msg(MERROR, "mongoose", "thread failed to shut down");
+         continue;
+      }
+      to->fThread->join();
+      delete to->fThread;
+      delete to;
+   }
+   gMongooseThreads.clear();
+
    mg_mgr_free(&s_mgr);
    
    //closesocket(s_sock[0]);
@@ -17532,6 +17602,8 @@ static void mongoose_cleanup()
       delete gMimeTypesOdb;
       gMimeTypesOdb = NULL;
    }
+
+   printf("Mongoose web server shut down\n");
 }
 
 #endif
