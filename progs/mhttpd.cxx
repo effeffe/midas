@@ -17502,6 +17502,14 @@ static void mongoose_cleanup()
       delete e;
    }
    gHostlistCache.clear();
+   if (gProxyOdb) {
+      delete gProxyOdb;
+      gProxyOdb = NULL;
+   }
+   if (gMimeTypesOdb) {
+      delete gMimeTypesOdb;
+      gMimeTypesOdb = NULL;
+   }
 }
 
 #endif
@@ -18064,7 +18072,8 @@ int main(int argc, const char *argv[])
    /* establish Ctrl-C handler - will set _abort to TRUE */
    ss_ctrlc_handler(ctrlc_handler);
 
-   status = mongoose_init(odb->Chdir("WebServer", true), no_passwords, no_hostlist, user_hostlist);
+   MVOdb* o = odb->Chdir("WebServer", true);
+   status = mongoose_init(o, no_passwords, no_hostlist, user_hostlist);
    if (status != SUCCESS) {
       // At least print something!
       printf("Error: Could not start the mongoose web server, see messages and midas.log, bye!\n");
@@ -18072,6 +18081,7 @@ int main(int argc, const char *argv[])
       return 1;
    }
 
+   delete o;
 #endif
 
 #ifdef HAVE_MONGOOSE6
