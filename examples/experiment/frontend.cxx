@@ -88,7 +88,7 @@ EQUIPMENT equipment[] = {
          0,                  /* stop run after this event limit */
          0,                  /* number of sub events */
          0,                  /* don't log history */
-         "", "", "",},
+         "", "", "", "", "", 0, 0},
       read_trigger_event,    /* readout routine */
    },
 
@@ -105,7 +105,7 @@ EQUIPMENT equipment[] = {
          0,                  /* stop run after this event limit */
          0,                  /* number of sub events */
          10,                 /* log history every ten seconds*/
-         "", "", "",},
+       "", "", "", "", "", 0, 0},
       read_periodic_event,   /* readout routine */
    },
 
