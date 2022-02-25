@@ -561,7 +561,7 @@ static int paste_value(HNDLE hDB, HNDLE hKey, const char* path, bool is_array, i
       }
 
       if (buf)
-         delete buf;
+         delete[] buf;
 
       if (status != DB_SUCCESS) {
          cm_msg(MERROR, "db_paste_json", "cannot set TID_STRING value for \"%s\", db_set_data_index() status %d", path, status);
