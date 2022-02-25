@@ -3000,6 +3000,10 @@ int main(int argc, char *argv[])
    //cmd_mode = TRUE;
    //status = command_loop(host_name, exp_name, "save xxx3.json", dir);
 
+   /* log all commands passed via -c on command line */
+   if (cmd_mode)
+      cm_msg(MINFO, "odbedit", "Execute command from command line: \"%s\"", cmd);
+
    /* command loop */
    status = command_loop(host_name, exp_name, cmd, dir);
 
