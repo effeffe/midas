@@ -8198,6 +8198,8 @@ static MidasHistoryInterface* get_history(bool reset = false)
       return NULL;
    }
 
+   //printf("get_history %p\n", mh);
+
    mhkey = hKey;
 
    // cm_msg(MINFO, "get_history", "Reading history from channel \'%s\' type \'%s\'", mh->name, mh->type);
@@ -18133,6 +18135,7 @@ int main(int argc, const char *argv[])
    mongoose_cleanup();
 #endif
 
+   mjsonrpc_exit();
    cm_disconnect_experiment();
    return 0;
 }

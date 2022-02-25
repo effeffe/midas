@@ -22,6 +22,7 @@ extern int mjsonrpc_debug;
 void mjsonrpc_init();
 void mjsonrpc_user_init();
 void mjsonrpc_add_handler(const char* method, mjsonrpc_handler_t *handler, bool needs_locking = false);
+void mjsonrpc_exit();
 
 void mjsonrpc_set_std_mutex(void* mutex);
 

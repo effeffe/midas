@@ -1727,11 +1727,22 @@ static MidasHistoryInterface* GetHistory(const char* name)
       return NULL;
    }
 
+   //printf("hs_get_history: \"%s\" -> mh %p\n", name, mh);
+
    gHistoryChannels[name] = mh;
    
    // cm_msg(MINFO, "GetHistory", "Reading history channel \"%s\" from channel \'%s\' type \'%s\'", name, mh->name, mh->type);
 
    return mh;
+}
+
+static void js_hs_exit()
+{
+   for (auto& e : gHistoryChannels) {
+      //printf("history channel \"%s\" mh %p\n", e.first.c_str(), e.second);
+      delete e.second;
+   }
+   gHistoryChannels.clear();
 }
 
 static MJsonNode* js_hs_get_channels(const MJsonNode* params)
@@ -3909,6 +3920,15 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("get_timezone", js_get_timezone);
 
    mjsonrpc_user_init();
+}
+
+void mjsonrpc_exit()
+{
+   if (mjsonrpc_debug) {
+      printf("mjsonrpc_exit!\n");
+   }
+
+   js_hs_exit();
 }
 
 static MJsonNode* mjsonrpc_make_schema(MethodsTable* h)
