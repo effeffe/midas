@@ -1989,6 +1989,7 @@ static int FindTime(const char* file_name, int fd, int offset, int recsize, int 
       *irecp = -1;
       *trecp = 0;
       *trecp2 = t1;
+      delete[] buf;
       return HS_SUCCESS;
    }
 
@@ -2005,6 +2006,7 @@ static int FindTime(const char* file_name, int fd, int offset, int recsize, int 
       *irecp = nrec;
       *trecp = 0;
       *trecp2 = 0;
+      delete[] buf;
       return HS_SUCCESS;
    }
 
