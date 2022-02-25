@@ -17496,8 +17496,18 @@ static void mongoose_cleanup()
       struct mg_connection* nc = s_mgr.active_connections;
       while (nc) {
          //printf("nc %p, next %p, user_data %p\n", nc, nc->next, nc->user_data);
-         free(nc->user_data);
+         void *ptr = nc->user_data;
          nc->user_data = NULL;
+         // check for duplicate pointers to user_data
+         struct mg_connection* nc1 = nc->next;
+         while (nc1) {
+            //printf("nc1 %p, next %p, user_data %p\n", nc1, nc1->next, nc1->user_data);
+            if (nc1->user_data == ptr)
+               nc1->user_data = NULL;
+            nc1 = nc1->next;
+         }
+         //printf("nc %p, free %p\n", nc, ptr);
+         free(ptr);
          nc = nc->next;
       }
    }
