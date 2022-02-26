@@ -8169,9 +8169,17 @@ static void mg_reverse_proxy_handler(struct mg_connection *nc, int ev,
      break;
   }
   case MG_EV_HTTP_REPLY: {
-     char* s = strstr((char*)hm->message.p, "Transfer-Encoding: chunked");
+     // HTTP header "Transfer-Encoding: chunked" has to be removed:
+     // proxy data is chunked, after mongoose reads it, chunking is removed,
+     // it is sent to requestor all in one go (not chunked), but
+     // Transfer-Encoding header is still there and confuses the web browser.
+     // We hack the message to hide this header and everything works. K.O.
+     mg_str xstr;
+     xstr.p = "Transfer-Encoding: chunked";
+     xstr.len = strlen(xstr.p);
+     const char* s = mg_strstr(hm->message, xstr);
      if (s) {
-        *s = 'X';
+        *(char*)s = 'X';
      }
      //printf("proxy reply: [%s]\n", hm->message.p);
      if (0) {
