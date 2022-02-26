@@ -8136,14 +8136,15 @@ static void history_watch_callback(HNDLE hDB, HNDLE hKey, int index, void* info)
    cm_msg(MINFO, "history_watch_callback", "History configuration may have changed, will reconnect");
 }
 
+static MidasHistoryInterface* gMh = NULL;
+static HNDLE gMhkey = 0;
+
 /*------------------------------------------------------------------*/
 
 static MidasHistoryInterface* get_history(bool reset = false)
 {
    int status;
    HNDLE hDB;
-   static MidasHistoryInterface* mh = NULL;
-   static HNDLE mhkey = 0;
 
    // history reconnect requested by watch callback?
 
@@ -8154,11 +8155,11 @@ static MidasHistoryInterface* get_history(bool reset = false)
 
    // disconnect from previous history
 
-   if (reset && mh) {
-      mh->hs_disconnect();
-      delete mh;
-      mh = NULL;
-      mhkey = 0;
+   if (reset && gMh) {
+      gMh->hs_disconnect();
+      delete gMh;
+      gMh = NULL;
+      gMhkey = 0;
    }
 
    status = cm_get_experiment_database(&hDB, NULL);
@@ -8184,27 +8185,31 @@ static MidasHistoryInterface* get_history(bool reset = false)
    HNDLE hKey = 0;
    status = hs_find_reader_channel(hDB, &hKey, verbose);
    if (status != HS_SUCCESS)
-      return mh;
+      return gMh;
 
    //printf("mh %p, hKey %d, mhkey %d\n", mh, hKey, mhkey);
 
-   if (mh && hKey == mhkey) // same channel as before
-      return mh;
+   if (gMh && hKey == gMhkey) // same channel as before
+      return gMh;
 
-   status = hs_get_history(hDB, hKey, HS_GET_READER|HS_GET_INACTIVE, verbose, &mh);
-   if (status != HS_SUCCESS || mh==NULL) {
+   if (gMh) {
+      delete gMh;
+      gMh = NULL;
+      gMhkey = 0;
+   }
+
+   status = hs_get_history(hDB, hKey, HS_GET_READER|HS_GET_INACTIVE, verbose, &gMh);
+   if (status != HS_SUCCESS || gMh==NULL) {
       cm_msg(MERROR, "get_history", "Cannot configure history, hs_get_history() status %d", status);
-      mh = NULL;
+      gMh = NULL;
       return NULL;
    }
 
-   //printf("get_history %p\n", mh);
-
-   mhkey = hKey;
+   gMhkey = hKey;
 
    // cm_msg(MINFO, "get_history", "Reading history from channel \'%s\' type \'%s\'", mh->name, mh->type);
 
-   return mh;
+   return gMh;
 }
 
 /*------------------------------------------------------------------*/
@@ -10680,6 +10685,8 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
    /*---- events and variables ----*/
 
    /* get display event name */
+
+   printf("AAA!\n");
 
    MidasHistoryInterface* mh = get_history();
    if (mh == NULL) {
@@ -18214,6 +18221,12 @@ int main(int argc, const char *argv[])
 
    mongoose_cleanup();
 #endif
+
+   if (gMh) {
+      delete gMh;
+      gMh = NULL;
+      gMhkey = 0;
+   }
 
    mjsonrpc_exit();
    cm_disconnect_experiment();
