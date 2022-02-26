@@ -16861,6 +16861,7 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
          std::string response = "404 Not Found (Proxy name is missing)";
          mg_send_head(nc, 404, response.length(), NULL);
          mg_send(nc, response.c_str(), response.length());
+         delete t;
          return;
       }
       std::string::size_type p2 = uri.find("/", p1+1);
@@ -16868,6 +16869,7 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
          std::string response = "404 Not Found (Proxy URL should end with a slash)";
          mg_send_head(nc, 404, response.length(), NULL);
          mg_send(nc, response.c_str(), response.length());
+         delete t;
          return;
       }
       std::string p = uri.substr(p1+1, p2-p1-1);
@@ -16876,6 +16878,7 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
          std::string response = "404 Not Found (Double-slash or Proxy name is too short)";
          mg_send_head(nc, 404, response.length(), NULL);
          mg_send(nc, response.c_str(), response.length());
+         delete t;
          return;
       }
       std::string destination;
@@ -16884,21 +16887,25 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
          std::string response = "404 Not Found (Proxy not found in ODB)";
          mg_send_head(nc, 404, response.length(), NULL);
          mg_send(nc, response.c_str(), response.length());
+         delete t;
          return;
       } else if (destination[0] == '#') {
          std::string response = "404 Not Found (Proxy commented-out in ODB)";
          mg_send_head(nc, 404, response.length(), NULL);
          mg_send(nc, response.c_str(), response.length());
+         delete t;
          return;
       } else if (ends_with_char(destination, '/')) {
          std::string response = "404 Not Found (Proxy address should not end with a slash)";
          mg_send_head(nc, 404, response.length(), NULL);
          mg_send(nc, response.c_str(), response.length());
+         delete t;
          return;
       } else if (!starts_with(destination, "http")) {
          std::string response = "404 Not Found (Proxy address does not start with http";
          mg_send_head(nc, 404, response.length(), NULL);
          mg_send(nc, response.c_str(), response.length());
+         delete t;
          return;
       } else {
          std::string m;
@@ -16911,6 +16918,7 @@ static void handle_http_message(struct mg_connection *nc, http_message* msg)
             printf("proxy: uri [%s] mount [%s] upstream [%s]\n", uri.c_str(), mgstr(&mount).c_str(), mgstr(&upstream).c_str());
          }
          mg_http_reverse_proxy(nc, msg, mount, upstream);
+         delete t;
          return;
       }
    }
