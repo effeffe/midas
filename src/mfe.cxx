@@ -2524,8 +2524,8 @@ int main(int argc, char *argv[])
 
    /* store arguments for user use */
    _argc = argc;
-   _argv = (char **)malloc(sizeof(char *)*argc);
-   for (i=0 ; i<argc ; i++) {
+   _argv = (char **) malloc(sizeof(char *) * argc);
+   for (i = 0; i < argc; i++) {
       _argv[i] = argv[i];
    }
 
@@ -2538,13 +2538,11 @@ int main(int argc, char *argv[])
       else if (argv[i][0] == '-' && argv[i][1] == 'O')
          daemon_flag = 2;
       else if (argv[i][1] == 'v') {
-         if (i < argc-1 && atoi(argv[i+1]) > 0)
+         if (i < argc - 1 && atoi(argv[i + 1]) > 0)
             verbosity_level = atoi(argv[++i]);
          else
             verbosity_level = 1;
-      }
-
-      else if (argv[i][0] == '-') {
+      } else if (argv[i][0] == '-') {
          if (i + 1 >= argc || argv[i + 1][0] == '-')
             goto usage;
          if (argv[i][1] == 'e')
@@ -2554,7 +2552,7 @@ int main(int argc, char *argv[])
          else if (argv[i][1] == 'i')
             frontend_index = atoi(argv[++i]);
          else if (argv[i][1] == '-') {
-          usage:
+            usage:
             printf("usage: frontend [-h Hostname] [-e Experiment] [-d] [-D] [-O] [-v <n>] [-i <n>]\n");
             printf("         [-d]     Used to debug the frontend\n");
             printf("         [-D]     Become a daemon\n");
@@ -2569,16 +2567,19 @@ int main(int argc, char *argv[])
 
    /* check event and buffer sizes */
    if (event_buffer_size < 2 * max_event_size) {
-      cm_msg(MERROR, "mainFE", "event_buffer_size %d too small for max. event size %d\n", event_buffer_size, max_event_size);
+      cm_msg(MERROR, "mainFE", "event_buffer_size %d too small for max. event size %d\n", event_buffer_size,
+             max_event_size);
       ss_sleep(5000);
       return 1;
    }
 
-   int max_allowed_buffer_size = 1024 * 1024 * 1024; // 1 GB If this value is too large, the end-of-run
-                                                     // might take quite long to drain a full buffer
+   int max_allowed_buffer_size = 1024 * 1024 * 1024; // 1 GB
+
+   // Check buffer size. If this value is too large, the end-of-run
+   // might take quite long to drain a full buffer
    if (event_buffer_size > max_allowed_buffer_size) {
       cm_msg(MERROR, "mainFE", "event_buffer_size %d MB exceeds maximum allowed size of %d MB\n",
-             event_buffer_size/1024/1024, max_allowed_buffer_size/1024/1024);
+             event_buffer_size / 1024 / 1024, max_allowed_buffer_size / 1024 / 1024);
       ss_sleep(5000);
       return 1;
    }
@@ -2634,7 +2635,8 @@ int main(int argc, char *argv[])
    status = cm_connect_experiment1(host_name, exp_name, full_frontend_name,
                                    NULL, DEFAULT_ODB_SIZE, DEFAULT_FE_TIMEOUT);
    if (status != CM_SUCCESS) {
-      cm_msg(MERROR, "mainFE", "Cannot connect to experiment \'%s\' on host \'%s\', status %d", exp_name, host_name, status);
+      cm_msg(MERROR, "mainFE", "Cannot connect to experiment \'%s\' on host \'%s\', status %d", exp_name, host_name,
+             status);
       /* let user read message before window might close */
       ss_sleep(5000);
       return 1;
@@ -2747,8 +2749,10 @@ int main(int argc, char *argv[])
    /* stop readout thread */
    stop_readout_threads();
    rb_set_nonblocking();
-   while (is_readout_thread_active())
+   while (is_readout_thread_active()) {
+      flush_user_events();
       ss_sleep(100);
+   }
 
    /* reset terminal */
    ss_getchar(TRUE);
