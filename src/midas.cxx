@@ -5339,10 +5339,10 @@ static BOOL _ctrlc_pressed = FALSE;
 
 void cm_ctrlc_handler(int sig) {
    if (_ctrlc_pressed) {
-      printf("Received 2nd break. Hard abort.\n");
+      printf("Received 2nd Ctrl-C, hard abort\n");
       exit(0);
    }
-   printf("Received break. Aborting...\n");
+   printf("Received Ctrl-C, aborting...\n");
    _ctrlc_pressed = TRUE;
 
    ss_ctrlc_handler(cm_ctrlc_handler);
