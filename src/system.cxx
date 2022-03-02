@@ -4491,7 +4491,7 @@ INT ss_suspend(INT millisec, INT msg)
 
             if (recv_tcp_check(sock) || FD_ISSET(sock, &readfds)) {
                //printf("ss_suspend: msg %d\n", msg);
-               if (msg != 0 && msg != MSG_BM) {
+               if (msg == MSG_BM) {
                   status = ss_socket_check(sock);
                } else {
                   //printf("ss_suspend: rpc_server_receive_rpc() call!\n");
