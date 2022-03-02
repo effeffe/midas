@@ -47,7 +47,6 @@ Disconnecting from experiment...
 
 Done
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "ls -l"
-[ODBEdit,INFO] Execute command from command line: "ls -l"
 Key name                        Type    #Val  Size  Last Opn Mode Value
 ---------------------------------------------------------------------------
 Experiment                      DIR
@@ -55,7 +54,6 @@ System                          DIR
 Programs                        DIR
 Logger                          DIR
 
-08:52:07 [ODBEdit,INFO] Execute command from command line: "ls -l"
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mhttpd -D
 Becoming a daemon...
 sleep 1
@@ -73,14 +71,12 @@ MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mlogger -D
 Becoming a daemon...
 sleep 1
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "scl"
-[ODBEdit,INFO] Execute command from command line: "scl"
 Name                Host
 mhttpd              localhost           
 Sample Frontend     localhost           
 Logger              localhost           
 ODBEdit             localhost           
 
-08:52:11 [ODBEdit,INFO] Execute command from command line: "scl"
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/mtransition START
 [mtransition,INFO] Run #1 started
 sleep 2
@@ -110,31 +106,21 @@ Event 0, "Run transitions", size 80, 2 tags.
 Event 2, "Periodic", size 40, 1 tags.
   Tag 0: "PRDC"[16], type "UINT32" (6), type size 4, offset 0+64
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh \"sample frontend\""
-[ODBEdit,INFO] Execute command from command line: "sh "sample frontend""
 
-08:52:17 [ODBEdit,INFO] Execute command from command line: "sh "sample frontend""
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh logger"
-[ODBEdit,INFO] Execute command from command line: "sh logger"
 
-08:52:17 [ODBEdit,INFO] Execute command from command line: "sh logger"
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "sh mhttpd"
-[ODBEdit,INFO] Execute command from command line: "sh mhttpd"
 
-08:52:17 [ODBEdit,INFO] Execute command from command line: "sh mhttpd"
 MIDASSYS=PWD MIDAS_EXPTAB=PWD/exptab ./bin/odbedit -c "save testexpt.json"
-[ODBEdit,INFO] Execute command from command line: "save testexpt.json"
 
-08:52:18 [ODBEdit,INFO] Execute command from command line: "save testexpt.json"
-cut -b25- < testexptPWD.log | sed 's/checksum: 0x.*, .* bytes/checksum: (omitted)/'
+cut -b25- < testexpt/midas.log | sed 's/checksum: 0x.*, .* bytes/checksum: (omitted)/'
 [system.cxx:1052:ss_shm_delete,ERROR] shm_unlink(SHM)
 [ODBInit,LOG] Program ODBInit on host localhost started
-[ODBEdit,INFO] Execute command from command line: "ls -l"
 [mhttpd,LOG] Program mhttpd on host localhost started
 [mhttpd,INFO] ODB subtree /Runinfo corrected successfully
 [Sample Frontend,LOG] Program Sample Frontend on host localhost started
 [Logger,LOG] Program Logger on host localhost started
 [Logger,INFO] Equipment "Periodic" history is enabled, but there are no Variables in ODB
-[ODBEdit,INFO] Execute command from command line: "scl"
 [Logger,INFO] Equipment "Periodic" history is enabled, but there are no Variables in ODB
 [mtransition,INFO] Run #1 started
 [Logger,LOG] File 'PWD/testexpt/run00001.mid' CRC32C checksum: (omitted)
@@ -144,7 +130,3 @@ cut -b25- < testexptPWD.log | sed 's/checksum: 0x.*, .* bytes/checksum: (omitted
 [Logger,LOG] File 'PWD/testexpt/run00002.mid' CRC32C checksum: (omitted)
 [Logger,LOG] File 'PWD/testexpt/run00002.mid.lz4' CRC32C checksum: (omitted)
 [mtransition,INFO] Run #2 stopped
-[ODBEdit,INFO] Execute command from command line: "sh "sample frontend""
-[ODBEdit,INFO] Execute command from command line: "sh logger"
-[ODBEdit,INFO] Execute command from command line: "sh mhttpd"
-[ODBEdit,INFO] Execute command from command line: "save testexpt.json"
