@@ -16757,7 +16757,7 @@ Routine: rb_get_wp
 
    for (i = 0; i <= millisec / 10; i++) {
 
-      rp = rb[h].rp;            // keep local copy, rb[h].rp might be changed by other thread
+      rp = rb[h].rp;            // keep local copy for convenience
 
       /* check if enough size for wp >= rp without wrap-around */
       if (rb[h].wp >= rp
@@ -16768,7 +16768,7 @@ Routine: rb_get_wp
 
       /* check if enough size for wp >= rp with wrap-around */
       if (rb[h].wp >= rp && rb[h].wp + rb[h].max_event_size > rb[h].buffer + rb[h].size - rb[h].max_event_size &&
-          rb[h].rp > rb[h].buffer) {    // next increment of wp wraps around, so need space at beginning
+          rp > rb[h].buffer) {    // next increment of wp wraps around, so need space at beginning
          *p = rb[h].wp;
          return DB_SUCCESS;
       }
@@ -16954,6 +16954,7 @@ int rb_increment_rp(int handle, int size)
    int h;
 
    unsigned char *new_rp;
+   unsigned char *ep;
 
    if (handle < 1 || handle > MAX_RING_BUFFER || rb[handle - 1].buffer == NULL)
       return DB_INVALID_HANDLE;
@@ -16964,9 +16965,10 @@ int rb_increment_rp(int handle, int size)
       return DB_INVALID_PARAM;
 
    new_rp = rb[h].rp + size;
+   ep = rb[h].ep; // keep local copy of end pointer, rb[h].ep might be changed by other thread
 
    /* wrap around if end pointer reached */
-   if (new_rp >= rb[h].ep && rb[h].wp < rb[h].ep)
+   if (new_rp >= ep && rb[h].wp < ep)
       new_rp = rb[h].buffer;
 
    rb[handle - 1].rp = new_rp;
