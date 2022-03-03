@@ -2874,13 +2874,14 @@ int main(int argc, char *argv[])
    char host_name[HOST_NAME_LENGTH], exp_name[NAME_LENGTH];
    char cmd[2000], dir[256];
    BOOL debug;
+   BOOL quiet;
    BOOL corrupted;
    BOOL reload_from_file = FALSE;
    HNDLE hDB;
 
    cmd[0] = dir[0] = 0;
    odb_size = DEFAULT_ODB_SIZE;
-   debug = corrupted = cmd_mode = FALSE;
+   debug = corrupted = cmd_mode = quiet = FALSE;
 
 #ifdef OS_VXWORKS
    strcpy(host_name, ahost_name);
@@ -2900,6 +2901,8 @@ int main(int argc, char *argv[])
    for (i = 1; i < argc; i++) {
       if (argv[i][0] == '-' && argv[i][1] == 'g')
          debug = TRUE;
+      else if (argv[i][0] == '-' && argv[i][1] == 'q')
+         quiet = TRUE;
       else if (argv[i][0] == '-' && argv[i][1] == 'R')
          reload_from_file = TRUE;
       else if (argv[i][0] == '-' && argv[i][1] == 'C')
@@ -2925,7 +2928,7 @@ int main(int argc, char *argv[])
          else {
           usage:
             printf("usage: odbedit [-h Hostname] [-e Experiment] [-d ODB Subtree]\n");
-            printf("               [-c Command] [-c @CommandFile] [-s size]\n");
+            printf("               [-q] [-c Command] [-c @CommandFile] [-s size]\n");
             printf("               [-g (debug)] [-C (connect to corrupted ODB)]\n");
             printf("               [-R (reload ODB from .ODB.SHM)]\n\n");
             printf("For a list of valid commands start odbedit interactively\n");
@@ -3001,7 +3004,7 @@ int main(int argc, char *argv[])
    //status = command_loop(host_name, exp_name, "save xxx3.json", dir);
 
    /* log all commands passed via -c on command line */
-   if (cmd_mode)
+   if (cmd_mode && !quiet)
       cm_msg(MINFO, "odbedit", "Execute command from command line: \"%s\"", cmd);
 
    /* command loop */

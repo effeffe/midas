@@ -1386,7 +1386,7 @@ private:
 
 /*---- LZ4 compressed writer  --------------------------------------*/
 
-#include "lz4frame.h"
+#include "mlz4frame.h"
 
 class WriterLZ4 : public WriterInterface
 {
@@ -1416,7 +1416,7 @@ public:
    int wr_open(LOG_CHN* log_chn, int run_number)
    {
       int status;
-      LZ4F_errorCode_t errorCode;
+      MLZ4F_errorCode_t errorCode;
 
       if (fTrace)
          printf("WriterLZ4: open path [%s]\n", log_chn->path.c_str());
@@ -1426,15 +1426,15 @@ public:
          return status;
       }
 
-      errorCode = LZ4F_createCompressionContext(&fContext, LZ4F_VERSION);
-      if (LZ4F_isError(errorCode)) {
-         cm_msg(MERROR, "WriterLZ4::wr_open", "LZ4F_createCompressionContext() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
+      errorCode = MLZ4F_createCompressionContext(&fContext, MLZ4F_VERSION);
+      if (MLZ4F_isError(errorCode)) {
+         cm_msg(MERROR, "WriterLZ4::wr_open", "LZ4F_createCompressionContext() error %d (%s)", (int)errorCode, MLZ4F_getErrorName(errorCode));
          return SS_FILE_ERROR;
       }
 
-      LZ4F_blockSizeID_t blockSizeId = LZ4F_max4MB;
+      MLZ4F_blockSizeID_t blockSizeId = MLZ4F_max4MB;
       fBlockSize = 4*1024*1024;
-      fBufferSize = LZ4F_compressFrameBound(fBlockSize, NULL);
+      fBufferSize = MLZ4F_compressFrameBound(fBlockSize, NULL);
       fBufferSize *= 2; // kludge
       fBuffer = (char*)malloc(fBufferSize);
       if (fBuffer == NULL) {
@@ -1446,14 +1446,14 @@ public:
 
       fPrefs.compressionLevel = 0; // 0=fast, non-zero=???
       fPrefs.autoFlush = 0; // ???
-      fPrefs.frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled;
+      fPrefs.frameInfo.contentChecksumFlag = MLZ4F_contentChecksumEnabled;
       fPrefs.frameInfo.blockSizeID = blockSizeId;
 
-      size_t headerSize = LZ4F_compressBegin(fContext, fBuffer, fBufferSize, &fPrefs);
+      size_t headerSize = MLZ4F_compressBegin(fContext, fBuffer, fBufferSize, &fPrefs);
       
-      if (LZ4F_isError(headerSize)) {
+      if (MLZ4F_isError(headerSize)) {
          errorCode = headerSize;
-         cm_msg(MERROR, "WriterLZ4::wr_open", "LZ4F_compressBegin() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
+         cm_msg(MERROR, "WriterLZ4::wr_open", "LZ4F_compressBegin() error %d (%s)", (int)errorCode, MLZ4F_getErrorName(errorCode));
          return SS_FILE_ERROR;
       }
 
@@ -1485,11 +1485,11 @@ public:
          if (wsize > fBlockSize)
             wsize = fBlockSize;
 
-         size_t outSize = LZ4F_compressUpdate(fContext, fBuffer, fBufferSize, ptr, wsize, NULL);
+         size_t outSize = MLZ4F_compressUpdate(fContext, fBuffer, fBufferSize, ptr, wsize, NULL);
 
-         if (LZ4F_isError(outSize)) {
+         if (MLZ4F_isError(outSize)) {
             int errorCode = outSize;
-            cm_msg(MERROR, "WriterLZ4::wr_write", "LZ4F_compressUpdate() with %d bytes, block size %d, buffer size %d, write size %d, remaining %d bytes, error %d (%s)", wsize, fBlockSize, fBufferSize, size, remaining, (int)errorCode, LZ4F_getErrorName(errorCode));
+            cm_msg(MERROR, "WriterLZ4::wr_write", "LZ4F_compressUpdate() with %d bytes, block size %d, buffer size %d, write size %d, remaining %d bytes, error %d (%s)", wsize, fBlockSize, fBufferSize, size, remaining, (int)errorCode, MLZ4F_getErrorName(errorCode));
             return SS_FILE_ERROR;
          }
 
@@ -1514,7 +1514,7 @@ public:
    int wr_close(LOG_CHN* log_chn, int run_number)
    {
       int xstatus = SUCCESS;
-      LZ4F_errorCode_t errorCode;
+      MLZ4F_errorCode_t errorCode;
 
       if (fTrace)
          printf("WriterLZ4: close path [%s]\n", log_chn->path.c_str());
@@ -1522,11 +1522,11 @@ public:
       log_chn->handle = 0;
 
       /* write End of Stream mark */
-      size_t headerSize = LZ4F_compressEnd(fContext, fBuffer, fBufferSize, NULL);
+      size_t headerSize = MLZ4F_compressEnd(fContext, fBuffer, fBufferSize, NULL);
 
-      if (LZ4F_isError(headerSize)) {
+      if (MLZ4F_isError(headerSize)) {
          errorCode = headerSize;
-         cm_msg(MERROR, "WriterLZ4::wr_close", "LZ4F_compressEnd() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
+         cm_msg(MERROR, "WriterLZ4::wr_close", "LZ4F_compressEnd() error %d (%s)", (int)errorCode, MLZ4F_getErrorName(errorCode));
          return SS_FILE_ERROR;
       }
 
@@ -1555,9 +1555,9 @@ public:
       fBuffer = NULL;
       fBufferSize = 0;
 
-      errorCode = LZ4F_freeCompressionContext(fContext);
-      if (LZ4F_isError(errorCode)) {
-         cm_msg(MERROR, "WriterLZ4::wr_close", "LZ4F_freeCompressionContext() error %d (%s)", (int)errorCode, LZ4F_getErrorName(errorCode));
+      errorCode = MLZ4F_freeCompressionContext(fContext);
+      if (MLZ4F_isError(errorCode)) {
+         cm_msg(MERROR, "WriterLZ4::wr_close", "LZ4F_freeCompressionContext() error %d (%s)", (int)errorCode, MLZ4F_getErrorName(errorCode));
          if (xstatus == SUCCESS)
             xstatus = SS_FILE_ERROR;
       }
@@ -1575,8 +1575,8 @@ public:
 
 private:
    WriterInterface *fWr;
-   LZ4F_compressionContext_t fContext;
-   LZ4F_preferences_t fPrefs;
+   MLZ4F_compressionContext_t fContext;
+   MLZ4F_preferences_t fPrefs;
    char* fBuffer;
    int   fBufferSize;
    int   fBlockSize;

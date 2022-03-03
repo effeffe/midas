@@ -184,7 +184,7 @@ INT trigger_thread(void *param)
 {
    EVENT_HEADER *pevent;
    WORD *pdata, *padc;
-   int  index, i, status;
+   int  index, i, status, exit = FALSE;
    INT rbh;
    
    /* index of this thread */
@@ -222,9 +222,19 @@ INT trigger_thread(void *param)
          // obtain buffer space
          do {
             status = rb_get_wp(rbh, (void **) &pevent, 0);
-            if (status == DB_TIMEOUT)
+            if (status == DB_TIMEOUT) {
                ss_sleep(10);
+               // check for readout thread disable, thread might be stop from main thread
+               // in case Ctrl-C is hit for example
+               if (!is_readout_thread_enabled()) {
+                  exit = TRUE;
+                  break;
+               }
+            }
          } while (status != DB_SUCCESS);
+
+         if (exit)
+            break;
 
          bm_compose_event_threadsafe(pevent, 1, 0, 0, &equipment[0].serial_number);
          pdata = (WORD *)(pevent + 1);
@@ -236,8 +246,9 @@ INT trigger_thread(void *param)
          bk_create(pdata, "ADC0", TID_WORD, (void **)&padc);
          
          /* just put in some random numbers in this demo */
-         for (i=0 ; i<1024; i++)
-            *padc++ = rand() % 1024;
+         int len = 32 + rand() % 10000;
+         for (i=0 ; i<len; i++)
+            *padc++ = len;
          
          bk_close(pdata, padc);
          

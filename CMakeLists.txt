@@ -470,10 +470,10 @@ set(libsrc
    src/history_odbc.cxx
    src/history_schema.cxx
    src/history_image.cxx
-   src/lz4.cxx
-   src/lz4frame.cxx
-   src/lz4hc.cxx
-   src/xxhash.cxx
+   midasio/lz4.cxx
+   midasio/lz4frame.cxx
+   midasio/lz4hc.cxx
+   midasio/xxhash.cxx
    src/crc32c.cxx
    src/sha256.cxx
    src/sha512.cxx

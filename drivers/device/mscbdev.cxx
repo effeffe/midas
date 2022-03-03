@@ -43,7 +43,7 @@ typedef struct {
 
 /*---- device driver routines --------------------------------------*/
 
-INT addr_changed(HNDLE hDB, HNDLE hKey, void *arg)
+INT addr_changed(HNDLE, HNDLE, void *arg)
 {
    INT i, status;
    MSCB_INFO_VAR var_info;
@@ -87,7 +87,7 @@ INT addr_changed(HNDLE hDB, HNDLE hKey, void *arg)
 
 typedef INT(func_t) (INT cmd, ...);
 
-INT mscbdev_init(HNDLE hkey, MSCBDEV_INFO **pinfo, INT channels, func_t *bd)
+INT mscbdev_init(HNDLE hkey, MSCBDEV_INFO **pinfo, INT channels, func_t *)
 {
    int i, status, size;
    HNDLE hDB, hsubkey;

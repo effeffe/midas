@@ -336,7 +336,7 @@ endif
 ifeq ($(OSTYPE),darwin)
 OS_DIR = darwin
 OSFLAGS = -DOS_LINUX -DOS_DARWIN -fPIC -Wno-unused-function
-LIBS = -lpthread
+LIBS = -lpthread -lz
 SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker
 NEED_ZLIB=1
 NEED_STRLCPY=
@@ -698,7 +698,7 @@ testmhttpd:
 	MIDASSYS=$(PWD) MIDAS_EXPTAB=$(PWD)/exptab ./bin/mhttpd
 
 test:
-	$(MAKE) --no-print-directory runtest 2>&1 | grep -v "on host localhost stopped" | sed "sZ$(PWD)ZPWDZg" | sed "sZshm_unlink(.*)Zshm_unlink(SHM)Zg" | tee testexpt.log
+	$(MAKE) --no-print-directory runtest 2>&1 | grep -v "on host localhost stopped" | grep -v "Execute command from command line" | sed "sZ$(PWD)Z/midasZg" | sed "sZshm_unlink(.*)Zshm_unlink(SHM)Zg" | tee testexpt.log
 	@echo
 	@echo compare output of "make test" with testexpt.example
 	@echo

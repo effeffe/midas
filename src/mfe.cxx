@@ -6,18 +6,16 @@
   Contents:     The system part of the MIDAS frontend. Has to be
                 linked with user code to form a complete frontend
 
-  $Id$
-
 \********************************************************************/
 
-#undef NDEBUG // midas required assert() to be always enabled
+#undef NDEBUG// midas required assert() to be always enabled
 
 #include "mfe.h"
 
-#include <stdio.h>
-#include <assert.h>
 #include "midas.h"
 #include "msystem.h"
+#include <assert.h>
+#include <stdio.h>
 
 #ifndef HAVE_STRLCPY
 #include "strlcpy.h"
@@ -92,13 +90,11 @@ static int flush_user_events(void);
 
 /*------------------------------------------------------------------*/
 
-void set_rate_period(int ms)
-{
+void set_rate_period(int ms) {
    rate_period = ms;
 }
 
-int get_rate_period()
-{
+int get_rate_period() {
    return rate_period;
 }
 
@@ -106,16 +102,15 @@ int get_rate_period()
 
 /*-- start ---------------------------------------------------------*/
 
-static INT tr_start(INT rn, char *error)
-{
+static INT tr_start(INT rn, char *error) {
    INT i, status;
-
-   /* flush all buffers with EQ_USER events */
-   flush_user_events();
 
    /* disable interrupts or readout thread
     * if somehow it was not stopped from previous run */
    readout_enable(FALSE);
+
+   /* flush all buffers with EQ_USER events */
+   flush_user_events();
 
    /* reset serial numbers and statistics */
    for (i = 0; equipment[i].name[0]; i++) {
@@ -155,8 +150,7 @@ static INT tr_start(INT rn, char *error)
 
 /*-- prestop -------------------------------------------------------*/
 
-static INT tr_stop(INT rn, char *error)
-{
+static INT tr_stop(INT rn, char *error) {
    INT status, i;
    EQUIPMENT *eq;
 
@@ -165,13 +159,12 @@ static INT tr_stop(INT rn, char *error)
 
    status = end_of_run(rn, error);
 
+   /* allow last event to be sent from frontend thread */
+   ss_sleep(100);
+
    /* check if event(s) happened just before disabling the trigger */
-   if ((i = check_polled_events()) > 0) {
-      // cm_msg(MINFO, "tr_stop", "sent remaining %d polled events", i);
-   }
-   if ((i = check_user_events()) > 0) {
-      // cm_msg(MINFO, "tr_stop", "sent remaining %d polled events", i);
-   }
+   check_polled_events();
+   check_user_events();
 
    if (status == CM_SUCCESS) {
       /* don't send events if already stopped */
@@ -189,11 +182,6 @@ static INT tr_stop(INT rn, char *error)
       readout_enable(TRUE);
 
    for (i = 0; equipment[i].name[0]; i++) {
-      /* read remaining events from ring buffers */
-      if (equipment[i].info.eq_type & (EQ_MULTITHREAD | EQ_INTERRUPT)) {
-         while (receive_trigger_event(equipment+i) > 0);
-      }
-
       /* flush remaining buffered events */
       rpc_flush_event();
       if (equipment[i].buffer_handle) {
@@ -223,8 +211,7 @@ static INT tr_stop(INT rn, char *error)
 
 /*-- pause ---------------------------------------------------------*/
 
-static INT tr_pause(INT rn, char *error)
-{
+static INT tr_pause(INT rn, char *error) {
    INT status;
 
    /* disable interrupts or readout thread */
@@ -251,8 +238,7 @@ static INT tr_pause(INT rn, char *error)
 
 /*-- resume --------------------------------------------------------*/
 
-static INT tr_resume(INT rn, char *error)
-{
+static INT tr_resume(INT rn, char *error) {
    INT status;
 
    status = resume_run(rn, error);
@@ -278,19 +264,17 @@ static INT tr_resume(INT rn, char *error)
 
 /*------------------------------------------------------------------*/
 
-INT manual_trigger(INT idx, void *prpc_param[])
-{
+INT manual_trigger(INT, void *prpc_param[]) {
    manual_trigger_event_id = CWORD(0);
    return SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
 
-static void eq_common_watcher(INT hDB, INT hKey, INT index, void* info)
-{
+static void eq_common_watcher(INT hDB, INT, INT, void *info) {
    int status;
    assert(info != NULL);
-   EQUIPMENT *eq = (EQUIPMENT*) info;
+   EQUIPMENT *eq = (EQUIPMENT *) info;
    HNDLE hCommon;
    char path[MAX_ODB_PATH];
    strlcpy(path, "/Equipment/", MAX_ODB_PATH);
@@ -309,8 +293,7 @@ static void eq_common_watcher(INT hDB, INT hKey, INT index, void* info)
 
 /*------------------------------------------------------------------*/
 
-static INT register_equipment(void)
-{
+static INT register_equipment(void) {
    INT idx, size, status;
    char str[256];
    EQUIPMENT_INFO *eq_info;
@@ -365,21 +348,21 @@ static INT register_equipment(void)
       }
 
       /* check for '${HOSTNAME}' in equipment name, replace with env var (needed for sysmon) */
-      std::string name=equipment[idx].name;
-      size_t namepos=name.find("${HOSTNAME}");
+      std::string name = equipment[idx].name;
+      size_t namepos = name.find("${HOSTNAME}");
 
       /* if there is a ${HOSTNAME} ... */
-      if (namepos!=std::string::npos) {
+      if (namepos != std::string::npos) {
          // Grab text before and after
-         std::string before=name.substr(0,namepos);
-         std::string after=name.substr(namepos+11); //11 = length of "${HOSTNAME}"
+         std::string before = name.substr(0, namepos);
+         std::string after = name.substr(namepos + 11);//11 = length of "${HOSTNAME}"
          // Get local_host_name (ODB entry not set yet)
          char thishost[HOST_NAME_LENGTH];
          ss_gethostname(thishost, sizeof(thishost));
          // Use NULL to cut the hostname string at the first '.'
-         char* cut=strchr(thishost, '.');
+         char *cut = strchr(thishost, '.');
          if (cut)
-            *cut='\0'; 
+            *cut = '\0';
          name = before;
          name += thishost;
          name += after;
@@ -390,7 +373,7 @@ static INT register_equipment(void)
                            32);
          }
          strlcpy(equipment[idx].name, name.c_str(), 32);
-         printf("\t became:%s\n",equipment[idx].name);
+         printf("\t became:%s\n", equipment[idx].name);
       }
 
       sprintf(str, "/Equipment/%s/Common", equipment[idx].name);
@@ -483,10 +466,10 @@ static INT register_equipment(void)
       }
 
       if (equal_ustring(eq_info->format, "YBOS"))
-	      assert(!"YBOS not supported anymore");
+         assert(!"YBOS not supported anymore");
       else if (equal_ustring(eq_info->format, "FIXED"))
          equipment[idx].format = FORMAT_FIXED;
-      else                      /* default format is MIDAS */
+      else /* default format is MIDAS */
          equipment[idx].format = FORMAT_MIDAS;
 
       size = sizeof(str);
@@ -508,7 +491,6 @@ static INT register_equipment(void)
          return 0;
       }
 
-
       /*---- Create variables record ---------------------------------*/
 
       sprintf(str, "/Equipment/%s/Variables", equipment[idx].name);
@@ -528,7 +510,7 @@ static INT register_equipment(void)
                if (bank_list->type == TID_STRUCT) {
                   sprintf(str, "/Equipment/%s/Variables/%s", equipment[idx].name,
                           bank_list->name);
-                  status = db_check_record(hDB, 0, str, strcomb1((const char **)bank_list->init_str).c_str(), TRUE);
+                  status = db_check_record(hDB, 0, str, strcomb1((const char **) bank_list->init_str).c_str(), TRUE);
                   if (status != DB_SUCCESS) {
                      printf("Cannot check/create record \"%s\", status = %d\n", str,
                             status);
@@ -597,7 +579,7 @@ static INT register_equipment(void)
 
          if (frag_buffer == NULL) {
             cm_msg(MERROR, "register_equipment",
-                  "Not enough memory to allocate buffer for fragmented events");
+                   "Not enough memory to allocate buffer for fragmented events");
             return SS_NO_MEMORY;
          }
       }
@@ -631,15 +613,14 @@ static INT register_equipment(void)
       }
    }
 
-   n_events = (int*)calloc(sizeof(int), idx);
+   n_events = (int *) calloc(sizeof(int), idx);
 
    return SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
 
-static INT initialize_equipment(void)
-{
+static INT initialize_equipment(void) {
    INT idx, i, j, k, n;
    double count;
    char str[256];
@@ -707,7 +688,7 @@ static INT initialize_equipment(void)
 
             start_time = ss_millitime();
 
-            poll_event(equipment[idx].info.source, (INT)count, TRUE);
+            poll_event(equipment[idx].info.source, (INT) count, TRUE);
 
             delta_time = ss_millitime() - start_time;
 
@@ -730,7 +711,7 @@ static INT initialize_equipment(void)
 
          } while (delta_time > eq_info->period * 1.2 || delta_time < eq_info->period * 0.8);
 
-         equipment[idx].poll_count = (INT)count;
+         equipment[idx].poll_count = (INT) count;
       }
 
       /*---- initialize multithread events -------------------------*/
@@ -853,8 +834,7 @@ static INT initialize_equipment(void)
          slowcont_eq = TRUE;
 
          /* let user read error messages */
-         if (equipment[idx].status != FE_SUCCESS &&
-             equipment[idx].status != FE_ERR_DISABLED)
+         if (equipment[idx].status != FE_SUCCESS && equipment[idx].status != FE_ERR_DISABLED)
             ss_sleep(3000);
       }
 
@@ -873,7 +853,7 @@ static INT initialize_equipment(void)
 
       if (eq_info->eq_type & EQ_SLOW) {
          if (equipment[idx].status == FE_SUCCESS || equipment[idx].status == FE_PARTIALLY_DISABLED)
-            equipment[idx].cd(CMD_START, &equipment[idx]);   /* start threads for this equipment */
+            equipment[idx].cd(CMD_START, &equipment[idx]); /* start threads for this equipment */
       }
    }
 
@@ -885,8 +865,7 @@ static INT initialize_equipment(void)
 
 /*------------------------------------------------------------------*/
 
-int set_equipment_status(const char *name, const char *equipment_status, const char *status_class)
-{
+int set_equipment_status(const char *name, const char *equipment_status, const char *status_class) {
    int status, idx;
    char str[256];
    HNDLE hKey;
@@ -913,15 +892,13 @@ int set_equipment_status(const char *name, const char *equipment_status, const c
 
 /*------------------------------------------------------------------*/
 
-static void update_odb(const EVENT_HEADER* pevent, HNDLE hKey, INT format)
-{
+static void update_odb(const EVENT_HEADER *pevent, HNDLE hKey, INT format) {
    cm_write_event_to_odb(hDB, hKey, pevent, format);
 }
 
 /*------------------------------------------------------------------*/
 
-static int send_event(INT idx, BOOL manual_trig)
-{
+static int send_event(INT idx, BOOL manual_trig) {
    EQUIPMENT_INFO *eq_info;
    EVENT_HEADER *pevent, *pfragment;
    char *pdata;
@@ -933,9 +910,9 @@ static int send_event(INT idx, BOOL manual_trig)
 
    /* check for fragmented event */
    if (eq_info->eq_type & EQ_FRAGMENTED)
-      pevent = (EVENT_HEADER *)frag_buffer;
+      pevent = (EVENT_HEADER *) frag_buffer;
    else
-      pevent = (EVENT_HEADER *)event_buffer;
+      pevent = (EVENT_HEADER *) event_buffer;
 
    /* compose MIDAS event header */
    pevent->event_id = eq_info->event_id;
@@ -963,7 +940,7 @@ static int send_event(INT idx, BOOL manual_trig)
          }
 
          /* compose fragments */
-         pfragment = (EVENT_HEADER*) event_buffer;
+         pfragment = (EVENT_HEADER *) event_buffer;
 
          /* compose MIDAS event header */
          memcpy(pfragment, pevent, sizeof(EVENT_HEADER));
@@ -973,7 +950,7 @@ static int send_event(INT idx, BOOL manual_trig)
          pd = (unsigned char *) (pfragment + 1);
          size = pevent->data_size;
          for (i = 0; i < 4; i++) {
-            pd[i] = (unsigned char) (size & 0xFF);      /* little endian, please! */
+            pd[i] = (unsigned char) (size & 0xFF); /* little endian, please! */
             size >>= 8;
          }
 
@@ -983,7 +960,7 @@ static int send_event(INT idx, BOOL manual_trig)
 
          for (i = 0, sent = 0; sent < pevent->data_size; i++) {
             if (i > 0) {
-               pfragment = (EVENT_HEADER*)event_buffer;
+               pfragment = (EVENT_HEADER *) event_buffer;
 
                /* compose MIDAS event header */
                memcpy(pfragment, pevent, sizeof(EVENT_HEADER));
@@ -1049,8 +1026,7 @@ static int send_event(INT idx, BOOL manual_trig)
 
          /* send event to ODB if RO_ODB flag is set or history is on. Do not
             send SLOW events since the class driver does that */
-         if ((eq_info->read_on & RO_ODB) ||
-             (eq_info->history > 0 && (eq_info->eq_type & ~EQ_SLOW))) {
+         if ((eq_info->read_on & RO_ODB) || (eq_info->history > 0 && (eq_info->eq_type & ~EQ_SLOW))) {
             update_odb(pevent, equipment[idx].hkey_variables, equipment[idx].format);
             equipment[idx].odb_out++;
          }
@@ -1075,8 +1051,7 @@ static int send_event(INT idx, BOOL manual_trig)
 
 /*------------------------------------------------------------------*/
 
-static void send_all_periodic_events(INT transition)
-{
+static void send_all_periodic_events(INT transition) {
    EQUIPMENT_INFO *eq_info;
    INT i;
 
@@ -1103,13 +1078,11 @@ static void send_all_periodic_events(INT transition)
 
 static int _readout_enabled_flag = 0;
 
-int readout_enabled()
-{
+int readout_enabled() {
    return _readout_enabled_flag;
 }
 
-void readout_enable(BOOL flag)
-{
+void readout_enable(BOOL flag) {
    _readout_enabled_flag = flag;
 
    if (interrupt_eq) {
@@ -1122,8 +1095,7 @@ void readout_enable(BOOL flag)
 
 /*------------------------------------------------------------------*/
 
-static void interrupt_routine(void)
-{
+static void interrupt_routine(void) {
    int status;
    EVENT_HEADER *pevent;
    void *p;
@@ -1133,7 +1105,7 @@ static void interrupt_routine(void)
    status = rb_get_wp(get_event_rbh(0), &p, 100000);
 
    if (status == DB_SUCCESS) {
-      pevent = (EVENT_HEADER *)p;
+      pevent = (EVENT_HEADER *) p;
 
       /* compose MIDAS event header */
       pevent->event_id = interrupt_eq->info.event_id;
@@ -1160,8 +1132,7 @@ static void interrupt_routine(void)
 
 /* routines to be called from user code */
 
-int create_event_rb(int i)
-{
+int create_event_rb(int i) {
    int status;
 
    assert(i < MAX_N_THREADS);
@@ -1171,39 +1142,33 @@ int create_event_rb(int i)
    return rbh[i];
 }
 
-int get_event_rbh(int i)
-{
+int get_event_rbh(int i) {
    return rbh[i];
 }
 
-void stop_readout_threads()
-{
+void stop_readout_threads() {
    stop_all_threads = 1;
 }
 
-int is_readout_thread_enabled()
-{
+int is_readout_thread_enabled() {
    return !stop_all_threads;
 }
 
-int is_readout_thread_active()
-{
+int is_readout_thread_active() {
    int i;
-   for (i=0 ; i<MAX_N_THREADS ; i++)
+   for (i = 0; i < MAX_N_THREADS; i++)
       if (readout_thread_active[i])
          return TRUE;
    return FALSE;
 }
 
-void signal_readout_thread_active(int index, int flag)
-{
+void signal_readout_thread_active(int index, int flag) {
    readout_thread_active[index] = flag;
 }
 
 /*------------------------------------------------------------------*/
 
-static int _readout_thread(void *param)
-{
+static int _readout_thread(void *param) {
    int status, source;
    EVENT_HEADER *pevent;
    void *p;
@@ -1236,7 +1201,7 @@ static int _readout_thread(void *param)
             if (stop_all_threads)
                break;
 
-            pevent = (EVENT_HEADER *)p;
+            pevent = (EVENT_HEADER *) p;
             /* put source at beginning of event, will be overwritten by
                user readout code, just a special feature used by some
                multi-source applications */
@@ -1255,9 +1220,9 @@ static int _readout_thread(void *param)
             /* check event size */
             if (pevent->data_size + sizeof(EVENT_HEADER) > (DWORD) max_event_size) {
                cm_msg(MERROR, "readout_thread",
-                        "Event size %ld larger than maximum size %d",
-                        (long) (pevent->data_size + sizeof(EVENT_HEADER)),
-                        max_event_size);
+                      "Event size %ld larger than maximum size %d",
+                      (long) (pevent->data_size + sizeof(EVENT_HEADER)),
+                      max_event_size);
                assert(FALSE);
             }
 
@@ -1269,8 +1234,7 @@ static int _readout_thread(void *param)
          }
 
       } else // readout_enabled
-        ss_sleep(10);
-
+         ss_sleep(10);
    }
 
    signal_readout_thread_active(0, 0);
@@ -1280,8 +1244,7 @@ static int _readout_thread(void *param)
 
 /*-- Receive event from readout thread or interrupt routine --------*/
 
-static int receive_trigger_event(EQUIPMENT *eq)
-{
+static int receive_trigger_event(EQUIPMENT *eq) {
    int index, status;
    EVENT_HEADER *prb = NULL, *pevent;
    void *p;
@@ -1300,7 +1263,7 @@ static int receive_trigger_event(EQUIPMENT *eq)
    DWORD serial = eq->events_collected;
 
    status = 0;
-   for (index=0 ; get_event_rbh(index) ; index++) {
+   for (index = 0; get_event_rbh(index); index++) {
       status = rb_get_rp(get_event_rbh(index), &p, 10);
       prb = (EVENT_HEADER *) p;
       if (status == DB_SUCCESS && prb->serial_number == serial)
@@ -1353,13 +1316,12 @@ static int receive_trigger_event(EQUIPMENT *eq)
 
 /*------------------------------------------------------------------*/
 
-static int flush_user_events()
-{
+static int flush_user_events() {
    int index, status;
    EVENT_HEADER *pevent;
    void *p;
 
-   for (int idx = 0; equipment[idx].name[0] ; idx++) {
+   for (int idx = 0; equipment[idx].name[0]; idx++) {
       EQUIPMENT *eq = &equipment[idx];
 
       if (eq->info.eq_type == EQ_USER) {
@@ -1380,8 +1342,7 @@ static int flush_user_events()
 
 /*------------------------------------------------------------------*/
 
-static int message_print(const char *msg)
-{
+static int message_print(const char *msg) {
    char str[160];
 
    memset(str, ' ', 159);
@@ -1398,8 +1359,7 @@ static int message_print(const char *msg)
 
 /*------------------------------------------------------------------*/
 
-void display(BOOL bInit)
-{
+void display(BOOL bInit) {
    INT i, status;
    time_t full_time;
    char str[30];
@@ -1416,8 +1376,8 @@ void display(BOOL bInit)
       ss_printf(0, 1,
                 "================================================================================");
       ss_printf(0, 2, "Run status:   %s",
-                run_state == STATE_STOPPED ? "Stopped" : run_state ==
-                STATE_RUNNING ? "Running" : "Paused");
+                run_state == STATE_STOPPED ? "Stopped" : run_state == STATE_RUNNING ? "Running"
+                                                                                    : "Paused");
       ss_printf(25, 2, "Run number %d   ", run_number);
       ss_printf(0, 3,
                 "================================================================================");
@@ -1484,8 +1444,7 @@ void display(BOOL bInit)
 
 /*------------------------------------------------------------------*/
 
-void display_inline()
-{
+void display_inline() {
    INT i;
    time_t full_time;
    char str[30];
@@ -1513,10 +1472,9 @@ void display_inline()
 
 /*------------------------------------------------------------------*/
 
-void rotate_wheel(void)
-{
+void rotate_wheel(void) {
    static DWORD last_wheel = 0, wheel_index = 0;
-   static char wheel_char[] = { '-', '\\', '|', '/' };
+   static char wheel_char[] = {'-', '\\', '|', '/'};
 
    if (display_period && !mfe_debug) {
       if (ss_millitime() - last_wheel > 300) {
@@ -1556,8 +1514,7 @@ BOOL logger_root()
 
 /*------------------------------------------------------------------*/
 
-static INT check_polled_events(void)
-{
+static INT check_polled_events(void) {
    EQUIPMENT_INFO *eq_info;
    EQUIPMENT *eq;
    EVENT_HEADER *pevent, *pfragment;
@@ -1594,9 +1551,9 @@ static INT check_polled_events(void)
       while ((source = poll_event(eq_info->source, eq->poll_count, FALSE)) > 0) {
 
          if (eq_info->eq_type & EQ_FRAGMENTED)
-            pevent = (EVENT_HEADER *)frag_buffer;
+            pevent = (EVENT_HEADER *) frag_buffer;
          else
-            pevent = (EVENT_HEADER *)event_buffer;
+            pevent = (EVENT_HEADER *) event_buffer;
 
          /* compose MIDAS event header */
          pevent->event_id = eq_info->event_id;
@@ -1619,8 +1576,7 @@ static INT check_polled_events(void)
                size = eq->readout((char *) (pevent + 1), pevent->data_size);
                pevent->data_size += size;
                if (size > 0) {
-                  if (pevent->data_size + sizeof(EVENT_HEADER) >
-                      (DWORD) max_event_size) {
+                  if (pevent->data_size + sizeof(EVENT_HEADER) > (DWORD) max_event_size) {
                      cm_msg(MERROR, "check_polled_events",
                             "Event size %ld larger than maximum size %d",
                             (long) (pevent->data_size + sizeof(EVENT_HEADER)),
@@ -1656,17 +1612,17 @@ static INT check_polled_events(void)
             if (eq_info->eq_type & EQ_FRAGMENTED) {
                if (pevent->data_size + sizeof(EVENT_HEADER) > (DWORD) max_event_size_frag) {
                   cm_msg(MERROR, "check_polled_events",
-                        "Event size %ld larger than maximum size %d for frag. ev.",
-                        (long) (pevent->data_size + sizeof(EVENT_HEADER)),
-                        max_event_size_frag);
+                         "Event size %ld larger than maximum size %d for frag. ev.",
+                         (long) (pevent->data_size + sizeof(EVENT_HEADER)),
+                         max_event_size_frag);
                   assert(FALSE);
                }
             } else {
                if (pevent->data_size + sizeof(EVENT_HEADER) > (DWORD) max_event_size) {
                   cm_msg(MERROR, "check_polled_events",
-                        "Event size %ld larger than maximum size %d",
-                        (long) (pevent->data_size + sizeof(EVENT_HEADER)),
-                        max_event_size);
+                         "Event size %ld larger than maximum size %d",
+                         (long) (pevent->data_size + sizeof(EVENT_HEADER)),
+                         max_event_size);
                   assert(FALSE);
                }
             }
@@ -1682,7 +1638,7 @@ static INT check_polled_events(void)
             /* check for fragmented event */
             if (eq_info->eq_type & EQ_FRAGMENTED) {
                /* compose fragments */
-               pfragment = (EVENT_HEADER*)event_buffer;
+               pfragment = (EVENT_HEADER *) event_buffer;
 
                /* compose MIDAS event header */
                memcpy(pfragment, pevent, sizeof(EVENT_HEADER));
@@ -1692,7 +1648,7 @@ static INT check_polled_events(void)
                pd = (unsigned char *) (pfragment + 1);
                size = pevent->data_size;
                for (i = 0; i < 4; i++) {
-                  pd[i] = (unsigned char) (size & 0xFF);      /* little endian, please! */
+                  pd[i] = (unsigned char) (size & 0xFF); /* little endian, please! */
                   size >>= 8;
                }
 
@@ -1702,7 +1658,7 @@ static INT check_polled_events(void)
 
                for (i = 0, sent = 0; sent < pevent->data_size; i++) {
                   if (i > 0) {
-                     pfragment = (EVENT_HEADER*)event_buffer;
+                     pfragment = (EVENT_HEADER *) event_buffer;
 
                      /* compose MIDAS event header */
                      memcpy(pfragment, pevent, sizeof(EVENT_HEADER));
@@ -1772,8 +1728,7 @@ static INT check_polled_events(void)
             break;
 
          /* quit if event limit is reached */
-         if (eq_info->event_limit > 0 &&
-             eq->stats.events_sent + eq->events_sent >= eq_info->event_limit)
+         if (eq_info->event_limit > 0 && eq->stats.events_sent + eq->events_sent >= eq_info->event_limit)
             break;
       }
    }
@@ -1783,8 +1738,7 @@ static INT check_polled_events(void)
 
 /*------------------------------------------------------------------*/
 
-static INT check_user_events(void)
-{
+static INT check_user_events(void) {
    EQUIPMENT_INFO *eq_info;
    EQUIPMENT *eq;
    DWORD size;
@@ -1822,13 +1776,12 @@ static INT check_user_events(void)
 
 /*------------------------------------------------------------------*/
 
-static INT scheduler()
-{
+static INT scheduler() {
    EQUIPMENT_INFO *eq_info;
    EQUIPMENT *eq;
    EVENT_HEADER *pevent, *pfragment;
    DWORD last_time_network = 0, last_time_display = 0, last_time_flush = 0,
-      readout_start, sent, size, last_time_rate = 0;
+         readout_start, sent, size, last_time_rate = 0;
    INT i, j, idx, status = 0, ch, source, state, old_flag;
    char *pdata;
    unsigned char *pd;
@@ -1867,10 +1820,8 @@ static INT scheduler()
          if (eq->status != FE_SUCCESS && eq->status != FE_PARTIALLY_DISABLED)
             continue;
 
-
          /*---- call idle routine for slow control equipment ----*/
-         if ((eq_info->eq_type & EQ_SLOW) &&
-             (eq->status == FE_SUCCESS || eq->status == FE_PARTIALLY_DISABLED)) {
+         if ((eq_info->eq_type & EQ_SLOW) && (eq->status == FE_SUCCESS || eq->status == FE_PARTIALLY_DISABLED)) {
             /* if equipment is multi-threaded, read all channel in one loop */
 
             if (eq_info->event_limit > 0) {
@@ -1923,9 +1874,9 @@ static INT scheduler()
             while ((source = poll_event(eq_info->source, eq->poll_count, FALSE)) > 0) {
 
                if (eq_info->eq_type & EQ_FRAGMENTED)
-                  pevent = (EVENT_HEADER *)frag_buffer;
+                  pevent = (EVENT_HEADER *) frag_buffer;
                else
-                  pevent = (EVENT_HEADER *)event_buffer;
+                  pevent = (EVENT_HEADER *) event_buffer;
 
                /* compose MIDAS event header */
                pevent->event_id = eq_info->event_id;
@@ -1948,8 +1899,7 @@ static INT scheduler()
                      size = eq->readout((char *) (pevent + 1), pevent->data_size);
                      pevent->data_size += size;
                      if (size > 0) {
-                        if (pevent->data_size + sizeof(EVENT_HEADER) >
-                            (DWORD) max_event_size) {
+                        if (pevent->data_size + sizeof(EVENT_HEADER) > (DWORD) max_event_size) {
                            cm_msg(MERROR, "scheduler",
                                   "Event size %ld larger than maximum size %d",
                                   (long) (pevent->data_size + sizeof(EVENT_HEADER)),
@@ -1985,17 +1935,17 @@ static INT scheduler()
                   if (eq_info->eq_type & EQ_FRAGMENTED) {
                      if (pevent->data_size + sizeof(EVENT_HEADER) > (DWORD) max_event_size_frag) {
                         cm_msg(MERROR, "send_event",
-                              "Event size %ld larger than maximum size %d for frag. ev.",
-                              (long) (pevent->data_size + sizeof(EVENT_HEADER)),
-                              max_event_size_frag);
+                               "Event size %ld larger than maximum size %d for frag. ev.",
+                               (long) (pevent->data_size + sizeof(EVENT_HEADER)),
+                               max_event_size_frag);
                         pevent->data_size = 0;
                      }
                   } else {
                      if (pevent->data_size + sizeof(EVENT_HEADER) > (DWORD) max_event_size) {
                         cm_msg(MERROR, "scheduler",
-                              "Event size %ld larger than maximum size %d",
-                              (long) (pevent->data_size + sizeof(EVENT_HEADER)),
-                              max_event_size);
+                               "Event size %ld larger than maximum size %d",
+                               (long) (pevent->data_size + sizeof(EVENT_HEADER)),
+                               max_event_size);
                         pevent->data_size = 0;
                      }
                   }
@@ -2011,7 +1961,7 @@ static INT scheduler()
                   /* check for fragmented event */
                   if (eq_info->eq_type & EQ_FRAGMENTED) {
                      /* compose fragments */
-                     pfragment = (EVENT_HEADER*)event_buffer;
+                     pfragment = (EVENT_HEADER *) event_buffer;
 
                      /* compose MIDAS event header */
                      memcpy(pfragment, pevent, sizeof(EVENT_HEADER));
@@ -2021,7 +1971,7 @@ static INT scheduler()
                      pd = (unsigned char *) (pfragment + 1);
                      size = pevent->data_size;
                      for (i = 0; i < 4; i++) {
-                        pd[i] = (unsigned char) (size & 0xFF);      /* little endian, please! */
+                        pd[i] = (unsigned char) (size & 0xFF); /* little endian, please! */
                         size >>= 8;
                      }
 
@@ -2031,7 +1981,7 @@ static INT scheduler()
 
                      for (i = 0, sent = 0; sent < pevent->data_size; i++) {
                         if (i > 0) {
-                           pfragment = (EVENT_HEADER*)event_buffer;
+                           pfragment = (EVENT_HEADER *) event_buffer;
 
                            /* compose MIDAS event header */
                            memcpy(pfragment, pevent, sizeof(EVENT_HEADER));
@@ -2107,11 +2057,9 @@ static INT scheduler()
                   break;
 
                /* quit if event limit is reached */
-               if (eq_info->event_limit > 0 &&
-                   eq->stats.events_sent + eq->events_sent >= eq_info->event_limit)
+               if (eq_info->event_limit > 0 && eq->stats.events_sent + eq->events_sent >= eq_info->event_limit)
                   break;
             }
-
          }
 
          /*---- send interrupt events ----*/
@@ -2120,7 +2068,7 @@ static INT scheduler()
 
             do {
                size = receive_trigger_event(eq);
-               if ((int)size == -1)
+               if ((int) size == -1)
                   goto net_error;
 
                actual_millitime = ss_millitime();
@@ -2130,14 +2078,13 @@ static INT scheduler()
                   break;
 
                /* quit if event limit is reached */
-               if (eq_info->event_limit > 0 &&
-                   eq->stats.events_sent + eq->events_sent >= eq_info->event_limit)
+               if (eq_info->event_limit > 0 && eq->stats.events_sent + eq->events_sent >= eq_info->event_limit)
                   break;
 
             } while (size > 0);
 
             /* send event to ODB */
-            pevent = (EVENT_HEADER *)event_buffer;
+            pevent = (EVENT_HEADER *) event_buffer;
             if (size > 0 && pevent->data_size && (eq_info->read_on & RO_ODB || eq_info->history)) {
                if (actual_millitime - eq->last_called > ODB_UPDATE_TIME && pevent != NULL) {
                   eq->last_called = actual_millitime;
@@ -2148,10 +2095,7 @@ static INT scheduler()
          }
 
          /*---- check if event limit is reached ----*/
-         if (eq_info->eq_type != EQ_SLOW &&
-             eq_info->event_limit > 0 &&
-             eq->stats.events_sent + eq->events_sent >= eq_info->event_limit &&
-             run_state == STATE_RUNNING) {
+         if (eq_info->eq_type != EQ_SLOW && eq_info->event_limit > 0 && eq->stats.events_sent + eq->events_sent >= eq_info->event_limit && run_state == STATE_RUNNING) {
             /* stop run */
             char str[TRANSITION_ERROR_STRING_LENGTH];
             if (cm_transition(TR_STOP, 0, str, sizeof(str), TR_SYNC, FALSE) != CM_SUCCESS)
@@ -2160,12 +2104,12 @@ static INT scheduler()
             /* check if auto-restart, main loop will take care of it */
             flag = FALSE;
             size = sizeof(flag);
-            db_get_value(hDB, 0, "/Logger/Auto restart", &flag, (INT *)&size, TID_BOOL, TRUE);
+            db_get_value(hDB, 0, "/Logger/Auto restart", &flag, (INT *) &size, TID_BOOL, TRUE);
 
             if (flag) {
                UINT32 delay = 20;
                size = sizeof(delay);
-               db_get_value(hDB, 0, "/Logger/Auto restart delay", &delay, (INT *)&size, TID_UINT32, TRUE);
+               db_get_value(hDB, 0, "/Logger/Auto restart delay", &delay, (INT *) &size, TID_UINT32, TRUE);
                auto_restart = ss_time() + delay;
             }
 
@@ -2219,44 +2163,39 @@ static INT scheduler()
 
       for (i = 0; equipment[i].name[0]; i++) {
          if (equipment[i].bytes_sent > 0xDFFFFFFF)
-            overflow = (int)equipment[i].bytes_sent;
+            overflow = (int) equipment[i].bytes_sent;
       }
 
       /*---- calculate rates and update status page periodically -----*/
-      if (force_update || overflow ||
-          (display_period
-           && actual_millitime - last_time_display > (DWORD) display_period)
+      if (force_update || overflow || (display_period && actual_millitime - last_time_display > (DWORD) display_period)
           || (!display_period && actual_millitime - last_time_display > 3000)) {
          force_update = FALSE;
 
          for (i = 0; equipment[i].name[0]; i++) {
             eq = &equipment[i];
             eq->stats.events_sent += eq->events_sent;
-            n_events[i] += (int)eq->events_sent;
+            n_events[i] += (int) eq->events_sent;
             eq->events_sent = 0;
          }
 
          /* calculate rates after requested period */
-         if (overflow || (actual_millitime - last_time_rate > (DWORD)get_rate_period())) {
+         if (overflow || (actual_millitime - last_time_rate > (DWORD) get_rate_period())) {
             max_bytes_per_sec = 0;
             for (i = 0; equipment[i].name[0]; i++) {
                eq = &equipment[i];
                eq->stats.events_per_sec =
-                   n_events[i] / ((actual_millitime - last_time_rate) / 1000.0);
+                  n_events[i] / ((actual_millitime - last_time_rate) / 1000.0);
                eq->stats.kbytes_per_sec =
-                   eq->bytes_sent / 1000.0 / ((actual_millitime - last_time_rate) /
-                                              1000.0);
+                  eq->bytes_sent / 1000.0 / ((actual_millitime - last_time_rate) / 1000.0);
 
                if ((INT) eq->bytes_sent > max_bytes_per_sec)
-                  max_bytes_per_sec = (INT)eq->bytes_sent;
+                  max_bytes_per_sec = (INT) eq->bytes_sent;
 
                eq->bytes_sent = 0;
                n_events[i] = 0;
             }
 
-            max_bytes_per_sec = (INT)
-                ((double) max_bytes_per_sec /
-                 ((actual_millitime - last_time_rate) / 1000.0));
+            max_bytes_per_sec = (INT) ((double) max_bytes_per_sec / ((actual_millitime - last_time_rate) / 1000.0));
 
             last_time_rate = actual_millitime;
          }
@@ -2340,7 +2279,7 @@ static INT scheduler()
                   if (!buffer_done) {
                      rpc_flush_event();
                      if (rpc_is_remote()) {
-                        err = rpc_call(RPC_BM_FLUSH_CACHE|RPC_NO_REPLY, equipment[i].buffer_handle, BM_NO_WAIT);
+                        err = rpc_call(RPC_BM_FLUSH_CACHE | RPC_NO_REPLY, equipment[i].buffer_handle, BM_NO_WAIT);
                      } else {
                         err = bm_flush_cache(equipment[i].buffer_handle, BM_NO_WAIT);
                      }
@@ -2361,7 +2300,7 @@ static INT scheduler()
       if (auto_restart > 0 && ss_time() > auto_restart) {
          /* check if really stopped */
          size = sizeof(state);
-         status = db_get_value(hDB, 0, "Runinfo/State", &state, (INT *)&size, TID_INT, TRUE);
+         status = db_get_value(hDB, 0, "Runinfo/State", &state, (INT *) &size, TID_INT, TRUE);
          if (status != DB_SUCCESS)
             cm_msg(MERROR, "scheduler", "cannot get Runinfo/State in database");
 
@@ -2369,8 +2308,8 @@ static INT scheduler()
             auto_restart = 0;
             size = sizeof(run_number);
             status =
-                  db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, (INT*)&size, TID_INT,
-                             TRUE);
+               db_get_value(hDB, 0, "/Runinfo/Run number", &run_number, (INT *) &size, TID_INT,
+                            TRUE);
             assert(status == SUCCESS);
 
             if (run_number <= 0) {
@@ -2409,15 +2348,14 @@ static INT scheduler()
 
    } while (status != RPC_SHUTDOWN && status != SS_ABORT);
 
- net_error:
+net_error:
 
    return status;
 }
 
 /*------------------------------------------------------------------*/
 
-INT get_frontend_index()
-{
+INT get_frontend_index() {
    return frontend_index;
 }
 
@@ -2430,8 +2368,7 @@ char mfe_error_str[MFE_ERROR_SIZE][256];
 int mfe_error_r, mfe_error_w;
 MUTEX_T *mfe_mutex = NULL;
 
-void mfe_set_error(void (*dispatcher) (const char *))
-{
+void mfe_set_error(void (*dispatcher)(const char *)) {
    int status;
 
    mfe_error_dispatcher = dispatcher;
@@ -2443,7 +2380,6 @@ void mfe_set_error(void (*dispatcher) (const char *))
       if (status != SS_SUCCESS && status != SS_CREATED)
          cm_msg(MERROR, "mfe_set_error", "Cannot create mutex\n");
    }
-
 }
 
 void mfe_error(const char *error)
@@ -2465,13 +2401,12 @@ void mfe_error(const char *error)
    ss_mutex_release(mfe_mutex);
 }
 
-void mfe_error_check(void)
-{
+void mfe_error_check(void) {
    if (mfe_mutex != NULL) {
       ss_mutex_wait_for(mfe_mutex, 1000);
       if (mfe_error_w != mfe_error_r) {
          if (mfe_error_dispatcher != NULL)
-	    mfe_error_dispatcher(mfe_error_str[mfe_error_r]);
+            mfe_error_dispatcher(mfe_error_str[mfe_error_r]);
          mfe_error_r = (mfe_error_r + 1) % MFE_ERROR_SIZE;
       }
       ss_mutex_release(mfe_mutex);
@@ -2483,8 +2418,7 @@ void mfe_error_check(void)
 static int _argc = 0;
 static char **_argv = NULL;
 
-void mfe_get_args(int *argc, char ***argv)
-{
+void mfe_get_args(int *argc, char ***argv) {
    *argc = _argc;
    *argv = _argv;
 }
@@ -2524,8 +2458,8 @@ int main(int argc, char *argv[])
 
    /* store arguments for user use */
    _argc = argc;
-   _argv = (char **)malloc(sizeof(char *)*argc);
-   for (i=0 ; i<argc ; i++) {
+   _argv = (char **) malloc(sizeof(char *) * argc);
+   for (i = 0; i < argc; i++) {
       _argv[i] = argv[i];
    }
 
@@ -2538,13 +2472,11 @@ int main(int argc, char *argv[])
       else if (argv[i][0] == '-' && argv[i][1] == 'O')
          daemon_flag = 2;
       else if (argv[i][1] == 'v') {
-         if (i < argc-1 && atoi(argv[i+1]) > 0)
+         if (i < argc - 1 && atoi(argv[i + 1]) > 0)
             verbosity_level = atoi(argv[++i]);
          else
             verbosity_level = 1;
-      }
-
-      else if (argv[i][0] == '-') {
+      } else if (argv[i][0] == '-') {
          if (i + 1 >= argc || argv[i + 1][0] == '-')
             goto usage;
          if (argv[i][1] == 'e')
@@ -2554,7 +2486,7 @@ int main(int argc, char *argv[])
          else if (argv[i][1] == 'i')
             frontend_index = atoi(argv[++i]);
          else if (argv[i][1] == '-') {
-          usage:
+         usage:
             printf("usage: frontend [-h Hostname] [-e Experiment] [-d] [-D] [-O] [-v <n>] [-i <n>]\n");
             printf("         [-d]     Used to debug the frontend\n");
             printf("         [-D]     Become a daemon\n");
@@ -2569,16 +2501,19 @@ int main(int argc, char *argv[])
 
    /* check event and buffer sizes */
    if (event_buffer_size < 2 * max_event_size) {
-      cm_msg(MERROR, "mainFE", "event_buffer_size %d too small for max. event size %d\n", event_buffer_size, max_event_size);
+      cm_msg(MERROR, "mainFE", "event_buffer_size %d too small for max. event size %d\n", event_buffer_size,
+             max_event_size);
       ss_sleep(5000);
       return 1;
    }
 
-   int max_allowed_buffer_size = 1024 * 1024 * 1024; // 1 GB If this value is too large, the end-of-run
-                                                     // might take quite long to drain a full buffer
+   int max_allowed_buffer_size = 1024 * 1024 * 1024;// 1 GB
+
+   // Check buffer size. If this value is too large, the end-of-run
+   // might take quite long to drain a full buffer
    if (event_buffer_size > max_allowed_buffer_size) {
       cm_msg(MERROR, "mainFE", "event_buffer_size %d MB exceeds maximum allowed size of %d MB\n",
-             event_buffer_size/1024/1024, max_allowed_buffer_size/1024/1024);
+             event_buffer_size / 1024 / 1024, max_allowed_buffer_size / 1024 / 1024);
       ss_sleep(5000);
       return 1;
    }
@@ -2634,7 +2569,8 @@ int main(int argc, char *argv[])
    status = cm_connect_experiment1(host_name, exp_name, full_frontend_name,
                                    NULL, DEFAULT_ODB_SIZE, DEFAULT_FE_TIMEOUT);
    if (status != CM_SUCCESS) {
-      cm_msg(MERROR, "mainFE", "Cannot connect to experiment \'%s\' on host \'%s\', status %d", exp_name, host_name, status);
+      cm_msg(MERROR, "mainFE", "Cannot connect to experiment \'%s\' on host \'%s\', status %d", exp_name, host_name,
+             status);
       /* let user read message before window might close */
       ss_sleep(5000);
       return 1;
@@ -2662,10 +2598,7 @@ int main(int argc, char *argv[])
    }
 
    /* register transition callbacks */
-   if (cm_register_transition(TR_START, tr_start, 500) != CM_SUCCESS ||
-       cm_register_transition(TR_STOP, tr_stop, 500) != CM_SUCCESS ||
-       cm_register_transition(TR_PAUSE, tr_pause, 500) != CM_SUCCESS ||
-       cm_register_transition(TR_RESUME, tr_resume, 500) != CM_SUCCESS) {
+   if (cm_register_transition(TR_START, tr_start, 500) != CM_SUCCESS || cm_register_transition(TR_STOP, tr_stop, 500) != CM_SUCCESS || cm_register_transition(TR_PAUSE, tr_pause, 500) != CM_SUCCESS || cm_register_transition(TR_RESUME, tr_resume, 500) != CM_SUCCESS) {
       printf("Failed to start local RPC server");
       cm_disconnect_experiment();
 
@@ -2744,14 +2677,23 @@ int main(int argc, char *argv[])
    /* call main scheduler loop */
    status = scheduler();
 
+   /* reset terminal */
+   ss_getchar(TRUE);
+
+   if (display_period && !mfe_debug) {
+      ss_clear_screen();
+      ss_printf(0, 0, "");
+      if (cm_is_ctrlc_pressed())
+         printf("Received Ctrl-C, aborting\n");
+   }
+
    /* stop readout thread */
    stop_readout_threads();
    rb_set_nonblocking();
-   while (is_readout_thread_active())
+   while (is_readout_thread_active()) {
+      flush_user_events();
       ss_sleep(100);
-
-   /* reset terminal */
-   ss_getchar(TRUE);
+   }
 
    /* switch off interrupts and detach */
    if (interrupt_eq) {
@@ -2764,37 +2706,27 @@ int main(int argc, char *argv[])
 
    /* close slow control drivers */
    for (i = 0; equipment[i].name[0]; i++)
-      if ((equipment[i].info.eq_type & EQ_SLOW) &&
-          (equipment[i].status == FE_SUCCESS || equipment[i].status == FE_PARTIALLY_DISABLED)) {
+      if ((equipment[i].info.eq_type & EQ_SLOW) && (equipment[i].status == FE_SUCCESS || equipment[i].status == FE_PARTIALLY_DISABLED)) {
 
          for (j = 0; equipment[i].driver[j].name[0]; j++)
             if (equipment[i].driver[j].flags & DF_MULTITHREAD)
                break;
 
          /* stop all threads if multithreaded */
-         if (equipment[i].driver[j].name[0] &&
-             (equipment[i].status == FE_SUCCESS || equipment[i].status == FE_PARTIALLY_DISABLED))
-            equipment[i].cd(CMD_STOP, &equipment[i]);   /* stop all threads */
+         if (equipment[i].driver[j].name[0] && (equipment[i].status == FE_SUCCESS || equipment[i].status == FE_PARTIALLY_DISABLED))
+            equipment[i].cd(CMD_STOP, &equipment[i]); /* stop all threads */
       }
    for (i = 0; equipment[i].name[0]; i++)
-      if ((equipment[i].info.eq_type & EQ_SLOW) &&
-          (equipment[i].status == FE_SUCCESS || equipment[i].status == FE_PARTIALLY_DISABLED))
-         equipment[i].cd(CMD_EXIT, &equipment[i]);      /* close physical connections */
+      if ((equipment[i].info.eq_type & EQ_SLOW) && (equipment[i].status == FE_SUCCESS || equipment[i].status == FE_PARTIALLY_DISABLED))
+         equipment[i].cd(CMD_EXIT, &equipment[i]); /* close physical connections */
 
    free(n_events);
 
    /* close network connection to server */
    cm_disconnect_experiment();
 
-   if (status == RPC_SHUTDOWN) {
-      if (display_period && !mfe_debug) {
-         ss_clear_screen();
-         ss_printf(0, 0, "Frontend shut down.");
-         ss_printf(0, 1, "");
-      } else {
-         printf("Frontend shut down.\n");
-      }
-   }
+   if (status == RPC_SHUTDOWN)
+      printf("Frontend shut down.\n");
 
    if (status != RPC_SHUTDOWN)
       printf("Network connection aborted.\n");
@@ -2803,9 +2735,9 @@ int main(int argc, char *argv[])
 }
 
 #ifdef LINK_TEST
-char* frontend_name;
-char* frontend_file_name;
-BOOL  frontend_call_loop;
+char *frontend_name;
+char *frontend_file_name;
+BOOL frontend_call_loop;
 int event_buffer_size;
 int max_event_size;
 int max_event_size_frag;
@@ -2813,10 +2745,10 @@ int display_period;
 EQUIPMENT equipment[1];
 int frontend_init() { return 0; };
 int frontend_exit() { return 0; };
-int begin_of_run(int runno,char* errstr) { return 0; };
-int end_of_run(int runno,char* errstr) { return 0; };
-int pause_run(int runno,char* errstr) { return 0; };
-int resume_run(int runno,char* errstr) { return 0; };
+int begin_of_run(int runno, char *errstr) { return 0; };
+int end_of_run(int runno, char *errstr) { return 0; };
+int pause_run(int runno, char *errstr) { return 0; };
+int resume_run(int runno, char *errstr) { return 0; };
 int interrupt_configure(INT cmd, INT source, POINTER_T adr) { return 0; };
 int frontend_loop() { return 0; };
 int poll_event(INT source, INT count, BOOL test) { return 0; };
