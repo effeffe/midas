@@ -264,14 +264,14 @@ static INT tr_resume(INT rn, char *error) {
 
 /*------------------------------------------------------------------*/
 
-INT manual_trigger(INT idx, void *prpc_param[]) {
+INT manual_trigger(INT, void *prpc_param[]) {
    manual_trigger_event_id = CWORD(0);
    return SUCCESS;
 }
 
 /*------------------------------------------------------------------*/
 
-static void eq_common_watcher(INT hDB, INT hKey, INT index, void *info) {
+static void eq_common_watcher(INT hDB, INT, INT, void *info) {
    int status;
    assert(info != NULL);
    EQUIPMENT *eq = (EQUIPMENT *) info;

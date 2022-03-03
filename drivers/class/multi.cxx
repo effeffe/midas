@@ -210,7 +210,7 @@ void multi_read_output(EQUIPMENT *pequipment, int channel) {
 
 /*----------------------------------------------------------------------------*/
 
-void multi_output(INT hDB, INT hKey, void *info) {
+void multi_output(INT, INT, void *info) {
    INT i;
    MULTI_INFO *m_info;
    EQUIPMENT *pequipment;
@@ -235,7 +235,7 @@ void multi_output(INT hDB, INT hKey, void *info) {
 
 /*------------------------------------------------------------------*/
 
-void multi_update_label(INT hDB, INT hKey, void *info) {
+void multi_update_label(INT, INT, void *info) {
    INT i;
    MULTI_INFO *m_info;
    EQUIPMENT *pequipment;
@@ -649,7 +649,7 @@ INT multi_idle(EQUIPMENT *pequipment) {
 
 /*----------------------------------------------------------------------------*/
 
-INT cd_multi_read(char *pevent, int offset) {
+INT cd_multi_read(char *pevent, int) {
    float *pdata;
    MULTI_INFO *m_info;
    EQUIPMENT *pequipment;
