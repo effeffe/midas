@@ -336,7 +336,7 @@ endif
 ifeq ($(OSTYPE),darwin)
 OS_DIR = darwin
 OSFLAGS = -DOS_LINUX -DOS_DARWIN -fPIC -Wno-unused-function
-LIBS = -lpthread
+LIBS = -lpthread -lz
 SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker
 NEED_ZLIB=1
 NEED_STRLCPY=
