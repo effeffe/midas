@@ -374,7 +374,7 @@ NEED_ZLIB=1
 
 OS_DIR = linux-$(ARCH)
 OSFLAGS += -DOS_LINUX -fPIC -Wno-unused-function -std=c++11
-LIBS = -lutil -lpthread -lrt -ldl
+LIBS = -lutil -lpthread -lrt -ldl -lz
 SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker $(BIN_DIR)/dio
 
 endif
