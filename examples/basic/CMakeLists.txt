@@ -63,19 +63,12 @@ add_compile_options("-g")
 # enable certain compile warnings
 add_compile_options(-Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Wno-unused-function)
 
-# Optional ZLIB support
-if (NO_ZLIB)
-   message(STATUS "MIDAS experiment: ZLIB support is disabled via NO_ZLIB")
-else (NO_ZLIB)
-find_package(ZLIB)
+find_package(ZLIB REQUIRED)
 if (ZLIB_FOUND)
    message(STATUS "MIDAS experiment: Found ZLIB version " ${ZLIB_VERSION_STRING})
-   add_compile_options(-DHAVE_ZLIB)
-   set(LIBS ${LIBS} -lz)
-else ()
-   message(STATUS "MIDAS experiment: ZLIB not found")
+   add_compile_options(-I${ZLIB_INCLUDE_DIRS})
+   set(LIBS ${LIBS} ${ZLIB_LIBRARIES})
 endif()
-endif (NO_ZLIB)
 
 # as required linux libraries
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux) 

@@ -41,11 +41,7 @@ The Midas Dump support file
 FTP_CON *ftp_con;
 #endif
 
-#ifdef HAVE_ZLIB
-
 #include "zlib.h"
-
-#endif
 
 #include "mdsupport.h"
 
@@ -73,9 +69,7 @@ void midas_bank_display32(T *pbk, INT dsp_fmt);
 struct stat *filestat;
 char *ptopmrd;
 
-#ifdef HAVE_ZLIB
 gzFile filegz;
-#endif
 
 /* General MIDAS struct for util */
 typedef struct {
@@ -228,7 +222,6 @@ status : from lower function
          return (SS_FILE_ERROR);
       }
    } else {
-#ifdef HAVE_ZLIB
       if (my.type == LOG_TYPE_TAPE) {
          printf(" Zip on tape not yet supported \n");
          return (SS_FILE_ERROR);
@@ -239,10 +232,6 @@ status : from lower function
          printf("dev name :%s gzopen error:%d \n", my.name, my.handle);
          return (SS_FILE_ERROR);
       }
-#else
-      cm_msg(MERROR, "mdsupport", "Zlib not included ... gz file not supported");
-      return (SS_FILE_ERROR);
-#endif
    }
 
    if (data_fmt == FORMAT_YBOS) {
@@ -290,9 +279,7 @@ status : from lower function
       case LOG_TYPE_DISK:
          /* close file */
          if (my.zipfile) {
-#ifdef HAVE_ZLIB
             gzclose(filegz);
-#endif
          } else {
             if (my.handle != 0)
                close(my.handle);
@@ -1152,13 +1139,11 @@ MD_SUCCESS         Ok
    if (!my.zipfile) {
       status = md_dev_os_read(my.handle, my.type, prec, my.size, readn);
    } else {
-#ifdef HAVE_ZLIB
       *readn = gzread(filegz, (char *) prec, my.size);
       if (*readn <= 0)
          status = SS_FILE_ERROR;
       else
          status = SS_SUCCESS;
-#endif
    }
 
    if (status != SS_SUCCESS) {

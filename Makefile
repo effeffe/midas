@@ -190,11 +190,6 @@ ARCH := $(shell uname -m)
 #
 NEED_STRLCPY=1
 
-#
-# Optional zlib support for data compression in the mlogger and in the analyzer
-#
-NEED_ZLIB=
-
 #####################################################################
 # Nothing needs to be modified after this line 
 #####################################################################
@@ -338,7 +333,6 @@ OS_DIR = darwin
 OSFLAGS = -DOS_LINUX -DOS_DARWIN -fPIC -Wno-unused-function
 LIBS = -lpthread -lz
 SPECIFIC_OS_PRG = $(BIN_DIR)/mlxspeaker
-NEED_ZLIB=1
 NEED_STRLCPY=
 NEED_RANLIB=1
 endif
@@ -368,9 +362,6 @@ ifeq ($(OSTYPE),linux)
 
 # >2GB file support
 CFLAGS += -D_LARGEFILE64_SOURCE
-
-# include ZLIB support
-NEED_ZLIB=1
 
 OS_DIR = linux-$(ARCH)
 OSFLAGS += -DOS_LINUX -fPIC -Wno-unused-function -std=c++11

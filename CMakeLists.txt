@@ -185,21 +185,11 @@ else (NO_ROOT)
 
 endif(NO_ROOT)
 
-#
-# Optional ZLIB support for mlogger
-#
-if (NO_ZLIB)
-   message(STATUS "MIDAS: ZLIB support is disabled via NO_ZLIB")
-else (NO_ZLIB)
-find_package(ZLIB)
+find_package(ZLIB REQUIRED)
 if (ZLIB_FOUND)
    message(STATUS "MIDAS: Found ZLIB version " ${ZLIB_VERSION_STRING})
-   list(APPEND XDEFINES -DHAVE_ZLIB)
    list(APPEND XLIBS ${ZLIB_LIBRARIES})
-else ()
-   message(STATUS "MIDAS: ZLIB not found")
-endif()
-endif (NO_ZLIB)
+endif(ZLIB_FOUND)
 
 #
 # Optional SSL support for mhttpd
@@ -229,7 +219,6 @@ else (NO_CURL)
          message(STATUS "MIDAS: Found LibCURL version " ${CURL_VERSION_STRING})
          list(APPEND XDEFINES -DHAVE_CURL)
          list(APPEND XLIBS -lcurl)
-         list(APPEND XSWITCHES -D${CURL_INCLUDE_DIR})
       else ()
          message(STATUS "MIDAS: curl.h not found")
       endif ()

@@ -36,12 +36,10 @@
 //#warning NO HAVE_ROOT!
 #endif
 
-#ifdef HAVE_ZLIB
 #ifdef OS_WINNT
 #define ZLIB_WINAPI
 #endif
 #include <zlib.h>
-#endif
 
 #ifdef HAVE_MYSQL
 #ifdef OS_UNIX
@@ -576,8 +574,6 @@ private:
 
 /*---- gzip writer -------------------------------------------------*/
 
-#ifdef HAVE_ZLIB
-
 #include <zlib.h>
 
 class WriterGzip : public WriterInterface
@@ -730,8 +726,6 @@ private:
    time_t fLastCheckTime;
 };
 
-#endif
-
 /*---- pipe writer -------------------------------------------------*/
 
 class WriterPopen : public WriterInterface
@@ -872,7 +866,6 @@ private:
 
 /*---- CRC32-ZLIB computation --------------------------------------*/
 
-#ifdef HAVE_ZLIB
 #include <zlib.h>
 
 class WriterCRC32Zlib : public WriterInterface
@@ -986,7 +979,6 @@ private:
    WriterInterface *fWr;
    uLong fCrc32;
 };
-#endif
 
 /*---- CRC32C computation ------------------------------------------*/
 
@@ -2808,9 +2800,7 @@ private:
 INT midas_flush_buffer(LOG_CHN * log_chn)
 {
    INT size, written = 0;
-#ifdef HAVE_ZLIB
    off_t n;
-#endif
 
    MIDAS_INFO* info = log_chn->midas_info;
    size = (POINTER_T) info->write_pointer - (POINTER_T) info->buffer;
@@ -2824,14 +2814,10 @@ INT midas_flush_buffer(LOG_CHN * log_chn)
           ftp_send(((FTP_CON *) log_chn->ftp_con)->data, info->buffer,
                    size) == size ? SS_SUCCESS : SS_FILE_ERROR;
    else if (log_chn->gzfile) {
-#ifdef HAVE_ZLIB
       n = lseek(log_chn->handle, 0, SEEK_CUR);
       if (gzwrite((gzFile) log_chn->gzfile, info->buffer, size) != size)
          return -1;
       written = lseek(log_chn->handle, 0, SEEK_CUR) - n;
-#else
-      assert(!"this cannot happen! support for ZLIB not compiled in");
-#endif
    } else if (log_chn->pfile) {
       written = fwrite(info->buffer, size, 1,log_chn->pfile);
       if (errno == EPIPE){ 
@@ -3019,7 +3005,6 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
          log_chn->do_disk_level = TRUE;
          
          if (log_chn->compression > 0) {
-#ifdef HAVE_ZLIB
             log_chn->gzfile = gzdopen(log_chn->handle, "wb");
             if (log_chn->gzfile == NULL) {
                cm_msg(MERROR, "midas_log_open", "Error: gzdopen() failed, cannot open compression stream");
@@ -3030,14 +3015,6 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
             }
             
             gzsetparams((gzFile)log_chn->gzfile, log_chn->compression, Z_DEFAULT_STRATEGY);
-#else
-            cm_msg(MERROR, "midas_log_open", "Compression enabled but ZLIB support not compiled in");
-            close(log_chn->handle);
-            free(info->buffer);
-            free(info);
-            log_chn->handle = 0;
-            return SS_FILE_ERROR;
-#endif
          }
       }
    }
@@ -3054,9 +3031,7 @@ INT midas_log_open(LOG_CHN * log_chn, INT run_number)
 INT midas_log_close(LOG_CHN * log_chn, INT run_number)
 {
    int written;
-#ifdef HAVE_ZLIB
    off_t n;
-#endif
 
    /* write ODB dump */
    if (log_chn->settings.odb_dump)
@@ -3073,7 +3048,6 @@ INT midas_log_close(LOG_CHN * log_chn, INT run_number)
       ftp_bye(log_chn->ftp_con);
    } else {
       if (log_chn->gzfile) {
-#ifdef HAVE_ZLIB
          n = lseek(log_chn->handle, 0, SEEK_CUR);
          gzflush((gzFile) log_chn->gzfile, Z_FULL_FLUSH);
          written = lseek(log_chn->handle, 0, SEEK_CUR) - n;
@@ -3082,9 +3056,6 @@ INT midas_log_close(LOG_CHN * log_chn, INT run_number)
          log_chn->statistics.bytes_written += written;
          log_chn->statistics.bytes_written_total += written;
          log_chn->gzfile = NULL;
-#else
-         assert(!"this cannot happen! support for ZLIB not compiled in");
-#endif
       }
 #ifdef OS_WINNT
       CloseHandle((HANDLE) log_chn->handle);
@@ -3758,12 +3729,7 @@ WriterInterface* NewChecksum(LOG_CHN* log_chn, int code, int level, WriterInterf
    if (code == CHECKSUM_NONE) {
       return chained;
    } else if (code == CHECKSUM_ZLIB) {
-#ifdef HAVE_ZLIB
       return new WriterCRC32Zlib(log_chn, level, chained);
-#else
-      cm_msg(MERROR, "log_create_writer", "channel %s requested CRC32ZLib checksum, but ZLIB is not available", log_chn->path.c_str());
-      return chained;
-#endif
    } else if (code == CHECKSUM_CRC32C) {
       return new WriterCRC32C(log_chn, level, chained);
    } else if (code == CHECKSUM_SHA256) {
@@ -3893,7 +3859,6 @@ int log_create_writer(LOG_CHN *log_chn)
 
       if (log_chn->compression_module == COMPRESS_ZLIB) {
 
-#ifdef HAVE_ZLIB
          if (log_chn->output_module != OUTPUT_FILE) {
             cm_msg(MERROR, "log_create_writer", "channel %s requested GZIP/ZLIB compression, output module must be FILE", log_chn->path.c_str());
             return SS_FILE_ERROR;
@@ -3901,10 +3866,6 @@ int log_create_writer(LOG_CHN *log_chn)
 
          log_chn->writer = new WriterGzip(log_chn, 0);
          log_chn->do_disk_level = TRUE;
-#else
-         cm_msg(MERROR, "log_create_writer", "channel %s requested GZIP/ZLIB compression, but ZLIB is not available", log_chn->path.c_str());
-         return SS_FILE_ERROR;
-#endif
       }
       else if (log_chn->compression_module == COMPRESS_BZIP2) {
 
@@ -4016,7 +3977,6 @@ int log_create_writer(LOG_CHN *log_chn)
    } else if (compression==201) {
       log_chn->writer = NewWriterPbzip2(log_chn);
       log_chn->do_disk_level = TRUE;
-#ifdef HAVE_ZLIB
    } else if (compression==300) {
       log_chn->writer = new WriterGzip(log_chn, 0);
       log_chn->do_disk_level = TRUE;
@@ -4027,7 +3987,6 @@ int log_create_writer(LOG_CHN *log_chn)
       log_chn->writer = new WriterGzip(log_chn, 9);
       log_chn->do_disk_level = TRUE;
    } else {
-#endif
       cm_msg(MERROR, "log_create_writer", "channel %s unknown compression mode %d", log_chn->path.c_str(), log_chn->compression);
       return SS_FILE_ERROR;
    }

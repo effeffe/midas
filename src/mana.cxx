@@ -17,9 +17,7 @@
 
 #include "mdsupport.h"
 
-#ifdef HAVE_ZLIB
 #include "zlib.h"
-#endif
 
 /*------------------------------------------------------------------*/
 
@@ -333,9 +331,7 @@ static struct {
 };
 
 FILE *out_file;
-#ifdef HAVE_ZLIB
 BOOL out_gzip;
-#endif
 INT out_format;
 BOOL out_append;
 
@@ -1760,26 +1756,17 @@ INT bor(INT run_number, char *error)
             strcpy(file_name, str);
 
          /* check output file extension */
-#ifdef HAVE_ZLIB
          out_gzip = FALSE;
-#endif
          if (strchr(file_name, '.')) {
             ext_str = file_name + strlen(file_name) - 1;
             while (*ext_str != '.')
                ext_str--;
 
             if (strncmp(ext_str, ".gz", 3) == 0) {
-#ifdef HAVE_ZLIB
                out_gzip = TRUE;
                ext_str--;
                while (*ext_str != '.' && ext_str > file_name)
                   ext_str--;
-#else
-               strcpy(error,
-                      ".gz extension not possible because zlib support is not compiled in.\n");
-               cm_msg(MERROR, "bor", "%s", error);
-               return 0;
-#endif
             }
 
             if (strncmp(ext_str, ".asc", 4) == 0)
@@ -1869,11 +1856,9 @@ INT bor(INT run_number, char *error)
          }
 
          else {
-#ifdef HAVE_ZLIB
             if (out_gzip)
                out_file = (FILE *) gzopen(file_name, "wb");
             else
-#endif
             if (out_format == FORMAT_ASCII)
                out_file = fopen(file_name, "wt");
             else
@@ -1992,11 +1977,9 @@ INT eor(INT run_number, char *error)
          cm_msg(MERROR, "eor", "ROOT support is not compiled in");
 #endif                          /* HAVE_ROOT */
       } else {
-#ifdef HAVE_ZLIB
          if (out_gzip)
             gzclose((gzFile)out_file);
          else
-#endif
             fclose(out_file);
       }
 
@@ -2324,11 +2307,9 @@ INT write_event_ascii(FILE * file, EVENT_HEADER * pevent, ANALYZE_REQUEST * par)
    size = strlen(buffer);
 
    /* write record to device */
-#ifdef HAVE_ZLIB
    if (out_gzip)
       status = gzwrite((gzFile)file, buffer, size) == size ? SS_SUCCESS : SS_FILE_ERROR;
    else
-#endif
       status =
           fwrite(buffer, 1, size, file) == (size_t) size ? SS_SUCCESS : SS_FILE_ERROR;
 
@@ -2452,11 +2433,9 @@ INT write_event_midas(FILE * file, EVENT_HEADER * pevent, ANALYZE_REQUEST * par)
    }
 
    /* write record to device */
-#ifdef HAVE_ZLIB
    if (out_gzip)
       status = gzwrite((gzFile)file, pevent_copy, size) == size ? SUCCESS : SS_FILE_ERROR;
    else
-#endif
       status =
           fwrite(pevent_copy, 1, size, file) == (size_t) size ? SUCCESS : SS_FILE_ERROR;
 
@@ -3861,11 +3840,7 @@ typedef struct {
    int format;
    int device;
    int fd;
-#ifdef HAVE_ZLIB
    gzFile gzfile;
-#else
-   FILE *file;
-#endif
    char *buffer;
    int wp, rp;
    /*FTP_CON ftp_con; */
@@ -3907,15 +3882,9 @@ MA_FILE *ma_open(char *file_name)
       ext_str = (char *)"";
 
    if (strncmp(ext_str, ".gz", 3) == 0) {
-#ifdef HAVE_ZLIB
       ext_str--;
       while (*ext_str != '.' && ext_str > file_name)
          ext_str--;
-#else
-      cm_msg(MERROR, "ma_open",
-             ".gz extension not possible because zlib support is not compiled in.\n");
-      return NULL;
-#endif
    }
 
    if (strncmp(file_name, "/dev/", 4) == 0)     /* assume MIDAS tape */
@@ -3935,15 +3904,9 @@ MA_FILE *ma_open(char *file_name)
       if (file->format == MA_FORMAT_YBOS) {
 	assert(!"YBOS not supported anymore");
       } else {
-#ifdef HAVE_ZLIB
          file->gzfile = gzopen(file_name, "rb");
          if (file->gzfile == NULL)
             return NULL;
-#else
-         file->file = fopen(file_name, "rb");
-         if (file->file == NULL)
-            return NULL;
-#endif
       }
    }
 
@@ -3957,11 +3920,7 @@ int ma_close(MA_FILE * file)
    if (file->format == MA_FORMAT_YBOS)
      assert(!"YBOS not supported anymore");
    else
-#ifdef HAVE_ZLIB
       gzclose((gzFile)file->gzfile);
-#else
-      fclose(file->file);
-#endif
 
    free(file);
    return SUCCESS;
@@ -3981,11 +3940,7 @@ int ma_read_event(MA_FILE * file, EVENT_HEADER * pevent, int size)
          }
 
          /* read event header */
-#ifdef HAVE_ZLIB
          n = gzread(file->gzfile, pevent, sizeof(EVENT_HEADER));
-#else
-         n = sizeof(EVENT_HEADER)*fread(pevent, sizeof(EVENT_HEADER), 1, file->file);
-#endif
 
          if (n < (int) sizeof(EVENT_HEADER)) {
             if (n > 0)
@@ -4009,11 +3964,7 @@ int ma_read_event(MA_FILE * file, EVENT_HEADER * pevent, int size)
                cm_msg(MERROR, "ma_read_event", "Buffer size too small");
                return -1;
             }
-#ifdef HAVE_ZLIB
             n = gzread(file->gzfile, pevent + 1, pevent->data_size);
-#else
-            n = pevent->data_size*fread(pevent + 1, pevent->data_size, 1, file->file);
-#endif
             if (n != (INT) pevent->data_size) {
                printf("Unexpected end of file %s, last event skipped\n", file->file_name);
                return -1;
@@ -4162,11 +4113,9 @@ INT analyze_run(INT run_number, char *input_file_name, char *output_file_name)
 
          if (out_file && out_format == FORMAT_MIDAS) {
             size = pevent->data_size + sizeof(EVENT_HEADER);
-#ifdef HAVE_ZLIB
             if (out_gzip)
                status = gzwrite((gzFile)out_file, pevent, size) == size ? SUCCESS : SS_FILE_ERROR;
             else
-#endif
                status =
                    fwrite(pevent, 1, size,
                           out_file) == (size_t) size ? SUCCESS : SS_FILE_ERROR;
@@ -4433,11 +4382,9 @@ INT loop_runs_offline()
          cm_msg(MERROR, "loop_runs_offline", "ROOT support is not compiled in");
 #endif                          /* HAVE_ROOT */
       } else {
-#ifdef HAVE_ZLIB
          if (out_gzip)
             gzclose((gzFile)out_file);
          else
-#endif
             fclose(out_file);
       }
 
