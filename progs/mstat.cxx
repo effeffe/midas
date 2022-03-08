@@ -122,7 +122,8 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       {
          time_t full_time;
          time(&full_time);
-         strcpy(str, ctime(&full_time));
+         assert(sizeof(str) >= 32);
+         ctime_r(&full_time, str);
          str[24] = 0;
       }
 //      if (active_flag) {

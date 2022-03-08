@@ -1391,7 +1391,9 @@ void display(BOOL bInit) {
 
    /* display time */
    time(&full_time);
-   strcpy(str, ctime(&full_time) + 11);
+   char ctimebuf[32];
+   ctime_r(&full_time, ctimebuf);
+   strlcpy(str, ctimebuf + 11, sizeof(str));
    str[8] = 0;
    ss_printf(72, 0, "%s", str);
 
@@ -1451,7 +1453,9 @@ void display_inline() {
 
    /* display time */
    time(&full_time);
-   strcpy(str, ctime(&full_time) + 11);
+   char ctimebuf[32];
+   ctime_r(&full_time, ctimebuf);
+   strlcpy(str, ctimebuf + 11, sizeof(str));
    str[8] = 0;
    printf("%s ", str);
 

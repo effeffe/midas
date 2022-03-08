@@ -2084,7 +2084,9 @@ static INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
                printf("%d ", irec.time);
             else {
                ltime = (time_t) irec.time;
-               sprintf(str, "%s", ctime(&ltime) + 4);
+               char ctimebuf[32];
+               ctime_r(&ltime, ctimebuf);
+               strlcpy(str, ctimebuf + 4, sizeof(str));
                str[20] = '\t';
                printf("%s", str);
             }

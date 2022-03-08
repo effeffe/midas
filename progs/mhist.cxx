@@ -324,7 +324,9 @@ static INT hs_fdump(const char *file_name, DWORD id, BOOL binary_time)
             sprintf(str, "%d ", rec.time);
          } else {
             ltime = (time_t) rec.time;
-            strcpy(str, ctime(&ltime) + 4);
+            char ctimebuf[32];
+            ctime_r(&ltime, ctimebuf);
+            strlcpy(str, ctimebuf + 4, sizeof(str));
             str[15] = 0;
          }
          if (rec.event_id == id || id == 0)
@@ -406,7 +408,9 @@ static void display_single_hist(MidasHistoryInterface* mh,
       if (binary_time)
          sprintf(str, "%d %.16g", (int)tbuffer[i], buffer[i]);
       else {
-         sprintf(str, "%s %.16g", ctime(&tbuffer[i]) + 4, buffer[i]);
+         char ctimebuf[32];
+         ctime_r(&tbuffer[i], ctimebuf);
+         sprintf(str, "%s %.16g", ctimebuf + 4, buffer[i]);
       }
 
       char* s = strchr(str, '\n');
@@ -473,7 +477,9 @@ static void display_range_hist(MidasHistoryInterface* mh,
       else {
          char str[256];
          time_t ltime = (time_t) tbuffer[0][i];
-         sprintf(str, "%s", ctime(&ltime) + 4);
+         char ctimebuf[32];
+         ctime_r(&ltime, ctimebuf);
+         sprintf(str, "%s", ctimebuf + 4);
          str[20] = '\t';
          printf("%s", str);
       }
@@ -630,7 +636,9 @@ static void display_all_hist(MidasHistoryInterface* mh,
       else {
          char buf[256];
          time_t ltime = (time_t) tbuffer[0][i];
-         sprintf(buf, "%s", ctime(&ltime) + 4);
+         char ctimebuf[32];
+         ctime_r(&ltime, ctimebuf);
+         sprintf(buf, "%s", ctimebuf + 4);
          char* c = strchr(buf, '\n');
          if (c)
             *c = 0; // kill trailing '\n'
@@ -673,11 +681,7 @@ static DWORD convert_time(char *t)
    struct tm tms;
    INT isdst;
 
-#if !defined(OS_VXWORKS)
-#if !defined(OS_VMS)
-   tzset();
-#endif
-#endif
+   tzset(); // required for localtime_r()
 
    memset(&tms, 0, sizeof(tms));
 
@@ -696,7 +700,7 @@ static DWORD convert_time(char *t)
    time_t ltime = mktime(&tms);
 
    /* correct for dst */
-   memcpy(&tms, localtime(&ltime), sizeof(tms));
+   localtime_r(&ltime, &tms);
 
    isdst = tms.tm_isdst;
    memset(&tms, 0, sizeof(tms));

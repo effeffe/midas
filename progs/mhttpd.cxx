@@ -1250,8 +1250,6 @@ INT sendmail(const char* from_host, const char *smtp_host, const char *from, con
    struct hostent *phe;
    int i, s, strsize, offset;
    char *str, buf[256];
-   time_t now;
-   struct tm *ts;
 
    if (verbose)
       printf("\n\nEmail from %s to %s, SMTP host %s:\n", from, to, smtp_host);
@@ -1340,11 +1338,14 @@ INT sendmail(const char* from_host, const char *smtp_host, const char *from, con
    if (verbose)
       puts(str);
 
+   tzset(); // required for localtime_r()
+   time_t now;
    time(&now);
-   ts = localtime(&now);
-   strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S", ts);
+   struct tm tms;
+   localtime_r(&now, &tms);
+   strftime(buf, sizeof(buf), "%a, %d %b %Y %H:%M:%S", &tms);
    offset = (-(int) timezone);
-   if (ts->tm_isdst)
+   if (tms.tm_isdst)
       offset += 3600;
    sprintf(str, "Date: %s %+03d%02d\r\n", buf, (int) (offset / 3600),
            (int) ((abs((int) offset) / 60) % 60));
@@ -2146,7 +2147,9 @@ void gen_odb_attachment(Return* r, const char *path, std::string& bout)
    time(&now);
 
    bout += "<table border=3 cellpadding=1 class=\"dialogTable\">\n";
-   sprintf(b, "<tr><th colspan=2>%s</tr>\n", ctime(&now));
+   char ctimebuf[32];
+   ctime_r(&now, ctimebuf);
+   sprintf(b, "<tr><th colspan=2>%s</tr>\n", ctimebuf);
    bout += b;
    sprintf(b, "<tr><th colspan=2>%s</tr>\n", path);
    bout += b;
@@ -7740,34 +7743,35 @@ void haxis(gdImagePtr im, gdFont * font, int col, int gcol,
 void sec_to_label(char *result, int sec, int base, int force_date)
 {
    char mon[80];
-   struct tm *tms;
    time_t t_sec;
 
    t_sec = (time_t) sec;
-   tms = localtime(&t_sec);
-   strcpy(mon, mname[tms->tm_mon]);
+
+   struct tm tms;
+   localtime_r(&t_sec, &tms);
+   strcpy(mon, mname[tms.tm_mon]);
    mon[3] = 0;
 
    if (force_date) {
       if (base < 600)
          sprintf(result, "%02d %s %02d %02d:%02d:%02d",
-                 tms->tm_mday, mon, tms->tm_year % 100, tms->tm_hour, tms->tm_min,
-                 tms->tm_sec);
+                 tms.tm_mday, mon, tms.tm_year % 100, tms.tm_hour, tms.tm_min,
+                 tms.tm_sec);
       else if (base < 3600 * 24)
          sprintf(result, "%02d %s %02d %02d:%02d",
-                 tms->tm_mday, mon, tms->tm_year % 100, tms->tm_hour, tms->tm_min);
+                 tms.tm_mday, mon, tms.tm_year % 100, tms.tm_hour, tms.tm_min);
       else
-         sprintf(result, "%02d %s %02d", tms->tm_mday, mon, tms->tm_year % 100);
+         sprintf(result, "%02d %s %02d", tms.tm_mday, mon, tms.tm_year % 100);
    } else {
       if (base < 600)
-         sprintf(result, "%02d:%02d:%02d", tms->tm_hour, tms->tm_min, tms->tm_sec);
+         sprintf(result, "%02d:%02d:%02d", tms.tm_hour, tms.tm_min, tms.tm_sec);
       else if (base < 3600 * 3)
-         sprintf(result, "%02d:%02d", tms->tm_hour, tms->tm_min);
+         sprintf(result, "%02d:%02d", tms.tm_hour, tms.tm_min);
       else if (base < 3600 * 24)
          sprintf(result, "%02d %s %02d %02d:%02d",
-                 tms->tm_mday, mon, tms->tm_year % 100, tms->tm_hour, tms->tm_min);
+                 tms.tm_mday, mon, tms.tm_year % 100, tms.tm_hour, tms.tm_min);
       else
-         sprintf(result, "%02d %s %02d", tms->tm_mday, mon, tms->tm_year % 100);
+         sprintf(result, "%02d %s %02d", tms.tm_mday, mon, tms.tm_year % 100);
    }
 }
 
@@ -7781,18 +7785,18 @@ void taxis(gdImagePtr im, gdFont * font, int col, int gcol,
    const int base[] = { 1, 5, 10, 60, 300, 600, 1800, 3600, 3600 * 6, 3600 * 12, 3600 * 24, 0 };
    time_t ltime;
    int force_date, d1, d2;
-   struct tm *ptms;
+   struct tm tms;
 
    if (xmax <= xmin || width <= 0)
       return;
 
    /* force date display if xmax not today */
    ltime = ss_time();
-   ptms = localtime(&ltime);
-   d1 = ptms->tm_mday;
+   localtime_r(&ltime, &tms);
+   d1 = tms.tm_mday;
    ltime = (time_t) xmax;
-   ptms = localtime(&ltime);
-   d2 = ptms->tm_mday;
+   localtime_r(&ltime, &tms);
+   d2 = tms.tm_mday;
    force_date = (d1 != d2);
 
    /* use 5 pixel as min tick distance */
@@ -9658,7 +9662,9 @@ void generate_hist_graph(MVOdb* odb, Return* rr, const char *hgroup, const char 
                sprintf(xstr," = all data is NaN or INF");
             } else if (hsdata->have_last_written) {
                if (hsdata->last_written[k]) {
-                  sprintf(xstr," = last data %s", ctime(&hsdata->last_written[k]));
+                  char ctimebuf[32];
+                  ctime_r(&hsdata->last_written[k], ctimebuf);
+                  sprintf(xstr," = last data %s", ctimebuf);
                   // kill trailing '\n'
                   char*s = strchr(xstr, '\n');
                   if (s) *s=0;
@@ -9737,11 +9743,11 @@ time_t mktime_with_dst(const struct tm* ptms)
 {
    // this silly stuff is required to correctly handle daylight savings time (Summer time/Winter time)
    // when we fill "struct tm" from user input, we cannot know if daylight savings time is in effect
-   // and we do not know how to initialize the value of tms->tm_isdst.
+   // and we do not know how to initialize the value of tms.tm_isdst.
    // This can cause the output of mktime() to be off by one hour.
    // (Rules for daylight savings time are set by national and local govt and in some locations, changes yearly)
    // (There are no locations with 2 hour or half-hour daylight savings that I know of)
-   // (Yes, "man mktime" talks about using "tms->tm_isdst = -1")
+   // (Yes, "man mktime" talks about using "tms.tm_isdst = -1")
    //
    // We assume the user is using local time and we convert in two steps:
    //
@@ -9755,12 +9761,7 @@ time_t mktime_with_dst(const struct tm* ptms)
    struct tm tms = *ptms;
    struct tm tms2;
    time_t t1 = mktime(&tms);
-#ifdef OS_WINNT
-   struct tm *ptms2 = localtime(&t1);
-   memcpy(&tms2, ptms2, sizeof(tms2));
-#else
    localtime_r(&t1, &tms2);
-#endif
    tms2.tm_year = ptms->tm_year;
    tms2.tm_mon  = ptms->tm_mon;
    tms2.tm_mday = ptms->tm_mday;
@@ -9855,8 +9856,6 @@ void show_query_page(Param* p, Return* r)
 
    /* set the times */
 
-   struct tm *ptms;
-
    time_t now = time(NULL);
 
    time_t starttime = now - 3600 * 24;
@@ -9895,15 +9894,16 @@ void show_query_page(Param* p, Return* r)
 
    r->rsprintf("<table class=\"dialogTable\">");  //main table
 
-   ptms = localtime(&starttime);
-   ptms->tm_year += 1900;
+   struct tm tms;
+   localtime_r(&starttime, &tms);
+   tms.tm_year += 1900;
 
    r->rsprintf("<tr><td nowrap>Start date:</td>");
 
    r->rsprintf("<td>Month: <select name=\"m1\">\n");
    r->rsprintf("<option value=\"\">\n");
    for (i = 0; i < 12; i++)
-      if (i == ptms->tm_mon)
+      if (i == tms.tm_mon)
          r->rsprintf("<option selected value=\"%s\">%s\n", mname[i], mname[i]);
       else
          r->rsprintf("<option value=\"%s\">%s\n", mname[i], mname[i]);
@@ -9912,30 +9912,30 @@ void show_query_page(Param* p, Return* r)
    r->rsprintf("&nbsp;Day: <select name=\"d1\">");
    r->rsprintf("<option selected value=\"\">\n");
    for (i = 0; i < 31; i++)
-      if (i + 1 == ptms->tm_mday)
+      if (i + 1 == tms.tm_mday)
          r->rsprintf("<option selected value=%d>%d\n", i + 1, i + 1);
       else
          r->rsprintf("<option value=%d>%d\n", i + 1, i + 1);
    r->rsprintf("</select>\n");
 
-   int start_hour = ptms->tm_hour;
+   int start_hour = tms.tm_hour;
    if (full_day)
       start_hour = 0;
 
    r->rsprintf("&nbsp;Hour: <input type=\"text\" size=5 maxlength=5 name=\"h1\" value=\"%d\">", start_hour);
 
-   r->rsprintf("&nbsp;Year: <input type=\"text\" size=5 maxlength=5 name=\"y1\" value=\"%d\">", ptms->tm_year);
+   r->rsprintf("&nbsp;Year: <input type=\"text\" size=5 maxlength=5 name=\"y1\" value=\"%d\">", tms.tm_year);
    r->rsprintf("</td></tr>\n");
 
    r->rsprintf("<tr><td nowrap>End date:</td>");
 
-   ptms = localtime(&endtime);
-   ptms->tm_year += 1900;
+   localtime_r(&endtime, &tms);
+   tms.tm_year += 1900;
 
    r->rsprintf("<td>Month: <select name=\"m2\">\n");
    r->rsprintf("<option value=\"\">\n");
    for (i = 0; i < 12; i++)
-      if (i == ptms->tm_mon)
+      if (i == tms.tm_mon)
          r->rsprintf("<option selected value=\"%s\">%s\n", mname[i], mname[i]);
       else
          r->rsprintf("<option value=\"%s\">%s\n", mname[i], mname[i]);
@@ -9944,19 +9944,19 @@ void show_query_page(Param* p, Return* r)
    r->rsprintf("&nbsp;Day: <select name=\"d2\">");
    r->rsprintf("<option selected value=\"\">\n");
    for (i = 0; i < 31; i++)
-      if (i + 1 == ptms->tm_mday)
+      if (i + 1 == tms.tm_mday)
          r->rsprintf("<option selected value=%d>%d\n", i + 1, i + 1);
       else
          r->rsprintf("<option value=%d>%d\n", i + 1, i + 1);
    r->rsprintf("</select>\n");
 
-   int end_hour = ptms->tm_hour;
+   int end_hour = tms.tm_hour;
    if (full_day)
       end_hour = 24;
 
    r->rsprintf("&nbsp;Hour: <input type=\"text\" size=5 maxlength=5 name=\"h2\" value=\"%d\">", end_hour);
 
-   r->rsprintf("&nbsp;Year: <input type=\"text\" size=5 maxlength=5 name=\"y2\" value=\"%d\">", ptms->tm_year);
+   r->rsprintf("&nbsp;Year: <input type=\"text\" size=5 maxlength=5 name=\"y2\" value=\"%d\">", tms.tm_year);
    r->rsprintf("</td></tr>\n");
 
    r->rsprintf("</table>\n");
@@ -11023,6 +11023,8 @@ void export_hist(MVOdb* odb, Return* r, const char *group, const char *panel, ti
 
    int debug = 0;
 
+   tzset(); // required for localtime_r()
+
 #if 0
    cm_get_experiment_database(&hDB, NULL);
 
@@ -11187,13 +11189,14 @@ void export_hist(MVOdb* odb, Return* r, const char *group, const char *panel, ti
       if (done)
          break;
 
-      struct tm* tms = localtime(&t);
+      struct tm tms;
+      localtime_r(&t, &tms);
 
       char fmt[256];
       //strcpy(fmt, "%c");
       strcpy(fmt, "%Y.%m.%d %H:%M:%S");
       char str[256];
-      strftime(str, sizeof(str), fmt, tms);
+      strftime(str, sizeof(str), fmt, &tms);
 
       if (t_run_number && run_index>=0 && state_index>=0) {
          if (t_run_number[i_run] <= t)
@@ -11476,12 +11479,12 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
             dir += DIR_SEPARATOR_STR;
 
          time_t now = time(NULL);
-         tms = localtime(&now);
+         localtime_r(&now, &tms);
 
          char file_name[256];
          sprintf(file_name, "%02d%02d%02d_%02d%02d%02d_%s.gif",
-                  tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday,
-                  tms->tm_hour, tms->tm_min, tms->tm_sec, hpanel); // FIXME: overflows file_name
+                  tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday,
+                  tms.tm_hour, tms.tm_min, tms.tm_sec, hpanel); // FIXME: overflows file_name
          std::string fname = dir + file_name;
 
          /* save attachment */

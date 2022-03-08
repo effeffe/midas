@@ -173,7 +173,8 @@ void process_message(HNDLE hBuf, HNDLE id, EVENT_HEADER * pheader, void *message
 
    /* prepare time */
    time(&tm);
-   strcpy(str, ctime(&tm));
+   assert(sizeof(str) >= 32);
+   ctime_r(&tm, str);
    str[19] = 0;
 
    /* print message text which comes after event header */
@@ -1070,7 +1071,9 @@ void create_experim_h(HNDLE hDB, const char *analyzer_name)
    /* write comment to file */
    xwrite(file_name, hfile, experim_h_comment1, strlen(experim_h_comment1));
    time(&now);
-   sprintf(str, "  Created on:   %s\n", ctime(&now));
+   char ctimebuf[32];
+   ctime_r(&now, ctimebuf);
+   sprintf(str, "  Created on:   %s\n", ctimebuf);
    xwrite(file_name, hfile, str, strlen(str));
    xwrite(file_name, hfile, experim_h_comment2, strlen(experim_h_comment2));
 
@@ -1303,7 +1306,8 @@ void assemble_prompt(char *prompt, int psize, char *host_name, char *exp_name, c
          switch (*++pm) {
          case 't':
             time(&now);
-            strcpy(str, ctime(&now));
+            assert(sizeof(str) >= 32);
+            ctime_r(&now, str);
             str[19] = 0;
             strcpy(pp, str + 11);
             break;

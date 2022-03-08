@@ -361,7 +361,8 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
             return EL_FILE_ERROR;
          }
 
-         strcpy(date, ctime(&now));
+         assert(sizeof(date) >= 32);
+         ctime_r(&now, date);
          date[24] = 0;
 
          if (reply_to[0])

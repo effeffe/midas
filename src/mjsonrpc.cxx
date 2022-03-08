@@ -3474,13 +3474,11 @@ static MJsonNode* get_alarms(const MJsonNode* params)
 
          time_t tnext = last + interval;
 
-         const char* snext = ctime(&tnext);
+         char ctimebuf[32];
+         ctime_r(&tnext, ctimebuf);
 
-         if (!snext)
-            snext = "<invalid time>";
-
-         //ss_repair_utf8(snext); redundant!
-         a->AddToObject("periodic_next_time", MJsonNode::MakeString(snext));
+         //ss_repair_utf8(ctimebuf); redundant!
+         a->AddToObject("periodic_next_time", MJsonNode::MakeString(ctimebuf));
       }
 
       alarms->AddToObject(name, a);
