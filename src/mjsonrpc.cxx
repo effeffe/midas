@@ -159,24 +159,24 @@ MJsonNode* mjsonrpc_make_result(const char* name, MJsonNode* value, const char* 
    return result;
 }
 
+static MJsonNode* gNullNode = NULL;
+
 const MJsonNode* mjsonrpc_get_param(const MJsonNode* params, const char* name, MJsonNode** error)
 {
-   static MJsonNode* null_node = NULL; // FIXME: not thread safe
-   if (!null_node)
-      null_node = MJsonNode::MakeNull();
+   assert(gNullNode != NULL);
 
    // NULL params is a request for documentation, return an empty object
    if (!params) {
       if (error)
          *error = MJsonNode::MakeObject();
-      return null_node;
+      return gNullNode;
    }
 
    const MJsonNode* obj = params->FindObjectNode(name);
    if (!obj) {
       if (error)
          *error = mjsonrpc_make_error(-32602, "Invalid params", (std::string("missing parameter: ") + name).c_str());
-      return null_node;
+      return gNullNode;
    }
 
    if (error)
@@ -3856,6 +3856,9 @@ void mjsonrpc_init()
    if (mjsonrpc_debug) {
       printf("mjsonrpc_init!\n");
    }
+
+   if (!gNullNode)
+      gNullNode = MJsonNode::MakeNull();
 
    // test, debug and control methods for the rpc system
    mjsonrpc_add_handler("null", xnull);
