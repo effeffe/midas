@@ -5391,8 +5391,6 @@ int log_generate_file_name(LOG_CHN *log_chn)
    std::string path;
    std::string data_dir;
    CHN_SETTINGS *chn_settings;
-   time_t now;
-   struct tm *tms;
 
    chn_settings = &log_chn->settings;
    size = sizeof(run_number);
@@ -5449,12 +5447,14 @@ int log_generate_file_name(LOG_CHN *log_chn)
 
       /* append subdirectory if requested */
       if (chn_settings->subdir_format[0]) {
-         tzset();
+         tzset(); // required for localtime_r()
+         time_t now;
          time(&now);
-         tms = localtime(&now);
+         struct tm tms;
+         localtime_r(&now, &tms);
 
          char dir[256];
-         strftime(dir, sizeof(dir), chn_settings->subdir_format, tms);
+         strftime(dir, sizeof(dir), chn_settings->subdir_format, &tms);
          str += dir;
          str += DIR_SEPARATOR_STR;
       }
