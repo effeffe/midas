@@ -35,6 +35,7 @@ The Midas System file
 #include <stdio.h>
 #include <math.h>
 #include <vector>
+#include <atomic> // std::atomic_int & co
 
 #include "midas.h"
 #include "msystem.h"
@@ -47,41 +48,11 @@ The Midas System file
 #include <sys/mount.h>
 #endif
 
-static INT ss_in_async_routine_flag = 0;
 #ifdef LOCAL_ROUTINES
 #include <signal.h>
 
 /*------------------------------------------------------------------*/
 /* globals */
-
-/*------------------------------------------------------------------*/
-INT ss_set_async_flag(INT flag)
-/********************************************************************\
-
-  Routine: ss_set_async_flag
-
-  Purpose: Sets the ss_in_async_routine_flag according to the flag
-     value. This is necessary when semaphore operations under
-     UNIX are called inside an asynchrounous routine (via alarm)
-     because they then behave different.
-
-  Input:
-    INT  flag               May be 1 or 0
-
-  Output:
-    none
-
-  Function value:
-    INT                     Previous value of the flag
-
-\********************************************************************/
-{
-   INT old_flag;
-
-   old_flag = ss_in_async_routine_flag;
-   ss_in_async_routine_flag = flag;
-   return old_flag;
-}
 
 #if defined(OS_UNIX)
 
@@ -2328,9 +2299,8 @@ std::string EXPRT ss_thread_get_name()
 }
 
 /*------------------------------------------------------------------*/
-static INT skip_semaphore_handle = -1;
-static int semaphore_trace = 0;
-static int semaphore_nest_level = 0;
+static std::atomic_bool s_semaphore_trace{false};
+static std::atomic_int  s_semaphore_nest_level{0}; // must be signed int!
 
 INT ss_semaphore_create(const char *name, HNDLE * semaphore_handle)
 /********************************************************************\
@@ -2491,7 +2461,7 @@ INT ss_semaphore_create(const char *name, HNDLE * semaphore_handle)
             return SS_NO_SEMAPHORE;
       }
 
-      if (semaphore_trace) {
+      if (s_semaphore_trace) {
          fprintf(stderr, "name %d %d %d %s\n", *semaphore_handle, (int)time(NULL), getpid(), name);
       }
 
@@ -2574,23 +2544,10 @@ INT ss_semaphore_wait_for(HNDLE semaphore_handle, INT timeout)
 
       memset(&arg, 0, sizeof(arg));
 
-      /* don't request the semaphore when in asynchronous state
-         and semaphore was locked already by foreground process */
-      if (ss_in_async_routine_flag)
-         if (semctl(semaphore_handle, 0, GETPID, arg) == getpid())
-            if (semctl(semaphore_handle, 0, GETVAL, arg) == 0) {
-               skip_semaphore_handle = semaphore_handle;
-               if (semaphore_trace)
-                  fprintf(stderr,"lock skip sema handle %d, my pid %d\n", skip_semaphore_handle, getpid());
-               return SS_SUCCESS;
-            }
-
-      skip_semaphore_handle = -1;
-
       start_time = ss_millitime();
 
-      if (semaphore_trace) {
-         fprintf(stderr, "waitlock %d %d %d nest %d\n", semaphore_handle, ss_millitime(), getpid(), semaphore_nest_level);
+      if (s_semaphore_trace) {
+         fprintf(stderr, "waitlock %d %d %d nest %d\n", semaphore_handle, ss_millitime(), getpid(), int(s_semaphore_nest_level));
       }
 
       do {
@@ -2623,9 +2580,9 @@ INT ss_semaphore_wait_for(HNDLE semaphore_handle, INT timeout)
          return SS_NO_SEMAPHORE;
       } while (1);
 
-      if (semaphore_trace) {
-         semaphore_nest_level++;
-         fprintf(stderr, "lock %d %d %d nest %d\n", semaphore_handle, ss_millitime(), getpid(), semaphore_nest_level);
+      if (s_semaphore_trace) {
+         s_semaphore_nest_level++;
+         fprintf(stderr, "lock %d %d %d nest %d\n", semaphore_handle, ss_millitime(), getpid(), int( s_semaphore_nest_level));
       }
 
       return SS_SUCCESS;
@@ -2695,17 +2652,10 @@ INT ss_semaphore_release(HNDLE semaphore_handle)
       sb.sem_op = 1;            /* increment semaphore */
       sb.sem_flg = SEM_UNDO;
 
-      if (semaphore_handle == skip_semaphore_handle) {
-         if (semaphore_trace)
-            fprintf(stderr,"unlock skip sema handle %d, my pid %d\n", skip_semaphore_handle, getpid());
-         skip_semaphore_handle = -1;
-         return SS_SUCCESS;
-      }
-
-      if (semaphore_trace) {
-         fprintf(stderr, "unlock %d %d %d nest %d\n", semaphore_handle, ss_millitime(), getpid(), semaphore_nest_level);
-         assert(semaphore_nest_level > 0);
-         semaphore_nest_level--;
+      if (s_semaphore_trace) {
+         fprintf(stderr, "unlock %d %d %d nest %d\n", semaphore_handle, ss_millitime(), getpid(), int(s_semaphore_nest_level));
+         assert(s_semaphore_nest_level > 0);
+         s_semaphore_nest_level--;
       }
 
       do {
