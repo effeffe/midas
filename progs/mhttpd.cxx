@@ -17,6 +17,7 @@
 #include <deque>  // std::deque
 #include <mutex>  // std::mutex
 #include <condition_variable>  // std::condition_variable
+#include <atomic> // std::atomic<>
 
 #include "midas.h"
 #include "msystem.h"
@@ -17004,7 +17005,7 @@ static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data
 //static sock_t s_sock[2];
 static bool s_shutdown = false;
 static struct mg_mgr s_mgr;
-static uint32_t s_seqno = 0;
+static std::atomic_uint32_t s_seqno{0};
 static std::mutex s_mg_broadcast_mutex;
 
 #if 0
@@ -17093,7 +17094,7 @@ static void mongoose_send(void* nc, MongooseWorkObject* w, const char* p1, size_
    struct work_result res;
    res.nc = nc;
    res.w  = w;
-   res.seqno = s_seqno++; // FIXME: ++ not thread safe
+   res.seqno = s_seqno++; // thread-asfe, s_seqno is std::atomic_int
    res.p1 = p1;
    res.s1 = s1;
    res.p2 = p2;
@@ -17151,7 +17152,7 @@ static void mongoose_send_501(void* nc, MongooseWorkObject* w)
    struct work_result res;
    res.nc = nc;
    res.w  = w;
-   res.seqno = s_seqno++; // FIXME: ++ not thread safe.
+   res.seqno = s_seqno++; // thread-asfe, s_seqno is std::atomic_int
    res.p1 = 0;
    res.s1 = 0;
    res.p2 = 0;
