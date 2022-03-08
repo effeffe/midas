@@ -217,23 +217,19 @@ Open history file belonging to certain date. Internal use
 */
 static INT hs_open_file(time_t ltime, const char *suffix, INT mode, std::string *pfile_name, int *fh)
 {
-   struct tm *tms;
+   struct tm tms;
    time_t ttime;
 
    /* generate new file name YYMMDD.xxx */
-#if !defined(OS_VXWORKS)
-#if !defined(OS_VMS)
-   tzset();
-#endif
-#endif
+   tzset(); // required by localtime_r()
    ttime = (time_t) ltime;
-   tms = localtime(&ttime);
+   localtime_r(&ttime, &tms);
 
-   //sprintf(file_name, "%s%02d%02d%02d.%s", _hs_path_name, tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday, suffix);
+   //sprintf(file_name, "%s%02d%02d%02d.%s", _hs_path_name, tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday, suffix);
    std::string file_name;
    file_name += _hs_path_name;
    char tmp[100];
-   sprintf(tmp, "%02d%02d%02d", tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
+   sprintf(tmp, "%02d%02d%02d", tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday);
    file_name += tmp;
    file_name += ".";
    file_name += suffix;
@@ -391,7 +387,8 @@ static INT hs_search_file(DWORD * ltime, INT direction)
    time_t lt;
    int fh, fhd, fhi;
    std::string fn;
-   struct tm *tms;
+
+   tzset(); // required by localtime_r()
 
    if (*ltime == 0)
       *ltime = ss_time();
@@ -413,9 +410,10 @@ static INT hs_search_file(DWORD * ltime, INT direction)
 
    if (lt != (time_t) *ltime) {
       /* if switched to new day, set start_time to 0:00 */
-      tms = localtime(&lt);
-      tms->tm_hour = tms->tm_min = tms->tm_sec = 0;
-      *ltime = (DWORD) mktime(tms);
+      struct tm tms;
+      localtime_r(&lt, &tms);
+      tms.tm_hour = tms.tm_min = tms.tm_sec = 0;
+      *ltime = (DWORD) mktime(&tms);
    }
 
    /* check if index files are there */
@@ -478,7 +476,6 @@ static INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DW
       int fh, fhi, fhd;
       std::string fn, fni, fnd;
       INT n, status, semaphore;
-      struct tm *tmb;
 
       //printf("hs_define_event: event_id %d, name [%s]\n", event_id, name);
 
@@ -547,8 +544,9 @@ static INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DW
          }
 
          ltime = (time_t) rec.time;
-         tmb = localtime(&ltime);
-         tmb->tm_hour = tmb->tm_min = tmb->tm_sec = 0;
+         struct tm tmb;
+         localtime_r(&ltime, &tmb);
+         tmb.tm_hour = tmb.tm_min = tmb.tm_sec = 0;
 
          DWORD pos = xcurpos(fn, fh);
          if (pos == (DWORD)-1) return HS_FILE_ERROR;
@@ -563,7 +561,7 @@ static INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DW
          _history[index]->def_offset = pos;
          _history[index]->event_id = event_id;
          _history[index]->event_name = event_name;
-         _history[index]->base_time = (DWORD) mktime(tmb);
+         _history[index]->base_time = (DWORD) mktime(&tmb);
          _history[index]->n_tag = size / sizeof(TAG);
          _history[index]->tag = (TAG *) M_MALLOC(size);
          memcpy(_history[index]->tag, tag, size);
@@ -734,9 +732,9 @@ static INT hs_write_event(DWORD event_id, const void *data, DWORD size)
 
    /* check if new day */
    ltime = (time_t) rec.time;
-   memcpy(&tmr, localtime(&ltime), sizeof(tmr));
+   localtime_r(&ltime, &tmr); // somebody must call tzset() before this.
    ltime = (time_t) _history[index]->base_time;
-   memcpy(&tmb, localtime(&ltime), sizeof(tmb));
+   localtime_r(&ltime, &tmb); // somebody must call tzset() before this.
 
    if (tmr.tm_yday != tmb.tm_yday) {
       /* close current history file */
@@ -1510,7 +1508,6 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
    INT old_def_offset;
    TAG *tag;
    char str[NAME_LENGTH];
-   struct tm *tms;
    char *cache = NULL;
    time_t ltime;
 
@@ -1522,6 +1519,8 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
    int ieof = 0;
 
    //printf("hs_read event %d, time %d:%d, tagname: \'%s\', varindex: %d\n", event_id, start_time, end_time, tag_name, var_index);
+
+   tzset(); // required by localtime_r()
 
    /* if not time given, use present to one hour in past */
    if (start_time == 0)
@@ -1876,9 +1875,10 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
 
          /* advance one day */
          ltime = (time_t) last_irec_time;
-         tms = localtime(&ltime);
-         tms->tm_hour = tms->tm_min = tms->tm_sec = 0;
-         last_irec_time = (DWORD) mktime(tms);
+         struct tm tms;
+         localtime_r(&ltime, &tms);
+         tms.tm_hour = tms.tm_min = tms.tm_sec = 0;
+         last_irec_time = (DWORD) mktime(&tms);
 
          last_irec_time += 3600 * 24;
 
@@ -1975,7 +1975,8 @@ static INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
    INT old_def_offset, offset;
    TAG *tag = NULL, *old_tag = NULL;
    char str[NAME_LENGTH], data_buffer[10000];
-   struct tm *tms;
+
+   tzset(); // required by localtime_r()
 
    /* if not time given, use present to one hour in past */
    if (start_time == 0)
@@ -2126,9 +2127,10 @@ static INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
 
          /* advance one day */
          ltime = (time_t) last_irec_time;
-         tms = localtime(&ltime);
-         tms->tm_hour = tms->tm_min = tms->tm_sec = 0;
-         last_irec_time = (DWORD) mktime(tms);
+         struct tm tms;
+         localtime_r(&ltime, &tms);
+         tms.tm_hour = tms.tm_min = tms.tm_sec = 0;
+         last_irec_time = (DWORD) mktime(&tms);
 
          last_irec_time += 3600 * 24;
          if (last_irec_time > end_time)

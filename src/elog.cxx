@@ -138,7 +138,6 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
 #ifdef LOCAL_ROUTINES
    {
       INT size, fh, status, run_number, semaphore, idx, offset = 0, tail_size = 0;
-      struct tm *tms = NULL;
       char file_name[256+256+100];
       char afile_name[3][256+256];
       char dir[256];
@@ -149,6 +148,7 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
       char* message = NULL;
       size_t message_size = 0;
       BOOL bedit;
+      struct tm tms;
 
       cm_get_experiment_database(&hDB, NULL);
 
@@ -231,16 +231,17 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
 #endif
 
                time(&now);
-               tms = localtime(&now);
+               tzset();
+               localtime_r(&now, &tms);
 
                char str[256];
                strlcpy(str, p, sizeof(str));
                sprintf(afile_name[idx], "%02d%02d%02d_%02d%02d%02d_%s",
-                       tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday,
-                       tms->tm_hour, tms->tm_min, tms->tm_sec, str);
+                       tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday,
+                       tms.tm_hour, tms.tm_min, tms.tm_sec, str);
                sprintf(file_name, "%s%02d%02d%02d_%02d%02d%02d_%s", dir,
-                       tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday,
-                       tms->tm_hour, tms->tm_min, tms->tm_sec, str);
+                       tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday,
+                       tms.tm_hour, tms.tm_min, tms.tm_sec, str);
 
                /* save attachment */
                fh = open(file_name, O_CREAT | O_RDWR | O_BINARY, 0644);
@@ -348,10 +349,11 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
          lseek(fh, offset, SEEK_SET);
       } else {
          /* create new message */
+         tzset(); // required by localtime_r()
          time(&now);
-         tms = localtime(&now);
+         localtime_r(&now, &tms);
 
-         sprintf(file_name, "%s%02d%02d%02d.log", dir, tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
+         sprintf(file_name, "%s%02d%02d%02d.log", dir, tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday);
 
          fh = open(file_name, O_CREAT | O_RDWR | O_BINARY, 0644);
          if (fh < 0) {
@@ -427,8 +429,9 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
 
       size = strlen(message) + strlen(start_str) + strlen(end_str);
 
-      if (tag != NULL && !bedit)
-         sprintf(tag, "%02d%02d%02d.%d", tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday, (int) TELL(fh));
+      if (tag != NULL && !bedit) {
+         sprintf(tag, "%02d%02d%02d.%d", tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday, (int) TELL(fh));
+      }
 
       /* size has to fit in 6 digits */
       assert(size < 999999);
@@ -507,18 +510,14 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
 INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilename_size)
 {
    int i, size, offset, direction, status;
-   struct tm *tms, ltms;
+   struct tm tms;
    time_t lt, ltime=0, lact;
    char str[256];
    char dir[256];
    char file_name[256+100];
    HNDLE hDB;
 
-#if !defined(OS_VXWORKS)
-#if !defined(OS_VMS)
-   tzset();
-#endif
-#endif
+   tzset(); // required by localtime_r()
 
    if (xfilename && xfilename_size > 0)
       *xfilename = 0;
@@ -545,16 +544,15 @@ INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilen
    /* if tag is given, open file directly */
    if (tag[0]) {
       /* extract time structure from tag */
-      tms = &ltms;
-      memset(tms, 0, sizeof(struct tm));
-      tms->tm_year = (tag[0] - '0') * 10 + (tag[1] - '0');
-      tms->tm_mon = (tag[2] - '0') * 10 + (tag[3] - '0') - 1;
-      tms->tm_mday = (tag[4] - '0') * 10 + (tag[5] - '0');
-      tms->tm_hour = 12;
+      memset(&tms, 0, sizeof(struct tm));
+      tms.tm_year = (tag[0] - '0') * 10 + (tag[1] - '0');
+      tms.tm_mon = (tag[2] - '0') * 10 + (tag[3] - '0') - 1;
+      tms.tm_mday = (tag[4] - '0') * 10 + (tag[5] - '0');
+      tms.tm_hour = 12;
 
-      if (tms->tm_year < 90)
-         tms->tm_year += 100;
-      ltime = lt = mktime(tms);
+      if (tms.tm_year < 90)
+         tms.tm_year += 100;
+      ltime = lt = mktime(&tms);
 
       strcpy(str, tag);
       if (strchr(str, '.')) {
@@ -564,9 +562,9 @@ INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilen
          return EL_FILE_ERROR;
 
       do {
-         tms = localtime(&ltime);
+         localtime_r(&ltime, &tms);
 
-         sprintf(file_name, "%s%02d%02d%02d.log", dir, tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
+         sprintf(file_name, "%s%02d%02d%02d.log", dir, tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday);
 
          if (xfilename)
             strlcpy(xfilename, file_name, xfilename_size);
@@ -583,8 +581,8 @@ INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilen
                ltime += 3600 * 24;      /* go forward one day */
 
             /* set new tag */
-            tms = localtime(&ltime);
-            sprintf(tag, "%02d%02d%02d.0", tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
+            localtime_r(&ltime, &tms);
+            sprintf(tag, "%02d%02d%02d.0", tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday);
          }
 
          /* in forward direction, stop today */
@@ -622,9 +620,9 @@ INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilen
       time((time_t *) &lt);
       ltime = lt;
       do {
-         tms = localtime(&ltime);
+         localtime_r(&ltime, &tms);
 
-         sprintf(file_name, "%s%02d%02d%02d.log", dir, tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
+         sprintf(file_name, "%s%02d%02d%02d.log", dir, tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday);
 
          if (xfilename)
             strlcpy(xfilename, file_name, xfilename_size);
@@ -640,7 +638,7 @@ INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilen
          return EL_FILE_ERROR;
 
       /* remember tag */
-      sprintf(tag, "%02d%02d%02d", tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
+      sprintf(tag, "%02d%02d%02d", tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday);
 
       lseek(*fh, 0, SEEK_END);
 
@@ -658,8 +656,8 @@ INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilen
          lt = ltime;
          do {
             lt -= 3600 * 24;
-            tms = localtime(&lt);
-            sprintf(str, "%02d%02d%02d.0", tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
+            localtime_r(&lt, &tms);
+            sprintf(str, "%02d%02d%02d.0", tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday);
 
             status = el_search_message(str, fh, FALSE, file_name, sizeof(file_name));
 
@@ -749,8 +747,8 @@ INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilen
          lt = ltime;
          do {
             lt += 3600 * 24;
-            tms = localtime(&lt);
-            sprintf(str, "%02d%02d%02d.0", tms->tm_year % 100, tms->tm_mon + 1, tms->tm_mday);
+            localtime_r(&lt, &tms);
+            sprintf(str, "%02d%02d%02d.0", tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday);
 
             status = el_search_message(str, fh, FALSE, file_name, sizeof(file_name));
 

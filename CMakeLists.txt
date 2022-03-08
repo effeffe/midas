@@ -73,6 +73,9 @@ endif()
 #add_compile_options(-fsanitize=address -fsanitize=leak)
 #add_link_options(-fsanitize=address -fsanitize=leak)
 
+#add_compile_options(-fsanitize=thread)
+#add_link_options(-fsanitize=thread)
+
 #####################################################################
 # Nothing needs to be modified after this line
 #####################################################################

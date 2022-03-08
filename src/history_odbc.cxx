@@ -909,8 +909,10 @@ int WriteEvent(SqlBase* sql, Event *e, time_t t, const char*buf, int size)
    }
 
    // 2001-02-16 20:38:40.1
+   struct tm tms;
+   localtime_r(&t, &tms); // somebody must call tzset() before this
    char s[1024];
-   strftime(s,sizeof(s)-1,"%Y-%m-%d %H:%M:%S.0",localtime(&t));
+   strftime(s,sizeof(s)-1,"%Y-%m-%d %H:%M:%S.0",&tms);
 
    char sss[102400];
    sprintf(sss, "INSERT INTO %s (_t_time, _i_time%s) VALUES (\'%s\', \'%d\'%s);",

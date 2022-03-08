@@ -548,16 +548,16 @@ void cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::s
    db_get_value_string(hDB, 0, "/Logger/Message file date format", 0, &message_format, TRUE);
    if (message_format.find('%') != std::string::npos) {
       /* replace stings such as %y%m%d with current date */
-      struct tm *tms;
+      struct tm tms;
 
       tzset();
       if (t == 0)
          time(&t);
-      tms = localtime(&t);
+      localtime_r(&t, &tms);
 
       char de[256];
       de[0] = '_';
-      strftime(de + 1, sizeof(de)-1, strchr(message_format.c_str(), '%'), tms);
+      strftime(de + 1, sizeof(de)-1, strchr(message_format.c_str(), '%'), &tms);
       message_format = de;
    }
 
@@ -709,16 +709,16 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
          //}
 
          struct timeval tv;
-         struct tm *tms;
+         struct tm tms;
 
          tzset();
          gettimeofday(&tv, NULL);
-         tms = localtime(&tv.tv_sec);
+         localtime_r(&tv.tv_sec, &tms);
 
          char str[256];
-         strftime(str, sizeof(str), "%H:%M:%S", tms);
+         strftime(str, sizeof(str), "%H:%M:%S", &tms);
          sprintf(str + strlen(str), ".%03d ", (int) (tv.tv_usec / 1000));
-         strftime(str + strlen(str), sizeof(str), "%G/%m/%d", tms);
+         strftime(str + strlen(str), sizeof(str), "%G/%m/%d", &tms);
 
          std::string msg;
          msg += str;
@@ -1232,8 +1232,9 @@ static int cm_msg_retrieve1(const char *filename, time_t t, INT n_messages, char
    int fh;
    char *p, str[1000];
    struct stat stat_buf;
-   struct tm tms;
    time_t tstamp, tstamp_valid, tstamp_last;
+
+   tzset(); // required by localtime_r()
 
    *num_messages = 0;
 
@@ -1311,7 +1312,9 @@ static int cm_msg_retrieve1(const char *filename, time_t t, INT n_messages, char
       // extract time tag
       time_t now;
       time(&now);
-      memcpy(&tms, localtime(&now), sizeof(tms));
+
+      struct tm tms;
+      localtime_r(&now, &tms); // must call tzset() beforehand!
 
       if (str[0] >= '0' && str[0] <= '9') {
          // new format
@@ -2407,6 +2410,8 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    char password[NAME_LENGTH], str[256];
    HNDLE hDB = 0, hKeyClient = 0;
    BOOL call_watchdog;
+
+   tzset(); // required for localtime_r()
 
    if (_hKeyClient)
       cm_disconnect_experiment();

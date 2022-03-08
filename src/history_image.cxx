@@ -173,17 +173,20 @@ void image_thread(std::string name) {
          if (status)
             cm_msg(MERROR, "image_thread", "Cannot create directory \"%s\": mkpath() errno %d (%s)", filename.c_str(), errno, strerror(errno));
 
+         tzset(); // required by localtime_r()
+
          time_t now = time(nullptr);
-         tm *ltm = localtime(&now);
+         struct tm ltm;
+         localtime_r(&now, &ltm);
          std::stringstream s;
          s <<
-           std::setfill('0') << std::setw(2) << ltm->tm_year - 100 <<
-           std::setfill('0') << std::setw(2) << ltm->tm_mon + 1 <<
-           std::setfill('0') << std::setw(2) << ltm->tm_mday <<
+           std::setfill('0') << std::setw(2) << ltm.tm_year - 100 <<
+           std::setfill('0') << std::setw(2) << ltm.tm_mon + 1 <<
+           std::setfill('0') << std::setw(2) << ltm.tm_mday <<
            "_" <<
-           std::setfill('0') << std::setw(2) << ltm->tm_hour <<
-           std::setfill('0') << std::setw(2) << ltm->tm_min <<
-           std::setfill('0') << std::setw(2) << ltm->tm_sec;
+           std::setfill('0') << std::setw(2) << ltm.tm_hour <<
+           std::setfill('0') << std::setw(2) << ltm.tm_min <<
+           std::setfill('0') << std::setw(2) << ltm.tm_sec;
          filename += "/" + s.str();
          dotname += "/." + s.str();
 
@@ -334,19 +337,21 @@ int hs_image_retrieve(std::string image_name, time_t start_time, time_t stop_tim
 
    std::string mask;
    if (start_time == stop_time) {
-      tm *ltm = localtime(&start_time);
+      tzset(); // required by localtime_r()
+      struct tm ltm;
+      localtime_r(&start_time, &ltm);
       std::stringstream s;
       s <<
-        std::setfill('0') << std::setw(2) << ltm->tm_year - 100 <<
-        std::setfill('0') << std::setw(2) << ltm->tm_mon + 1 <<
-        std::setfill('0') << std::setw(2) << ltm->tm_mday <<
+        std::setfill('0') << std::setw(2) << ltm.tm_year - 100 <<
+        std::setfill('0') << std::setw(2) << ltm.tm_mon + 1 <<
+        std::setfill('0') << std::setw(2) << ltm.tm_mday <<
         "_" << "??????.*";
       mask = s.str();
    } else {
-
-      tm ltStart, ltStop;
-      memcpy(&ltStart, localtime(&start_time), sizeof(tm));
-      memcpy(&ltStop, localtime(&stop_time), sizeof(tm));
+      tzset(); // required by localtime_r()
+      struct tm ltStart, ltStop;
+      localtime_r(&start_time, &ltStart);
+      localtime_r(&stop_time, &ltStop);
       std::stringstream sStart, sStop;
       std::string mStart, mStop;
       mask = "??????_??????.*";

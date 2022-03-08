@@ -3251,17 +3251,17 @@ DWORD ss_settime(DWORD seconds)
 {
 #if defined(OS_WINNT)
    SYSTEMTIME st;
-   struct tm *ltm;
+   struct tm ltm;
 
    tzset();
-   ltm = localtime((time_t *) & seconds);
+   localtime_r((time_t *) & seconds, &ltm);
 
-   st.wYear = ltm->tm_year + 1900;
-   st.wMonth = ltm->tm_mon + 1;
-   st.wDay = ltm->tm_mday;
-   st.wHour = ltm->tm_hour;
-   st.wMinute = ltm->tm_min;
-   st.wSecond = ltm->tm_sec;
+   st.wYear = ltm.tm_year + 1900;
+   st.wMonth = ltm.tm_mon + 1;
+   st.wDay = ltm.tm_mday;
+   st.wHour = ltm.tm_hour;
+   st.wMinute = ltm.tm_min;
+   st.wSecond = ltm.tm_sec;
    st.wMilliseconds = 0;
 
    SetLocalTime(&st);

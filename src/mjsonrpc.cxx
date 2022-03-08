@@ -2948,10 +2948,12 @@ static MJsonNode* js_el_query(const MJsonNode* params)
    tag[0] = 0;
 
    if (last_n) {
+      tzset(); // required for localtime_r()
       time_t now = time(NULL);
       ltime_start = now - 3600 * last_n;
-      struct tm* ptms = localtime(&ltime_start);
-      sprintf(tag, "%02d%02d%02d.0", ptms->tm_year % 100, ptms->tm_mon + 1, ptms->tm_mday);
+      struct tm tms;
+      localtime_r(&ltime_start, &tms);
+      sprintf(tag, "%02d%02d%02d.0", tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday);
    } else if (r1 > 0) {
       /* do run query */
       el_search_run(r1, tag);
@@ -3805,12 +3807,13 @@ static MJsonNode* js_get_timezone(const MJsonNode* params)
       return doc;
    }
 
-   tzset();
+   tzset(); // required for localtime_r()
    time_t rawtime = time(NULL);
    struct tm *ptm = gmtime(&rawtime);
    time_t gmt = mktime(ptm);
-   ptm = localtime(&rawtime);
-   time_t offset = rawtime - gmt + (ptm->tm_isdst ? 3600 : 0);
+   struct tm tms;
+   localtime_r(&rawtime, &tms);
+   time_t offset = rawtime - gmt + (tms.tm_isdst ? 3600 : 0);
 
    return mjsonrpc_make_result(MJsonNode::MakeNumber(offset));
 }

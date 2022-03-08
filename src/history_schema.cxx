@@ -3371,8 +3371,10 @@ int HsSqlSchema::write_event(const time_t t, const char* data, const int data_si
    }
 
    // 2001-02-16 20:38:40.1
+   struct tm tms;
+   localtime_r(&t, &tms); // somebody must call tzset() before this.
    char buf[1024];
-   strftime(buf, sizeof(buf)-1, "%Y-%m-%d %H:%M:%S.0", localtime(&t));
+   strftime(buf, sizeof(buf)-1, "%Y-%m-%d %H:%M:%S.0", &tms);
 
    std::string cmd;
    cmd = "INSERT INTO ";
@@ -5217,16 +5219,10 @@ int FileHistory::create_file(const char* event_name, time_t timestamp, int ntags
    // that when sorted lexicographically ("ls -1 | sort")
    // they *also* become sorted by time
 
-   char buf[256];
    struct tm tm;
+   localtime_r(&timestamp, &tm); // somebody must call tzset() before this.
 
-#ifdef OS_WINNT
-   struct tm *ptm = localtime(&timestamp);
-   memcpy(&tm, ptm, sizeof(tm));
-#else
-   localtime_r(&timestamp, &tm);
-#endif
-
+   char buf[256];
    strftime(buf, sizeof(buf), "%Y%m%d", &tm);
 
    std::string filename;
