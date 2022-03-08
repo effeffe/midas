@@ -1168,11 +1168,12 @@ bool send_fp(Return* r, const std::string& path, FILE* fp)
 
    time_t now = time(NULL);
    now += (int) (3600 * 24);
-   struct tm* gmt = gmtime(&now);
+   struct tm gmt_tms;
+   gmtime_r(&now, &gmt_tms);
    const char* format = "%A, %d-%b-%y %H:%M:%S GMT";
 
    char str[256];
-   strftime(str, sizeof(str), format, gmt);
+   strftime(str, sizeof(str), format, &gmt_tms);
    r->rsprintf("Expires: %s\r\n", str);
 
    // send Content-Type header
@@ -12184,7 +12185,6 @@ void send_icon(Return* r, const char *icon)
    const unsigned char *picon;
    char str[256], format[256];
    time_t now;
-   struct tm *gmt;
 
    if (strstr(icon, "favicon.ico") != 0) {
       length = sizeof(favicon_ico);
@@ -12202,9 +12202,10 @@ void send_icon(Return* r, const char *icon)
    /* set expiration time to one day */
    time(&now);
    now += (int) (3600 * 24);
-   gmt = gmtime(&now);
+   struct tm gmt_tms;
+   gmtime_r(&now, &gmt_tms);
    strcpy(format, "%A, %d-%b-%y %H:%M:%S GMT");
-   strftime(str, sizeof(str), format, gmt);
+   strftime(str, sizeof(str), format, &gmt_tms);
    r->rsprintf("Expires: %s\r\n", str);
 
    if (equal_ustring(icon, "favicon.ico"))
@@ -14053,14 +14054,15 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
 
       time_t now;
-      struct tm *gmt;
-
       time(&now);
+
       now += 3600 * 24;
-      gmt = gmtime(&now);
+
+      struct tm gmt_tms;
+      gmtime_r(&now, &gmt_tms);
 
       char str[256];
-      strftime(str, sizeof(str), "%A, %d-%b-%Y %H:00:00 GMT", gmt);
+      strftime(str, sizeof(str), "%A, %d-%b-%Y %H:00:00 GMT", &gmt_tms);
 
       r->rsprintf("Set-Cookie: midas_pwd=%s; path=/; expires=%s\r\n",
                ss_crypt(password, "mi"), str);
@@ -14078,14 +14080,15 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       r->rsprintf("Server: MIDAS HTTP %s\r\n", mhttpd_revision());
 
       time_t now;
-      struct tm *gmt;
-
       time(&now);
+
       now += 3600 * 24;
-      gmt = gmtime(&now);
+
+      struct tm gmt_tms;
+      gmtime_r(&now, &gmt_tms);
 
       char str[256];
-      strftime(str, sizeof(str), "%A, %d-%b-%Y %H:%M:%S GMT", gmt);
+      strftime(str, sizeof(str), "%A, %d-%b-%Y %H:%M:%S GMT", &gmt_tms);
 
       r->rsprintf("Set-Cookie: midas_wpwd=%s; path=/; expires=%s\r\n", ss_crypt(wpassword, "mi"), str);
 
@@ -14576,14 +14579,15 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       r->rsprintf("Content-Type: text/html; charset=%s\r\n", HTTP_ENCODING);
 
       time_t now;
-      struct tm *gmt;
-
       time(&now);
+
       now += 3600 * 24 * 365;
-      gmt = gmtime(&now);
+
+      struct tm gmt_tms;
+      gmtime_r(&now, &gmt_tms);
 
       char str[256];
-      strftime(str, sizeof(str), "%A, %d-%b-%Y %H:00:00 GMT", gmt);
+      strftime(str, sizeof(str), "%A, %d-%b-%Y %H:00:00 GMT", &gmt_tms);
 
       r->rsprintf("Set-Cookie: midas_refr=%d; path=/; expires=%s\r\n", refresh, str);
       r->rsprintf("Location: ./\r\n\r\n<html>redir</html>\r\n");
@@ -17089,7 +17093,7 @@ static void mongoose_send(void* nc, MongooseWorkObject* w, const char* p1, size_
    struct work_result res;
    res.nc = nc;
    res.w  = w;
-   res.seqno = s_seqno++;
+   res.seqno = s_seqno++; // FIXME: ++ not thread safe
    res.p1 = p1;
    res.s1 = s1;
    res.p2 = p2;
@@ -17147,7 +17151,7 @@ static void mongoose_send_501(void* nc, MongooseWorkObject* w)
    struct work_result res;
    res.nc = nc;
    res.w  = w;
-   res.seqno = s_seqno++;
+   res.seqno = s_seqno++; // FIXME: ++ not thread safe.
    res.p1 = 0;
    res.s1 = 0;
    res.p2 = 0;

@@ -161,7 +161,7 @@ MJsonNode* mjsonrpc_make_result(const char* name, MJsonNode* value, const char* 
 
 const MJsonNode* mjsonrpc_get_param(const MJsonNode* params, const char* name, MJsonNode** error)
 {
-   static MJsonNode* null_node = NULL;
+   static MJsonNode* null_node = NULL; // FIXME: not thread safe
    if (!null_node)
       null_node = MJsonNode::MakeNull();
 
@@ -3809,8 +3809,9 @@ static MJsonNode* js_get_timezone(const MJsonNode* params)
 
    tzset(); // required for localtime_r()
    time_t rawtime = time(NULL);
-   struct tm *ptm = gmtime(&rawtime);
-   time_t gmt = mktime(ptm);
+   struct tm gmt_tms;
+   gmtime_r(&rawtime, &gmt_tms);
+   time_t gmt = mktime(&gmt_tms);
    struct tm tms;
    localtime_r(&rawtime, &tms);
    time_t offset = rawtime - gmt + (tms.tm_isdst ? 3600 : 0);
