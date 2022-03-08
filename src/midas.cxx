@@ -1530,9 +1530,30 @@ INT cm_asctime(char *str, INT buf_size) {
       return rpc_call(RPC_CM_ASCTIME, str, buf_size);
 
    /* return local time */
-   strcpy(str, ss_asctime());
+   strlcpy(str, ss_asctime().c_str(), buf_size);
 
    return CM_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Get time from MIDAS server and set local time.
+@return   return time string
+*/
+std::string cm_asctime() {
+   /* if connected to server, get time from there */
+   if (rpc_is_remote()) {
+      char buf[256];
+      int status = rpc_call(RPC_CM_ASCTIME, buf, sizeof(buf));
+      if (status == CM_SUCCESS) {
+         return buf;
+      } else {
+         return "";
+      }
+   }
+
+   /* return local time */
+   return ss_asctime();
 }
 
 /********************************************************************/

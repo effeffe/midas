@@ -1750,6 +1750,7 @@ Data conversion flags */
    INT EXPRT cm_execute(const char *command, char *result, INT buf_size);
    INT EXPRT cm_synchronize(DWORD * sec);
    INT EXPRT cm_asctime(char *str, INT buf_size);
+   std::string EXPRT cm_asctime();
    INT EXPRT cm_time(DWORD * t);
    BOOL EXPRT cm_is_ctrlc_pressed(void);
    void EXPRT cm_ack_ctrlc_pressed(void);
@@ -2002,7 +2003,7 @@ Data conversion flags */
    DWORD EXPRT ss_millitime(void);
    DWORD EXPRT ss_time(void);
    DWORD EXPRT ss_settime(DWORD seconds);
-   char EXPRT *ss_asctime(void);
+   std::string EXPRT ss_asctime(void);
    INT EXPRT ss_sleep(INT millisec);
    BOOL EXPRT ss_kbhit(void);
 

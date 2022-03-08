@@ -3306,7 +3306,7 @@ DWORD ss_settime(DWORD seconds)
 }
 
 /*------------------------------------------------------------------*/
-char *ss_asctime()
+std::string ss_asctime()
 /********************************************************************\
 
   Routine: ss_asctime
@@ -3324,18 +3324,12 @@ char *ss_asctime()
 
 \********************************************************************/
 {
-   static char str[32];
-   time_t seconds;
-
-   seconds = (time_t) ss_time();
-
-#if !defined(OS_VXWORKS)
-#if !defined(OS_VMS)
-   tzset();
-#endif
-#endif
-   strcpy(str, asctime(localtime(&seconds)));
-
+   tzset(); // required for localtime_t()
+   time_t seconds = (time_t) ss_time();
+   struct tm tms;
+   localtime_r(&seconds, &tms);
+   char str[32];
+   asctime_r(&tms, str);
    /* strip new line */
    str[24] = 0;
 
