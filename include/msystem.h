@@ -264,6 +264,7 @@ typedef struct {
 #define ctime     #error ctime() is not thread safe and should not be used in midas programs
 #define localtime #error localtime() is not thread safe and should not be used in midas programs, use localtime_r() instead, do not forget to add a call to tzset()
 #define gmtime    #error gmtime() is not thread safe and should not be used in midas programs, use gmtime_r() instead
+#define asctime   #error asctime() is not thread safe and should not be used in midas programs, use asctime_r() instead
 
 /*------------------------------------------------------------------*/
 
