@@ -15230,11 +15230,11 @@ INT check_odb_records(MVOdb* odb)
 
 /*------------------------------------------------------------------*/
 
-BOOL _abort = FALSE;
+std::atomic_bool _abort{false};
 
 void ctrlc_handler(int sig)
 {
-   _abort = TRUE;
+   _abort = true;
 }
 
 /*------------------------------------------------------------------*/
@@ -16127,7 +16127,7 @@ struct MongooseWorkObject
 
 struct MongooseThreadObject
 {
-   bool         fIsRunning = false;
+   std::atomic_bool fIsRunning{false};
    std::thread* fThread = NULL; // thread
    void*        fNc     = NULL; // thread is attached to this network connection
    std::mutex   fMutex;
@@ -17006,7 +17006,7 @@ static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data
 // from mongoose examples/multithreaded/multithreaded.c
 
 //static sock_t s_sock[2];
-static bool s_shutdown = false;
+static std::atomic_bool s_shutdown{false};
 static struct mg_mgr s_mgr;
 static std::atomic_uint32_t s_seqno{0};
 static std::mutex s_mg_broadcast_mutex;
