@@ -3112,12 +3112,20 @@ static std::mutex gTzMutex;
 void ss_tzset()
 {
    std::lock_guard<std::mutex> lock(gTzMutex);
+   //defeat tzset() error trap from msystem.h
+   //#ifdef tzset
+   //#undef tzset
+   //#endif
    tzset();
 }
 
 time_t ss_mktime(struct tm* tms)
 {
    std::lock_guard<std::mutex> lock(gTzMutex);
+   //defeat mktime() error trap from msystem.h
+   //#ifdef mktime
+   //#undef mktime
+   //#endif
    return mktime(tms);
 }
 
@@ -3235,7 +3243,7 @@ DWORD ss_settime(DWORD seconds)
    SYSTEMTIME st;
    struct tm ltm;
 
-   tzset();
+   ss_tzset();
    localtime_r((time_t *) & seconds, &ltm);
 
    st.wYear = ltm.tm_year + 1900;

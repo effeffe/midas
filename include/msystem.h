@@ -266,6 +266,9 @@ typedef struct {
 #define gmtime    #error gmtime() is not thread safe and should not be used in midas programs, use gmtime_r() instead
 #define asctime   #error asctime() is not thread safe and should not be used in midas programs, use asctime_r() instead
 
+//#define tzset     #error tzset() is not thread safe, please use ss_tzset() instead
+//#define mktime    #error mktime() is not thread safe, please use ss_mktime() instead
+
 /*------------------------------------------------------------------*/
 
 /**dox***************************************************************/
