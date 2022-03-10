@@ -3078,6 +3078,49 @@ INT ss_mutex_delete(MUTEX_T *mutex)
 #endif                          /* OS_UNIX */
 }
 
+//
+// thread-safe versions of tzset() and mktime().
+//
+// as of ubuntu 20.04, tzset() and mktime() are not thread safe,
+// easy to see by source code inspection. there is no reeader lock
+// in mktime() to protect global time zone data against modification
+// by tzset() executing in another thread. (on stackoverflow people
+// argue that as long as system time zone never changes, this violation of
+// thread safety is benign).
+//
+// calling mktime() is quite expensive, easy to see by inspecting the source code:
+// each call to mktime() will call tzset(), inside tzset(), "old_tz" is always
+// reallocated by a free() and strdup() pair and a stat() syscall is made
+// to check that file /etc/localtime did not change. These overheads can be turned off
+// by setting setenv("TZ") to a time zone name (i.e. "UTC") or to the value "/etc/localtime".
+//
+// tzset() itself is thread-safe, it uses a lock to protect global
+// time zone data against another tzset() running in a different thread.
+// however this lock is not instrumented by the thread sanitizer and
+// causes false positive data race warnings.
+//
+// in MIDAS, we choose this solution to avoid the thread sanitizer false positive
+// warning about tzset() - introduce ss_tzset() to protect calls to tzset() with
+// a mutex and introduce ss_mktime() to add same protection to tzset() called by mktime()
+// internally. It also makes calls to ss_mktime() explicitely thread-safe.
+//
+// K.O. 2022-Mar-10.
+//
+
+static std::mutex gTzMutex;
+
+void ss_tzset()
+{
+   std::lock_guard<std::mutex> lock(gTzMutex);
+   tzset();
+}
+
+time_t ss_mktime(struct tm* tms)
+{
+   std::lock_guard<std::mutex> lock(gTzMutex);
+   return mktime(tms);
+}
+
 /********************************************************************/
 /**
 Returns the actual time in milliseconds with an arbitrary
@@ -3167,17 +3210,6 @@ printf("Operation took %1.3lf seconds\n",stop-start);
 */
 DWORD ss_time()
 {
-#if !defined(OS_VXWORKS)
-#if !defined(OS_VMS)
-#if 0
-   static int once = 0;
-   if (once == 0) {
-      tzset();
-      once = 1;
-   }
-#endif
-#endif
-#endif
    return (DWORD) time(NULL);
 }
 
@@ -3274,7 +3306,7 @@ std::string ss_asctime()
 
 \********************************************************************/
 {
-   tzset(); // required for localtime_t()
+   ss_tzset(); // required for localtime_t()
    time_t seconds = (time_t) ss_time();
    struct tm tms;
    localtime_r(&seconds, &tms);

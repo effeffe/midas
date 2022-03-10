@@ -2003,6 +2003,8 @@ Data conversion flags */
    DWORD EXPRT ss_millitime(void);
    DWORD EXPRT ss_time(void);
    DWORD EXPRT ss_settime(DWORD seconds);
+   void  EXPRT ss_tzset();
+   time_t EXPRT ss_mktime(struct tm* tms);
    std::string EXPRT ss_asctime(void);
    INT EXPRT ss_sleep(INT millisec);
    BOOL EXPRT ss_kbhit(void);
