@@ -1234,7 +1234,7 @@ static int cm_msg_retrieve1(const char *filename, time_t t, INT n_messages, char
    struct stat stat_buf;
    time_t tstamp, tstamp_valid, tstamp_last;
 
-   tzset(); // required by localtime_r()
+   ss_tzset(); // required by localtime_r()
 
    *num_messages = 0;
 
@@ -1336,7 +1336,7 @@ static int cm_msg_retrieve1(const char *filename, time_t t, INT n_messages, char
          tms.tm_mon = i;
          tms.tm_mday = atoi(str + 8);
       }
-      tstamp = mktime(&tms);
+      tstamp = ss_mktime(&tms);
       if (tstamp != -1)
          tstamp_valid = tstamp;
 
@@ -1412,10 +1412,11 @@ INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char **messa
          filename = linkname;
    }
 
-   if (ss_file_exist(filename.c_str()))
+   if (ss_file_exist(filename.c_str())) {
       cm_msg_retrieve1(filename.c_str(), t, n_message, messages, &length, &allocated, &n);
-   else
+   } else {
       n = 0;
+   }
 
    /* if there is no symlink, then there is no additional log files to read */
    if (linkname.empty()) {

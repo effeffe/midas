@@ -3805,11 +3805,11 @@ static MJsonNode* js_get_timezone(const MJsonNode* params)
       return doc;
    }
 
-   tzset(); // required for localtime_r()
+   ss_tzset(); // required for localtime_r()
    time_t rawtime = time(NULL);
    struct tm gmt_tms;
    gmtime_r(&rawtime, &gmt_tms);
-   time_t gmt = mktime(&gmt_tms);
+   time_t gmt = ss_mktime(&gmt_tms);
    struct tm tms;
    localtime_r(&rawtime, &tms);
    time_t offset = rawtime - gmt + (tms.tm_isdst ? 3600 : 0);
