@@ -2939,7 +2939,7 @@ static MJsonNode* js_el_query(const MJsonNode* params)
          
          if (tms.tm_year < 90)
             tms.tm_year += 100;
-         ltime_end = mktime(&tms);
+         ltime_end = ss_mktime(&tms);
       }
    }
 
@@ -2948,7 +2948,7 @@ static MJsonNode* js_el_query(const MJsonNode* params)
    tag[0] = 0;
 
    if (last_n) {
-      tzset(); // required for localtime_r()
+      ss_tzset(); // required for localtime_r()
       time_t now = time(NULL);
       ltime_start = now - 3600 * last_n;
       struct tm tms;
@@ -3002,7 +3002,7 @@ static MJsonNode* js_el_query(const MJsonNode* params)
       if (tms.tm_year < 90)
          tms.tm_year += 100;
 
-      time_t ltime_current = mktime(&tms);
+      time_t ltime_current = ss_mktime(&tms);
 
       //printf("js_el_query: ltime: start %ld, end %ld, current %ld\n", ltime_start, ltime_end, ltime_current);
 

@@ -221,7 +221,7 @@ static INT hs_open_file(time_t ltime, const char *suffix, INT mode, std::string 
    time_t ttime;
 
    /* generate new file name YYMMDD.xxx */
-   tzset(); // required by localtime_r()
+   ss_tzset(); // required by localtime_r()
    ttime = (time_t) ltime;
    localtime_r(&ttime, &tms);
 
@@ -388,7 +388,7 @@ static INT hs_search_file(DWORD * ltime, INT direction)
    int fh, fhd, fhi;
    std::string fn;
 
-   tzset(); // required by localtime_r()
+   ss_tzset(); // required by localtime_r()
 
    if (*ltime == 0)
       *ltime = ss_time();
@@ -413,7 +413,7 @@ static INT hs_search_file(DWORD * ltime, INT direction)
       struct tm tms;
       localtime_r(&lt, &tms);
       tms.tm_hour = tms.tm_min = tms.tm_sec = 0;
-      *ltime = (DWORD) mktime(&tms);
+      *ltime = (DWORD) ss_mktime(&tms);
    }
 
    /* check if index files are there */
@@ -561,7 +561,7 @@ static INT hs_define_event(DWORD event_id, const char *name, const TAG * tag, DW
          _history[index]->def_offset = pos;
          _history[index]->event_id = event_id;
          _history[index]->event_name = event_name;
-         _history[index]->base_time = (DWORD) mktime(&tmb);
+         _history[index]->base_time = (DWORD) ss_mktime(&tmb);
          _history[index]->n_tag = size / sizeof(TAG);
          _history[index]->tag = (TAG *) M_MALLOC(size);
          memcpy(_history[index]->tag, tag, size);
@@ -780,7 +780,7 @@ static INT hs_write_event(DWORD event_id, const void *data, DWORD size)
       rec.def_offset = _history[index]->def_offset;
 
       tmr.tm_hour = tmr.tm_min = tmr.tm_sec = 0;
-      _history[index]->base_time = (DWORD) mktime(&tmr);
+      _history[index]->base_time = (DWORD) ss_mktime(&tmr);
 
       /* write definition from _history structure */
       drec.record_type = RT_DEF;
@@ -1520,7 +1520,7 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
 
    //printf("hs_read event %d, time %d:%d, tagname: \'%s\', varindex: %d\n", event_id, start_time, end_time, tag_name, var_index);
 
-   tzset(); // required by localtime_r()
+   ss_tzset(); // required by localtime_r()
 
    /* if not time given, use present to one hour in past */
    if (start_time == 0)
@@ -1878,7 +1878,7 @@ static INT hs_read(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
          struct tm tms;
          localtime_r(&ltime, &tms);
          tms.tm_hour = tms.tm_min = tms.tm_sec = 0;
-         last_irec_time = (DWORD) mktime(&tms);
+         last_irec_time = (DWORD) ss_mktime(&tms);
 
          last_irec_time += 3600 * 24;
 
@@ -1976,7 +1976,7 @@ static INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
    TAG *tag = NULL, *old_tag = NULL;
    char str[NAME_LENGTH], data_buffer[10000];
 
-   tzset(); // required by localtime_r()
+   ss_tzset(); // required by localtime_r()
 
    /* if not time given, use present to one hour in past */
    if (start_time == 0)
@@ -2132,7 +2132,7 @@ static INT hs_dump(DWORD event_id, DWORD start_time, DWORD end_time, DWORD inter
          struct tm tms;
          localtime_r(&ltime, &tms);
          tms.tm_hour = tms.tm_min = tms.tm_sec = 0;
-         last_irec_time = (DWORD) mktime(&tms);
+         last_irec_time = (DWORD) ss_mktime(&tms);
 
          last_irec_time += 3600 * 24;
          if (last_irec_time > end_time)

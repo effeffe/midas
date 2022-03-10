@@ -1338,7 +1338,7 @@ INT sendmail(const char* from_host, const char *smtp_host, const char *from, con
    if (verbose)
       puts(str);
 
-   tzset(); // required for localtime_r()
+   ss_tzset(); // required for localtime_r()
    time_t now;
    time(&now);
    struct tm tms;
@@ -9760,14 +9760,14 @@ time_t mktime_with_dst(const struct tm* ptms)
 
    struct tm tms = *ptms;
    struct tm tms2;
-   time_t t1 = mktime(&tms);
+   time_t t1 = ss_mktime(&tms);
    localtime_r(&t1, &tms2);
    tms2.tm_year = ptms->tm_year;
    tms2.tm_mon  = ptms->tm_mon;
    tms2.tm_mday = ptms->tm_mday;
    tms2.tm_hour = ptms->tm_hour;
    tms2.tm_min  = ptms->tm_min;
-   time_t t2 = mktime(&tms2);
+   time_t t2 = ss_mktime(&tms2);
    //printf("t1 %.0f, t2 %.0f, diff %d\n", (double)t1, (double)t2, (int)(t1-t2));
    return t2;
 }
@@ -11023,7 +11023,7 @@ void export_hist(MVOdb* odb, Return* r, const char *group, const char *panel, ti
 
    int debug = 0;
 
-   tzset(); // required for localtime_r()
+   ss_tzset(); // required for localtime_r()
 
 #if 0
    cm_get_experiment_database(&hDB, NULL);

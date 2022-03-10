@@ -120,7 +120,7 @@ void image_thread(std::string name) {
             ti.tm_year += 100;
             ti.tm_mon -= 1;
             ti.tm_isdst = -1;
-            time_t ft = mktime(&ti);
+            time_t ft = ss_mktime(&ti);
             double age = (ss_time() - ft)/3600.0;
             if (age >= o["Storage hours"]) {
                std::string pathname = (path+"/"+filename);
@@ -173,7 +173,7 @@ void image_thread(std::string name) {
          if (status)
             cm_msg(MERROR, "image_thread", "Cannot create directory \"%s\": mkpath() errno %d (%s)", filename.c_str(), errno, strerror(errno));
 
-         tzset(); // required by localtime_r()
+         ss_tzset(); // required by localtime_r()
 
          time_t now = time(nullptr);
          struct tm ltm;
@@ -337,7 +337,7 @@ int hs_image_retrieve(std::string image_name, time_t start_time, time_t stop_tim
 
    std::string mask;
    if (start_time == stop_time) {
-      tzset(); // required by localtime_r()
+      ss_tzset(); // required by localtime_r()
       struct tm ltm;
       localtime_r(&start_time, &ltm);
       std::stringstream s;
@@ -348,7 +348,7 @@ int hs_image_retrieve(std::string image_name, time_t start_time, time_t stop_tim
         "_" << "??????.*";
       mask = s.str();
    } else {
-      tzset(); // required by localtime_r()
+      ss_tzset(); // required by localtime_r()
       struct tm ltStart, ltStop;
       localtime_r(&start_time, &ltStart);
       localtime_r(&stop_time, &ltStop);
@@ -402,7 +402,7 @@ int hs_image_retrieve(std::string image_name, time_t start_time, time_t stop_tim
       ti.tm_year += 100;
       ti.tm_mon -= 1;
       ti.tm_isdst = -1;
-      time_t ft = mktime(&ti);
+      time_t ft = ss_mktime(&ti);
       time_t now;
       time(&now);
 

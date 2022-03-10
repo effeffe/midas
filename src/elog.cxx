@@ -224,14 +224,9 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
                   if (dir[0] != 0 && dir[strlen(dir) - 1] != DIR_SEPARATOR)
                      strcat(dir, DIR_SEPARATOR_STR);
                }
-#if !defined(OS_VXWORKS)
-#if !defined(OS_VMS)
-               tzset();
-#endif
-#endif
 
+               ss_tzset();
                time(&now);
-               tzset();
                localtime_r(&now, &tms);
 
                char str[256];
@@ -267,11 +262,7 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
       if (dir[0] != 0 && dir[strlen(dir) - 1] != DIR_SEPARATOR)
          strcat(dir, DIR_SEPARATOR_STR);
 
-#if !defined(OS_VXWORKS)
-#if !defined(OS_VMS)
-      tzset();
-#endif
-#endif
+      ss_tzset();
 
       char* buffer = NULL;
 
@@ -349,7 +340,7 @@ INT el_submit(int run, const char *author, const char *type, const char *syst, c
          lseek(fh, offset, SEEK_SET);
       } else {
          /* create new message */
-         tzset(); // required by localtime_r()
+         ss_tzset(); // required by localtime_r()
          time(&now);
          localtime_r(&now, &tms);
 
@@ -518,7 +509,7 @@ INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilen
    char file_name[256+100];
    HNDLE hDB;
 
-   tzset(); // required by localtime_r()
+   ss_tzset(); // required by localtime_r()
 
    if (xfilename && xfilename_size > 0)
       *xfilename = 0;
@@ -553,7 +544,7 @@ INT el_search_message(char *tag, int *fh, BOOL walk, char *xfilename, int xfilen
 
       if (tms.tm_year < 90)
          tms.tm_year += 100;
-      ltime = lt = mktime(&tms);
+      ltime = lt = ss_mktime(&tms);
 
       strcpy(str, tag);
       if (strchr(str, '.')) {

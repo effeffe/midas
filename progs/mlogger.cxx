@@ -1852,7 +1852,7 @@ void ctime_to_datetime(char *date)
    if (tms.tm_year < 90)
       tms.tm_year += 100;
 
-   mktime(&tms);
+   ss_mktime(&tms);
    sprintf(date, "%d-%02d-%02d %02d-%02d-%02d",
            tms.tm_year + 1900, tms.tm_mon + 1, tms.tm_mday, tms.tm_hour, tms.tm_min, tms.tm_sec);
 }
@@ -5447,7 +5447,7 @@ int log_generate_file_name(LOG_CHN *log_chn)
 
       /* append subdirectory if requested */
       if (chn_settings->subdir_format[0]) {
-         tzset(); // required for localtime_r()
+         ss_tzset(); // required for localtime_r()
          time_t now;
          time(&now);
          struct tm tms;

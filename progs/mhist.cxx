@@ -214,7 +214,7 @@ INT file_display_vars(const char *file_name)
          tms.tm_year += 100;
       tms.tm_mon = 10 * (file_name[2] - '0') + (file_name[3] - '0') - 1;
       tms.tm_mday = 10 * (file_name[4] - '0') + (file_name[5] - '0');
-      ltime = (DWORD) mktime(&tms);
+      ltime = (DWORD) ss_mktime(&tms);
    }
 
    status = hs_count_events(ltime, &n);
@@ -681,7 +681,7 @@ static DWORD convert_time(char *t)
    struct tm tms;
    INT isdst;
 
-   tzset(); // required for localtime_r()
+   ss_tzset(); // required for localtime_r()
 
    memset(&tms, 0, sizeof(tms));
 
@@ -697,7 +697,7 @@ static DWORD convert_time(char *t)
          tms.tm_sec = 10 * (t[11] - '0') + (t[12] - '0');
    }
 
-   time_t ltime = mktime(&tms);
+   time_t ltime = ss_mktime(&tms);
 
    /* correct for dst */
    localtime_r(&ltime, &tms);
@@ -718,7 +718,7 @@ static DWORD convert_time(char *t)
          tms.tm_sec = 10 * (t[11] - '0') + (t[12] - '0');
    }
 
-   ltime = (DWORD) mktime(&tms);
+   ltime = (DWORD) ss_mktime(&tms);
 
    return (DWORD)ltime;
 }

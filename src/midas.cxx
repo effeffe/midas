@@ -550,7 +550,7 @@ void cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::s
       /* replace stings such as %y%m%d with current date */
       struct tm tms;
 
-      tzset();
+      ss_tzset();
       if (t == 0)
          time(&t);
       localtime_r(&t, &tms);
@@ -711,7 +711,7 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
          struct timeval tv;
          struct tm tms;
 
-         tzset();
+         ss_tzset();
          gettimeofday(&tv, NULL);
          localtime_r(&tv.tv_sec, &tms);
 
@@ -2433,7 +2433,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    HNDLE hDB = 0, hKeyClient = 0;
    BOOL call_watchdog;
 
-   tzset(); // required for localtime_r()
+   ss_tzset(); // required for localtime_r()
 
    if (_hKeyClient)
       cm_disconnect_experiment();
