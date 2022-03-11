@@ -17,7 +17,7 @@
 <div id="msidenav"></div>
 
 <div id="mmain">
- <table style="margin-left: auto; margin-right: auto;">
+ <table class="mtable" style="margin-left: auto; margin-right: auto;">
   <tr align="center" style="margin-top:10px;">
     <td>
       <button class="mbutton" id='seq_load_script' onclick='load_script()'>Load Script</button>
@@ -46,7 +46,7 @@
     </td>
   </tr>
     <tr id="msg_error_tr">
-       <td align="center" class="redLight">Error: <b><span id="msg_error">seq.error</span></b></td>
+       <td align="center" class="redLight" style="padding: 4px;">Error: <span id="msg_error">seq.error</span></td>
     </tr>
   <tr id="msg_progress">
     <td>
@@ -487,7 +487,7 @@ function seq_refresh(seq)
       }
       
       if (sl == serror_line)
-         sline.style.backgroundColor = '#FF0000';
+         sline.style.backgroundColor = 'var(--mred)';
       else if (sl == scurrent_line)
          sline.style.backgroundColor = '#80FF80';
       else if (sl == ssubroutine_call_line[3])
@@ -671,7 +671,7 @@ function show_messages(messages)
          continue;
       let msg = m[i];
       if (msg.includes("ERROR")) {
-         s += "<span style=\"color:white;background-color:red;\">";
+         s += "<span style=\"color:white;background-color:var(--mred);\">";
       } else {
          s += "<span>";
       }
