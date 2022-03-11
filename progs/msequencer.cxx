@@ -13,6 +13,7 @@
 #include "mxml.h"
 #include "mvodb.h"
 #include "sequencer.h"
+#include "tinyexpr.h"
 #include <assert.h>
 #include <string.h>
 #include <vector>
@@ -2131,7 +2132,6 @@ int main(int argc, const char *argv[])
    char midas_hostname[256];
    char midas_expt[256];
 
-   
    setbuf(stdout, NULL);
    setbuf(stderr, NULL);
 #ifdef SIGPIPE

@@ -4,7 +4,6 @@
 set(PROGS
    mserver
    mlogger
-   msequencer
    mhist
    mstat
    mdump
@@ -56,11 +55,13 @@ foreach(PROG ${PROGS} ${TESTPROGS})
 #   set(CMAKE_CXX_FLAGS "-fsanitize=address")
 endforeach()
 
-
 foreach(PROG ${MFEPROGS})
    add_executable(${PROG} ${PROG}.cxx)
    target_link_libraries(${PROG} mfe midas)
 endforeach()
+
+add_executable(msequencer msequencer.cxx tinyexpr.c)
+target_link_libraries(msequencer midas)
 
 if (HAVE_NVIDIA)
    add_executable(msysmon-nvidia msysmon)
@@ -157,5 +158,3 @@ endif(HAVE_NVIDIA)
 if (HAVE_ROOT)
    install(TARGETS rmlogger DESTINATION bin)
 endif(HAVE_ROOT)
-
-#end
