@@ -1374,10 +1374,14 @@ void sequencer()
             db_get_record1(hDB, hKeySeq, &seq, &size, 0, strcomb1(sequencer_str).c_str()); // could have changed seq tree
             seq.current_line_number++;
          } else if(status == DB_NO_KEY){
-            seq_error(seq, "Could not match any key!");
+            char str[1024];
+            sprintf(str, "ODB key \"%s\" not found", odbpath);
+            seq_error(seq, str);
          } else {
             //something went really wrong
-            seq_error(seq, "Internal error setting key!");
+            char str[1024];
+            sprintf(str, "Internal error %d", status);
+            seq_error(seq, str);
             return;
          }
 
