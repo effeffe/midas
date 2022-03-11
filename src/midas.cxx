@@ -7049,7 +7049,7 @@ INT cm_stop_watchdog_thread() {
       ss_sleep(10);
    }
    _watchdog_thread.load()->join();
-   delete _watchdog_thread;
+   delete static_cast<std::thread *>(_watchdog_thread);
    _watchdog_thread = NULL;
 #endif
    return CM_SUCCESS;
