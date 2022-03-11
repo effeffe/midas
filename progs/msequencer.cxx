@@ -513,10 +513,6 @@ static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *x
          xml += "<RunSequence xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"\">\n";
       }
 
-      //for (line=0 ; line<n_lines ; line++) {
-      //   printf("line %d: [%s]\n", line, lines[line]);
-      //}
-
       std::vector<std::string> slines;
       for (line = 0; line < n_lines; line++) {
          slines.push_back(lines[line]);
@@ -525,10 +521,14 @@ static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *x
       odb->WSA("Sequencer/Script/Lines", slines, 0);
 
       for (line = 0; line < n_lines; line++) {
-         strlcpy(list[0], lines[line], sizeof(list[0]));
+         char *p = lines[line];
+         while (*p == ' ')
+            p++;
+         strlcpy(list[0], p, sizeof(list[0]));
          if (strchr(list[0], ' '))
              *strchr(list[0], ' ') = 0;
-         n = strbreak(lines[line]+strlen(list[0])+1, &list[1], 99, ",", FALSE) + 1;
+         p += strlen(list[0]);
+         n = strbreak(p+1, &list[1], 99, ",", FALSE) + 1;
 
          /* remove any comment */
          for (i = 0; i < n; i++) {
@@ -1280,6 +1280,11 @@ void sequencer() {
    /* set MSL line from current element */
    if (mxml_get_attribute(pn, "l"))
       seq.scurrent_line_number = atoi(mxml_get_attribute(pn, "l"));
+
+   // out-comment following lines for debug output
+//   midas::odb o("/Sequencer/Script/Lines");
+//   std::string s = o[seq.scurrent_line_number-1];
+//   printf("%3d: %s\n", seq.scurrent_line_number, s.c_str());
 
    if (equal_ustring(mxml_get_name(pn), "PI") || equal_ustring(mxml_get_name(pn), "RunSequence") || equal_ustring(mxml_get_name(pn), "Comment")) {
       // just skip
