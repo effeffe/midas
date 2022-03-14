@@ -272,9 +272,9 @@ std::string eval_var(SEQUENCER &seq, std::string value) {
             std::string sp;
             while (std::getline(f, sp, ','))
                param.push_back(sp);
-            if (index >= param.size())
+            if (index == 0 || index > param.size())
                throw "Parameter $" + std::to_string(index) + " not found";
-            vsubst = param[index];
+            vsubst = param[index-1];
             if (vsubst[0] == '$')
                vsubst = eval_var(seq, vsubst);
          } else
@@ -297,8 +297,13 @@ std::string eval_var(SEQUENCER &seq, std::string value) {
 
    int error;
    double r = te_interp(result.c_str(), &error);
-   if (error > 0)
+   if (error > 0) {
+      // check if result is only a string
+      if (!std::isdigit(result[0]) && result[0] != '-')
+         return result;
+
       throw "Error in expression \"" + result + "\" position " + std::to_string(error - 1);
+   }
 
    if (r == (int) r)
       return std::to_string((int) r);
