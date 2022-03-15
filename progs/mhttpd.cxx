@@ -17531,9 +17531,10 @@ static int mongoose_init(MVOdb* odb, bool no_passwords, bool no_hostlist, const 
       if (enable_ipv6) {
          sprintf(str, "[::]:%d", insecure_port);
          mongoose_listen(str, flags);
+      } else {
+         sprintf(str, "%d", insecure_port);
+         mongoose_listen(str, flags);
       }
-      sprintf(str, "%d", insecure_port);
-      mongoose_listen(str, flags);
    }
 
    if (enable_https_port) {
@@ -17547,9 +17548,10 @@ static int mongoose_init(MVOdb* odb, bool no_passwords, bool no_hostlist, const 
       if (enable_ipv6) {
          sprintf(str, "[::]:%d", https_port);
          mongoose_listen(str, flags);
+      } else {
+         sprintf(str, "%d", https_port);
+         mongoose_listen(str, flags);
       }
-      sprintf(str, "%d", https_port);
-      mongoose_listen(str, flags);
    }
 
    return SUCCESS;
