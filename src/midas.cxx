@@ -5991,22 +5991,26 @@ static void bm_cleanup_buffer_locked(int i, const char *who, DWORD actual_time) 
    }
 }
 
+
 /**
 Update last activity time
 */
 static void bm_update_last_activity(DWORD millitime) {
    int pid = ss_getpid();
-   int i;
-   for (i = 0; i < _buffer_entries; i++) {
+   for (int i = 0; i < _buffer_entries; i++) {
       if (_buffer[i].attached) {
-         BUFFER_HEADER *pheader = _buffer[i].buffer_header;
-         int j;
-         for (j = 0; j < pheader->max_client_index; j++) {
+         BUFFER *pbuf;
+         bm_get_buffer("bm_cleanup", i + 1, &pbuf);
+         bm_lock_buffer(pbuf);
+         BUFFER_HEADER *pheader = pbuf->buffer_header;
+         for (int j = 0; j < pheader->max_client_index; j++) {
             BUFFER_CLIENT *pclient = pheader->client + j;
             if (pclient->pid == pid) {
+               //printf("update last activity pid %d buffer %s client %s\n", pid, pbuf->buffer_name, pclient->name);
                pclient->last_activity = millitime;
             }
          }
+         bm_unlock_buffer(pbuf);
       }
    }
 }
