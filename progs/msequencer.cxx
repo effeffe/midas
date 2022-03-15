@@ -274,7 +274,7 @@ std::string eval_var(SEQUENCER &seq, std::string value) {
                param.push_back(sp);
             if (index == 0 || index > param.size())
                throw "Parameter $" + std::to_string(index) + " not found";
-            vsubst = param[index-1];
+            vsubst = param[index - 1];
             if (vsubst[0] == '$')
                vsubst = eval_var(seq, vsubst);
          } else
@@ -333,10 +333,30 @@ int concatenate(SEQUENCER &seq, char *result, int size, char *value) {
 int eval_condition(SEQUENCER &seq, const char *condition) {
    int i;
    double value1, value2;
-   char value1_str[256], value2_str[256], str[256], op[3];
+   char value1_str[256], value2_str[256], str[256], op[3], *p;
    std::string value1_var, value2_var;
 
-   strcpy(str, condition);
+   // strip leading and trailing space
+   p = (char *)condition;
+   while (*p == ' ')
+      p++;
+   strcpy(str, p);
+
+   // strip any comment '#'
+   if (strchr(str, '#'))
+      *strchr(str, '#') = 0;
+
+   while (strlen(str) > 0 && (str[strlen(str)-1] == ' '))
+      str[strlen(str)-1] = 0;
+
+   // strip enclosing '()'
+   if (str[0] == '(') {
+      strlcpy(value1_str, str+1, sizeof(value1_str));
+      strlcpy(str, value1_str, sizeof(str));
+      if (strlen(str) > 0 && str[strlen(str)-1] == ')')
+         str[strlen(str)-1] = 0;
+   }
+
    op[1] = op[2] = 0;
 
    /* find value and operator */
@@ -350,8 +370,7 @@ int eval_condition(SEQUENCER &seq, const char *condition) {
    if (strchr("<>=!&", str[i + 1]) != NULL)
       op[1] = str[++i];
 
-   for (i++; str[i] == ' '; i++)
-      ;
+   for (i++; str[i] == ' '; i++);
    strlcpy(value2_str, str + i, sizeof(value2_str));
 
    value1_var = eval_var(seq, value1_str);
@@ -404,7 +423,9 @@ int eval_condition(SEQUENCER &seq, const char *condition) {
 
 /*------------------------------------------------------------------*/
 
-static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename, char *error, int error_size, int *error_line) {
+static BOOL
+msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename, char *error, int error_size,
+          int *error_line) {
    char str[256], *buf, *pl, *pe;
    char list[100][XNAME_LENGTH], list2[100][XNAME_LENGTH], **lines;
    int i, j, n, size, n_lines, endl, line, nest, incl, library;
@@ -486,7 +507,8 @@ static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *x
             include_error = error + strlen(error);
             include_error_size = error_size - strlen(error);
 
-            include_status = msl_parse(hDB, odb, msl_include, xml_include, include_error, include_error_size, error_line);
+            include_status = msl_parse(hDB, odb, msl_include, xml_include, include_error, include_error_size,
+                                       error_line);
             free(msl_include);
             free(xml_include);
 
@@ -514,7 +536,8 @@ static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *x
 
       /* parse rest of file */
       if (!library) {
-         fprintf(fout, "<RunSequence xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"\">\n");
+         fprintf(fout,
+                 "<RunSequence xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"\">\n");
          xml += "<RunSequence xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"\">\n";
       }
 
@@ -535,9 +558,9 @@ static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *x
             p++;
          strlcpy(list[0], p, sizeof(list[0]));
          if (strchr(list[0], ' '))
-             *strchr(list[0], ' ') = 0;
+            *strchr(list[0], ' ') = 0;
          p += strlen(list[0]);
-         n = strbreak(p+1, &list[1], 99, ",", FALSE) + 1;
+         n = strbreak(p + 1, &list[1], 99, ",", FALSE) + 1;
 
          /* remove any comment */
          for (i = 0; i < n; i++) {
@@ -546,6 +569,32 @@ static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *x
                   list[j][0] = 0;
                break;
             }
+         }
+
+         /* check for variable assignment */
+         char eq[1024];
+         strlcpy(eq, lines[line], sizeof(eq));
+         if (strchr(eq, '#'))
+            *strchr(eq, '#') = 0;
+         for (i = 0, n = 0; i < strlen(eq); i++)
+            if (eq[i] == '=')
+               n++;
+         if (n == 1 && eq[0] != '=') {
+            // equation found
+            strlcpy(list[0], "SET", sizeof(list[0]));
+            p = eq;
+            while (*p == ' ')
+               p++;
+            strlcpy(list[1], p, sizeof(list[1]));
+            *strchr(list[1], '=') = 0;
+            if (strchr(list[1], ' '))
+               *strchr(list[1], ' ') = 0;
+            p = strchr(eq, '=')+1;
+            while (*p == ' ')
+               p++;
+            strlcpy(list[2], p, sizeof(list[2]));
+            while (strlen(list[2]) > 0 && list[2][strlen(list[2])-1] == ' ')
+               list[2][strlen(list[2])-1] = 0;
          }
 
          if (equal_ustring(list[0], "library")) {
@@ -638,7 +687,8 @@ static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *x
                xml += "<Loop l=" + qtoString(line + 1) + " le=" + qtoString(endl) + " n=" + q(list[1]) + ">\n";
             } else if (list[3][0] == 0) {
                fprintf(fout, "<Loop l=\"%d\" le=\"%d\" var=\"%s\" n=\"%s\">\n", line + 1, endl, list[1], list[2]);
-               xml += "<Loop l=" + qtoString(line + 1) + " le=" + qtoString(endl) + " var=" + q(list[1]) + " n=" + q(list[2]) + ">\n";
+               xml += "<Loop l=" + qtoString(line + 1) + " le=" + qtoString(endl) + " var=" + q(list[1]) + " n=" +
+                      q(list[2]) + ">\n";
             } else {
                fprintf(fout, "<Loop l=\"%d\" le=\"%d\" var=\"%s\" values=\"", line + 1, endl, list[1]);
                xml += "<Loop l=" + qtoString(line + 1) + " le=" + qtoString(endl) + " var=" + q(list[1]) + " values=\"";
@@ -658,7 +708,8 @@ static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *x
             xml += "</Loop>\n";
 
          } else if (equal_ustring(list[0], "message")) {
-            fprintf(fout, "<Message l=\"%d\"%s>%s</Message>\n", line + 1, list[2][0] == '1' ? " wait=\"1\"" : "", list[1]);
+            fprintf(fout, "<Message l=\"%d\"%s>%s</Message>\n", line + 1, list[2][0] == '1' ? " wait=\"1\"" : "",
+                    list[1]);
             xml += "<Message l=" + qtoString(line + 1);
             if (list[2][0] == '1')
                xml += " wait=\"1\"";
@@ -674,11 +725,14 @@ static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *x
 
          } else if (equal_ustring(list[0], "odbcreate")) {
             if (list[3][0]) {
-               fprintf(fout, "<ODBCreate l=\"%d\" size=\"%s\" path=\"%s\" type=\"%s\"></ODBCreate>\n", line + 1, list[3], list[1], list[2]);
-               xml += "<ODBCreate l=" + qtoString(line + 1) + " size=" + q(list[3]) + " path=" + q(list[1]) + " type=" + q(list[2]) + "></ODBCreate>\n";
+               fprintf(fout, "<ODBCreate l=\"%d\" size=\"%s\" path=\"%s\" type=\"%s\"></ODBCreate>\n", line + 1,
+                       list[3], list[1], list[2]);
+               xml += "<ODBCreate l=" + qtoString(line + 1) + " size=" + q(list[3]) + " path=" + q(list[1]) + " type=" +
+                      q(list[2]) + "></ODBCreate>\n";
             } else {
                fprintf(fout, "<ODBCreate l=\"%d\" path=\"%s\" type=\"%s\"></ODBCreate>\n", line + 1, list[1], list[2]);
-               xml += "<ODBCreate l=" + qtoString(line + 1) + " path=" + q(list[1]) + " type=" + q(list[1]) + "></ODBCreate>\n";
+               xml += "<ODBCreate l=" + qtoString(line + 1) + " path=" + q(list[1]) + " type=" + q(list[1]) +
+                      "></ODBCreate>\n";
             }
 
          } else if (equal_ustring(list[0], "odbdelete")) {
@@ -687,8 +741,10 @@ static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *x
 
          } else if (equal_ustring(list[0], "odbset")) {
             if (list[3][0]) {
-               fprintf(fout, "<ODBSet l=\"%d\" notify=\"%s\" path=\"%s\">%s</ODBSet>\n", line + 1, list[3], list[1], list[2]);
-               xml += "<ODBSet l=" + qtoString(line + 1) + " notify=" + q(list[3]) + " path=" + q(list[1]) + ">" + list[2] + "</ODBSet>\n";
+               fprintf(fout, "<ODBSet l=\"%d\" notify=\"%s\" path=\"%s\">%s</ODBSet>\n", line + 1, list[3], list[1],
+                       list[2]);
+               xml += "<ODBSet l=" + qtoString(line + 1) + " notify=" + q(list[3]) + " path=" + q(list[1]) + ">" +
+                      list[2] + "</ODBSet>\n";
             } else {
                fprintf(fout, "<ODBSet l=\"%d\" path=\"%s\">%s</ODBSet>\n", line + 1, list[1], list[2]);
                xml += "<ODBSet l=" + qtoString(line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBSet>\n";
@@ -742,7 +798,8 @@ static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *x
                odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
             } else {
                fprintf(fout, "<Param l=\"%d\" name=\"%s\" comment=\"%s\" options=\"", line + 1, list[1], list[2]);
-               xml += "<Param l=" + qtoString(line + 1) + " name=" + q(list[1]) + " comment=" + q(list[2]) + " options=\"";
+               xml += "<Param l=" + qtoString(line + 1) + " name=" + q(list[1]) + " comment=" + q(list[2]) +
+                      " options=\"";
                std::string v;
                odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
                odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
@@ -811,8 +868,10 @@ static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *x
                fprintf(fout, "<Wait l=\"%d\" for=\"%s\">%s</Wait>\n", line + 1, list[1], list[2]);
                xml += "<Wait l=" + qtoString(line + 1) + " for=" + q(list[1]) + ">" + list[2] + "</Wait>\n";
             } else {
-               fprintf(fout, "<Wait l=\"%d\" for=\"%s\" path=\"%s\" op=\"%s\">%s</Wait>\n", line + 1, list[1], list[2], list[3], list[4]);
-               xml += "<Wait l=" + qtoString(line + 1) + " for=" + q(list[1]) + " path=" + q(list[2]) + " op=" + q(list[3]) + ">" + list[4] + "</Wait>\n";
+               fprintf(fout, "<Wait l=\"%d\" for=\"%s\" path=\"%s\" op=\"%s\">%s</Wait>\n", line + 1, list[1], list[2],
+                       list[3], list[4]);
+               xml += "<Wait l=" + qtoString(line + 1) + " for=" + q(list[1]) + " path=" + q(list[2]) + " op=" +
+                      q(list[3]) + ">" + list[4] + "</Wait>\n";
             }
 
          } else if (list[0][0] == 0 || list[0][0] == '#') {
@@ -1132,7 +1191,7 @@ int set_all_matching(HNDLE hDB, HNDLE hBaseKey, char *odbpath, char *value, int 
    if (status != DB_SUCCESS)
       return status;
 
-   for (HNDLE hKey : keys) {
+   for (HNDLE hKey: keys) {
       db_get_key(hDB, hKey, &key);
       size = sizeof(data);
       db_sscanf(value, data, &size, 0, key.type);
@@ -1308,12 +1367,13 @@ void sequencer() {
 //   std::string s = o[seq.scurrent_line_number-1];
 //   printf("%3d: %s\n", seq.scurrent_line_number, s.c_str());
 
-   if (equal_ustring(mxml_get_name(pn), "PI") || equal_ustring(mxml_get_name(pn), "RunSequence") || equal_ustring(mxml_get_name(pn), "Comment")) {
+   if (equal_ustring(mxml_get_name(pn), "PI") || equal_ustring(mxml_get_name(pn), "RunSequence") ||
+       equal_ustring(mxml_get_name(pn), "Comment")) {
       // just skip
       seq.current_line_number++;
    }
 
-   /*---- ODBSubdir ----*/
+      /*---- ODBSubdir ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBSubdir")) {
       if (!mxml_get_attribute(pn, "path")) {
          seq_error(seq, "Missing attribute \"path\"");
@@ -1326,7 +1386,7 @@ void sequencer() {
       }
    }
 
-   /*---- ODBSet ----*/
+      /*---- ODBSet ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBSet")) {
       if (!mxml_get_attribute(pn, "path")) {
          seq_error(seq, "Missing attribute \"path\"");
@@ -1365,7 +1425,7 @@ void sequencer() {
       }
    }
 
-   /*---- ODBLoad ----*/
+      /*---- ODBLoad ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBLoad")) {
       if (mxml_get_value(pn)[0] == '/') {
          //absolute path
@@ -1423,7 +1483,7 @@ void sequencer() {
       }
    }
 
-   /*---- ODBGet ----*/
+      /*---- ODBGet ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBGet")) {
       if (!mxml_get_attribute(pn, "path")) {
          seq_error(seq, "Missing attribute \"path\"");
@@ -1467,7 +1527,7 @@ void sequencer() {
       }
    }
 
-   /*---- ODBInc ----*/
+      /*---- ODBInc ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBInc")) {
       if (!mxml_get_attribute(pn, "path")) {
          seq_error(seq, "Missing attribute \"path\"");
@@ -1509,7 +1569,7 @@ void sequencer() {
       }
    }
 
-   /*---- ODBDelete ----*/
+      /*---- ODBDelete ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBDelete")) {
       strlcpy(odbpath, seq.subdir, sizeof(odbpath));
       if (strlen(odbpath) > 0 && odbpath[strlen(odbpath) - 1] != '/')
@@ -1532,7 +1592,7 @@ void sequencer() {
       }
    }
 
-   /*---- ODBCreate ----*/
+      /*---- ODBCreate ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBCreate")) {
       if (!mxml_get_attribute(pn, "path")) {
          seq_error(seq, "Missing attribute \"path\"");
@@ -1580,13 +1640,13 @@ void sequencer() {
       }
    }
 
-   /*---- RunDescription ----*/
+      /*---- RunDescription ----*/
    else if (equal_ustring(mxml_get_name(pn), "RunDescription")) {
       db_set_value(hDB, 0, "/Experiment/Run Parameters/Run Description", mxml_get_value(pn), 256, 1, TID_STRING);
       seq.current_line_number++;
    }
 
-   /*---- Script ----*/
+      /*---- Script ----*/
    else if (equal_ustring(mxml_get_name(pn), "Script")) {
       sprintf(str, "%s", mxml_get_value(pn));
 
@@ -1605,7 +1665,7 @@ void sequencer() {
       seq.current_line_number++;
    }
 
-   /*---- Transition ----*/
+      /*---- Transition ----*/
    else if (equal_ustring(mxml_get_name(pn), "Transition")) {
       if (equal_ustring(mxml_get_value(pn), "Start")) {
          if (!seq.transition_request) {
@@ -1676,7 +1736,7 @@ void sequencer() {
       }
    }
 
-   /*---- Wait ----*/
+      /*---- Wait ----*/
    else if (equal_ustring(mxml_get_name(pn), "Wait")) {
       if (equal_ustring(mxml_get_attribute(pn, "for"), "Events")) {
          n = std::stoi(eval_var(seq, mxml_get_value(pn)));
@@ -1778,7 +1838,7 @@ void sequencer() {
       ss_sleep(100);
    }
 
-   /*---- Loop start ----*/
+      /*---- Loop start ----*/
    else if (equal_ustring(mxml_get_name(pn), "Loop")) {
       for (i = 0; i < 4; i++)
          if (seq.loop_start_line[i] == 0)
@@ -1823,7 +1883,7 @@ void sequencer() {
       seq.current_line_number++;
    }
 
-   /*---- If ----*/
+      /*---- If ----*/
    else if (equal_ustring(mxml_get_name(pn), "If")) {
 
       if (seq.if_index == 4) {
@@ -1861,7 +1921,7 @@ void sequencer() {
       seq.if_index++;
    }
 
-   /*---- Else ----*/
+      /*---- Else ----*/
    else if (equal_ustring(mxml_get_name(pn), "Else")) {
       // goto next "Endif"
       if (seq.if_index == 0) {
@@ -1871,7 +1931,7 @@ void sequencer() {
       seq.current_line_number = seq.if_endif_line[seq.if_index - 1];
    }
 
-   /*---- Goto ----*/
+      /*---- Goto ----*/
    else if (equal_ustring(mxml_get_name(pn), "Goto")) {
       if (!mxml_get_attribute(pn, "line") && !mxml_get_attribute(pn, "sline")) {
          seq_error(seq, "Missing line number");
@@ -1895,25 +1955,25 @@ void sequencer() {
       }
    }
 
-   /*---- Library ----*/
+      /*---- Library ----*/
    else if (equal_ustring(mxml_get_name(pn), "Library")) {
       // simply skip libraries
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
 
-   /*---- Subroutine ----*/
+      /*---- Subroutine ----*/
    else if (equal_ustring(mxml_get_name(pn), "Subroutine")) {
       // simply skip subroutines
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
 
-   /*---- Param ----*/
+      /*---- Param ----*/
    else if (equal_ustring(mxml_get_name(pn), "Param")) {
       // simply skip parameters
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
 
-   /*---- Set ----*/
+      /*---- Set ----*/
    else if (equal_ustring(mxml_get_name(pn), "Set")) {
       if (!mxml_get_attribute(pn, "name")) {
          seq_error(seq, "Missing variable name");
@@ -1940,7 +2000,7 @@ void sequencer() {
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
 
-   /*---- Message ----*/
+      /*---- Message ----*/
    else if (equal_ustring(mxml_get_name(pn), "Message")) {
       if (strchr(mxml_get_value(pn), '$')) // evaluate message string if $ present
          strlcpy(value, eval_var(seq, mxml_get_value(pn)).c_str(), sizeof(value));
@@ -1983,7 +2043,7 @@ void sequencer() {
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
 
-   /*---- Cat ----*/
+      /*---- Cat ----*/
    else if (equal_ustring(mxml_get_name(pn), "Cat")) {
       if (!mxml_get_attribute(pn, "name")) {
          seq_error(seq, "Missing variable name");
@@ -2001,7 +2061,7 @@ void sequencer() {
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
 
-   /*---- Call ----*/
+      /*---- Call ----*/
    else if (equal_ustring(mxml_get_name(pn), "Call")) {
       if (seq.stack_index == 4) {
          seq_error(seq, "Maximum subroutine level exceeded");
@@ -2039,7 +2099,7 @@ void sequencer() {
       }
    }
 
-   /*---- <unknown> ----*/
+      /*---- <unknown> ----*/
    else {
       sprintf(str, "Unknown statement \"%s\"", mxml_get_name(pn));
       seq_error(seq, str);
@@ -2089,20 +2149,23 @@ void init_sequencer() {
 
    status = db_check_record(hDB, 0, "/Sequencer/State", strcomb1(sequencer_str).c_str(), TRUE);
    if (status == DB_STRUCT_MISMATCH) {
-      cm_msg(MERROR, "init_sequencer", "Sequencer error: mismatching /Sequencer/State structure, db_check_record() status %d", status);
+      cm_msg(MERROR, "init_sequencer",
+             "Sequencer error: mismatching /Sequencer/State structure, db_check_record() status %d", status);
       return;
    }
 
    status = db_find_key(hDB, 0, "/Sequencer/State", &hKey);
    if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot find /Sequencer/State, db_find_key() status %d", status);
+      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot find /Sequencer/State, db_find_key() status %d",
+             status);
       return;
    }
 
    int size = sizeof(seq);
    status = db_get_record1(hDB, hKey, &seq, &size, 0, strcomb1(sequencer_str).c_str());
    if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot get /Sequencer/State, db_get_record1() status %d", status);
+      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot get /Sequencer/State, db_get_record1() status %d",
+             status);
       return;
    }
 
@@ -2148,13 +2211,15 @@ void init_sequencer() {
 
    status = db_find_key(hDB, 0, "/Sequencer/Command", &hKey);
    if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot find /Sequencer/Command, db_find_key() status %d", status);
+      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot find /Sequencer/Command, db_find_key() status %d",
+             status);
       return;
    }
 
    status = db_watch(hDB, hKey, seq_watch_command, NULL);
    if (status != DB_SUCCESS) {
-      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot watch /Sequencer/Command, db_watch() status %d", status);
+      cm_msg(MERROR, "init_sequencer", "Sequencer error: Cannot watch /Sequencer/Command, db_watch() status %d",
+             status);
       return;
    }
 }
@@ -2189,7 +2254,7 @@ int main(int argc, const char *argv[]) {
          else if (argv[i][1] == 'e')
             strlcpy(midas_expt, argv[++i], sizeof(midas_hostname));
       } else {
-      usage:
+         usage:
          printf("usage: %s [-h Hostname[:port]] [-e Experiment] [-D]\n\n", argv[0]);
          printf("       -e experiment to connect to\n");
          printf("       -h connect to midas server (mserver) on given host\n");
@@ -2244,7 +2309,7 @@ int main(int argc, const char *argv[]) {
    do {
       try {
          sequencer();
-      } catch (std::string& msg) {
+      } catch (std::string &msg) {
          seq_error(seq, msg.c_str());
       } catch (const char *msg) {
          seq_error(seq, msg);
