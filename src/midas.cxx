@@ -7048,9 +7048,11 @@ INT cm_stop_watchdog_thread() {
       //printf("waiting for watchdog thread to shut down\n");
       ss_sleep(10);
    }
-   _watchdog_thread.load()->join();
-   delete static_cast<std::thread *>(_watchdog_thread);
-   _watchdog_thread = NULL;
+   if (_watchdog_thread != NULL) {
+      _watchdog_thread.load()->join();
+      delete static_cast<std::thread *>(_watchdog_thread);
+      _watchdog_thread = NULL;
+   }
 #endif
    return CM_SUCCESS;
 }
