@@ -525,6 +525,10 @@ static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *x
 
       odb->WSA("Sequencer/Script/Lines", slines, 0);
 
+      /* clear all variables */
+      midas::odb::delete_key("/Sequencer/Variables");
+      midas::odb::delete_key("/Sequencer/Param");
+
       for (line = 0; line < n_lines; line++) {
          char *p = lines[line];
          while (*p == ' ')
