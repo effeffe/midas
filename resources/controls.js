@@ -863,8 +863,10 @@ function dlgQuery(string, value, queryCallback, param) {
 let dlgWaitDialog;
 let dlgWaitProgress;
 let dlgWaitTime;
+let dlgWaitFunc;
+let dlgWaitFuncParam;
 
-function dlgWait(time, string) {
+function dlgWait(time, string, func, param) {
 
    let d = document.createElement("div");
    d.className = "dlgFrame";
@@ -898,6 +900,8 @@ function dlgWait(time, string) {
 
    dlgWaitProgress = 0;
    dlgWaitTime = time;
+   dlgWaitFunc = func;
+   dlgWaitFuncParam = param;
    window.setTimeout(updateDlgWaitProgress, 100);
 }
 
@@ -911,6 +915,8 @@ function updateDlgWaitProgress() {
       let d = document.getElementById("dlgBlackout");
       if (d !== undefined && d !== null)
          d.style.display = "none";
+      if (dlgWaitFunc !== undefined)
+         dlgWaitFunc(dlgWaitFuncParam);
    } else
       window.setTimeout(updateDlgWaitProgress, 100);
 }
