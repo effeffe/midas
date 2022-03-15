@@ -672,6 +672,19 @@ static BOOL msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *x
             fprintf(fout, "<ODBInc l=\"%d\" path=\"%s\">%s</ODBInc>\n", line + 1, list[1], list[2]);
             xml += "<ODBInc l=" + qtoString(line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBInc>\n";
 
+         } else if (equal_ustring(list[0], "odbcreate")) {
+            if (list[3][0]) {
+               fprintf(fout, "<ODBCreate l=\"%d\" size=\"%s\" path=\"%s\" type=\"%s\"></ODBCreate>\n", line + 1, list[3], list[1], list[2]);
+               xml += "<ODBCreate l=" + qtoString(line + 1) + " size=" + q(list[3]) + " path=" + q(list[1]) + " type=" + q(list[2]) + "></ODBCreate>\n";
+            } else {
+               fprintf(fout, "<ODBCreate l=\"%d\" path=\"%s\" type=\"%s\"></ODBCreate>\n", line + 1, list[1], list[2]);
+               xml += "<ODBCreate l=" + qtoString(line + 1) + " path=" + q(list[1]) + " type=" + q(list[1]) + "></ODBCreate>\n";
+            }
+
+         } else if (equal_ustring(list[0], "odbdelete")) {
+            fprintf(fout, "<ODBDelete l=\"%d\">%s</ODBDelete>\n", line + 1, list[1]);
+            xml += "<ODBDelete l=" + qtoString(line + 1) + ">" + list[1] + "</ODBDelete>\n";
+
          } else if (equal_ustring(list[0], "odbset")) {
             if (list[3][0]) {
                fprintf(fout, "<ODBSet l=\"%d\" notify=\"%s\" path=\"%s\">%s</ODBSet>\n", line + 1, list[3], list[1], list[2]);
@@ -1341,12 +1354,10 @@ void sequencer() {
             db_get_record1(hDB, hKeySeq, &seq, &size, 0, strcomb1(sequencer_str).c_str());// could have changed seq tree
             seq.current_line_number++;
          } else if (status == DB_NO_KEY) {
-            char str[1024];
             sprintf(str, "ODB key \"%s\" not found", odbpath);
             seq_error(seq, str);
          } else {
             //something went really wrong
-            char str[1024];
             sprintf(str, "Internal error %d", status);
             seq_error(seq, str);
             return;
@@ -1494,6 +1505,77 @@ void sequencer() {
 
             db_set_data_index1(hDB, hKey, data, key.item_size, index1, key.type, notify);
             seq.current_line_number++;
+         }
+      }
+   }
+
+   /*---- ODBDelete ----*/
+   else if (equal_ustring(mxml_get_name(pn), "ODBDelete")) {
+      strlcpy(odbpath, seq.subdir, sizeof(odbpath));
+      if (strlen(odbpath) > 0 && odbpath[strlen(odbpath) - 1] != '/')
+         strlcat(odbpath, "/", sizeof(odbpath));
+      strlcat(odbpath, mxml_get_value(pn), sizeof(odbpath));
+
+      status = db_find_key(hDB, 0, odbpath, &hKey);
+      if (status != DB_SUCCESS) {
+         char errorstr[512];
+         sprintf(errorstr, "Cannot find ODB key \"%s\"", odbpath);
+         seq_error(seq, errorstr);
+      } else {
+         status = db_delete_key(hDB, hKey, FALSE);
+         if (status != DB_SUCCESS) {
+            char errorstr[512];
+            sprintf(errorstr, "Cannot delete ODB key \"%s\"", odbpath);
+            seq_error(seq, errorstr);
+         } else
+            seq.current_line_number++;
+      }
+   }
+
+   /*---- ODBCreate ----*/
+   else if (equal_ustring(mxml_get_name(pn), "ODBCreate")) {
+      if (!mxml_get_attribute(pn, "path")) {
+         seq_error(seq, "Missing attribute \"path\"");
+      } else if (!mxml_get_attribute(pn, "type")) {
+         seq_error(seq, "Missing attribute \"type\"");
+      } else {
+         strlcpy(odbpath, seq.subdir, sizeof(odbpath));
+         if (strlen(odbpath) > 0 && odbpath[strlen(odbpath) - 1] != '/')
+            strlcat(odbpath, "/", sizeof(odbpath));
+         strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
+
+         /* get TID */
+         int tid;
+         for (tid = 0; tid < TID_LAST; tid++) {
+            if (equal_ustring(rpc_tid_name(tid), mxml_get_attribute(pn, "type")))
+               break;
+         }
+
+         if (tid == TID_LAST)
+            seq_error(seq, "Type must be one of UINT8,INT8,UINT16,INT16,UINT32,INT32,BOOL,FLOAT,DOUBLE,STRING");
+         else {
+
+            status = db_find_key(hDB, 0, odbpath, &hKey);
+            if (status == DB_SUCCESS) {
+               db_get_key(hDB, hKey, &key);
+               if (key.type != tid) {
+                  db_delete_key(hDB, hKey, FALSE);
+                  status = db_create_key(hDB, 0, odbpath, tid);
+               }
+            } else
+               status = db_create_key(hDB, 0, odbpath, tid);
+
+            if (status != DB_SUCCESS && status != DB_CREATED) {
+               char errorstr[512];
+               sprintf(errorstr, "Cannot createODB key \"%s\", error code %d", odbpath, status);
+               seq_error(seq, errorstr);
+            } else {
+               status = db_find_key(hDB, 0, odbpath, &hKey);
+               if (mxml_get_attribute(pn, "size") && atoi(mxml_get_attribute(pn, "size")) > 0)
+                  db_set_num_values(hDB, hKey, atoi(mxml_get_attribute(pn, "size")));
+
+               seq.current_line_number++;
+            }
          }
       }
    }
