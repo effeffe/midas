@@ -7047,14 +7047,23 @@ INT cm_stop_watchdog_thread() {
    if (rpc_is_remote())
       return CM_SUCCESS;
 #ifdef LOCAL_ROUTINES
-   _watchdog_thread_run = false;
-   while (_watchdog_thread_is_running) {
-      //printf("waiting for watchdog thread to shut down\n");
-      ss_sleep(10);
+   std::thread* t = _watchdog_thread.exchange(NULL); // thread-safe
+   if (t) {
+      _watchdog_thread_run = false;
+      for (int i=0; i<100; i++) {
+         if (!_watchdog_thread_is_running)
+            break;
+         //printf("waiting for watchdog thread to shut down\n");
+         ss_sleep(10);
+      }
+      if (_watchdog_thread_is_running) {
+         cm_msg(MERROR, "cm_stop_watchdog_thread", "Timeout waiting for watchdog thread to stop");
+      } else {
+         t->join();
+         delete t;
+         t = NULL;
+      }
    }
-   _watchdog_thread.load()->join();
-   delete static_cast<std::thread *>(_watchdog_thread);
-   _watchdog_thread = NULL;
 #endif
    return CM_SUCCESS;
 }
