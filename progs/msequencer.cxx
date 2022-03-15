@@ -284,11 +284,40 @@ std::string eval_var(SEQUENCER &seq, std::string value) {
          for (i2 = i1 + 1; std::isalpha(result[i2]) || result[i2] == '_';)
             i2++;
          s = s.substr(0, i2 - i1 - 1);
-         try {
-            midas::odb o("/Sequencer/Variables/" + s);
-            vsubst = o;
-         } catch (...) {
-            throw "ODB variable \"" + s + " not found";
+         if (result[i2] == '[') {
+            // array
+            auto sindex = result.substr(i2+1);
+            int i = sindex.find(']');
+            if (i == std::string::npos)
+               throw "Variable \"" + result +"\" does not contain ']'";
+            sindex = sindex.substr(0, i);
+            sindex = eval_var(seq, sindex);
+            int index;
+            try {
+               index = std::stoi(sindex);
+            } catch (...) {
+               throw "ODB variable \"" + s + " has invalid index";
+            }
+
+            try {
+               midas::odb o("/Sequencer/Variables/" + s);
+               vsubst = std::string(o[index]);
+            } catch (...) {
+               throw "ODB variable \"" + s + " not found";
+            }
+            while (result[i2] && result[i2] != ']')
+               i2++;
+            if (!result[i2])
+               throw "Variable \"" + result +"\" does not contain ']'";
+            if (result[i2] == ']')
+               i2++;
+         } else {
+            try {
+               midas::odb o("/Sequencer/Variables/" + s);
+               vsubst = o;
+            } catch (...) {
+               throw "ODB variable \"" + s + " not found";
+            }
          }
       }
 
@@ -1386,7 +1415,7 @@ void sequencer() {
       }
    }
 
-      /*---- ODBSet ----*/
+   /*---- ODBSet ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBSet")) {
       if (!mxml_get_attribute(pn, "path")) {
          seq_error(seq, "Missing attribute \"path\"");
@@ -1425,7 +1454,7 @@ void sequencer() {
       }
    }
 
-      /*---- ODBLoad ----*/
+   /*---- ODBLoad ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBLoad")) {
       if (mxml_get_value(pn)[0] == '/') {
          //absolute path
@@ -1483,7 +1512,7 @@ void sequencer() {
       }
    }
 
-      /*---- ODBGet ----*/
+   /*---- ODBGet ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBGet")) {
       if (!mxml_get_attribute(pn, "path")) {
          seq_error(seq, "Missing attribute \"path\"");
@@ -1527,7 +1556,7 @@ void sequencer() {
       }
    }
 
-      /*---- ODBInc ----*/
+   /*---- ODBInc ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBInc")) {
       if (!mxml_get_attribute(pn, "path")) {
          seq_error(seq, "Missing attribute \"path\"");
@@ -1569,7 +1598,7 @@ void sequencer() {
       }
    }
 
-      /*---- ODBDelete ----*/
+   /*---- ODBDelete ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBDelete")) {
       strlcpy(odbpath, seq.subdir, sizeof(odbpath));
       if (strlen(odbpath) > 0 && odbpath[strlen(odbpath) - 1] != '/')
@@ -1592,7 +1621,7 @@ void sequencer() {
       }
    }
 
-      /*---- ODBCreate ----*/
+   /*---- ODBCreate ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBCreate")) {
       if (!mxml_get_attribute(pn, "path")) {
          seq_error(seq, "Missing attribute \"path\"");
@@ -1631,22 +1660,24 @@ void sequencer() {
                seq_error(seq, errorstr);
             } else {
                status = db_find_key(hDB, 0, odbpath, &hKey);
-               if (mxml_get_attribute(pn, "size") && atoi(mxml_get_attribute(pn, "size")) > 0)
-                  db_set_num_values(hDB, hKey, atoi(mxml_get_attribute(pn, "size")));
-
+               if (mxml_get_attribute(pn, "size")) {
+                  i = atoi(eval_var(seq, mxml_get_attribute(pn, "size")).c_str());
+                  if (i > 1)
+                     db_set_num_values(hDB, hKey, i);
+               }
                seq.current_line_number++;
             }
          }
       }
    }
 
-      /*---- RunDescription ----*/
+   /*---- RunDescription ----*/
    else if (equal_ustring(mxml_get_name(pn), "RunDescription")) {
       db_set_value(hDB, 0, "/Experiment/Run Parameters/Run Description", mxml_get_value(pn), 256, 1, TID_STRING);
       seq.current_line_number++;
    }
 
-      /*---- Script ----*/
+   /*---- Script ----*/
    else if (equal_ustring(mxml_get_name(pn), "Script")) {
       sprintf(str, "%s", mxml_get_value(pn));
 
@@ -1665,7 +1696,7 @@ void sequencer() {
       seq.current_line_number++;
    }
 
-      /*---- Transition ----*/
+   /*---- Transition ----*/
    else if (equal_ustring(mxml_get_name(pn), "Transition")) {
       if (equal_ustring(mxml_get_value(pn), "Start")) {
          if (!seq.transition_request) {
@@ -1736,7 +1767,7 @@ void sequencer() {
       }
    }
 
-      /*---- Wait ----*/
+   /*---- Wait ----*/
    else if (equal_ustring(mxml_get_name(pn), "Wait")) {
       if (equal_ustring(mxml_get_attribute(pn, "for"), "Events")) {
          n = std::stoi(eval_var(seq, mxml_get_value(pn)));
@@ -1838,7 +1869,7 @@ void sequencer() {
       ss_sleep(100);
    }
 
-      /*---- Loop start ----*/
+   /*---- Loop start ----*/
    else if (equal_ustring(mxml_get_name(pn), "Loop")) {
       for (i = 0; i < 4; i++)
          if (seq.loop_start_line[i] == 0)
@@ -1883,7 +1914,7 @@ void sequencer() {
       seq.current_line_number++;
    }
 
-      /*---- If ----*/
+   /*---- If ----*/
    else if (equal_ustring(mxml_get_name(pn), "If")) {
 
       if (seq.if_index == 4) {
@@ -1921,7 +1952,7 @@ void sequencer() {
       seq.if_index++;
    }
 
-      /*---- Else ----*/
+   /*---- Else ----*/
    else if (equal_ustring(mxml_get_name(pn), "Else")) {
       // goto next "Endif"
       if (seq.if_index == 0) {
@@ -1931,7 +1962,7 @@ void sequencer() {
       seq.current_line_number = seq.if_endif_line[seq.if_index - 1];
    }
 
-      /*---- Goto ----*/
+   /*---- Goto ----*/
    else if (equal_ustring(mxml_get_name(pn), "Goto")) {
       if (!mxml_get_attribute(pn, "line") && !mxml_get_attribute(pn, "sline")) {
          seq_error(seq, "Missing line number");
@@ -1955,7 +1986,7 @@ void sequencer() {
       }
    }
 
-      /*---- Library ----*/
+   /*---- Library ----*/
    else if (equal_ustring(mxml_get_name(pn), "Library")) {
       // simply skip libraries
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
@@ -1973,7 +2004,7 @@ void sequencer() {
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
 
-      /*---- Set ----*/
+   /*---- Set ----*/
    else if (equal_ustring(mxml_get_name(pn), "Set")) {
       if (!mxml_get_attribute(pn, "name")) {
          seq_error(seq, "Missing variable name");
@@ -1981,11 +2012,31 @@ void sequencer() {
       }
       strlcpy(name, mxml_get_attribute(pn, "name"), sizeof(name));
       strlcpy(value, eval_var(seq, mxml_get_value(pn)).c_str(), sizeof(value));
-      sprintf(str, "/Sequencer/Variables/%s", name);
-      size = strlen(value) + 1;
-      if (size < 32)
-         size = 32;
-      db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
+
+      if (strchr(name, '[')) {
+         // array
+         strlcpy(str, strchr(name, '[')+1, sizeof(str));
+         if (strchr(str, ']'))
+            *strchr(str, ']') = 0;
+         int index = atoi(eval_var(seq, str).c_str());
+         *strchr(name, '[') = 0;
+         sprintf(str, "/Sequencer/Variables/%s", name);
+         status = db_find_key(hDB, 0, str, &hKey);
+         if (status != DB_SUCCESS) {
+            db_create_key(hDB, 0, str, TID_STRING);
+            status = db_find_key(hDB, 0, str, &hKey);
+         }
+         size = strlen(value) + 1;
+         if (size < 32)
+            size = 32;
+         status = db_set_data_index(hDB, hKey, value, size, index, TID_STRING);
+      } else {
+         sprintf(str, "/Sequencer/Variables/%s", name);
+         size = strlen(value) + 1;
+         if (size < 32)
+            size = 32;
+         db_set_value(hDB, 0, str, value, size, 1, TID_STRING);
+      }
 
       // check if variable is used in loop
       for (i = 3; i >= 0; i--)
@@ -2000,7 +2051,7 @@ void sequencer() {
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
 
-      /*---- Message ----*/
+   /*---- Message ----*/
    else if (equal_ustring(mxml_get_name(pn), "Message")) {
       if (strchr(mxml_get_value(pn), '$')) // evaluate message string if $ present
          strlcpy(value, eval_var(seq, mxml_get_value(pn)).c_str(), sizeof(value));
@@ -2043,7 +2094,7 @@ void sequencer() {
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
 
-      /*---- Cat ----*/
+   /*---- Cat ----*/
    else if (equal_ustring(mxml_get_name(pn), "Cat")) {
       if (!mxml_get_attribute(pn, "name")) {
          seq_error(seq, "Missing variable name");
@@ -2061,7 +2112,7 @@ void sequencer() {
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
 
-      /*---- Call ----*/
+   /*---- Call ----*/
    else if (equal_ustring(mxml_get_name(pn), "Call")) {
       if (seq.stack_index == 4) {
          seq_error(seq, "Maximum subroutine level exceeded");
@@ -2099,7 +2150,7 @@ void sequencer() {
       }
    }
 
-      /*---- <unknown> ----*/
+   /*---- <unknown> ----*/
    else {
       sprintf(str, "Unknown statement \"%s\"", mxml_get_name(pn));
       seq_error(seq, str);
