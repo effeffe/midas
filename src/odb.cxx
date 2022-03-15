@@ -2631,19 +2631,13 @@ INT db_update_last_activity(DWORD millitime)
 {
    bool found = false;
    int pid = ss_getpid();
-   int i;
-   for (i = 0; i < _database_entries; i++) {
+   for (int i = 0; i < _database_entries; i++) {
       if (_database[i].attached) {
-         int must_unlock = 0;
-         if (_database[i].protect) {
-            must_unlock = 1;
-            db_lock_database(i + 1);
-            db_allow_write_locked(&_database[i], "db_update_last_activity");
-         }
+         db_lock_database(i + 1);
+         db_allow_write_locked(&_database[i], "db_update_last_activity");
          assert(_database[i].database_header);
          /* update the last_activity entry to show that we are alive */
-         int j;
-         for (j=0; j<_database[i].database_header->max_client_index; j++) {
+         for (int j=0; j<_database[i].database_header->max_client_index; j++) {
             DATABASE_CLIENT* pdbclient = _database[i].database_header->client + j;
             //printf("client %d pid %d vs our pid %d\n", j, pdbclient->pid, pid);
             if (pdbclient->pid == pid) {
@@ -2651,9 +2645,7 @@ INT db_update_last_activity(DWORD millitime)
                found = true;
             }
          }
-         if (must_unlock) {
-            db_unlock_database(i + 1);
-         }
+         db_unlock_database(i + 1);
       }
    }
 
