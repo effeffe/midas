@@ -960,40 +960,40 @@ typedef struct {
 /* Per-process buffer access structure (descriptor) */
 
 typedef struct {
-   BOOL attached;                   /**< TRUE if buffer is attached   */
-   INT client_index;                /**< index to CLIENT str. in buf. */
-   char client_name[NAME_LENGTH];   /**< name of client               */
-   char buffer_name[NAME_LENGTH];   /**< name of buffer               */
-   BUFFER_HEADER *buffer_header;    /**< pointer to buffer header     */
-   MUTEX_T* buffer_mutex;           /**< buffer mutex                 */
-   char *read_cache;                /**< cache for burst read         */
-   INT read_cache_size;             /**< cache size in bytes          */
-   INT read_cache_rp;               /**< cache read pointer           */
-   INT read_cache_wp;               /**< cache write pointer          */
-   MUTEX_T* read_cache_mutex;       /**< cache read mutex             */
-   char *write_cache;               /**< cache for burst read         */
-   INT write_cache_size;            /**< cache size in bytes          */
-   INT write_cache_wp;              /**< cache write pointer          */
-   MUTEX_T* write_cache_mutex;      /**< cache write mutex            */
-   HNDLE semaphore;                 /**< semaphore handle             */
-   INT shm_handle;                  /**< handle to shared memory      */
-   size_t shm_size;                 /**< size of shared memory        */
-   BOOL callback;                   /**< callback defined for this buffer */
-   BOOL locked;                     /**< buffer is currently locked by us */
-   BOOL get_all_flag;               /**< this is a get_all reader     */
+   BOOL attached = false;             /**< TRUE if buffer is attached   */
+   INT client_index = 0;              /**< index to CLIENT str. in buf. */
+   char client_name[NAME_LENGTH];     /**< name of client               */
+   char buffer_name[NAME_LENGTH];     /**< name of buffer               */
+   BUFFER_HEADER *buffer_header = NULL; /**< pointer to buffer header     */
+   MUTEX_T* buffer_mutex = NULL;      /**< buffer mutex                 */
+   char *read_cache = NULL;           /**< cache for burst read         */
+   INT read_cache_size = 0;           /**< cache size in bytes          */
+   INT read_cache_rp = 0;             /**< cache read pointer           */
+   INT read_cache_wp = 0;             /**< cache write pointer          */
+   MUTEX_T* read_cache_mutex = NULL;  /**< cache read mutex             */
+   char *write_cache = NULL;          /**< cache for burst read         */
+   INT write_cache_size = 0;          /**< cache size in bytes          */
+   INT write_cache_wp = 0;            /**< cache write pointer          */
+   MUTEX_T* write_cache_mutex = NULL; /**< cache write mutex            */
+   HNDLE semaphore = 0;               /**< semaphore handle             */
+   INT shm_handle = 0;                /**< handle to shared memory      */
+   size_t shm_size = 0;               /**< size of shared memory        */
+   BOOL callback = false;             /**< callback defined for this buffer */
+   BOOL locked = false;               /**< buffer is currently locked by us */
+   BOOL get_all_flag = false;         /**< this is a get_all reader     */
 
    /* buffer statistics */
-   int count_lock;                  /**< count how many times we locked the buffer */
-   int count_sent;                  /**< count how many events we sent */
-   double bytes_sent;               /**< count how many bytes we sent */
-   int count_write_wait;            /**< count how many times we waited for free space */
-   DWORD time_write_wait;           /**< count for how long we waited for free space, in units of ss_millitime() */
-   int last_count_lock;             /**< avoid writing statistics to odb if lock count did not change */
-   DWORD wait_start_time;           /**< time when we started the wait */
-   int wait_client_index;           /**< waiting for which client */
-   int max_requested_space;         /**< waiting for this many bytes of free space */
-   int count_read;                  /**< count how many events we read */
-   double bytes_read;               /**< count how many bytes we read */
+   int count_lock = 0;                /**< count how many times we locked the buffer */
+   int count_sent = 0;                /**< count how many events we sent */
+   double bytes_sent = 0;             /**< count how many bytes we sent */
+   int count_write_wait = 0;          /**< count how many times we waited for free space */
+   DWORD time_write_wait = 0;         /**< count for how long we waited for free space, in units of ss_millitime() */
+   int last_count_lock = 0;           /**< avoid writing statistics to odb if lock count did not change */
+   DWORD wait_start_time = 0;         /**< time when we started the wait */
+   int wait_client_index = 0;         /**< waiting for which client */
+   int max_requested_space = 0;       /**< waiting for this many bytes of free space */
+   int count_read = 0;                /**< count how many events we read */
+   double bytes_read = 0;             /**< count how many bytes we read */
    int client_count_write_wait[MAX_CLIENTS]; /**< per-client count_write_wait */
    DWORD client_time_write_wait[MAX_CLIENTS]; /**< per-client time_write_wait */
 
