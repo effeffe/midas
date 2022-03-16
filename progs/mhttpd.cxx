@@ -17369,6 +17369,14 @@ static bool mongoose_hostlist_enabled(const struct mg_connection *nc)
 
 static int mongoose_listen(const char* address, int flags)
 {
+#if MG_ENABLE_SSL
+#else
+   if (flags & FLAG_HTTPS) {
+      cm_msg(MERROR, "mongoose_listen", "https port \"%s\" requested, but mhttpd compiled without MG_ENABLE_SSL", address);
+      return SS_SOCKET_ERROR;
+   }
+#endif
+
    struct mg_connection *nc = mg_bind(&s_mgr, address, ev_handler);
    if (nc == NULL) {
       cm_msg(MERROR, "mongoose_listen", "Cannot mg_bind address \"%s\"", address);
@@ -17398,8 +17406,7 @@ static int mongoose_listen(const char* address, int flags)
 
       // NB: where is the warning that the SSL certificate has expired?!? K.O.
 #else
-      cm_msg(MERROR, "mongoose_listen", "https port \"%s\" requested, but mhttpd compiled without MG_ENABLE_SSL", address);
-      return SS_SOCKET_ERROR;
+      abort(); // cannot happen!
 #endif
    }
 
@@ -17516,31 +17523,33 @@ static int mongoose_init(MVOdb* odb, bool no_passwords, bool no_hostlist, const 
 
    if (enable_insecure_port) {
       char str[256];
-      sprintf(str, "%d", insecure_port);
       int flags = 0;
       if (insecure_port_passwords)
          flags |= FLAG_PASSWORDS;
       if (insecure_port_hostlist)
          flags |= FLAG_HOSTLIST;
-      mongoose_listen(str, flags);
       if (enable_ipv6) {
-         sprintf(str, "[::0]:%d", insecure_port);
+         sprintf(str, "[::]:%d", insecure_port);
+         mongoose_listen(str, flags);
+      } else {
+         sprintf(str, "%d", insecure_port);
          mongoose_listen(str, flags);
       }
    }
 
    if (enable_https_port) {
       char str[256];
-      sprintf(str, "%d", https_port);
       int flags = 0;
       if (https_port_passwords)
          flags |= FLAG_PASSWORDS;
       if (https_port_hostlist)
          flags |= FLAG_HOSTLIST;
       flags |= FLAG_HTTPS;
-      mongoose_listen(str, flags);
       if (enable_ipv6) {
-         sprintf(str, "[::0]:%d", https_port);
+         sprintf(str, "[::]:%d", https_port);
+         mongoose_listen(str, flags);
+      } else {
+         sprintf(str, "%d", https_port);
          mongoose_listen(str, flags);
       }
    }
