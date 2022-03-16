@@ -281,7 +281,7 @@ std::string eval_var(SEQUENCER &seq, std::string value) {
             throw "Parameter $" + std::to_string(index) + " not found";
       } else {
          // find end of string
-         for (i2 = i1 + 1; std::isalpha(result[i2]) || result[i2] == '_';)
+         for (i2 = i1 + 1; std::isalnum(result[i2]) || result[i2] == '_';)
             i2++;
          s = s.substr(0, i2 - i1 - 1);
          if (result[i2] == '[') {
@@ -296,7 +296,7 @@ std::string eval_var(SEQUENCER &seq, std::string value) {
             try {
                index = std::stoi(sindex);
             } catch (...) {
-               throw "ODB variable \"" + s + " has invalid index";
+               throw "ODB variable \"" + s + "\" has invalid index";
             }
 
             try {
@@ -304,7 +304,7 @@ std::string eval_var(SEQUENCER &seq, std::string value) {
                std::vector<std::string> sv = o;
                vsubst = sv[index];
             } catch (...) {
-               throw "ODB variable \"" + s + " not found";
+               throw "ODB variable \"" + s + "\" not found";
             }
             while (result[i2] && result[i2] != ']')
                i2++;
@@ -317,7 +317,7 @@ std::string eval_var(SEQUENCER &seq, std::string value) {
                midas::odb o("/Sequencer/Variables/" + s);
                vsubst = o;
             } catch (...) {
-               throw "ODB variable \"" + s + " not found";
+               throw "ODB variable \"" + s + "\" not found";
             }
          }
       }
