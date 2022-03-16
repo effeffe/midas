@@ -548,7 +548,7 @@ function seq_refresh(seq)
          if (op === '')
             op = '>=';
          op = op.replace(/>/g, '&gt;').replace(/</g, '&lt;');
-         set_innerHTML_if_changed(wl, 'ODB&nbsp('+wait_odb+')&nbsp;'+wait_value+'&nbsp;'+op+'&nbsp;'+wait_limit+'');
+         set_innerHTML_if_changed(wl, 'Wait ODB('+wait_odb+'):&nbsp;'+wait_value+'&nbsp;'+op+'&nbsp;'+wait_limit+'');
       } else {
          set_innerHTML_if_changed(wl, '');
       }
