@@ -174,9 +174,6 @@ extern unsigned _stklen = 60000U;
 extern DATABASE *_database;
 extern INT _database_entries;
 
-//static BUFFER *_buffer;
-//static INT _buffer_entries = 0;
-
 //
 // locking rules for gBuffers and gBuffersMutex:
 // - all access to gBuffers must be done while holding gBufferMutex
@@ -191,9 +188,9 @@ extern INT _database_entries;
 //
 // buffer removal:
 // - gBuffers never shrinks
-// - closed buffers have corresponding gBuffers[i] set to NULL and pbuf deleted
-//
-// FIXME: what is we close a buffer, but somebody is waiting on it's mutex?
+// - BUFFER*pbuf objects are never deleted to avoid problem of other thread waiting to lock it as we are deleting it. close buffers are marked by pbuf->attached set to false.
+// - gBuffers[i] set to NULL are empty slots available for reuse
+// - closed buffers have corresponding gBuffers[i]->attached set to false
 // 
 
 static std::mutex gBuffersMutex; // protects gBuffers vector itself, but not it's contents!
@@ -6979,17 +6976,17 @@ INT bm_close_buffer(INT buffer_handle) {
             ss_resume(pclient->port, "B  ");
       }
 
-      /* remove from list of buffers */
-
-      gBuffersMutex.lock();
-
-      for (size_t i=0; i<gBuffers.size(); i++) {
-         if (gBuffers[i] == pbuf) {
-            gBuffers[i] = NULL;
-         }
-      }
-
-      gBuffersMutex.unlock();
+      ///* remove from list of buffers */
+      //
+      //gBuffersMutex.lock();
+      //
+      //for (size_t i=0; i<gBuffers.size(); i++) {
+      //   if (gBuffers[i] == pbuf) {
+      //      gBuffers[i] = NULL;
+      //   }
+      //}
+      //
+      //gBuffersMutex.unlock();
 
       /* unmap shared memory */
 
@@ -7013,8 +7010,8 @@ INT bm_close_buffer(INT buffer_handle) {
          pbuf->buffer_mutex = NULL;
       }
 
-      delete pbuf;
-      pbuf = NULL;
+      //delete pbuf;
+      //pbuf = NULL;
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -7041,6 +7038,17 @@ INT bm_close_all_buffers(void) {
       for (size_t i = nbuf; i > 0; i--) {
          bm_close_buffer(i);
       }
+
+      gBuffersMutex.lock();
+      for (size_t i=0; i< gBuffers.size(); i++) {
+         BUFFER* pbuf = gBuffers[i];
+         if (!pbuf)
+            continue;
+         delete pbuf;
+         pbuf = NULL;
+         gBuffers[i] = NULL;
+      }
+      gBuffersMutex.unlock();
    }
 #endif                          /* LOCAL_ROUTINES */
 
