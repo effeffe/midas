@@ -257,7 +257,7 @@ std::string eval_var(SEQUENCER &seq, std::string value) {
    // replace all $... with value
    int i1, i2;
    std::string vsubst;
-   while ((i1 = result.find("$")) != std::string::npos) {
+   while ((i1 = (int)result.find("$")) != (int)std::string::npos) {
       std::string s = result.substr(i1 + 1);
       if (std::isdigit(s[0]) && std::stoi(s) > 0) {
          // find end of number
@@ -272,7 +272,7 @@ std::string eval_var(SEQUENCER &seq, std::string value) {
             std::string sp;
             while (std::getline(f, sp, ','))
                param.push_back(sp);
-            if (index == 0 || index > param.size())
+            if (index == 0 || index > (int)param.size())
                throw "Parameter $" + std::to_string(index) + " not found";
             vsubst = param[index - 1];
             if (vsubst[0] == '$')
@@ -288,7 +288,7 @@ std::string eval_var(SEQUENCER &seq, std::string value) {
             // array
             auto sindex = result.substr(i2+1);
             int i = sindex.find(']');
-            if (i == std::string::npos)
+            if (i == (int)std::string::npos)
                throw "Variable \"" + result +"\" does not contain ']'";
             sindex = sindex.substr(0, i);
             sindex = eval_var(seq, sindex);
@@ -301,7 +301,8 @@ std::string eval_var(SEQUENCER &seq, std::string value) {
 
             try {
                midas::odb o("/Sequencer/Variables/" + s);
-               vsubst = std::string(o[index]);
+               std::vector<std::string> sv = o;
+               vsubst = sv[index];
             } catch (...) {
                throw "ODB variable \"" + s + " not found";
             }
@@ -605,7 +606,7 @@ msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename,
          strlcpy(eq, lines[line], sizeof(eq));
          if (strchr(eq, '#'))
             *strchr(eq, '#') = 0;
-         for (i = 0, n = 0; i < strlen(eq); i++)
+         for (i = 0, n = 0; i < (int)strlen(eq); i++)
             if (eq[i] == '=')
                n++;
          if (n == 1 && eq[0] != '=') {
@@ -1634,7 +1635,7 @@ void sequencer() {
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
 
          /* get TID */
-         int tid;
+         unsigned int tid;
          for (tid = 0; tid < TID_LAST; tid++) {
             if (equal_ustring(rpc_tid_name(tid), mxml_get_attribute(pn, "type")))
                break;
