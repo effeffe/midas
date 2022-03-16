@@ -131,8 +131,8 @@
          <td>
            <table width="100%">
              <tr>
-               <td style="width:150px" id="wait_label">wait_label</td>
-               <td>
+               <td id="wait_label">wait_label</td>
+               <td style="width: 90%" id="rptd">
                  <table id="runprgs">
                    <tr>
                      <td style="background-color:#80FF80;border:2px solid #008000;border-top:2px solid #E0E0FF;border-left:2px solid #E0E0FF;">&nbsp;</td>
@@ -366,6 +366,7 @@ function seq_refresh(seq)
    var message = seq.message;
    var message_wait = seq['message wait'];
    var wait_value = seq['wait value'];
+   var wait_odb = seq['wait odb'];
    var wait_limit = seq['wait limit'];
    var wait_type = seq['wait type'];
    var loop_n = seq['loop n'];
@@ -486,17 +487,17 @@ function seq_refresh(seq)
          sshow_lower_lines = false;
       }
       
-      if (sl == serror_line)
+      if (sl === serror_line)
          sline.style.backgroundColor = 'var(--mred)';
-      else if (sl == scurrent_line)
+      else if (sl === scurrent_line)
          sline.style.backgroundColor = '#80FF80';
-      else if (sl == ssubroutine_call_line[3])
+      else if (sl === ssubroutine_call_line[3])
          sline.style.backgroundColor = '#E0FFE0';
-      else if (sl == ssubroutine_call_line[2])
+      else if (sl === ssubroutine_call_line[2])
          sline.style.backgroundColor = '#D0FFD0';
-      else if (sl == ssubroutine_call_line[1])
+      else if (sl === ssubroutine_call_line[1])
          sline.style.backgroundColor = '#C0FFC0';
-      else if (sl == ssubroutine_call_line[0])
+      else if (sl === ssubroutine_call_line[0])
          sline.style.backgroundColor = '#B0FFB0';
       else if (sl >= sloop_start_line[3] && sl <= sloop_end_line[3])
          sline.style.backgroundColor = '#E0E0FF';
@@ -538,27 +539,32 @@ function seq_refresh(seq)
 
    var wl = document.getElementById('wait_label');
    if (wl != null) {
-      if (wait_type == 'Seconds')
+      if (wait_type === 'Seconds')
          set_innerHTML_if_changed(wl, 'Wait:&nbsp;['+wait_value+'/'+wait_limit+'&nbsp;s]');
-      else if (wait_type == 'Events')
+      else if (wait_type === 'Events')
          set_innerHTML_if_changed(wl, 'Run:&nbsp;['+wait_value+'/'+wait_limit+'&nbsp;events]');
-      else if (wait_type.substr(0, 3) == 'ODB') {
-         op = wait_type.substr(3);
-         if (op == '')
+      else if (wait_type.substring(0, 3) === 'ODB') {
+         op = wait_type.substring(3);
+         if (op === '')
             op = '>=';
          op = op.replace(/>/g, '&gt;').replace(/</g, '&lt;');
-         set_innerHTML_if_changed(wl, 'ODB:&nbsp;['+wait_value+'&nbsp;'+op+'&nbsp;'+wait_limit+']');
+         set_innerHTML_if_changed(wl, 'ODB&nbsp('+wait_odb+')&nbsp;'+wait_value+'&nbsp;'+op+'&nbsp;'+wait_limit+'');
       } else {
          set_innerHTML_if_changed(wl, '');
       }
-      if (wait_type == '')
+      if (wait_type === '')
          mhttpd_hide("wait_row");
       else
          mhttpd_unhide("wait_row");
    }
 
    var rp = document.getElementById('runprgs');
+   var rptd = document.getElementById('rptd');
    if (rp != null) {
+      if (wait_type.substring(0, 3) === 'ODB')
+         rptd.style.display = "none";
+      else
+         rptd.style.display = "";
       var width = Math.round(100.0*wait_value/wait_limit);
       if (width > 100)
          width = 100;

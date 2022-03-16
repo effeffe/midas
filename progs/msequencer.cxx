@@ -259,13 +259,13 @@ std::string eval_var(SEQUENCER &seq, std::string value) {
    std::string vsubst;
    while ((i1 = (int)result.find("$")) != (int)std::string::npos) {
       std::string s = result.substr(i1 + 1);
-      if (std::isdigit(s[0]) && std::stoi(s) > 0) {
+      if (std::isdigit(s[0]) && atoi(s.c_str()) > 0) {
          // find end of number
          for (i2 = i1 + 1; std::isdigit(result[i2]);)
             i2++;
 
          // replace all $<number> with subroutine parameters
-         int index = std::stoi(s);
+         int index = atoi(s.c_str());
          if (seq.stack_index > 0) {
             std::istringstream f(seq.subroutine_param[seq.stack_index - 1]);
             std::vector<std::string> param;
@@ -419,8 +419,8 @@ int eval_condition(SEQUENCER &seq, const char *condition) {
    }
 
    // numeric comparison
-   value1 = std::stod(value1_var);
-   value2 = std::stod(value2_var);
+   value1 = atof(value1_var.c_str());
+   value2 = atof(value2_var.c_str());
 
    /* now do logical operation */
    if (strcmp(op, "=") == 0)
@@ -989,6 +989,7 @@ void seq_clear(SEQUENCER &seq) {
    seq.wait_value = 0;
    seq.start_time = 0;
    seq.wait_type[0] = 0;
+   seq.wait_odb[0] = 0;
    for (int i = 0; i < 4; i++) {
       seq.loop_start_line[i] = 0;
       seq.sloop_start_line[i] = 0;
@@ -1196,7 +1197,7 @@ void seq_array_index(char *odbpath, int *index1, int *index2) {
             strlcpy(str, strchr(odbpath, '[') + 1, sizeof(str));
             if (strchr(str, ']'))
                *strchr(str, ']') = 0;
-            *index1 = std::stoi(eval_var(seq, str));
+            *index1 = atoi(eval_var(seq, str).c_str());
 
             *strchr(odbpath, '[') = 0;
          } else {
@@ -1253,7 +1254,6 @@ void sequencer() {
    HNDLE hDB, hKey, hKeySeq;
    KEY key;
    double d;
-   float v;
 
    if (!seq.running || seq.paused) {
       ss_sleep(10);
@@ -1771,7 +1771,7 @@ void sequencer() {
    /*---- Wait ----*/
    else if (equal_ustring(mxml_get_name(pn), "Wait")) {
       if (equal_ustring(mxml_get_attribute(pn, "for"), "Events")) {
-         n = std::stoi(eval_var(seq, mxml_get_value(pn)));
+         n = atoi(eval_var(seq, mxml_get_value(pn)).c_str());
          seq.wait_limit = (float) n;
          strcpy(seq.wait_type, "Events");
          size = sizeof(d);
@@ -1782,17 +1782,18 @@ void sequencer() {
             seq.wait_limit = 0;
             seq.wait_value = 0;
             seq.wait_type[0] = 0;
+            seq.wait_odb[0] = 0;
          }
          seq.wait_value = (float) d;
       } else if (equal_ustring(mxml_get_attribute(pn, "for"), "ODBValue")) {
-         v = (float) std::stod(eval_var(seq, mxml_get_value(pn)));
-         seq.wait_limit = v;
-         strcpy(seq.wait_type, "ODB");
+         seq.wait_limit = (float) atof(eval_var(seq, mxml_get_value(pn)).c_str());
+         strlcpy(seq.wait_type, "ODB", sizeof(seq.wait_type));
          if (!mxml_get_attribute(pn, "path")) {
             seq_error(seq, "\"path\" must be given for ODB values");
             return;
          } else {
             strlcpy(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
+            strlcpy(seq.wait_odb, odbpath, sizeof(seq.wait_odb));
             index1 = index2 = 0;
             seq_array_index(odbpath, &index1, &index2);
             status = db_find_key(hDB, 0, odbpath, &hKey);
@@ -1840,11 +1841,12 @@ void sequencer() {
                   seq.wait_limit = 0;
                   seq.wait_value = 0;
                   seq.wait_type[0] = 0;
+                  seq.wait_odb[0] = 0;
                }
             }
          }
       } else if (equal_ustring(mxml_get_attribute(pn, "for"), "Seconds")) {
-         seq.wait_limit = (float) std::stoi(eval_var(seq, mxml_get_value(pn)));;
+         seq.wait_limit = (float) atoi(eval_var(seq, mxml_get_value(pn)).c_str());
          strcpy(seq.wait_type, "Seconds");
          if (seq.start_time == 0) {
             seq.start_time = ss_time();
@@ -1860,6 +1862,7 @@ void sequencer() {
             seq.wait_limit = 0;
             seq.wait_value = 0;
             seq.wait_type[0] = 0;
+            seq.wait_odb[0] = 0;
          }
       } else {
          sprintf(str, "Invalid wait attribute \"%s\"", mxml_get_attribute(pn, "for"));
@@ -1891,7 +1894,7 @@ void sequencer() {
          if (equal_ustring(mxml_get_attribute(pn, "n"), "infinite"))
             seq.loop_n[i] = -1;
          else {
-            seq.loop_n[i] = std::stoi(eval_var(seq, mxml_get_attribute(pn, "n")));
+            seq.loop_n[i] = atoi(eval_var(seq, mxml_get_attribute(pn, "n")).c_str());
          }
          strlcpy(value, "1", sizeof(value));
       } else if (mxml_get_attribute(pn, "values")) {
@@ -1970,7 +1973,7 @@ void sequencer() {
          return;
       }
       if (mxml_get_attribute(pn, "line")) {
-         seq.current_line_number = std::stoi(eval_var(seq, mxml_get_attribute(pn, "line")));
+         seq.current_line_number = atoi(eval_var(seq, mxml_get_attribute(pn, "line")).c_str());
       }
       if (mxml_get_attribute(pn, "sline")) {
          strlcpy(str, eval_var(seq, mxml_get_attribute(pn, "sline")).c_str(), sizeof(str));

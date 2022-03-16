@@ -39,6 +39,7 @@ typedef struct {
    float wait_limit;
    DWORD start_time;
    char  wait_type[32];
+   char  wait_odb[256];
    char  last_msg[10];
 } SEQUENCER;
 
@@ -138,6 +139,7 @@ typedef struct {
 "Wait limit = FLOAT : 0",\
 "Start time = DWORD : 0",\
 "Wait type = STRING : [32] ",\
+"Wait ODB = STRING : [256] ",\
 "Last msg = STRING : [10] 00:00:00",\
 "",\
 NULL }
