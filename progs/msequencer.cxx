@@ -607,7 +607,7 @@ msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename,
          if (strchr(eq, '#'))
             *strchr(eq, '#') = 0;
          for (i = 0, n = 0; i < (int)strlen(eq); i++)
-            if (eq[i] == '=')
+            if (eq[i] == '=' && (i > 0 && eq[i-1] != '!'))
                n++;
          if (n == 1 && eq[0] != '=') {
             // equation found
