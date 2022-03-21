@@ -6889,8 +6889,6 @@ INT bm_close_buffer(INT buffer_handle) {
       if (!pbuf)
          return status;
 
-      // FIXME: lock pbuf!
-
       //printf("bm_close_buffer: handle %d, name [%s]\n", buffer_handle, pheader->name);
 
       int i;
@@ -7840,7 +7838,9 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
          write_size = new_write_size;
       }
 
-      /* manage read cache */
+      /* resize read cache */
+
+      // FIXME: lock the read cache!
 
       if (pbuf->read_cache_size > 0) {
          M_FREE(pbuf->read_cache);
@@ -7857,6 +7857,8 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
 
       pbuf->read_cache_size = read_size;
       pbuf->read_cache_rp = pbuf->read_cache_wp = 0;
+
+      /* resize the write cache */
 
       if (pbuf->write_cache_mutex)
          ss_mutex_wait_for(pbuf->write_cache_mutex, _bm_mutex_timeout);
@@ -8009,20 +8011,22 @@ INT bm_add_event_request(INT buffer_handle, short int event_id,
       if (!pbuf)
          return status;
 
+      /* lock buffer */
+      bm_lock_buffer(pbuf);
+
       /* avoid callback/non callback requests */
       if (func == NULL && pbuf->callback) {
+         bm_unlock_buffer(pbuf);
          cm_msg(MERROR, "bm_add_event_request", "mixing callback/non callback requests not possible");
          return BM_INVALID_MIXING;
       }
 
       /* do not allow GET_RECENT with nonzero cache size */
       if (sampling_type == GET_RECENT && pbuf->read_cache_size > 0) {
+         bm_unlock_buffer(pbuf);
          cm_msg(MERROR, "bm_add_event_request", "GET_RECENT request not possible if read cache is enabled");
          return BM_INVALID_PARAM;
       }
-
-      /* lock buffer */
-      bm_lock_buffer(pbuf);
 
       /* get a pointer to the proper client structure */
       BUFFER_HEADER *pheader = pbuf->buffer_header;
