@@ -9602,7 +9602,7 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
 
             /* if this event does not fit into the write cache, flush the write cache */
             if (pbuf->write_cache_wp + total_size > pbuf->write_cache_size) {
-               //printf("bm_send_event: write %d/%d but cache is full, size %d, wp %d\n", event_size, total_size, pbuf->write_cache_size, pbuf->write_cache_wp);
+               //printf("bm_send_event: write %d/%d but cache is full, size %d, wp %d\n", (int)event_size, (int)total_size, int(pbuf->write_cache_size), int(pbuf->write_cache_wp));
 
                status = bm_lock_buffer(pbuf);
 
@@ -9628,7 +9628,7 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
 
             /* write this event into the write cache, if it fits */
             if (pbuf->write_cache_wp + total_size <= pbuf->write_cache_size) {
-               //printf("bm_send_event: write %d/%d to cache size %d, wp %d\n", event_size, total_size, pbuf->write_cache_size, pbuf->write_cache_wp);
+               //printf("bm_send_event: write %d/%d to cache size %d, wp %d\n", (int)event_size, (int)total_size, (int)pbuf->write_cache_size, (int)pbuf->write_cache_wp);
                
                char* wptr = pbuf->write_cache + pbuf->write_cache_wp;
                
