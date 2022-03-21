@@ -8697,7 +8697,7 @@ static void bm_convert_event_header(EVENT_HEADER *pevent, int convert_flags) {
    }
 }
 
-static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int timeout_msec, int requested_space)
+static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int timeout_msec, int requested_space, bool unlock_write_cache)
 {
    int status;
    BUFFER_HEADER *pheader = pbuf->buffer_header;
@@ -8910,6 +8910,9 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int ti
 
       bm_unlock_buffer(pbuf);
 
+      if (unlock_write_cache)
+         pbuf->write_cache_mutex.unlock();
+
       //printf("bm_wait_for_free_space: blocking client \"%s\"\n", blocking_client_name);
 
 #ifdef DEBUG_MSG
@@ -8947,6 +8950,9 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int ti
        * so we should update all the timeouts & etc. K.O. */
 
       cm_periodic_tasks();
+
+      if (unlock_write_cache)
+         pbuf->write_cache_mutex.lock();
 
       bm_lock_buffer(pbuf);
 
@@ -9295,6 +9301,8 @@ int bm_send_event_vec(int buffer_handle, const std::vector<std::vector<char>>& e
    return bm_send_event_sg(buffer_handle, sg_n, sg_ptr, sg_len, timeout_msec);
 }
 
+static INT bm_flush_cache_locked(int buffer_handle, BUFFER *pbuf, int timeout_msec);
+
 /********************************************************************/
 /**
 Sends an event to a buffer.
@@ -9417,13 +9425,13 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
             /* if this event does not fit into the write cache, flush the write cache */
             if (pbuf->write_cache_wp + total_size > pbuf->write_cache_size) {
                //printf("bm_send_event: write %d/%d but cache is full, size %d, wp %d\n", event_size, total_size, pbuf->write_cache_size, pbuf->write_cache_wp);
-               // unlock, then relock write cache while calling bm_flush_cache()
-               pbuf->write_cache_mutex.unlock();
-               status = bm_flush_cache(buffer_handle, timeout_msec);
+               bm_lock_buffer(pbuf);
+               status = bm_flush_cache_locked(buffer_handle, pbuf, timeout_msec);
+               bm_unlock_buffer(pbuf);
                if (status != BM_SUCCESS) {
+                  pbuf->write_cache_mutex.unlock();
                   return status;
                }
-               pbuf->write_cache_mutex.lock();
             }
 
             /* write this event into the write cache, if it fits */
@@ -9471,7 +9479,7 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
          return BM_NO_MEMORY;
       }
 
-      status = bm_wait_for_free_space_locked(buffer_handle, pbuf, timeout_msec, total_size);
+      status = bm_wait_for_free_space_locked(buffer_handle, pbuf, timeout_msec, total_size, false);
       if (status != BM_SUCCESS) {
          bm_unlock_buffer(pbuf);
          return status;
@@ -9602,34 +9610,19 @@ BM_NO_MEMORY Event is too large for network buffer or event buffer.
 One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
 and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
-INT bm_flush_cache(int buffer_handle, int timeout_msec)
-{
-   if (rpc_is_remote()) {
-      return bm_flush_cache_rpc(buffer_handle, timeout_msec);
-   }
-
 #ifdef LOCAL_ROUTINES
+static INT bm_flush_cache_locked(int buffer_handle, BUFFER *pbuf, int timeout_msec)
+{
+   // NB we come here with write cache locked and buffer locked.
+
    {
       INT status = 0;
 
-      //printf("bm_flush_cache!\n");
-
-      BUFFER *pbuf = bm_get_buffer("bm_flush_cache", buffer_handle, &status);
-
-      if (!pbuf)
-         return status;
-
-      // FIXME: lock write cache
-
-      if (pbuf->write_cache_size == 0)
-         return BM_SUCCESS;
+      //printf("bm_flush_cache_locked!\n");
 
       /* check if anything needs to be flushed */
       if (pbuf->write_cache_wp == 0)
          return BM_SUCCESS;
-
-      /* lock the buffer */
-      bm_lock_buffer(pbuf);
 
       /* calculate some shorthands */
       BUFFER_HEADER *pheader = pbuf->buffer_header;
@@ -9642,7 +9635,7 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
       }
 #endif
 
-      status = bm_wait_for_free_space_locked(buffer_handle, pbuf, timeout_msec, pbuf->write_cache_wp);
+      status = bm_wait_for_free_space_locked(buffer_handle, pbuf, timeout_msec, pbuf->write_cache_wp, true);
       if (status != BM_SUCCESS) {
          bm_unlock_buffer(pbuf);
          return status;
@@ -9656,12 +9649,8 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
       }
 #endif
 
-      pbuf->write_cache_mutex.lock(); // FIXME wrong locking order
-
       if (pbuf->write_cache_wp == 0) {
          /* somebody emptied the cache while we were inside bm_wait_for_free_space */
-         pbuf->write_cache_mutex.unlock();
-         bm_unlock_buffer(pbuf); // this unlock was missing. K.O. May 2021
          return BM_SUCCESS;
       }
 
@@ -9706,6 +9695,8 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
 
          bm_write_to_buffer_locked(pheader, 1, (char**)&pevent, &event_size, total_size);
 
+         /* update statistics */
+         pheader->num_in_events++;
          pbuf->count_sent += 1;
          pbuf->bytes_sent += total_size;
 
@@ -9756,8 +9747,6 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
       /* the write cache is now empty */
       pbuf->write_cache_wp = 0;
 
-      pbuf->write_cache_mutex.unlock(); // FIXME wrong unlocking order
-
       /* check which clients are waiting */
       for (i = 0; i < pheader->max_client_index; i++) {
          BUFFER_CLIENT *pc = pheader->client + i;
@@ -9771,12 +9760,52 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
          abort();
       }
 #endif
+   }
 
-      /* update statistics */
-      pheader->num_in_events++;
+   return BM_SUCCESS;
+}
+
+#endif /* LOCAL_ROUTINES */
+
+INT bm_flush_cache(int buffer_handle, int timeout_msec)
+{
+   if (rpc_is_remote()) {
+      return bm_flush_cache_rpc(buffer_handle, timeout_msec);
+   }
+
+#ifdef LOCAL_ROUTINES
+   {
+      INT status = 0;
+
+      //printf("bm_flush_cache!\n");
+
+      BUFFER *pbuf = bm_get_buffer("bm_flush_cache", buffer_handle, &status);
+
+      if (!pbuf)
+         return status;
+
+      if (pbuf->write_cache_size == 0)
+         return BM_SUCCESS;
+
+      pbuf->write_cache_mutex.lock();
+
+      /* check if anything needs to be flushed */
+      if (pbuf->write_cache_wp == 0) {
+         pbuf->write_cache_mutex.unlock();
+         return BM_SUCCESS;
+      }
+
+      /* lock the buffer */
+      bm_lock_buffer(pbuf);
+
+      status = bm_flush_cache_locked(buffer_handle, pbuf, timeout_msec);
 
       /* unlock the buffer */
       bm_unlock_buffer(pbuf);
+
+      pbuf->write_cache_mutex.unlock();
+
+      return status;
    }
 #endif                          /* LOCAL_ROUTINES */
 
