@@ -612,17 +612,22 @@ function seq_refresh(seq)
 
 function seq_add_line(root, i, s)
 {
+   let l = "";
+   for (let i=0 ; i<s.length ; i++)
+      if (s[i] == ' ')
+         l += "&nbsp;";
+      else
+         l += s[i];
    var id = "sline" + (i+1);
    var e = document.getElementById(id);
    if (e) {
-      if (e.innerHTML != s)
-         e.innerHTML = s;
+      if (e.innerHTML != l)
+         e.innerHTML = l;
    } else {
       var e = document.createElement("div");
       e.id = id;
       root.appendChild(e);
-      //root.appendChild(document.createElement("br"));
-      e.innerHTML = s;
+      e.innerHTML = l;
    }
 }
 
@@ -638,6 +643,7 @@ function seq_show_script(lines)
    for (var i=0; i<len; ++i) {
       //console.log("i="+i+" line="+lines[i]);
       var s = (i+1) + "&nbsp;";
+      if (i<99) s += "&nbsp;";
       if (i<9) s += "&nbsp;";
       s += lines[i];
       s += "<br>";
