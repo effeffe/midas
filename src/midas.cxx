@@ -8691,12 +8691,20 @@ static int bm_fill_read_cache_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, int t
             }
             return BM_SUCCESS;
          }
+
          int status = bm_wait_for_more_events_locked(pbuf, pheader, pc, timeout_msec, TRUE);
+
+         if (status == BM_INVALID_HANDLE) {
+            // internal bm_lock_buffer() failed
+            return status;
+         }
+
          if (status != BM_SUCCESS) {
             // we only come here with SS_ABORT & co
             //printf("bm_fill_read_cache: [%s] async %d, size %d, rp %d, wp %d, events %d, bm_wait_for_more_events() status %d\n", pheader->name, async_flag, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp, count_events, status);
             return status;
          }
+
          // make sure we wait for new event only once
          timeout_msec = BM_NO_WAIT;
          // go back to bm_peek_buffer_locked
@@ -9493,6 +9501,11 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
 
                status = bm_flush_cache_locked(buffer_handle, pbuf, timeout_msec);
 
+               if (status == BM_INVALID_HANDLE) {
+                  // internal bm_lock_buffer() has failed
+                  return status;
+               }
+
                bm_unlock_buffer(pbuf);
 
                if (status != BM_SUCCESS) {
@@ -9551,6 +9564,12 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
       }
 
       status = bm_wait_for_free_space_locked(buffer_handle, pbuf, timeout_msec, total_size, false);
+
+      if (status == BM_INVALID_HANDLE) {
+         // internal bm_lock_buffer() failed
+         return status;
+      }
+
       if (status != BM_SUCCESS) {
          bm_unlock_buffer(pbuf);
          return status;
@@ -9707,6 +9726,12 @@ static INT bm_flush_cache_locked(int buffer_handle, BUFFER *pbuf, int timeout_ms
 #endif
 
       status = bm_wait_for_free_space_locked(buffer_handle, pbuf, timeout_msec, pbuf->write_cache_wp, true);
+
+      if (status == BM_INVALID_HANDLE) {
+         // internal bm_lock_buffer() failed
+         return status;
+      }
+
       if (status != BM_SUCCESS) {
          bm_unlock_buffer(pbuf);
          return status;
@@ -9992,6 +10017,11 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
       /* loop over events in the event buffer */
 
       status = bm_wait_for_more_events_locked(pbuf, pheader, pc, timeout_msec, FALSE);
+
+      if (status == BM_INVALID_HANDLE) {
+         // internal bm_lock_buffer() failed.
+         return status;
+      }
 
       if (status != BM_SUCCESS) {
          bm_unlock_buffer(pbuf);
