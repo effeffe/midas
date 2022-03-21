@@ -6747,6 +6747,10 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
          }
       }
 
+      /* shared memory is good from here down */
+
+      pbuf->attached = true;
+
       /* create semaphore for the buffer */
       status = ss_semaphore_create(buffer_name, &(pbuf->semaphore));
       if (status != SS_CREATED && status != SS_SUCCESS) {
