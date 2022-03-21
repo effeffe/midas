@@ -7706,7 +7706,7 @@ INT bm_get_buffer_level(INT buffer_handle, INT *n_bytes)
 /********************************************************************/
 static int bm_lock_buffer_read_cache(BUFFER *pbuf)
 {
-   bool locked = ss_timed_mutex_wait_for_sec(pbuf->read_cache_mutex, _bm_mutex_timeout_sec);
+   bool locked = ss_timed_mutex_wait_for_sec(pbuf->read_cache_mutex, "buffer read cache", _bm_mutex_timeout_sec);
 
    if (!locked) {
       fprintf(stderr, "bm_lock_buffer_read_cache: Error: Cannot lock read cache of buffer \"%s\", ss_timed_mutex_wait_for_sec() timeout, aborting...\n", pbuf->buffer_name);
@@ -7727,7 +7727,7 @@ static int bm_lock_buffer_read_cache(BUFFER *pbuf)
 /********************************************************************/
 static int bm_lock_buffer_write_cache(BUFFER *pbuf)
 {
-   bool locked = ss_timed_mutex_wait_for_sec(pbuf->write_cache_mutex, _bm_mutex_timeout_sec);
+   bool locked = ss_timed_mutex_wait_for_sec(pbuf->write_cache_mutex, "buffer write cache", _bm_mutex_timeout_sec);
 
    if (!locked) {
       fprintf(stderr, "bm_lock_buffer_write_cache: Error: Cannot lock write cache of buffer \"%s\", ss_timed_mutex_wait_for_sec() timeout, aborting...\n", pbuf->buffer_name);
@@ -7748,7 +7748,7 @@ static int bm_lock_buffer_write_cache(BUFFER *pbuf)
 /********************************************************************/
 static int bm_lock_buffer_mutex(BUFFER *pbuf)
 {
-   bool locked = ss_timed_mutex_wait_for_sec(pbuf->buffer_mutex, _bm_mutex_timeout_sec);
+   bool locked = ss_timed_mutex_wait_for_sec(pbuf->buffer_mutex, "buffer mutex", _bm_mutex_timeout_sec);
 
    if (!locked) {
       fprintf(stderr, "bm_lock_buffer_mutex: Error: Cannot lock buffer \"%s\", ss_timed_mutex_wait_for_sec() timeout, aborting...\n", pbuf->buffer_name);
