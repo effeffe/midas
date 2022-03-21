@@ -3107,6 +3107,11 @@ bool ss_timed_mutex_wait_for_sec(std::timed_mutex& mutex, const char* mutex_name
    double starttime = ss_time_sec();
    double endtime = starttime + timeout_sec;
 
+   // NB: per timed mutex try_lock_for(), one must always
+   // look waiting for successful lock because it is permitted
+   // to return "false" even if timeout did not yet expire. (cannot
+   // tell permitted spurious failure from normal timeout). K.O.
+
    while (1) {
       bool ok = mutex.try_lock_for(1000ms);
 
