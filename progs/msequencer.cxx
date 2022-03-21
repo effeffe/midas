@@ -136,7 +136,7 @@ bool is_valid_number(const char *str) {
    ss >> num;
    if (ss.good())
       return false;
-   else if (num == 0 && s[0] != 0)
+   else if (num == 0 && s[0] != '0')
       return false;
    else if (s[0] == 0)
       return false;
