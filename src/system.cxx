@@ -3078,9 +3078,6 @@ INT ss_mutex_delete(MUTEX_T *mutex)
 #endif                          /* OS_UNIX */
 }
 
-#include <chrono>
-using namespace std::chrono_literals; // "1000ms"
-
 /*------------------------------------------------------------------*/
 bool ss_timed_mutex_wait_for_sec(std::timed_mutex& mutex, const char* mutex_name, double timeout_sec)
 /********************************************************************\
@@ -3113,10 +3110,13 @@ bool ss_timed_mutex_wait_for_sec(std::timed_mutex& mutex, const char* mutex_name
    // tell permitted spurious failure from normal timeout). K.O.
 
    while (1) {
-      bool ok = mutex.try_lock_for(1000ms);
+      bool ok = mutex.try_lock_for(std::chrono::milliseconds(1000));
 
-      if (ok)
+      if (ok) {
+         //double now = ss_time_sec();
+         //fprintf(stderr, "ss_timed_mutex_wait_for_sec: mutex %s locked in %.1f seconds. timeout %.1f seconds\n", mutex_name, now-starttime, timeout_sec);
          return true;
+      }
 
       if (mutex_name) {
          double now = ss_time_sec();

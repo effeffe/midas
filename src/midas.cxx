@@ -7752,6 +7752,8 @@ static int bm_lock_buffer_write_cache(BUFFER *pbuf)
 /********************************************************************/
 static int bm_lock_buffer_mutex(BUFFER *pbuf)
 {
+   //printf("bm_lock_buffer_mutex %s!\n", pbuf->buffer_name);
+
    bool locked = ss_timed_mutex_wait_for_sec(pbuf->buffer_mutex, "buffer mutex", _bm_mutex_timeout_sec);
 
    if (!locked) {
@@ -7766,6 +7768,12 @@ static int bm_lock_buffer_mutex(BUFFER *pbuf)
       fprintf(stderr, "bm_lock_buffer_mutex: Error: Cannot lock buffer \"%s\", buffer was closed while we waited for the buffer_mutex\n", pbuf->buffer_name);
       return BM_INVALID_HANDLE;
    }
+
+   //static int counter = 0;
+   //counter++;
+   //printf("locked %d!\n", counter);
+   //if (counter > 50)
+   //   ::sleep(3);
 
    return BM_SUCCESS;
 }
