@@ -3273,6 +3273,9 @@ static BUFFER_CLIENT *bm_get_my_client(BUFFER *pbuf, BUFFER_HEADER *pheader);
 
 #ifdef LOCAL_ROUTINES
 static BUFFER* bm_get_buffer(const char *who, INT buffer_handle, int *pstatus);
+static int bm_lock_buffer_read_cache(BUFFER *pbuf);
+static int bm_lock_buffer_write_cache(BUFFER *pbuf);
+static int bm_lock_buffer_mutex(BUFFER *pbuf);
 static int bm_lock_buffer(BUFFER *pbuf);
 static void bm_unlock_buffer(BUFFER *pbuf);
 #endif
@@ -6921,12 +6924,24 @@ INT bm_close_buffer(INT buffer_handle) {
 
       /* first lock buffer */
 
-      pbuf->read_cache_mutex.lock();
-      pbuf->write_cache_mutex.lock();
+      status = bm_lock_buffer_read_cache(pbuf);
+
+      if (status != BM_SUCCESS) {
+         return status;
+      }
+
+      status = bm_lock_buffer_write_cache(pbuf);
+
+      if (status != BM_SUCCESS) {
+         pbuf->read_cache_mutex.unlock();
+         return status;
+      }
 
       status = bm_lock_buffer(pbuf);
 
       if (status != BM_SUCCESS) {
+         pbuf->write_cache_mutex.unlock();
+         pbuf->read_cache_mutex.unlock();
          return status;
       }
 
@@ -6959,7 +6974,7 @@ INT bm_close_buffer(INT buffer_handle) {
 
       /* free cache */
       if (pbuf->read_cache_size > 0) {
-         M_FREE(pbuf->read_cache);
+         free(pbuf->read_cache);
          pbuf->read_cache = NULL;
          pbuf->read_cache_size = 0;
          pbuf->read_cache_rp = 0;
@@ -6967,7 +6982,7 @@ INT bm_close_buffer(INT buffer_handle) {
       }
 
       if (pbuf->write_cache_size > 0) {
-         M_FREE(pbuf->write_cache);
+         free(pbuf->write_cache);
          pbuf->write_cache = NULL;
          pbuf->write_cache_size = 0;
          pbuf->write_cache_wp = 0;
@@ -7670,9 +7685,15 @@ INT bm_get_buffer_level(INT buffer_handle, INT *n_bytes)
 
       bm_unlock_buffer(pbuf);
 
-      /* add bytes in cache */
-      if (pbuf->read_cache_wp > pbuf->read_cache_rp)
-         *n_bytes += pbuf->read_cache_wp - pbuf->read_cache_rp;
+      if (pbuf->read_cache_size) {
+         status = bm_lock_buffer_read_cache(pbuf);
+         if (status == BM_SUCCESS) {
+            /* add bytes in cache */
+            if (pbuf->read_cache_wp > pbuf->read_cache_rp)
+               *n_bytes += pbuf->read_cache_wp - pbuf->read_cache_rp;
+            pbuf->read_cache_mutex.unlock();
+         }
+      }
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -7683,8 +7704,73 @@ INT bm_get_buffer_level(INT buffer_handle, INT *n_bytes)
 #ifdef LOCAL_ROUTINES
 
 /********************************************************************/
+static int bm_lock_buffer_read_cache(BUFFER *pbuf)
+{
+   bool locked = ss_timed_mutex_wait_for_sec(pbuf->read_cache_mutex, _bm_mutex_timeout_sec);
+
+   if (!locked) {
+      fprintf(stderr, "bm_lock_buffer_read_cache: Error: Cannot lock read cache of buffer \"%s\", ss_timed_mutex_wait_for_sec() timeout, aborting...\n", pbuf->buffer_name);
+      cm_msg(MERROR, "bm_lock_buffer_read_cache", "Cannot lock read cache of buffer \"%s\", ss_timed_mutex_wait_for_sec() timeout, aborting...", pbuf->buffer_name);
+      abort();
+      /* DOES NOT RETURN */
+   }
+
+   if (!pbuf->attached) {
+      pbuf->read_cache_mutex.unlock();
+      fprintf(stderr, "bm_lock_buffer_read_cache: Error: Cannot lock read cache of buffer \"%s\", buffer was closed while we waited for the buffer_mutex\n", pbuf->buffer_name);
+      return BM_INVALID_HANDLE;
+   }
+
+   return BM_SUCCESS;
+}
+
+/********************************************************************/
+static int bm_lock_buffer_write_cache(BUFFER *pbuf)
+{
+   bool locked = ss_timed_mutex_wait_for_sec(pbuf->write_cache_mutex, _bm_mutex_timeout_sec);
+
+   if (!locked) {
+      fprintf(stderr, "bm_lock_buffer_write_cache: Error: Cannot lock write cache of buffer \"%s\", ss_timed_mutex_wait_for_sec() timeout, aborting...\n", pbuf->buffer_name);
+      cm_msg(MERROR, "bm_lock_buffer_write_cache", "Cannot lock write cache of buffer \"%s\", ss_timed_mutex_wait_for_sec() timeout, aborting...", pbuf->buffer_name);
+      abort();
+      /* DOES NOT RETURN */
+   }
+
+   if (!pbuf->attached) {
+      pbuf->write_cache_mutex.unlock();
+      fprintf(stderr, "bm_lock_buffer_write_cache: Error: Cannot lock write cache of buffer \"%s\", buffer was closed while we waited for the buffer_mutex\n", pbuf->buffer_name);
+      return BM_INVALID_HANDLE;
+   }
+
+   return BM_SUCCESS;
+}
+
+/********************************************************************/
+static int bm_lock_buffer_mutex(BUFFER *pbuf)
+{
+   bool locked = ss_timed_mutex_wait_for_sec(pbuf->buffer_mutex, _bm_mutex_timeout_sec);
+
+   if (!locked) {
+      fprintf(stderr, "bm_lock_buffer_mutex: Error: Cannot lock buffer \"%s\", ss_timed_mutex_wait_for_sec() timeout, aborting...\n", pbuf->buffer_name);
+      cm_msg(MERROR, "bm_lock_buffer_mutex", "Cannot lock buffer \"%s\", ss_timed_mutex_wait_for_sec() timeout, aborting...", pbuf->buffer_name);
+      abort();
+      /* DOES NOT RETURN */
+   }
+
+   if (!pbuf->attached) {
+      pbuf->buffer_mutex.unlock();
+      fprintf(stderr, "bm_lock_buffer_mutex: Error: Cannot lock buffer \"%s\", buffer was closed while we waited for the buffer_mutex\n", pbuf->buffer_name);
+      return BM_INVALID_HANDLE;
+   }
+
+   return BM_SUCCESS;
+}
+
+/********************************************************************/
 static int bm_lock_buffer(BUFFER *pbuf)
 {
+   int status;
+
    // NB: locking order: 1st buffer mutex, 2nd buffer semaphore. Unlock in reverse order.
 
    //if (pbuf->locked) {
@@ -7692,25 +7778,12 @@ static int bm_lock_buffer(BUFFER *pbuf)
    //   abort();
    //}
 
-   //if (pbuf->buffer_mutex)
-   //   ss_mutex_wait_for(pbuf->buffer_mutex, _bm_mutex_timeout);
+   status = bm_lock_buffer_mutex(pbuf);
 
-   bool locked = ss_timed_mutex_wait_for_sec(pbuf->buffer_mutex, _bm_mutex_timeout_sec);
+   if (status != BM_SUCCESS)
+      return status;
 
-   if (!locked) {
-      fprintf(stderr, "bm_lock_buffer: Error: Cannot lock buffer \"%s\", ss_timed_mutex_wait_for_sec() timeout, aborting...\n", pbuf->buffer_name);
-      cm_msg(MERROR, "bm_lock_buffer", "Cannot lock buffer \"%s\", ss_timed_mutex_wait_for_sec() timeout, aborting...", pbuf->buffer_name);
-      abort();
-      /* DOES NOT RETURN */
-   }
-
-   if (!pbuf->attached) {
-      pbuf->buffer_mutex.unlock();
-      fprintf(stderr, "bm_lock_buffer: Error: Cannot lock buffer \"%s\", buffer was closed while we waited for the buffer_mutex\n", pbuf->buffer_name);
-      return BM_INVALID_HANDLE;
-   }
-
-   int status = ss_semaphore_wait_for(pbuf->semaphore, _bm_lock_timeout);
+   status = ss_semaphore_wait_for(pbuf->semaphore, _bm_lock_timeout);
 
    if (status != SS_SUCCESS) {
       fprintf(stderr, "bm_lock_buffer: Error: Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...\n", pbuf->buffer_name, status);
@@ -7860,7 +7933,10 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
 
       /* lock pbuf for local access. we do not lock buffer semaphore because we do nto touch the shared memory */
 
-      pbuf->buffer_mutex.lock();
+      status = bm_lock_buffer_mutex(pbuf);
+
+      if (status != BM_SUCCESS)
+         return status;
 
       if (write_size < 0)
          write_size = 0;
@@ -7875,7 +7951,11 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
 
       /* resize read cache */
 
-      pbuf->read_cache_mutex.lock();
+      status = bm_lock_buffer_read_cache(pbuf);
+
+      if (status != BM_SUCCESS) {
+         return status;
+      }
 
       if (pbuf->read_cache_size > 0) {
          free(pbuf->read_cache);
@@ -7898,7 +7978,10 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
 
       /* resize the write cache */
 
-      pbuf->write_cache_mutex.lock();
+      status = bm_lock_buffer_write_cache(pbuf);
+
+      if (status != BM_SUCCESS)
+         return status;
 
       // FIXME: should flush the write cache!
       if (pbuf->write_cache_size && pbuf->write_cache_wp > 0) {
@@ -9011,13 +9094,25 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int ti
 
       cm_periodic_tasks();
 
-      if (unlock_write_cache)
-         pbuf->write_cache_mutex.lock();
+      if (unlock_write_cache) {
+         status = bm_lock_buffer_write_cache(pbuf);
+
+         if (status != BM_SUCCESS) {
+            // bail out with all locks released
+            return status;
+         }
+      }
 
       status = bm_lock_buffer(pbuf);
 
-      if (status != BM_SUCCESS)
+      if (status != BM_SUCCESS) {
+         if (unlock_write_cache) {
+            pbuf->write_cache_mutex.unlock();
+         }
+
+         // bail out with all locks released
          return status;
+      }
 
       /* revalidate the client index: we could have been removed from the buffer while sleeping */
       pc = bm_get_my_client(pbuf, pheader);
@@ -9118,14 +9213,24 @@ static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, 
 
       // NB: locking order is: 1st read cache lock, 2nd buffer lock, unlock in reverse order
 
-      if (unlock_read_cache)
-         pbuf->read_cache_mutex.lock(); // FIXME: add timeout
+      if (unlock_read_cache) {
+         status = bm_lock_buffer_read_cache(pbuf);
+         if (status != BM_SUCCESS) {
+            // bail out with all locks released
+            return status;
+         }
+      }
 
       status = bm_lock_buffer(pbuf);
 
-      if (status != BM_SUCCESS)
+      if (status != BM_SUCCESS) {
+         if (unlock_read_cache) {
+            pbuf->read_cache_mutex.unlock();
+         }
+         // bail out with all locks released
          return status;
-
+      }
+      
       /* need to revalidate our BUFFER_CLIENT after releasing the buffer lock
        * because we may have been removed from the buffer by bm_cleanup() & co
        * due to a timeout or whatever. */
@@ -9483,8 +9588,11 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
 
       /* look if there is space in the cache */
       if (pbuf->write_cache_size) {
-         pbuf->write_cache_mutex.lock(); // FIXME add timeout
+         status = bm_lock_buffer_write_cache(pbuf);
 
+         if (status != BM_SUCCESS)
+            return status;
+         
          if (pbuf->write_cache_size) {
             int status = BM_SUCCESS;
 
@@ -9883,7 +9991,10 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
       if (pbuf->write_cache_size == 0)
          return BM_SUCCESS;
 
-      pbuf->write_cache_mutex.lock();
+      status = bm_lock_buffer_write_cache(pbuf);
+
+      if (status != BM_SUCCESS)
+         return status;
 
       /* check if anything needs to be flushed */
       if (pbuf->write_cache_wp == 0) {
@@ -9930,7 +10041,12 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
 
    /* look if there is anything in the cache */
    if (pbuf->read_cache_size > 0) {
-      pbuf->read_cache_mutex.lock();
+
+      status = bm_lock_buffer_read_cache(pbuf);
+
+      if (status != BM_SUCCESS)
+         return status;
+
       if (pbuf->read_cache_wp == 0) {
 
          status = bm_lock_buffer(pbuf);
@@ -10483,9 +10599,15 @@ static int bm_skip_event(BUFFER* pbuf)
 {
    /* clear read cache */
    if (pbuf->read_cache_size > 0) {
-      pbuf->read_cache_mutex.lock();
+
+      int status = bm_lock_buffer_read_cache(pbuf);
+
+      if (status != BM_SUCCESS)
+         return status;
+
       pbuf->read_cache_rp = 0;
       pbuf->read_cache_wp = 0;
+
       pbuf->read_cache_mutex.unlock();
    }
    
