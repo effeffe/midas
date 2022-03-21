@@ -116,9 +116,10 @@ static std::string toString(int v) {
    return buf;
 }
 
-static std::string qtoString(int v) {
-   char buf[256];
-   sprintf(buf, "\"%d\"", v);
+static std::string qtoString(int level, int v) {
+   std::string buf = "l=\"" + std::to_string(v) + "\"";
+   if (level)
+      buf += " lvl=\"" + std::to_string(level) + "\"";
    return buf;
 }
 
@@ -454,7 +455,7 @@ int eval_condition(SEQUENCER &seq, const char *condition) {
 /*------------------------------------------------------------------*/
 
 static BOOL
-msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename, char *error, int error_size,
+msl_parse(HNDLE hDB, MVOdb *odb, int level, const char *path, const char *filename, const char *xml_filename, char *error, int error_size,
           int *error_line) {
    char str[256], *buf, *pl, *pe;
    char list[100][XNAME_LENGTH], list2[100][XNAME_LENGTH], **lines;
@@ -511,33 +512,43 @@ msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename,
                incl = 1;
             }
 
-            //if a path is given, use filename as entity reference
+            // if a path is given, use filename as entity reference
             char *reference = strrchr(list[1], '/');
             if (reference)
                reference++;
             else
                reference = list[1];
 
+            char p[256];
+            if (strrchr(list[1], '/')) {
+               strlcpy(p, list[1], sizeof(p));
+            } else {
+               strlcpy(p, path, sizeof(p));
+               if (strlen(p) > 0 && p[strlen(p)-1] != '/')
+                  strlcat(p, "/", sizeof(p));
+               strlcat(p, list[1], sizeof(p));
+            }
+
             fprintf(fout, "  <!ENTITY %s SYSTEM \"%s.xml\">\n", reference, list[1]);
             xml += "  <!ENTITY ";
             xml += reference;
             xml += " SYSTEM \"";
-            xml += list[1];
+            xml += p;
             xml += ".xml\">\n";
 
-            //recurse
-            size = strlen(list[1]) + 1 + 4;
+            // recurse
+            size = strlen(p) + 1 + 4;
             msl_include = (char *) malloc(size);
             xml_include = (char *) malloc(size);
-            strlcpy(msl_include, list[1], size);
-            strlcpy(xml_include, list[1], size);
+            strlcpy(msl_include, p, size);
+            strlcpy(xml_include, p, size);
             strlcat(msl_include, ".msl", size);
             strlcat(xml_include, ".xml", size);
 
             include_error = error + strlen(error);
             include_error_size = error_size - strlen(error);
 
-            include_status = msl_parse(hDB, odb, msl_include, xml_include, include_error, include_error_size,
+            include_status = msl_parse(hDB, odb, level+1, seq.path, msl_include, xml_include, include_error, include_error_size,
                                        error_line);
             free(msl_include);
             free(xml_include);
@@ -630,7 +641,7 @@ msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename,
          if (equal_ustring(list[0], "library")) {
 
          } else if (equal_ustring(list[0], "include")) {
-            //if a path is given, use filename as entity reference
+            // if a path is given, use filename as entity reference
             char *reference = strrchr(list[1], '/');
             if (reference)
                reference++;
@@ -643,8 +654,8 @@ msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename,
             xml += ";\n";
 
          } else if (equal_ustring(list[0], "call")) {
-            fprintf(fout, "<Call l=\"%d\" name=\"%s\">", line + 1, list[1]);
-            xml += "<Call l=" + qtoString(line + 1) + " name=" + q(list[1]) + ">";
+            fprintf(fout, "<Call l=\"%d\" lvl=\"%d\" name=\"%s\">", line + 1, level, list[1]);
+            xml += "<Call " + qtoString(level, line + 1) + " name=" + q(list[1]) + ">";
             for (i = 2; i < 100 && list[i][0]; i++) {
                if (i > 2) {
                   fprintf(fout, ",");
@@ -657,8 +668,8 @@ msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename,
             xml += "</Call>\n";
 
          } else if (equal_ustring(list[0], "cat")) {
-            fprintf(fout, "<Cat l=\"%d\" name=\"%s\">", line + 1, list[1]);
-            xml += "<Cat l=" + qtoString(line + 1) + " name=" + q(list[1]) + ">";
+            fprintf(fout, "<Cat l=\"%d\" lvl=\"%d\" name=\"%s\">", line + 1, level, list[1]);
+            xml += "<Cat " + qtoString(level, line + 1) + " name=" + q(list[1]) + ">";
             for (i = 2; i < 100 && list[i][0]; i++) {
                if (i > 2) {
                   fprintf(fout, ",");
@@ -671,16 +682,16 @@ msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename,
             xml += "</Cat>\n";
 
          } else if (equal_ustring(list[0], "comment")) {
-            fprintf(fout, "<Comment l=\"%d\">%s</Comment>\n", line + 1, list[1]);
-            xml += "<Comment l=" + qtoString(line + 1) + ">" + list[1] + "</Comment>\n";
+            fprintf(fout, "<Comment l=\"%d\" lvl=\"%d\">%s</Comment>\n", line + 1, level, list[1]);
+            xml += "<Comment " + qtoString(level, line + 1) + ">" + list[1] + "</Comment>\n";
 
          } else if (equal_ustring(list[0], "goto")) {
-            fprintf(fout, "<Goto l=\"%d\" sline=\"%s\" />\n", line + 1, list[1]);
-            xml += "<Goto l=" + qtoString(line + 1) + " sline=" + q(list[1]) + " />\n";
+            fprintf(fout, "<Goto l=\"%d\" lvl=\"%d\" sline=\"%s\" />\n", line + 1, level, list[1]);
+            xml += "<Goto " + qtoString(level, line + 1) + " sline=" + q(list[1]) + " />\n";
 
          } else if (equal_ustring(list[0], "if")) {
-            fprintf(fout, "<If l=\"%d\" condition=\"", line + 1);
-            xml += "<If l=" + qtoString(line + 1) + " condition=\"";
+            fprintf(fout, "<If l=\"%d\" lvl=\"%d\" condition=\"", line + 1, level);
+            xml += "<If " + qtoString(level, line + 1) + " condition=\"";
             for (i = 1; i < 100 && list[i][0] && stricmp(list[i], "THEN") != 0; i++) {
                fprintf(fout, "%s", list[i]);
                xml += list[i];
@@ -713,15 +724,15 @@ msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename,
             else
                endl = line + 1;
             if (list[2][0] == 0) {
-               fprintf(fout, "<Loop l=\"%d\" le=\"%d\" n=\"%s\">\n", line + 1, endl, list[1]);
-               xml += "<Loop l=" + qtoString(line + 1) + " le=" + qtoString(endl) + " n=" + q(list[1]) + ">\n";
+               fprintf(fout, "<Loop l=\"%d\" lvl=\"%d\" le=\"%d\" n=\"%s\">\n", line + 1, level, endl, list[1]);
+               xml += "<Loop " + qtoString(level, line + 1) + " le=" + qtoString(0, endl) + " n=" + q(list[1]) + ">\n";
             } else if (list[3][0] == 0) {
-               fprintf(fout, "<Loop l=\"%d\" le=\"%d\" var=\"%s\" n=\"%s\">\n", line + 1, endl, list[1], list[2]);
-               xml += "<Loop l=" + qtoString(line + 1) + " le=" + qtoString(endl) + " var=" + q(list[1]) + " n=" +
+               fprintf(fout, "<Loop l=\"%d\" lvl=\"%d\" le=\"%d\" var=\"%s\" n=\"%s\">\n", line + 1, level, endl, list[1], list[2]);
+               xml += "<Loop " + qtoString(level, line + 1) + " le=" + qtoString(0, endl) + " var=" + q(list[1]) + " n=" +
                       q(list[2]) + ">\n";
             } else {
-               fprintf(fout, "<Loop l=\"%d\" le=\"%d\" var=\"%s\" values=\"", line + 1, endl, list[1]);
-               xml += "<Loop l=" + qtoString(line + 1) + " le=" + qtoString(endl) + " var=" + q(list[1]) + " values=\"";
+               fprintf(fout, "<Loop l=\"%d\" lvl=\"%d\" le=\"%d\" var=\"%s\" values=\"", line + 1, level, endl, list[1]);
+               xml += "<Loop " + qtoString(level, line + 1) + " le=" + qtoString(0, endl) + " var=" + q(list[1]) + " values=\"";
                for (i = 2; i < 100 && list[i][0]; i++) {
                   if (i > 2) {
                      fprintf(fout, ",");
@@ -738,9 +749,9 @@ msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename,
             xml += "</Loop>\n";
 
          } else if (equal_ustring(list[0], "message")) {
-            fprintf(fout, "<Message l=\"%d\"%s>%s</Message>\n", line + 1, list[2][0] == '1' ? " wait=\"1\"" : "",
+            fprintf(fout, "<Message l=\"%d\" lvl=\"%d\"%s>%s</Message>\n", line + 1, level, list[2][0] == '1' ? " wait=\"1\"" : "",
                     list[1]);
-            xml += "<Message l=" + qtoString(line + 1);
+            xml += "<Message " + qtoString(level, line + 1);
             if (list[2][0] == '1')
                xml += " wait=\"1\"";
             xml += ">";
@@ -750,56 +761,56 @@ msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename,
          } else if (equal_ustring(list[0], "odbinc")) {
             if (list[2][0] == 0)
                strlcpy(list[2], "1", 2);
-            fprintf(fout, "<ODBInc l=\"%d\" path=\"%s\">%s</ODBInc>\n", line + 1, list[1], list[2]);
-            xml += "<ODBInc l=" + qtoString(line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBInc>\n";
+            fprintf(fout, "<ODBInc \"%d\" lvl=\"%d\" path=\"%s\">%s</ODBInc>\n", line + 1, level, list[1], list[2]);
+            xml += "<ODBInc " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBInc>\n";
 
          } else if (equal_ustring(list[0], "odbcreate")) {
             if (list[3][0]) {
-               fprintf(fout, "<ODBCreate l=\"%d\" size=\"%s\" path=\"%s\" type=\"%s\"></ODBCreate>\n", line + 1,
-                       list[3], list[1], list[2]);
-               xml += "<ODBCreate l=" + qtoString(line + 1) + " size=" + q(list[3]) + " path=" + q(list[1]) + " type=" +
+               fprintf(fout, "<ODBCreate l=\"%d\" lvl=\"%d\" size=\"%s\" path=\"%s\" type=\"%s\"></ODBCreate>\n", line + 1,
+                       level, list[3], list[1], list[2]);
+               xml += "<ODBCreate " + qtoString(level, line + 1) + " size=" + q(list[3]) + " path=" + q(list[1]) + " type=" +
                       q(list[2]) + "></ODBCreate>\n";
             } else {
-               fprintf(fout, "<ODBCreate l=\"%d\" path=\"%s\" type=\"%s\"></ODBCreate>\n", line + 1, list[1], list[2]);
-               xml += "<ODBCreate l=" + qtoString(line + 1) + " path=" + q(list[1]) + " type=" + q(list[1]) +
+               fprintf(fout, "<ODBCreate l=\"%d\" lvl=\"%d\" path=\"%s\" type=\"%s\"></ODBCreate>\n", line + 1, level, list[1], list[2]);
+               xml += "<ODBCreate " + qtoString(level, line + 1) + " path=" + q(list[1]) + " type=" + q(list[1]) +
                       "></ODBCreate>\n";
             }
 
          } else if (equal_ustring(list[0], "odbdelete")) {
-            fprintf(fout, "<ODBDelete l=\"%d\">%s</ODBDelete>\n", line + 1, list[1]);
-            xml += "<ODBDelete l=" + qtoString(line + 1) + ">" + list[1] + "</ODBDelete>\n";
+            fprintf(fout, "<ODBDelete l=\"%d\" lvl=\"%d\">%s</ODBDelete>\n", line + 1, level, list[1]);
+            xml += "<ODBDelete " + qtoString(level, line + 1) + ">" + list[1] + "</ODBDelete>\n";
 
          } else if (equal_ustring(list[0], "odbset")) {
             if (list[3][0]) {
-               fprintf(fout, "<ODBSet l=\"%d\" notify=\"%s\" path=\"%s\">%s</ODBSet>\n", line + 1, list[3], list[1],
+               fprintf(fout, "<ODBSet l=\"%d\" lvl=\"%d\" notify=\"%s\" path=\"%s\">%s</ODBSet>\n", line + 1, level, list[3], list[1],
                        list[2]);
-               xml += "<ODBSet l=" + qtoString(line + 1) + " notify=" + q(list[3]) + " path=" + q(list[1]) + ">" +
+               xml += "<ODBSet " + qtoString(level, line + 1) + " notify=" + q(list[3]) + " path=" + q(list[1]) + ">" +
                       list[2] + "</ODBSet>\n";
             } else {
-               fprintf(fout, "<ODBSet l=\"%d\" path=\"%s\">%s</ODBSet>\n", line + 1, list[1], list[2]);
-               xml += "<ODBSet l=" + qtoString(line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBSet>\n";
+               fprintf(fout, "<ODBSet l=\"%d\" lvl=\"%d\" path=\"%s\">%s</ODBSet>\n", line + 1, level, list[1], list[2]);
+               xml += "<ODBSet " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBSet>\n";
             }
 
          } else if (equal_ustring(list[0], "odbload")) {
             if (list[2][0]) {
-               fprintf(fout, "<ODBLoad l=\"%d\" path=\"%s\">%s</ODBLoad>\n", line + 1, list[2], list[1]);
-               xml += "<ODBLoad l=" + qtoString(line + 1) + " path=" + q(list[2]) + ">" + list[1] + "</ODBLoad>\n";
+               fprintf(fout, "<ODBLoad l=\"%d\" lvl=\"%d\" path=\"%s\">%s</ODBLoad>\n", line + 1, level, list[2], list[1]);
+               xml += "<ODBLoad " + qtoString(level, line + 1) + " path=" + q(list[2]) + ">" + list[1] + "</ODBLoad>\n";
             } else {
-               fprintf(fout, "<ODBLoad l=\"%d\">%s</ODBLoad>\n", line + 1, list[1]);
-               xml += "<ODBLoad l=" + qtoString(line + 1) + ">" + list[1] + "</ODBLoad>\n";
+               fprintf(fout, "<ODBLoad l=\"%d\" lvl=\"%d\">%s</ODBLoad>\n", line + 1, level, list[1]);
+               xml += "<ODBLoad " + qtoString(level, line + 1) + ">" + list[1] + "</ODBLoad>\n";
             }
 
          } else if (equal_ustring(list[0], "odbget")) {
-            fprintf(fout, "<ODBGet l=\"%d\" path=\"%s\">%s</ODBGet>\n", line + 1, list[1], list[2]);
-            xml += "<ODBGet l=" + qtoString(line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBGet>\n";
+            fprintf(fout, "<ODBGet l=\"%d\" lvl=\"%d\" path=\"%s\">%s</ODBGet>\n", line + 1, level, list[1], list[2]);
+            xml += "<ODBGet " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBGet>\n";
 
          } else if (equal_ustring(list[0], "odbsubdir")) {
             if (list[2][0]) {
-               fprintf(fout, "<ODBSubdir l=\"%d\" notify=\"%s\" path=\"%s\">\n", line + 1, list[2], list[1]);
-               xml += "<ODBSubdir l=" + qtoString(line + 1) + " notify=" + q(list[2]) + " path=" + q(list[1]) + ">\n";
+               fprintf(fout, "<ODBSubdir l=\"%d\" lvl=\"%d\" notify=\"%s\" path=\"%s\">\n", line + 1, level, list[2], list[1]);
+               xml += "<ODBSubdir " + qtoString(level, line + 1) + " notify=" + q(list[2]) + " path=" + q(list[1]) + ">\n";
             } else {
-               fprintf(fout, "<ODBSubdir l=\"%d\" path=\"%s\">\n", line + 1, list[1]);
-               xml += "<ODBSubdir l=" + qtoString(line + 1) + " path=" + q(list[1]) + ">\n";
+               fprintf(fout, "<ODBSubdir l=\"%d\" lvl=\"%d\" path=\"%s\">\n", line + 1, level, list[1]);
+               xml += "<ODBSubdir " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">\n";
             }
          } else if (equal_ustring(list[0], "endodbsubdir")) {
             fprintf(fout, "</ODBSubdir>\n");
@@ -807,28 +818,28 @@ msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename,
 
          } else if (equal_ustring(list[0], "param")) {
             if (list[2][0] == 0) {
-               fprintf(fout, "<Param l=\"%d\" name=\"%s\" />\n", line + 1, list[1]);
-               xml += "<Param l=" + qtoString(line + 1) + " name=" + q(list[1]) + " />\n";
+               fprintf(fout, "<Param l=\"%d\" lvl=\"%d\" name=\"%s\" />\n", line + 1, level, list[1]);
+               xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " />\n";
                std::string v;
                odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
                odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
             } else if (!list[3][0] && equal_ustring(list[2], "bool")) {
-               fprintf(fout, "<Param l=\"%d\" name=\"%s\" type=\"bool\" />\n", line + 1, list[1]);
-               xml += "<Param l=" + qtoString(line + 1) + " name=" + q(list[1]) + " type=\"bool\" />\n";
+               fprintf(fout, "<Param l=\"%d\" lvl=\"%d\" name=\"%s\" type=\"bool\" />\n", line + 1, level, list[1]);
+               xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " type=\"bool\" />\n";
                bool v = false;
                odb->RB((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
                std::string s;
                odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &s, true);
             } else if (!list[3][0]) {
-               fprintf(fout, "<Param l=\"%d\" name=\"%s\" comment=\"%s\" />\n", line + 1, list[1], list[2]);
-               xml += "<Param l=" + qtoString(line + 1) + " name=" + q(list[1]) + " comment=" + q(list[2]) + " />\n";
+               fprintf(fout, "<Param l=\"%d\" lvl=\"%d\" name=\"%s\" comment=\"%s\" />\n", line + 1, level, list[1], list[2]);
+               xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " comment=" + q(list[2]) + " />\n";
                std::string v;
                odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
                odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
                odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
             } else {
-               fprintf(fout, "<Param l=\"%d\" name=\"%s\" comment=\"%s\" options=\"", line + 1, list[1], list[2]);
-               xml += "<Param l=" + qtoString(line + 1) + " name=" + q(list[1]) + " comment=" + q(list[2]) +
+               fprintf(fout, "<Param l=\"%d\" lvl=\"%d\" name=\"%s\" comment=\"%s\" options=\"", line + 1, level, list[1], list[2]);
+               xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " comment=" + q(list[2]) +
                       " options=\"";
                std::string v;
                odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
@@ -850,16 +861,16 @@ msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename,
             }
 
          } else if (equal_ustring(list[0], "rundescription")) {
-            fprintf(fout, "<RunDescription l=\"%d\">%s</RunDescription>\n", line + 1, list[1]);
-            xml += "<RunDescription l=" + qtoString(line + 1) + ">" + list[1] + "</RunDescription>\n";
+            fprintf(fout, "<RunDescription l=\"%d\" lvl=\"%d\">%s</RunDescription>\n", line + 1, level, list[1]);
+            xml += "<RunDescription " + qtoString(level, line + 1) + ">" + list[1] + "</RunDescription>\n";
 
          } else if (equal_ustring(list[0], "script")) {
             if (list[2][0] == 0) {
-               fprintf(fout, "<Script l=\"%d\">%s</Script>\n", line + 1, list[1]);
-               xml += "<Script l=" + qtoString(line + 1) + ">" + list[1] + "</Script>\n";
+               fprintf(fout, "<Script l=\"%d\" lvl=\"%d\">%s</Script>\n", line + 1, level, list[1]);
+               xml += "<Script " + qtoString(level, line + 1) + ">" + list[1] + "</Script>\n";
             } else {
-               fprintf(fout, "<Script l=\"%d\" params=\"", line + 1);
-               xml += "<Script l=" + qtoString(line + 1) + " params=\"";
+               fprintf(fout, "<Script l=\"%d\" lvl=\"%d\" params=\"", line + 1, level);
+               xml += "<Script " + qtoString(level, line + 1) + " params=\"";
                for (i = 2; i < 100 && list[i][0]; i++) {
                   if (i > 2) {
                      fprintf(fout, ",");
@@ -875,32 +886,32 @@ msl_parse(HNDLE hDB, MVOdb *odb, const char *filename, const char *xml_filename,
             }
 
          } else if (equal_ustring(list[0], "set")) {
-            fprintf(fout, "<Set l=\"%d\" name=\"%s\">%s</Set>\n", line + 1, list[1], list[2]);
-            xml += "<Set l=" + qtoString(line + 1) + " name=" + q(list[1]) + ">" + list[2] + "</Set>\n";
+            fprintf(fout, "<Set l=\"%d\" lvl=\"%d\" name=\"%s\">%s</Set>\n", line + 1, level, list[1], list[2]);
+            xml += "<Set " + qtoString(level, line + 1) + " name=" + q(list[1]) + ">" + list[2] + "</Set>\n";
 
          } else if (equal_ustring(list[0], "subroutine")) {
-            fprintf(fout, "\n<Subroutine l=\"%d\" name=\"%s\">\n", line + 1, list[1]);
-            xml += "\n<Subroutine l=" + qtoString(line + 1) + " name=" + q(list[1]) + ">\n";
+            fprintf(fout, "\n<Subroutine l=\"%d\" lvl=\"%d\" name=\"%s\">\n", line + 1, level, list[1]);
+            xml += "\n<Subroutine " + qtoString(level, line + 1) + " name=" + q(list[1]) + ">\n";
 
          } else if (equal_ustring(list[0], "endsubroutine")) {
             fprintf(fout, "</Subroutine>\n");
             xml += "</Subroutine>\n";
 
          } else if (equal_ustring(list[0], "transition")) {
-            fprintf(fout, "<Transition l=\"%d\">%s</Transition>\n", line + 1, list[1]);
-            xml += "<Transition l=" + qtoString(line + 1) + ">" + list[1] + "</Transition>\n";
+            fprintf(fout, "<Transition l=\"%d\" lvl=\"%d\">%s</Transition>\n", line + 1, level, list[1]);
+            xml += "<Transition " + qtoString(level, line + 1) + ">" + list[1] + "</Transition>\n";
 
          } else if (equal_ustring(list[0], "wait")) {
             if (!list[2][0]) {
-               fprintf(fout, "<Wait l=\"%d\" for=\"seconds\">%s</Wait>\n", line + 1, list[1]);
-               xml += "<Wait l=" + qtoString(line + 1) + " for=\"seconds\">" + list[1] + "</Wait>\n";
+               fprintf(fout, "<Wait l=\"%d\" lvl=\"%d\" for=\"seconds\">%s</Wait>\n", line + 1, level, list[1]);
+               xml += "<Wait " + qtoString(level, line + 1) + " for=\"seconds\">" + list[1] + "</Wait>\n";
             } else if (!list[3][0]) {
-               fprintf(fout, "<Wait l=\"%d\" for=\"%s\">%s</Wait>\n", line + 1, list[1], list[2]);
-               xml += "<Wait l=" + qtoString(line + 1) + " for=" + q(list[1]) + ">" + list[2] + "</Wait>\n";
+               fprintf(fout, "<Wait l=\"%d\" lvl=\"%d\" for=\"%s\">%s</Wait>\n", line + 1, level, list[1], list[2]);
+               xml += "<Wait " + qtoString(level, line + 1) + " for=" + q(list[1]) + ">" + list[2] + "</Wait>\n";
             } else {
-               fprintf(fout, "<Wait l=\"%d\" for=\"%s\" path=\"%s\" op=\"%s\">%s</Wait>\n", line + 1, list[1], list[2],
+               fprintf(fout, "<Wait l=\"%d\" lvl=\"%d\" for=\"%s\" path=\"%s\" op=\"%s\">%s</Wait>\n", line + 1, level, list[1], list[2],
                        list[3], list[4]);
-               xml += "<Wait l=" + qtoString(line + 1) + " for=" + q(list[1]) + " path=" + q(list[2]) + " op=" +
+               xml += "<Wait " + qtoString(level, line + 1) + " for=" + q(list[1]) + " path=" + q(list[2]) + " op=" +
                       q(list[3]) + ">" + list[4] + "</Wait>\n";
             }
 
@@ -990,7 +1001,7 @@ void seq_clear(SEQUENCER &seq) {
    seq.start_time = 0;
    seq.wait_type[0] = 0;
    seq.wait_odb[0] = 0;
-   for (int i = 0; i < 4; i++) {
+   for (int i = 0; i < SEQ_NEST_LEVEL_LOOP; i++) {
       seq.loop_start_line[i] = 0;
       seq.sloop_start_line[i] = 0;
       seq.loop_end_line[i] = 0;
@@ -998,9 +1009,11 @@ void seq_clear(SEQUENCER &seq) {
       seq.loop_counter[i] = 0;
       seq.loop_n[i] = 0;
    }
-   for (int i = 0; i < 4; i++) {
+   for (int i = 0; i < SEQ_NEST_LEVEL_IF; i++) {
       seq.if_else_line[i] = 0;
       seq.if_endif_line[i] = 0;
+   }
+   for (int i = 0; i < SEQ_NEST_LEVEL_SUB; i++) {
       seq.subroutine_end_line[i] = 0;
       seq.subroutine_return_line[i] = 0;
       seq.subroutine_call_line[i] = 0;
@@ -1025,8 +1038,6 @@ void seq_clear(SEQUENCER &seq) {
 /*------------------------------------------------------------------*/
 
 static void seq_start() {
-   //SEQUENCER seq;
-
    seq_read(&seq);
 
    seq_clear(seq);
@@ -1047,10 +1058,6 @@ static void seq_start() {
 /*------------------------------------------------------------------*/
 
 static void seq_stop() {
-   printf("seq_stop!\n");
-
-   //SEQUENCER seq;
-
    seq_read(&seq);
 
    seq_clear(seq);
@@ -1086,7 +1093,7 @@ static void seq_open_file(HNDLE hDB, const char *str, SEQUENCER &seq) {
       strlcpy(xml_filename, str, size);
       strsubst(xml_filename, size, ".msl", ".xml");
       //printf("Parsing MSL sequencer file: %s to XML sequencer file %s\n", str, xml_filename);
-      if (msl_parse(hDB, gOdb, str, xml_filename, seq.error, sizeof(seq.error), &seq.serror_line)) {
+      if (msl_parse(hDB, gOdb, 0, seq.path, str, xml_filename, seq.error, sizeof(seq.error), &seq.serror_line)) {
          //printf("Loading XML sequencer file: %s\n", xml_filename);
          pnseq = mxml_parse_file(xml_filename, seq.error, sizeof(seq.error), &seq.error_line);
       } else {
@@ -1150,7 +1157,7 @@ static void seq_watch_command(HNDLE hDB, HNDLE hKeyChanged, int index, void *inf
       } else {
          strlcpy(seq.filename, filename.c_str(), sizeof(seq.filename));
          std::string path = cm_expand_env(seq.path);
-         if (path.length() > 0) {
+         if (path.length() > 0 && path.back() != '/') {
             path += "/";
          }
          path += filename;
@@ -1313,7 +1320,7 @@ void sequencer() {
    }
 
    /* check for loop end */
-   for (i = 3; i >= 0; i--)
+   for (i = SEQ_NEST_LEVEL_LOOP-1; i >= 0; i--)
       if (seq.loop_start_line[i] > 0)
          break;
    if (i >= 0) {
@@ -1389,7 +1396,7 @@ void sequencer() {
    }
 
    /* set MSL line from current element */
-   if (mxml_get_attribute(pn, "l"))
+   if (mxml_get_attribute(pn, "l") && (!mxml_get_attribute(pn, "lvl") || atoi(mxml_get_attribute(pn, "lvl")) == 0))
       seq.scurrent_line_number = atoi(mxml_get_attribute(pn, "l"));
 
    // out-comment following lines for debug output
@@ -1913,10 +1920,10 @@ void sequencer() {
 
    /*---- Loop start ----*/
    else if (equal_ustring(mxml_get_name(pn), "Loop")) {
-      for (i = 0; i < 4; i++)
+      for (i = 0; i < SEQ_NEST_LEVEL_LOOP; i++)
          if (seq.loop_start_line[i] == 0)
             break;
-      if (i == 4) {
+      if (i == SEQ_NEST_LEVEL_LOOP) {
          seq_error(seq, "Maximum loop nesting exceeded");
          return;
       }
@@ -1959,8 +1966,8 @@ void sequencer() {
    /*---- If ----*/
    else if (equal_ustring(mxml_get_name(pn), "If")) {
 
-      if (seq.if_index == 4) {
-         seq_error(seq, "Maximum number of nexted if..endif exceeded");
+      if (seq.if_index == SEQ_NEST_LEVEL_IF) {
+         seq_error(seq, "Maximum number of nested if..endif exceeded");
          return;
       }
 
@@ -2081,7 +2088,7 @@ void sequencer() {
       }
 
       // check if variable is used in loop
-      for (i = 3; i >= 0; i--)
+      for (i = SEQ_NEST_LEVEL_LOOP-1; i >= 0; i--)
          if (seq.loop_start_line[i] > 0) {
             pr = mxml_get_node_at_line(pnseq, seq.loop_start_line[i]);
             if (mxml_get_attribute(pr, "var")) {
@@ -2156,7 +2163,7 @@ void sequencer() {
 
    /*---- Call ----*/
    else if (equal_ustring(mxml_get_name(pn), "Call")) {
-      if (seq.stack_index == 4) {
+      if (seq.stack_index == SEQ_NEST_LEVEL_SUB) {
          seq_error(seq, "Maximum subroutine level exceeded");
          return;
       } else {
@@ -2210,7 +2217,7 @@ void sequencer() {
       }
       if (pt)
          seq.scurrent_line_number = -1;
-      else if (mxml_get_attribute(pn, "l"))
+      else if (mxml_get_attribute(pn, "l") && (!mxml_get_attribute(pn, "lvl") || atoi(mxml_get_attribute(pn, "lvl")) == 0))
          seq.scurrent_line_number = atoi(mxml_get_attribute(pn, "l"));
    }
 
@@ -2235,7 +2242,6 @@ void init_sequencer() {
    HNDLE hDB;
    HNDLE hKey;
    char str[256];
-   //SEQUENCER seq;
    SEQUENCER_STR(sequencer_str);
 
    cm_get_experiment_database(&hDB, NULL);

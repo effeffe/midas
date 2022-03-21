@@ -1,5 +1,9 @@
 // Definition of sequencer structure in ODB
 
+#define SEQ_NEST_LEVEL_LOOP 10
+#define SEQ_NEST_LEVEL_IF   10
+#define SEQ_NEST_LEVEL_SUB  4
+
 typedef struct {
    BOOL  new_file;
    char  path[256];
@@ -16,25 +20,25 @@ typedef struct {
    int   scurrent_line_number;
    BOOL  stop_after_run;
    BOOL  transition_request;
-   int   loop_start_line[4];
-   int   sloop_start_line[4];
-   int   loop_end_line[4];
-   int   sloop_end_line[4];
-   int   loop_counter[4];
-   int   loop_n[4];
+   int   loop_start_line[SEQ_NEST_LEVEL_LOOP];
+   int   sloop_start_line[SEQ_NEST_LEVEL_LOOP];
+   int   loop_end_line[SEQ_NEST_LEVEL_LOOP];
+   int   sloop_end_line[SEQ_NEST_LEVEL_LOOP];
+   int   loop_counter[SEQ_NEST_LEVEL_LOOP];
+   int   loop_n[SEQ_NEST_LEVEL_LOOP];
    char  subdir[256];
    int   subdir_end_line;
    int   subdir_not_notify;
    int   if_index;
-   int   if_line[4];
-   int   if_else_line[4];
-   int   if_endif_line[4];
+   int   if_line[SEQ_NEST_LEVEL_IF];
+   int   if_else_line[SEQ_NEST_LEVEL_IF];
+   int   if_endif_line[SEQ_NEST_LEVEL_IF];
    int   stack_index;
-   int   subroutine_end_line[4];
-   int   subroutine_return_line[4];
-   int   subroutine_call_line[4];
-   int   ssubroutine_call_line[4];
-   char  subroutine_param[4][256];
+   int   subroutine_end_line[SEQ_NEST_LEVEL_SUB];
+   int   subroutine_return_line[SEQ_NEST_LEVEL_SUB];
+   int   subroutine_call_line[SEQ_NEST_LEVEL_SUB];
+   int   ssubroutine_call_line[SEQ_NEST_LEVEL_SUB];
+   char  subroutine_param[SEQ_NEST_LEVEL_SUB][256];
    float wait_value;
    float wait_limit;
    DWORD start_time;
@@ -60,55 +64,109 @@ typedef struct {
 "SCurrent line number = INT : 0",\
 "Stop after run = BOOL : n",\
 "Transition request = BOOL : n",\
-"Loop start line = INT[4] :",\
+"Loop start line = INT[10] :",\
 "[0] 0",\
 "[1] 0",\
 "[2] 0",\
 "[3] 0",\
-"SLoop start line = INT[4] :",\
+"[4] 0",\
+"[5] 0",\
+"[6] 0",\
+"[7] 0",\
+"[8] 0",\
+"[9] 0",\
+"SLoop start line = INT[10] :",\
 "[0] 0",\
 "[1] 0",\
 "[2] 0",\
 "[3] 0",\
-"Loop end line = INT[4] :",\
+"[4] 0",\
+"[5] 0",\
+"[6] 0",\
+"[7] 0",\
+"[8] 0",\
+"[9] 0",\
+"Loop end line = INT[10] :",\
 "[0] 0",\
 "[1] 0",\
 "[2] 0",\
 "[3] 0",\
-"SLoop end line = INT[4] :",\
+"[4] 0",\
+"[5] 0",\
+"[6] 0",\
+"[7] 0",\
+"[8] 0",\
+"[9] 0",\
+"SLoop end line = INT[10] :",\
 "[0] 0",\
 "[1] 0",\
 "[2] 0",\
 "[3] 0",\
-"Loop counter = INT[4] :",\
+"[4] 0",\
+"[5] 0",\
+"[6] 0",\
+"[7] 0",\
+"[8] 0",\
+"[9] 0",\
+"Loop counter = INT[10] :",\
 "[0] 0",\
 "[1] 0",\
 "[2] 0",\
 "[3] 0",\
-"Loop n = INT[4] :",\
+"[4] 0",\
+"[5] 0",\
+"[6] 0",\
+"[7] 0",\
+"[8] 0",\
+"[9] 0",\
+"Loop n = INT[10] :",\
 "[0] 0",\
 "[1] 0",\
 "[2] 0",\
 "[3] 0",\
+"[4] 0",\
+"[5] 0",\
+"[6] 0",\
+"[7] 0",\
+"[8] 0",\
+"[9] 0",\
 "Subdir = STRING : [256] ",\
 "Subdir end line = INT : 0",\
 "Subdir not notify = INT : 0",\
 "If index = INT : 0",\
-"If line = INT[4] :",\
+"If line = INT[10] :",\
 "[0] 0",\
 "[1] 0",\
 "[2] 0",\
 "[3] 0",\
-"If else line = INT[4] :",\
+"[4] 0",\
+"[5] 0",\
+"[6] 0",\
+"[7] 0",\
+"[8] 0",\
+"[9] 0",\
+"If else line = INT[10] :",\
 "[0] 0",\
 "[1] 0",\
 "[2] 0",\
 "[3] 0",\
-"If endif line = INT[4] :",\
+"[4] 0",\
+"[5] 0",\
+"[6] 0",\
+"[7] 0",\
+"[8] 0",\
+"[9] 0",\
+"If endif line = INT[10] :",\
 "[0] 0",\
 "[1] 0",\
 "[2] 0",\
 "[3] 0",\
+"[4] 0",\
+"[5] 0",\
+"[6] 0",\
+"[7] 0",\
+"[8] 0",\
+"[9] 0",\
 "Stack index = INT : 0",\
 "Subroutine end line = INT[4] :",\
 "[0] 0",\
