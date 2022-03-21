@@ -1426,6 +1426,12 @@ void sequencer() {
             strlcat(odbpath, "/", sizeof(odbpath));
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
 
+         if (strchr(odbpath, '$')) {
+            std::string s(odbpath);
+            s = eval_var(seq, s);
+            strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+         }
+
          int notify = TRUE;
          if (seq.subdir_not_notify)
             notify = FALSE;
@@ -1477,7 +1483,7 @@ void sequencer() {
          strlcat(value, mxml_get_value(pn), sizeof(value));
       }
 
-      //if path attribute is given
+      // if path attribute is given
       if (mxml_get_attribute(pn, "path")) {
          strlcpy(odbpath, seq.subdir, sizeof(odbpath));
          if (strlen(odbpath) > 0 && odbpath[strlen(odbpath) - 1] != '/')
@@ -1523,6 +1529,12 @@ void sequencer() {
             strlcat(odbpath, "/", sizeof(odbpath));
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
 
+         if (strchr(odbpath, '$')) {
+            std::string s(odbpath);
+            s = eval_var(seq, s);
+            strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+         }
+
          /* check if index is supplied */
          index1 = index2 = 0;
          seq_array_index(odbpath, &index1, &index2);
@@ -1566,6 +1578,13 @@ void sequencer() {
          if (strlen(odbpath) > 0 && odbpath[strlen(odbpath) - 1] != '/')
             strlcat(odbpath, "/", sizeof(odbpath));
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
+
+         if (strchr(odbpath, '$')) {
+            std::string s(odbpath);
+            s = eval_var(seq, s);
+            strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+         }
+
          index1 = index2 = 0;
          seq_array_index(odbpath, &index1, &index2);
 
@@ -1606,6 +1625,12 @@ void sequencer() {
          strlcat(odbpath, "/", sizeof(odbpath));
       strlcat(odbpath, mxml_get_value(pn), sizeof(odbpath));
 
+      if (strchr(odbpath, '$')) {
+         std::string s(odbpath);
+         s = eval_var(seq, s);
+         strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+      }
+
       status = db_find_key(hDB, 0, odbpath, &hKey);
       if (status != DB_SUCCESS) {
          char errorstr[512];
@@ -1633,6 +1658,12 @@ void sequencer() {
          if (strlen(odbpath) > 0 && odbpath[strlen(odbpath) - 1] != '/')
             strlcat(odbpath, "/", sizeof(odbpath));
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
+
+         if (strchr(odbpath, '$')) {
+            std::string s(odbpath);
+            s = eval_var(seq, s);
+            strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+         }
 
          /* get TID */
          unsigned int tid;
@@ -1794,6 +1825,13 @@ void sequencer() {
          } else {
             strlcpy(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
             strlcpy(seq.wait_odb, odbpath, sizeof(seq.wait_odb));
+
+            if (strchr(odbpath, '$')) {
+               std::string s(odbpath);
+               s = eval_var(seq, s);
+               strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+            }
+
             index1 = index2 = 0;
             seq_array_index(odbpath, &index1, &index2);
             status = db_find_key(hDB, 0, odbpath, &hKey);

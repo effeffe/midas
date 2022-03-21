@@ -6232,7 +6232,7 @@ static int bm_validate_buffer_locked(const BUFFER *pbuf) {
          if (!r->valid)
             continue;
          BOOL xget_all = r->sampling_type == GET_ALL;
-         get_all |= xget_all;
+         get_all = (get_all || xget_all);
          //printf("client slot %d: pid %d, name \"%s\", request %d: id %d, valid %d, sampling_type %d, get_all %d\n", i, c->pid, c->name, j, r->id, r->valid, r->sampling_type, xget_all);
       }
 
