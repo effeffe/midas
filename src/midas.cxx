@@ -6827,8 +6827,6 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
       pbuf->shm_handle = shm_handle;
       pbuf->shm_size = shm_size;
       pbuf->callback = FALSE;
-      ss_mutex_create(&pbuf->write_cache_mutex, FALSE);
-      ss_mutex_create(&pbuf->read_cache_mutex, FALSE);
 
       bm_clear_buffer_statistics(hDB, pbuf);
       bm_write_buffer_statistics_to_odb(hDB, pbuf, true);
@@ -6906,7 +6904,12 @@ INT bm_close_buffer(INT buffer_handle) {
          bm_write_buffer_statistics_to_odb(hDB, pbuf, TRUE);
       }
 
+
       /* first lock buffer */
+
+      pbuf->read_cache_mutex.lock();
+      pbuf->write_cache_mutex.lock();
+
       bm_lock_buffer(pbuf);
 
       BUFFER_HEADER *pheader = pbuf->buffer_header;
@@ -6936,8 +6939,6 @@ INT bm_close_buffer(INT buffer_handle) {
 
       int destroy_flag = (pheader->num_clients == 0);
 
-      // FIXME lock read cache
-
       /* free cache */
       if (pbuf->read_cache_size > 0) {
          M_FREE(pbuf->read_cache);
@@ -6947,23 +6948,11 @@ INT bm_close_buffer(INT buffer_handle) {
          pbuf->read_cache_wp = 0;
       }
 
-      // FIXME: lock write cache
-
       if (pbuf->write_cache_size > 0) {
          M_FREE(pbuf->write_cache);
          pbuf->write_cache = NULL;
          pbuf->write_cache_size = 0;
          pbuf->write_cache_wp = 0;
-      }
-
-      if (pbuf->read_cache_mutex) {
-         ss_mutex_delete(pbuf->read_cache_mutex);
-         pbuf->read_cache_mutex = NULL;
-      }
-
-      if (pbuf->write_cache_mutex) {
-         ss_mutex_delete(pbuf->write_cache_mutex);
-         pbuf->write_cache_mutex = NULL;
       }
 
       /* check if anyone is waiting and wake him up */
@@ -6998,6 +6987,9 @@ INT bm_close_buffer(INT buffer_handle) {
 
       /* unlock buffer */
       bm_unlock_buffer(pbuf);
+
+      pbuf->write_cache_mutex.unlock();
+      pbuf->read_cache_mutex.unlock();
 
       /* delete semaphore */
       ss_semaphore_delete(pbuf->semaphore, destroy_flag);
@@ -7822,7 +7814,7 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
 
       /* lock pbuf for local access. we do not lock buffer semaphore because we do nto touch the shared memory */
 
-      std::lock_guard<std::timed_mutex> lock_guard(pbuf->buffer_mutex);
+      pbuf->buffer_mutex.lock();
 
       if (write_size < 0)
          write_size = 0;
@@ -7833,18 +7825,21 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
          write_size = new_write_size;
       }
 
+      pbuf->buffer_mutex.unlock();
+
       /* resize read cache */
 
-      // FIXME: lock the read cache!
+      pbuf->read_cache_mutex.lock();
 
       if (pbuf->read_cache_size > 0) {
-         M_FREE(pbuf->read_cache);
+         free(pbuf->read_cache);
          pbuf->read_cache = NULL;
       }
 
       if (read_size > 0) {
-         pbuf->read_cache = (char *) M_MALLOC(read_size);
+         pbuf->read_cache = (char *) malloc(read_size);
          if (pbuf->read_cache == NULL) {
+            pbuf->read_cache_mutex.unlock();
             cm_msg(MERROR, "bm_set_cache_size", "not enough memory to allocate cache buffer, malloc(%d) failed", read_size);
             return BM_NO_MEMORY;
          }
@@ -7853,25 +7848,27 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       pbuf->read_cache_size = read_size;
       pbuf->read_cache_rp = pbuf->read_cache_wp = 0;
 
+      pbuf->read_cache_mutex.unlock();
+
       /* resize the write cache */
 
-      if (pbuf->write_cache_mutex)
-         ss_mutex_wait_for(pbuf->write_cache_mutex, _bm_mutex_timeout);
+      pbuf->write_cache_mutex.lock();
 
       // FIXME: should flush the write cache!
       if (pbuf->write_cache_size && pbuf->write_cache_wp > 0) {
-         cm_msg(MERROR, "bm_set_cache_size", "buffer \"%s\" lost %d bytes from the write cache", pbuf->buffer_header->name, pbuf->write_cache_wp);
+         cm_msg(MERROR, "bm_set_cache_size", "buffer \"%s\" lost %d bytes from the write cache", pbuf->buffer_name, (int)pbuf->write_cache_wp);
       }
 
       /* manage write cache */
       if (pbuf->write_cache_size > 0) {
-         M_FREE(pbuf->write_cache);
+         free(pbuf->write_cache);
          pbuf->write_cache = NULL;
       }
 
       if (write_size > 0) {
          pbuf->write_cache = (char *) M_MALLOC(write_size);
          if (pbuf->write_cache == NULL) {
+            pbuf->write_cache_mutex.unlock();
             cm_msg(MERROR, "bm_set_cache_size", "not enough memory to allocate cache buffer, malloc(%d) failed", write_size);
             return BM_NO_MEMORY;
          }
@@ -7880,8 +7877,7 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       pbuf->write_cache_size = write_size;
       pbuf->write_cache_wp = 0;
 
-      if (pbuf->write_cache_mutex)
-         ss_mutex_release(pbuf->write_cache_mutex);
+      pbuf->write_cache_mutex.unlock();
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -8477,7 +8473,7 @@ static void bm_dispatch_event(int buffer_handle, EVENT_HEADER *pevent) {
 
 #ifdef LOCAL_ROUTINES
 
-static void bm_incr_read_cache(BUFFER *pbuf, int total_size) {
+static void bm_incr_read_cache_locked(BUFFER *pbuf, int total_size) {
    /* increment read cache read pointer */
    pbuf->read_cache_rp += total_size;
 
@@ -8487,7 +8483,8 @@ static void bm_incr_read_cache(BUFFER *pbuf, int total_size) {
    }
 }
 
-static BOOL bm_peek_read_cache(BUFFER *pbuf, EVENT_HEADER **ppevent, int *pevent_size, int *ptotal_size) {
+static BOOL bm_peek_read_cache_locked(BUFFER *pbuf, EVENT_HEADER **ppevent, int *pevent_size, int *ptotal_size)
+{
    if (pbuf->read_cache_rp == pbuf->read_cache_wp)
       return FALSE;
 
@@ -9029,8 +9026,7 @@ static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, 
       bm_unlock_buffer(pbuf);
 
       if (unlock_read_cache)
-         if (pbuf->read_cache_mutex)
-            ss_mutex_release(pbuf->read_cache_mutex);
+         pbuf->read_cache_mutex.unlock();
 
       int status = ss_suspend(sleep_time, MSG_BM);
 
@@ -9054,8 +9050,7 @@ static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, 
       // NB: locking order is: 1st read cache lock, 2nd buffer lock, unlock in reverse order
 
       if (unlock_read_cache)
-         if (pbuf->read_cache_mutex)
-            ss_mutex_wait_for(pbuf->read_cache_mutex, _bm_mutex_timeout);
+         pbuf->read_cache_mutex.lock(); // FIXME: add timeout
 
       bm_lock_buffer(pbuf);
 
@@ -9412,31 +9407,27 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
       /* round up total_size to next DWORD boundary */
       //int total_size = ALIGN8(event_size);
 
-      /* NB: !!!the write cache is not thread-safe!!! */
-
       /* look if there is space in the cache */
       if (pbuf->write_cache_size) {
-         if (pbuf->write_cache_mutex)
-            ss_mutex_wait_for(pbuf->write_cache_mutex, _bm_mutex_timeout);
+         pbuf->write_cache_mutex.lock(); // FIXME add timeout
 
          if (pbuf->write_cache_size) {
             int status = BM_SUCCESS;
 
             /* if this event does not fit into the write cache, flush the write cache */
-            if ((size_t)pbuf->write_cache_wp + total_size > (size_t)pbuf->write_cache_size) {
+            if (pbuf->write_cache_wp + total_size > pbuf->write_cache_size) {
                //printf("bm_send_event: write %d/%d but cache is full, size %d, wp %d\n", event_size, total_size, pbuf->write_cache_size, pbuf->write_cache_wp);
-               if (pbuf->write_cache_mutex)
-                  ss_mutex_release(pbuf->write_cache_mutex);
+               // unlock, then relock write cache while calling bm_flush_cache()
+               pbuf->write_cache_mutex.unlock();
                status = bm_flush_cache(buffer_handle, timeout_msec);
                if (status != BM_SUCCESS) {
                   return status;
                }
-               if (pbuf->write_cache_mutex)
-                  ss_mutex_wait_for(pbuf->write_cache_mutex, _bm_mutex_timeout);
+               pbuf->write_cache_mutex.lock();
             }
 
             /* write this event into the write cache, if it fits */
-            if ((size_t)pbuf->write_cache_wp + total_size <= (size_t)pbuf->write_cache_size) {
+            if (pbuf->write_cache_wp + total_size <= pbuf->write_cache_size) {
                //printf("bm_send_event: write %d/%d to cache size %d, wp %d\n", event_size, total_size, pbuf->write_cache_size, pbuf->write_cache_wp);
                
                char* wptr = pbuf->write_cache + pbuf->write_cache_wp;
@@ -9448,15 +9439,13 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
 
                pbuf->write_cache_wp += total_size;
 
-               if (pbuf->write_cache_mutex)
-                  ss_mutex_release(pbuf->write_cache_mutex);
+               pbuf->write_cache_mutex.unlock();
                return BM_SUCCESS;
             }
          }
 
          /* event did not fit into the write cache, send it directly to shared memory */
-         if (pbuf->write_cache_mutex)
-            ss_mutex_release(pbuf->write_cache_mutex);
+         pbuf->write_cache_mutex.unlock();
       }
 
       /* we come here only for events that are too big to fit into the cache */
@@ -9667,14 +9656,12 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
       }
 #endif
 
-      if (pbuf->write_cache_mutex)
-         ss_mutex_wait_for(pbuf->write_cache_mutex, _bm_mutex_timeout);
+      pbuf->write_cache_mutex.lock(); // FIXME wrong locking order
 
       if (pbuf->write_cache_wp == 0) {
          /* somebody emptied the cache while we were inside bm_wait_for_free_space */
-         if (pbuf->write_cache_mutex)
-            ss_mutex_release(pbuf->write_cache_mutex);
-         bm_unlock_buffer(pbuf); // this unlock one was missing. K.O. May 2021
+         pbuf->write_cache_mutex.unlock();
+         bm_unlock_buffer(pbuf); // this unlock was missing. K.O. May 2021
          return BM_SUCCESS;
       }
 
@@ -9692,12 +9679,12 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
       int first_rp = pheader->read_pointer;
 #endif
 
-      int rp = 0;
+      size_t rp = 0;
       while (rp < pbuf->write_cache_wp) {
          /* loop over all events in cache */
 
 #if 0
-         int old_wp = pheader->write_pointer;
+         size_t old_wp = pheader->write_pointer;
 #endif
 
          const EVENT_HEADER *pevent = (const EVENT_HEADER *) (pbuf->write_cache + rp);
@@ -9769,8 +9756,7 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
       /* the write cache is now empty */
       pbuf->write_cache_wp = 0;
 
-      if (pbuf->write_cache_mutex)
-         ss_mutex_release(pbuf->write_cache_mutex);
+      pbuf->write_cache_mutex.unlock(); // FIXME wrong unlocking order
 
       /* check which clients are waiting */
       for (i = 0; i < pheader->max_client_index; i++) {
@@ -9816,8 +9802,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
 
    /* look if there is anything in the cache */
    if (pbuf->read_cache_size > 0) {
-      if (pbuf->read_cache_mutex)
-         ss_mutex_wait_for(pbuf->read_cache_mutex, _bm_mutex_timeout);
+      pbuf->read_cache_mutex.lock();
       if (pbuf->read_cache_wp == 0) {
          bm_lock_buffer(pbuf);
          locked = TRUE;
@@ -9825,15 +9810,14 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
          status = bm_fill_read_cache_locked(pbuf, pheader, timeout_msec);
          if (status != BM_SUCCESS) {
             bm_unlock_buffer(pbuf);
-            if (pbuf->read_cache_mutex)
-               ss_mutex_release(pbuf->read_cache_mutex);
+            pbuf->read_cache_mutex.unlock();
             return status;
          }
       }
       EVENT_HEADER *pevent;
       int event_size;
       int total_size;
-      if (bm_peek_read_cache(pbuf, &pevent, &event_size, &total_size)) {
+      if (bm_peek_read_cache_locked(pbuf, &pevent, &event_size, &total_size)) {
          if (locked) {
             // do not need to keep the event buffer locked
             // when reading from the read cache
@@ -9865,9 +9849,8 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
             char* cptr = (char*)pevent;
             vecptr->assign(cptr, cptr+event_size);
          }
-         bm_incr_read_cache(pbuf, total_size);
-         if (pbuf->read_cache_mutex)
-            ss_mutex_release(pbuf->read_cache_mutex);
+         bm_incr_read_cache_locked(pbuf, total_size);
+         pbuf->read_cache_mutex.unlock();
          if (dispatch) {
             // FIXME need to protect currently dispatched event against
             // another thread overwriting it by refilling the read cache
@@ -9876,8 +9859,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
          }
          return status;
       }
-      if (pbuf->read_cache_mutex)
-         ss_mutex_release(pbuf->read_cache_mutex);
+      pbuf->read_cache_mutex.unlock();
    }
 
    /* we come here if the read cache is disabled */
