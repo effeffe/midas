@@ -6015,26 +6015,22 @@ static void bm_cleanup_buffer_locked(int i, const char *who, DWORD actual_time) 
    }
 }
 
-
 /**
 Update last activity time
 */
 static void bm_update_last_activity(DWORD millitime) {
    int pid = ss_getpid();
-   for (int i = 0; i < _buffer_entries; i++) {
+   int i;
+   for (i = 0; i < _buffer_entries; i++) {
       if (_buffer[i].attached) {
-         BUFFER *pbuf;
-         bm_get_buffer("bm_cleanup", i + 1, &pbuf);
-         bm_lock_buffer(pbuf);
-         BUFFER_HEADER *pheader = pbuf->buffer_header;
-         for (int j = 0; j < pheader->max_client_index; j++) {
+         BUFFER_HEADER *pheader = _buffer[i].buffer_header;
+         int j;
+         for (j = 0; j < pheader->max_client_index; j++) {
             BUFFER_CLIENT *pclient = pheader->client + j;
             if (pclient->pid == pid) {
-               //printf("update last activity pid %d buffer %s client %s\n", pid, pbuf->buffer_name, pclient->name);
                pclient->last_activity = millitime;
             }
          }
-         bm_unlock_buffer(pbuf);
       }
    }
 }
@@ -6260,7 +6256,7 @@ static int bm_validate_buffer_locked(const BUFFER *pbuf) {
          if (!r->valid)
             continue;
          BOOL xget_all = r->sampling_type == GET_ALL;
-         get_all |= xget_all;
+         get_all = (get_all || xget_all);
          //printf("client slot %d: pid %d, name \"%s\", request %d: id %d, valid %d, sampling_type %d, get_all %d\n", i, c->pid, c->name, j, r->id, r->valid, r->sampling_type, xget_all);
       }
 
@@ -7071,22 +7067,15 @@ INT cm_stop_watchdog_thread() {
    if (rpc_is_remote())
       return CM_SUCCESS;
 #ifdef LOCAL_ROUTINES
-   std::thread* t = _watchdog_thread.exchange(NULL); // thread-safe
-   if (t) {
-      _watchdog_thread_run = false;
-      for (int i=0; i<100; i++) {
-         if (!_watchdog_thread_is_running)
-            break;
-         //printf("waiting for watchdog thread to shut down\n");
-         ss_sleep(10);
-      }
-      if (_watchdog_thread_is_running) {
-         cm_msg(MERROR, "cm_stop_watchdog_thread", "Timeout waiting for watchdog thread to stop");
-      } else {
-         t->join();
-         delete t;
-         t = NULL;
-      }
+   _watchdog_thread_run = false;
+   while (_watchdog_thread_is_running) {
+      //printf("waiting for watchdog thread to shut down\n");
+      ss_sleep(10);
+   }
+   if (_watchdog_thread != NULL) {
+      _watchdog_thread.load()->join();
+      delete static_cast<std::thread *>(_watchdog_thread);
+      _watchdog_thread = NULL;
    }
 #endif
    return CM_SUCCESS;

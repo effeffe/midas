@@ -166,12 +166,15 @@ function cancel() {
       var input;
       
       td = document.createElement("td");
-      td.align = "center";
-      td.innerHTML = name;
+      td.style.textAlign = "right";
+      td.style.padding = "5px";
+      td.innerHTML = name + ":";
       tr.appendChild(td);
       
       td = document.createElement("td");
-      
+      td.style.padding = "5px";
+      td.style.textAlign = "center";
+
       if (options) {
          var s = document.createElement("select");
          for (var iopt in options) {
@@ -204,13 +207,12 @@ function cancel() {
          td.appendChild(i);
          write_back[name] = i;
       }
-      td.align = "center";
       write_path[name] = path + "/" + name;
       
       tr.appendChild(td);
       
       td = document.createElement("td");
-      td.align = "center";
+      td.textAlign = "left";
       td.innerHTML = comment;
       tr.appendChild(td);
       
