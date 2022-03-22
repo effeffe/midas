@@ -15,6 +15,7 @@
 #include <vector>
 #include <mutex> // std::mutex
 #include <thread> // std::thread
+#include <atomic> // std::atomic
 //#include "midas.h"
 #include "mvodb.h"
 
@@ -232,9 +233,9 @@ public: // periodic scheduler
    double fEqPeriodicNextCallTime = 0;
 
 public: // poll scheduler
-   bool fEqPollThreadStarting = false;
-   bool fEqPollThreadRunning = false;
-   bool fEqPollThreadShutdownRequested = false;
+   std::atomic_bool fEqPollThreadStarting{false};
+   std::atomic_bool fEqPollThreadRunning{false};
+   std::atomic_bool fEqPollThreadShutdownRequested{false};
 
 public: // contructors and initialization. not thread-safe.
    TMFeEquipment(const char* eqname, const char* eqfilename); // ctor
@@ -361,9 +362,9 @@ public: // periodic thread methods, thread-safe
 
 public: // periodic thread internal data
    std::thread* fFePeriodicThread = NULL;
-   bool fFePeriodicThreadStarting = false;
-   bool fFePeriodicThreadRunning  = false;
-   bool fFePeriodicThreadShutdownRequested = false;
+   std::atomic_bool fFePeriodicThreadStarting{false};
+   std::atomic_bool fFePeriodicThreadRunning{false};
+   std::atomic_bool fFePeriodicThreadShutdownRequested{false};
 
 public: // flush write cache
    double fFeFlushWriteCachePeriodSec    = 0.5;
@@ -389,7 +390,7 @@ public: // ODB access
    MVOdb* fOdbRoot = NULL; ///< ODB root
 
 public: // shutdown
-   bool fShutdownRequested = false; ///< shutdown was requested by Ctrl-C or by RPC command
+   std::atomic_bool fShutdownRequested{false}; ///< shutdown was requested by Ctrl-C or by RPC command
 
 public: // run state
    int  fRunNumber = 0; ///< current run number
@@ -397,9 +398,9 @@ public: // run state
 
 public: // internal threads
    std::thread* fRpcThread = NULL;
-   bool fRpcThreadStarting = false;
-   bool fRpcThreadRunning  = false;
-   bool fRpcThreadShutdownRequested = false;
+   std::atomic_bool fRpcThreadStarting{false};
+   std::atomic_bool fRpcThreadRunning{false};
+   std::atomic_bool fRpcThreadShutdownRequested{false};
 
  private:
    /// TMFE is a singleton class: only one

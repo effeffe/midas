@@ -20,6 +20,7 @@
 
 #include <string> // std::string
 #include <thread> // std::thread
+#include <atomic> // atd::atomic
 
 class EqRandom :
    public TMFeEquipment
@@ -207,7 +208,8 @@ public: // configuration
    std::vector<char> fEventBuffer;
 
 public: // internal state
-   bool fThreadRunning = false;
+   std::atomic_bool fThreadRunning{false};
+   std::thread *fThread = NULL;
    
 public:
    EqBulk(const char* eqname, const char* eqfilename) // ctor
@@ -223,6 +225,12 @@ public:
       // wait for thread to finish
       while (fThreadRunning) {
          fMfe->Sleep(0.1);
+      }
+
+      if (fThread) {
+         fThread->join();
+         delete fThread;
+         fThread = NULL;
       }
    }
 
@@ -245,7 +253,7 @@ public:
       //assert(status == DB_SUCCESS);
       //printf("Ring buffer wait sleep %d ms\n", test_rb_wait_sleep);
 
-      new std::thread(&EqBulk::Thread, this);
+      fThread = new std::thread(&EqBulk::Thread, this);
       
       return TMFeOk();
    }
