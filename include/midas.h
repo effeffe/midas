@@ -988,6 +988,7 @@ typedef struct {
    std::timed_mutex write_cache_mutex; /**< cache write mutex           */
    std::atomic<size_t> write_cache_size{0}; /**< cache size in bytes    */
    char *write_cache = NULL;          /**< cache for burst read         */
+   size_t write_cache_rp = 0;         /**< cache read pointer           */
    size_t write_cache_wp = 0;         /**< cache write pointer          */
    HNDLE semaphore = 0;               /**< semaphore handle             */
    INT shm_handle = 0;                /**< handle to shared memory      */

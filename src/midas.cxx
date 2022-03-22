@@ -7011,6 +7011,7 @@ INT bm_close_buffer(INT buffer_handle) {
          free(pbuf->write_cache);
          pbuf->write_cache = NULL;
          pbuf->write_cache_size = 0;
+         pbuf->write_cache_rp = 0;
          pbuf->write_cache_wp = 0;
       }
 
@@ -7999,7 +8000,8 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       }
 
       pbuf->read_cache_size = read_size;
-      pbuf->read_cache_rp = pbuf->read_cache_wp = 0;
+      pbuf->read_cache_rp = 0;
+      pbuf->read_cache_wp = 0;
 
       pbuf->read_cache_mutex.unlock();
 
@@ -8031,6 +8033,7 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       }
 
       pbuf->write_cache_size = write_size;
+      pbuf->write_cache_rp = 0;
       pbuf->write_cache_wp = 0;
 
       pbuf->write_cache_mutex.unlock();
@@ -9845,152 +9848,140 @@ static INT bm_flush_cache_locked(int buffer_handle, BUFFER *pbuf, int timeout_ms
 
       //printf("bm_flush_cache_locked!\n");
 
-      /* check if anything needs to be flushed */
-      if (pbuf->write_cache_wp == 0)
-         return BM_SUCCESS;
+      BUFFER_HEADER* pheader = pbuf->buffer_header;
 
-      /* calculate some shorthands */
-      BUFFER_HEADER *pheader = pbuf->buffer_header;
-
-#if 0
-      status = bm_validate_buffer_locked(pbuf);
-      if (status != BM_SUCCESS) {
-         printf("bm_flush_cache: corrupted 111!\n");
-         abort();
-      }
-#endif
-
-      status = bm_wait_for_free_space_locked(buffer_handle, pbuf, timeout_msec, pbuf->write_cache_wp, true);
-
-      if (status == BM_INVALID_HANDLE) {
-         // internal bm_lock_buffer() failed
-         return status;
-      }
-
-      if (status != BM_SUCCESS) {
-         bm_unlock_buffer(pbuf);
-         return status;
-      }
-
-#if 0
-      status = bm_validate_buffer_locked(pbuf);
-      if (status != BM_SUCCESS) {
-         printf("bm_flush_cache: corrupted 222!\n");
-         abort();
-      }
-#endif
-
-      if (pbuf->write_cache_wp == 0) {
-         /* somebody emptied the cache while we were inside bm_wait_for_free_space */
-         return BM_SUCCESS;
-      }
-
-      /* we have space, so let's copy the event */
       int old_write_pointer = pheader->write_pointer;
 
       int request_id[MAX_CLIENTS];
-      int i;
-      for (i = 0; i < pheader->max_client_index; i++) {
+      for (int i = 0; i < pheader->max_client_index; i++) {
          request_id[i] = -1;
       }
+         
+      while (1) {
+         size_t ask_rp = pbuf->write_cache_rp;
+         size_t ask_wp = pbuf->write_cache_wp;
 
-#if 0
-      int first_wp = pheader->write_pointer;
-      int first_rp = pheader->read_pointer;
-#endif
+         if (ask_rp == ask_wp) { // nothing to do
+            break;
+         }
 
-      size_t rp = 0;
-      while (rp < pbuf->write_cache_wp) {
-         /* loop over all events in cache */
+         assert(ask_rp < ask_wp);
 
-#if 0
-         size_t old_wp = pheader->write_pointer;
-#endif
+         size_t ask_free = ALIGN8(ask_wp - ask_rp);
 
-         const EVENT_HEADER *pevent = (const EVENT_HEADER *) (pbuf->write_cache + rp);
-         size_t event_size = (pevent->data_size + sizeof(EVENT_HEADER));
-         size_t total_size = ALIGN8(event_size);
+         if (ask_free == 0) { // nothing to do
+            break;
+         }
 
-#if 0
-         printf("bm_flush_cache: cache size %d, wp %d, rp %d, event data_size %d, event_size %d, total_size %d\n",
-                pbuf->write_cache_size,
-                pbuf->write_cache_wp,
-                rp,
-                pevent->data_size,
-                event_size,
-                total_size);
-#endif
-
-         assert(total_size >= sizeof(EVENT_HEADER));
-         assert(total_size <= (size_t)pheader->size);
-
-         bm_write_to_buffer_locked(pheader, 1, (char**)&pevent, &event_size, total_size);
-
-         /* update statistics */
-         pheader->num_in_events++;
-         pbuf->count_sent += 1;
-         pbuf->bytes_sent += total_size;
+         if (ask_free > 2*pbuf->write_cache_size/3)
+            ask_free = ALIGN8(2*pbuf->write_cache_size/3);
 
 #if 0
          status = bm_validate_buffer_locked(pbuf);
          if (status != BM_SUCCESS) {
-            char* pdata = (char *) (pheader + 1);
-            printf("bm_flush_cache: corrupted WWW! buffer: first wp %d, old wp %d, new wp %d, first rp %d, rp %d, cache size %d, wp %d, rp %d, event %d %d %d, ts 0x%08x, ds 0x%08x, at old_wp 0x%08x 0x%08x 0x%08x 0x%08x\n",
-                   first_wp, old_wp, pheader->write_pointer,
-                   first_rp, pheader->read_pointer,
-                   pbuf->write_cache_size, pbuf->write_cache_wp, rp,
-                   pevent->data_size,
-                   event_size,
-                   total_size,
-                   pevent->time_stamp,
-                   pevent->data_size,
-                   ((uint32_t*)(pdata + old_wp))[0],
-                   ((uint32_t*)(pdata + old_wp))[1],
-                   ((uint32_t*)(pdata + old_wp))[2],
-                   ((uint32_t*)(pdata + old_wp))[3]);
+            printf("bm_flush_cache: corrupted 111!\n");
             abort();
          }
 #endif
 
-         /* see comment for the same code in bm_send_event().
-          * We make sure the buffer is nevere 100% full */
-         assert(pheader->write_pointer != pheader->read_pointer);
+         status = bm_wait_for_free_space_locked(buffer_handle, pbuf, timeout_msec, ask_free, true);
 
-         /* check if anybody has a request for this event */
-         for (i = 0; i < pheader->max_client_index; i++) {
-            BUFFER_CLIENT *pc = pheader->client + i;
-            int r = bm_find_first_request_locked(pc, pevent);
-            if (r >= 0) {
-               request_id[i] = r;
-            }
+         if (status == BM_INVALID_HANDLE) {
+            // internal bm_lock_buffer() failed
+            return status;
          }
 
-         /* this loop does not loop forever because rp
-          * is monotonously incremented here. write_cache_wp does
-          * not change */
+         if (status != BM_SUCCESS) {
+            return status;
+         }
 
-         rp += total_size;
+         // NB: wait_for_free_space() will sleep with all locks released,
+         // diring this time, another thread may call bm_send_event() that will
+         // add one or more events to the write cache and after wait_for_free_space()
+         // returns, size of data in cache will be bigger than the amount
+         // of free space we requested. so we need to keep track of how
+         // much data we write to the buffer and ask for more data
+         // if we run short. This is the reason for the big loop
+         // around wait_for_free_space(). We ask for slightly too little free
+         // space to make sure all this code is always used and does work. K.O.
 
-         assert(rp > 0);
-         assert(rp <= pbuf->write_cache_size);
+         if (pbuf->write_cache_wp == 0) {
+            /* somebody emptied the cache while we were inside bm_wait_for_free_space */
+            return BM_SUCCESS;
+         }
+
+         size_t written = 0;
+         while (pbuf->write_cache_rp < pbuf->write_cache_wp) {
+            /* loop over all events in cache */
+
+            const EVENT_HEADER *pevent = (const EVENT_HEADER *) (pbuf->write_cache + pbuf->write_cache_rp);
+            size_t event_size = (pevent->data_size + sizeof(EVENT_HEADER));
+            size_t total_size = ALIGN8(event_size);
+
+#if 0
+            printf("bm_flush_cache: cache size %d, wp %d, rp %d, event data_size %d, event_size %d, total_size %d, free %d, written %d\n",
+                   int(pbuf->write_cache_size),
+                   int(pbuf->write_cache_wp),
+                   int(pbuf->write_cache_rp),
+                   int(pevent->data_size),
+                   int(event_size),
+                   int(total_size),
+                   int(ask_free),
+                   int(written));
+#endif
+
+            assert(total_size >= sizeof(EVENT_HEADER));
+            assert(total_size <= (size_t)pheader->size);
+
+            if (written + total_size > ask_free) {
+               // we ran out of space in the shared memory, ask for more space!
+               break;
+            }
+
+            bm_write_to_buffer_locked(pheader, 1, (char**)&pevent, &event_size, total_size);
+
+            /* update statistics */
+            pheader->num_in_events++;
+            pbuf->count_sent += 1;
+            pbuf->bytes_sent += total_size;
+            
+            /* see comment for the same code in bm_send_event().
+             * We make sure the buffer is never 100% full */
+            assert(pheader->write_pointer != pheader->read_pointer);
+
+            /* check if anybody has a request for this event */
+            for (int i = 0; i < pheader->max_client_index; i++) {
+               BUFFER_CLIENT *pc = pheader->client + i;
+               int r = bm_find_first_request_locked(pc, pevent);
+               if (r >= 0) {
+                  request_id[i] = r;
+               }
+            }
+            
+            /* this loop does not loop forever because rp
+             * is monotonously incremented here. write_cache_wp does
+             * not change */
+            
+            pbuf->write_cache_rp += total_size;
+            written += total_size;
+
+            assert(pbuf->write_cache_rp > 0);
+            assert(pbuf->write_cache_rp <= pbuf->write_cache_size);
+            assert(pbuf->write_cache_rp <= pbuf->write_cache_wp);
+         }
       }
 
-      /* the write cache is now empty */
-      pbuf->write_cache_wp = 0;
+      if (pbuf->write_cache_wp == pbuf->write_cache_rp) {
+         /* the write cache is now empty */
+         pbuf->write_cache_wp = 0;
+         pbuf->write_cache_rp = 0;
+      }
 
       /* check which clients are waiting */
-      for (i = 0; i < pheader->max_client_index; i++) {
+      for (int i = 0; i < pheader->max_client_index; i++) {
          BUFFER_CLIENT *pc = pheader->client + i;
          bm_notify_reader_locked(pheader, pc, old_write_pointer, request_id[i]);
       }
-
-#if 0
-      status = bm_validate_buffer_locked(pbuf);
-      if (status != BM_SUCCESS) {
-         printf("bm_flush_cache: corrupted 333!\n");
-         abort();
-      }
-#endif
    }
 
    return BM_SUCCESS;
