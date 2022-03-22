@@ -381,11 +381,10 @@ int eval_condition(SEQUENCER &seq, const char *condition) {
       str[strlen(str)-1] = 0;
 
    // strip enclosing '()'
-   if (str[0] == '(' && strlen(str) > 0 && str[strlen(str-1)] == ')') {
+   if (str[0] == '(' && strlen(str) > 0 && str[strlen(str)-1] == ')') {
       strlcpy(value1_str, str+1, sizeof(value1_str));
       strlcpy(str, value1_str, sizeof(str));
-      if (strlen(str) > 0 && str[strlen(str)-1] == ')')
-         str[strlen(str)-1] = 0;
+      str[strlen(str)-1] = 0;
    }
 
    op[1] = op[2] = 0;
