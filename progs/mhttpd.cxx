@@ -15844,7 +15844,7 @@ static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data
 //static sock_t s_sock[2];
 static std::atomic_bool s_shutdown{false};
 static struct mg_mgr s_mgr;
-static std::atomic_uint32_t s_seqno{0};
+static std::atomic_int s_seqno{0};
 static std::mutex s_mg_broadcast_mutex;
 
 #if 0
@@ -15859,7 +15859,7 @@ struct work_request {
 struct work_result {
    void* nc = NULL;
    uint32_t check = 0x12345678;
-   uint32_t seqno = 0;
+   int seqno = 0;
    MongooseWorkObject* w = NULL;
    const char* p1 = NULL;
    size_t s1 = 0;
