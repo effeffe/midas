@@ -1199,7 +1199,7 @@ void seq_array_index(char *odbpath, int *index1, int *index2) {
    if (odbpath[strlen(odbpath) - 1] == ']') {
       if (strchr(odbpath, '[')) {
          //check for sequencer variables
-         if (*(strchr(odbpath, '[') + 1) == '$') {
+         if (strchr((strchr(odbpath, '[') + 1), '$')) {
             strlcpy(str, strchr(odbpath, '[') + 1, sizeof(str));
             if (strchr(str, ']'))
                *strchr(str, ']') = 0;
@@ -1409,7 +1409,7 @@ void sequencer() {
       seq.current_line_number++;
    }
 
-      /*---- ODBSubdir ----*/
+   /*---- ODBSubdir ----*/
    else if (equal_ustring(mxml_get_name(pn), "ODBSubdir")) {
       if (!mxml_get_attribute(pn, "path")) {
          seq_error(seq, "Missing attribute \"path\"");
@@ -1431,12 +1431,6 @@ void sequencer() {
          if (strlen(odbpath) > 0 && odbpath[strlen(odbpath) - 1] != '/')
             strlcat(odbpath, "/", sizeof(odbpath));
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
-
-         if (strchr(odbpath, '$')) {
-            std::string s(odbpath);
-            s = eval_var(seq, s);
-            strlcpy(odbpath, s.c_str(), sizeof(odbpath));
-         }
 
          int notify = TRUE;
          if (seq.subdir_not_notify)
