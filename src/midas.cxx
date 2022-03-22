@@ -27,6 +27,7 @@
 #include <deque>
 #include <thread>
 #include <atomic>
+#include <algorithm>
 
 /**dox***************************************************************/
 /** @file midas.c
@@ -263,8 +264,9 @@ typedef struct {
    INT errstr_size;
    INT async_flag;
    INT debug_flag;
-   INT status;
-   BOOL finished;
+   std::atomic_int status{0};
+   std::atomic_bool finished{false};
+   std::atomic<std::thread*> thread{NULL};
 } TR_PARAM;
 
 static TR_PARAM _trp;
@@ -3953,54 +3955,50 @@ INT cm_check_deferred_transition() {
 /**dox***************************************************************/
 #endif                          /* DOXYGEN_SHOULD_SKIP_THIS */
 
-typedef struct tr_client *PTR_CLIENT;
-
-typedef struct tr_client {
-   int transition;
-   int run_number;
-   int async_flag;
-   int debug_flag;
-   int sequence_number;
-   PTR_CLIENT *pred;
-   int n_pred;
+struct TrClient {
+   int transition = 0;
+   int run_number = 0;
+   int async_flag = 0;
+   int debug_flag = 0;
+   int sequence_number = 0;
+   std::vector<TrClient*> pred;
    char host_name[HOST_NAME_LENGTH];
    char client_name[NAME_LENGTH];
-   int port;
+   int port = 0;
    char key_name[NAME_LENGTH]; /* this client key name in /System/Clients */
-   int status;
+   std::atomic_int status{0};
+   std::thread* thread = NULL;
    char errorstr[1024];
-   DWORD init_time;    // time when tr_client created
+   DWORD init_time = 0;    // time when tr_client created
    char waiting_for_client[NAME_LENGTH]; // name of client we are waiting for
-   DWORD connect_timeout;
-   DWORD connect_start_time; // time when client rpc connection is started
-   DWORD connect_end_time;   // time when client rpc connection is finished
-   DWORD rpc_timeout;
-   DWORD rpc_start_time;     // time client rpc call is started
-   DWORD rpc_end_time;       // time client rpc call is finished
-   DWORD end_time;           // time client thread is finished
-} TR_CLIENT;
+   DWORD connect_timeout = 0;
+   DWORD connect_start_time = 0; // time when client rpc connection is started
+   DWORD connect_end_time = 0;   // time when client rpc connection is finished
+   DWORD rpc_timeout = 0;
+   DWORD rpc_start_time = 0;     // time client rpc call is started
+   DWORD rpc_end_time = 0;       // time client rpc call is finished
+   DWORD end_time = 0;           // time client thread is finished
+};
 
-static int tr_compare(const void *arg1, const void *arg2) {
-   return ((TR_CLIENT *) arg1)->sequence_number - ((TR_CLIENT *) arg2)->sequence_number;
+static bool tr_compare(const TrClient* arg1, const TrClient* arg2) {
+   return arg1->sequence_number < arg2->sequence_number;
 }
 
 /*------------------------------------------------------------------*/
 
-typedef struct {
-   int transition;
-   int run_number;
-   int async_flag;
-   int debug_flag;
-   int status;
+struct TrState {
+   int transition = 0;
+   int run_number = 0;
+   int async_flag = 0;
+   int debug_flag = 0;
+   int status     = 0;
    char errorstr[TRANSITION_ERROR_STRING_LENGTH];
-   DWORD start_time;
-   DWORD end_time;
-   int num_clients;
-   TR_CLIENT *clients;
-} TR_STATE;
+   DWORD start_time = 0;
+   DWORD end_time   = 0;
+   std::vector<TrClient*> clients;
+};
 
-static TR_STATE *tr_previous_transition = NULL;
-static TR_STATE *tr_current_transition = NULL;
+static std::atomic<TrState*> tr_current_transition{NULL};
 
 /*------------------------------------------------------------------*/
 
@@ -4023,13 +4021,14 @@ static int tr_finish(HNDLE hDB, int transition, int status, const char *errorstr
       }
    }
 
-   if (tr_current_transition) {
-      tr_current_transition->status = status;
-      tr_current_transition->end_time = end_time;
+   TrState* tr = tr_current_transition;
+   if (tr) {
+      tr->status = status;
+      tr->end_time = end_time;
       if (errorstr) {
-         strlcpy(tr_current_transition->errorstr, errorstr, sizeof(tr_current_transition->errorstr));
+         strlcpy(tr->errorstr, errorstr, sizeof(tr->errorstr));
       } else {
-         strlcpy(tr_current_transition->errorstr, "(null)", sizeof(tr_current_transition->errorstr));
+         strlcpy(tr->errorstr, "(null)", sizeof(tr->errorstr));
       }
    }
 
@@ -4038,7 +4037,7 @@ static int tr_finish(HNDLE hDB, int transition, int status, const char *errorstr
 
 /*------------------------------------------------------------------*/
 
-static void write_tr_client_to_odb(HNDLE hDB, const TR_CLIENT *tr_client) {
+static void write_tr_client_to_odb(HNDLE hDB, const TrClient *tr_client) {
    //printf("Writing client [%s] to ODB\n", tr_client->client_name);
 
    int status;
@@ -4088,8 +4087,7 @@ static void write_tr_client_to_odb(HNDLE hDB, const TR_CLIENT *tr_client) {
 /*------------------------------------------------------------------*/
 
 /* Perform a detached transition through the external "mtransition" program */
-int
-cm_transition_detach(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag) {
+static int cm_transition_detach(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag) {
    HNDLE hDB;
    int status;
    const char *args[100];
@@ -4172,17 +4170,16 @@ cm_transition_detach(INT transition, INT run_number, char *errstr, INT errstr_si
 /*------------------------------------------------------------------*/
 
 /* contact a client via RPC and execute the remote transition */
-int cm_transition_call(void *param) {
+static int cm_transition_call(void *param) {
    INT old_timeout, status, i, t1, t0, size;
    HNDLE hDB, hConn;
    int connect_timeout = 10000;
    int timeout = 120000;
-   TR_CLIENT *tr_client;
 
    cm_get_experiment_database(&hDB, NULL);
    assert(hDB);
 
-   tr_client = (TR_CLIENT *) param;
+   TrClient *tr_client = (TrClient*) param;
 
    tr_client->errorstr[0] = 0;
    tr_client->init_time = ss_millitime();
@@ -4198,11 +4195,11 @@ int cm_transition_call(void *param) {
    write_tr_client_to_odb(hDB, tr_client);
 
    /* wait for predecessor if set */
-   if (tr_client->async_flag & TR_MTHREAD && tr_client->pred) {
+   if (tr_client->async_flag & TR_MTHREAD && !tr_client->pred.empty()) {
       while (1) {
          int wait_for = -1;
 
-         for (i = 0; i < tr_client->n_pred; i++) {
+         for (size_t i = 0; i < tr_client->pred.size(); i++) {
             if (tr_client->pred[i]->status == 0) {
                wait_for = i;
                break;
@@ -4210,7 +4207,7 @@ int cm_transition_call(void *param) {
 
             if (tr_client->pred[i]->status != SUCCESS && tr_client->transition != TR_STOP) {
                cm_msg(MERROR, "cm_transition_call", "Transition %d aborted: client \"%s\" returned status %d",
-                      tr_client->transition, tr_client->pred[i]->client_name, tr_client->pred[i]->status);
+                      tr_client->transition, tr_client->pred[i]->client_name, int(tr_client->pred[i]->status));
                tr_client->status = -1;
                sprintf(tr_client->errorstr, "Aborted by failure of client \"%s\"", tr_client->pred[i]->client_name);
                tr_client->end_time = ss_millitime();
@@ -4388,7 +4385,7 @@ int cm_transition_call(void *param) {
 
 /*------------------------------------------------------------------*/
 
-int cm_transition_call_direct(TR_CLIENT *tr_client) {
+static int cm_transition_call_direct(TrClient *tr_client) {
    int i;
    int transition_status = CM_SUCCESS;
    HNDLE hDB;
@@ -4482,15 +4479,14 @@ tapes.
 @param debug_flag If 1 output debugging information, if 2 output via cm_msg().
 @return CM_SUCCESS, \<error\> error code from remote client
 */
-INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag) {
-   INT i, j, status, idx, size, sequence_number, port, state, n_tr_clients;
+static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag) {
+   INT i, j, status, size, sequence_number, port, state;
    HNDLE hDB, hRootKey, hSubkey, hKey, hKeylocal, hKeyTrans;
    DWORD seconds;
    char host_name[HOST_NAME_LENGTH], client_name[NAME_LENGTH], str[256], tr_key_name[256];
    const char *trname = "unknown";
    KEY key;
    BOOL deferred;
-   TR_CLIENT *tr_client;
    char xerrstr[TRANSITION_ERROR_STRING_LENGTH];
 
    /* if needed, use internal error string */
@@ -4516,44 +4512,35 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       return CM_INVALID_TRANSITION;
    }
 
-   /* delete previous transition state */
-
-   if (tr_previous_transition) {
-      TR_STATE *s = tr_previous_transition;
-      int n = s->num_clients;
-      TR_CLIENT *t = s->clients;
-
-      for (i = 0; i < n; i++)
-         if (t[i].pred)
-            free(t[i].pred);
-
-      free(s->clients);
-      s->clients = NULL;
-      free(s);
-      tr_previous_transition = NULL;
-   }
-
-   if (tr_current_transition) {
-      tr_previous_transition = tr_current_transition;
-   }
-
    /* construct new transition state */
 
-   if (1) {
-      TR_STATE *s = (TR_STATE *) calloc(1, sizeof(TR_STATE));
+   TrState *s = new TrState;
+   
+   s->transition = transition;
+   s->run_number = run_number;
+   s->async_flag = async_flag;
+   s->debug_flag = debug_flag;
+   s->status = 0;
+   s->errorstr[0] = 0;
+   s->start_time = ss_millitime();
+   s->end_time = 0;
+   
+   /* delete previous transition state */
 
-      s->transition = transition;
-      s->run_number = run_number;
-      s->async_flag = async_flag;
-      s->debug_flag = debug_flag;
-      s->status = 0;
-      s->errorstr[0] = 0;
-      s->start_time = ss_millitime();
-      s->end_time = 0;
-      s->num_clients = 0;
-      s->clients = NULL;
+   TrState* sprev = tr_current_transition.exchange(s);
 
-      tr_current_transition = s;
+   if (sprev) {
+      // delete clients
+      for (size_t i =0; i<sprev->clients.size(); i++) {
+         TrClient* c = sprev->clients[i];
+         if (c) {
+            delete c;
+            sprev->clients[i] = NULL;
+         }
+      }
+
+      // delete transition
+      delete sprev;
    }
 
    /* construct the ODB tree /System/Transition */
@@ -4663,7 +4650,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       if (transition == TR_START) {
          run_number++;
       }
-      tr_current_transition->run_number = run_number;
+      s->run_number = run_number;
 
       if (transition != TR_STARTABORT) {
          db_set_value(hDB, 0, "/System/Transition/run_number", &run_number, sizeof(INT), 1, TID_INT32);
@@ -4936,8 +4923,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    sprintf(tr_key_name, "Transition %s", trname);
 
    /* search database for clients which registered for transition */
-   n_tr_clients = 0;
-   tr_client = NULL;
+   std::vector<TrClient*> tr_clients;
 
    for (i = 0, status = 0;; i++) {
       KEY subkey;
@@ -4960,15 +4946,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
                status = db_get_data_index(hDB, hKeyTrans, &sequence_number, &size, j, TID_INT32);
                assert(status == DB_SUCCESS);
 
-               if (tr_client == NULL)
-                  tr_client = (TR_CLIENT *) malloc(sizeof(TR_CLIENT));
-               else
-                  tr_client = (TR_CLIENT *) realloc(tr_client, sizeof(TR_CLIENT) * (n_tr_clients + 1));
-               assert(tr_client);
-
-               TR_CLIENT *c = &tr_client[n_tr_clients];
-
-               memset(c, 0, sizeof(TR_CLIENT));
+               TrClient *c = new TrClient;
 
                c->transition = transition;
                c->run_number = run_number;
@@ -4976,8 +4954,6 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
                c->debug_flag = debug_flag;
                c->sequence_number = sequence_number;
                c->status = 0;
-               c->n_pred = 0;
-               c->pred = NULL;
                strlcpy(c->key_name, subkey.name, sizeof(c->key_name));
 
                /* get client info */
@@ -4998,34 +4974,33 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
                   c->port = port;
                }
 
-               n_tr_clients++;
+               tr_clients.push_back(c);
             }
          }
       }
    }
 
-   /* sort clients according to sequence number */
-   if (n_tr_clients > 1)
-      qsort(tr_client, n_tr_clients, sizeof(TR_CLIENT), tr_compare);
+   ///* sort clients according to sequence number */
+   //if (n_tr_clients > 1)
+   //   qsort(tr_client, n_tr_clients, sizeof(TR_CLIENT), tr_compare);
+
+   std::sort(tr_clients.begin(), tr_clients.end(), tr_compare);
 
    /* set predecessor for multi-threaded transitions */
-   for (idx = 0; idx < n_tr_clients; idx++) {
-      if (tr_client[idx].sequence_number == 0)
-         tr_client[idx].n_pred = 0; // sequence number 0 means "don't care"
-      else {
+   for (size_t idx = 0; idx < tr_clients.size(); idx++) {
+      if (tr_clients[idx]->sequence_number == 0) {
+         // sequence number 0 means "don't care"
+      } else {
          /* find clients with smaller sequence number */
-         tr_client[idx].n_pred = 0;
-         for (i = idx - 1; i >= 0; i--) {
-            if (tr_client[i].sequence_number < tr_client[idx].sequence_number) {
-               if (i >= 0 && tr_client[i].sequence_number > 0) {
-                  if (tr_client[idx].n_pred == 0)
-                     tr_client[idx].pred = (PTR_CLIENT *) malloc(sizeof(PTR_CLIENT));
-                  else
-                     tr_client[idx].pred = (PTR_CLIENT *) realloc(tr_client[idx].pred,
-                                                                  (tr_client[idx].n_pred + 1) * sizeof(PTR_CLIENT));
-                  tr_client[idx].pred[tr_client[idx].n_pred] = &tr_client[i];
-                  tr_client[idx].n_pred++;
+         if (idx > 0) {
+            for (size_t i = idx - 1; ; i--) {
+               if (tr_clients[i]->sequence_number < tr_clients[idx]->sequence_number) {
+                  if (tr_clients[i]->sequence_number > 0) {
+                     tr_clients[idx]->pred.push_back(tr_clients[i]);
+                  }
                }
+               if (i==0)
+                  break;
             }
          }
       }
@@ -5033,40 +5008,41 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 
    /* construction of tr_client is complete, export it to outside watchers */
 
-   tr_current_transition->num_clients = n_tr_clients;
-   tr_current_transition->clients = tr_client;
+   s->clients = tr_clients;
 
-   for (idx = 0; idx < n_tr_clients; idx++) {
-      write_tr_client_to_odb(hDB, &tr_client[idx]);
+   for (size_t idx = 0; idx < tr_clients.size(); idx++) {
+      write_tr_client_to_odb(hDB, tr_clients[idx]);
    }
 
    /* contact ordered clients for transition -----------------------*/
    status = CM_SUCCESS;
-   for (idx = 0; idx < n_tr_clients; idx++) {
+   for (size_t idx = 0; idx < tr_clients.size(); idx++) {
       if (debug_flag == 1)
          printf("\n==== Found client \"%s\" with sequence number %d\n",
-                tr_client[idx].client_name, tr_client[idx].sequence_number);
+                tr_clients[idx]->client_name, tr_clients[idx]->sequence_number);
       if (debug_flag == 2)
          cm_msg(MINFO, "cm_transition",
                 "cm_transition: ==== Found client \"%s\" with sequence number %d",
-                tr_client[idx].client_name, tr_client[idx].sequence_number);
+                tr_clients[idx]->client_name, tr_clients[idx]->sequence_number);
 
       if (async_flag & TR_MTHREAD) {
          status = CM_SUCCESS;
-         ss_thread_create(cm_transition_call, &tr_client[idx]);
+         //ss_thread_create(cm_transition_call, &tr_client[idx]);
+         assert(tr_clients[idx]->thread == NULL);
+         tr_clients[idx]->thread = new std::thread(cm_transition_call, tr_clients[idx]);
       } else {
-         if (tr_client[idx].port == 0) {
+         if (tr_clients[idx]->port == 0) {
             /* if own client call transition callback directly */
-            status = cm_transition_call_direct(&tr_client[idx]);
+            status = cm_transition_call_direct(tr_clients[idx]);
          } else {
             /* if other client call transition via RPC layer */
-            status = cm_transition_call(&tr_client[idx]);
+            status = cm_transition_call(tr_clients[idx]);
          }
 
          if (status == CM_SUCCESS && transition != TR_STOP)
-            if (tr_client[idx].status != SUCCESS) {
+            if (tr_clients[idx]->status != SUCCESS) {
                cm_msg(MERROR, "cm_transition", "transition %s aborted: client \"%s\" returned status %d", trname,
-                      tr_client[idx].client_name, tr_client[idx].status);
+                      tr_clients[idx]->client_name, int(tr_clients[idx]->status));
                break;
             }
       }
@@ -5080,11 +5056,18 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
       while (1) {
          int all_done = 1;
 
-         for (idx = 0; idx < tr_current_transition->num_clients; idx++)
-            if (tr_current_transition->clients[idx].status == 0) {
+         for (size_t idx = 0; idx < s->clients.size(); idx++) {
+            if (s->clients[idx]->status == 0) {
                all_done = 0;
                break;
             }
+
+            if (s->clients[idx]->thread) {
+               s->clients[idx]->thread->join();
+               delete s->clients[idx]->thread;
+               s->clients[idx]->thread = NULL;
+            }
+         }
 
          if (all_done)
             break;
@@ -5094,8 +5077,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
          status = db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT32, FALSE);
 
          if (status == DB_SUCCESS && i == 0) {
-            cm_msg(MERROR, "cm_transition", "transition %s aborted: \"/Runinfo/Transition in progress\" was cleared",
-                   trname);
+            cm_msg(MERROR, "cm_transition", "transition %s aborted: \"/Runinfo/Transition in progress\" was cleared", trname);
 
             if (errstr != NULL)
                strlcpy(errstr, "Canceled", errstr_size);
@@ -5108,14 +5090,14 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
    }
 
    /* search for any error */
-   for (idx = 0; idx < n_tr_clients; idx++)
-      if (tr_client[idx].status != CM_SUCCESS) {
-         status = tr_client[idx].status;
+   for (size_t idx = 0; idx < tr_clients.size(); idx++)
+      if (tr_clients[idx]->status != CM_SUCCESS) {
+         status = tr_clients[idx]->status;
          if (errstr)
-            strlcpy(errstr, tr_client[idx].errorstr, errstr_size);
-         strlcpy(tr_current_transition->errorstr, "Aborted by client \"", sizeof(tr_current_transition->errorstr));
-         strlcat(tr_current_transition->errorstr, tr_client[idx].client_name, sizeof(tr_current_transition->errorstr));
-         strlcat(tr_current_transition->errorstr, "\"", sizeof(tr_current_transition->errorstr));
+            strlcpy(errstr, tr_clients[idx]->errorstr, errstr_size);
+         strlcpy(s->errorstr, "Aborted by client \"", sizeof(s->errorstr));
+         strlcat(s->errorstr, tr_clients[idx]->client_name, sizeof(s->errorstr));
+         strlcat(s->errorstr, "\"", sizeof(s->errorstr));
          break;
       }
 
@@ -5232,7 +5214,7 @@ INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size
 /*------------------------------------------------------------------*/
 
 /* wrapper around cm_transition2() to send a TR_STARTABORT in case of failure */
-INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag) {
+static INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag) {
    int status;
 
    status = cm_transition2(transition, run_number, errstr, errstr_size, async_flag, debug_flag);
@@ -5248,23 +5230,48 @@ INT cm_transition1(INT transition, INT run_number, char *errstr, INT errstr_size
 
 /*------------------------------------------------------------------*/
 
-INT tr_main_thread(void *param) {
+static INT tr_main_thread(void *param) {
    INT status;
    TR_PARAM *trp;
 
    trp = (TR_PARAM *) param;
-   status = cm_transition1(trp->transition, trp->run_number, trp->errstr, trp->errstr_size, trp->async_flag,
-                           trp->debug_flag);
+   status = cm_transition1(trp->transition, trp->run_number, trp->errstr, trp->errstr_size, trp->async_flag, trp->debug_flag);
 
    trp->status = status;
    trp->finished = TRUE;
+
    return 0;
+}
+
+INT cm_transition_cleanup()
+{
+   if (_trp.thread && !_trp.finished) {
+      //printf("main transition thread did not finish yet!\n");
+      return CM_TRANSITION_IN_PROGRESS;
+   }
+
+   std::thread* t = _trp.thread.exchange(NULL);
+
+   if (t) {
+      t->join();
+      delete t;
+      t = NULL;
+   }
+
+   return CM_SUCCESS;
 }
 
 /* wrapper around cm_transition1() for detached multi-threaded transitions */
 INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag) {
    int mflag = async_flag & TR_MTHREAD;
    int sflag = async_flag & TR_SYNC;
+
+   int status = cm_transition_cleanup();
+
+   if (status != CM_SUCCESS) {
+      cm_msg(MERROR, "cm_transition", "previous transition did not finish yet");
+      return CM_TRANSITION_IN_PROGRESS;
+   }
 
    if (mflag) {
       _trp.transition = transition;
@@ -5290,13 +5297,26 @@ INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size,
       if (errstr)
          *errstr = 0; // null error string
 
-      ss_thread_create(tr_main_thread, &_trp);
+      //ss_thread_create(tr_main_thread, &_trp);
+
+      std::thread* t = _trp.thread.exchange(new std::thread(tr_main_thread, &_trp));
+
+      assert(t==NULL); // previous thread should have been reaped by cm_transition_cleanup()
+
       if (sflag) {
 
          /* wait until main thread has finished */
          do {
             ss_sleep(10);
          } while (!_trp.finished);
+
+         std::thread* t = _trp.thread.exchange(NULL);
+
+         if (t) {
+            t->join();
+            delete t;
+            t = NULL;
+         }
 
          return _trp.status;
       }
@@ -5547,6 +5567,10 @@ INT cm_periodic_tasks() {
 
       last_millitime = now_millitime;
    }
+
+   /* reap transition thread */
+
+   cm_transition_cleanup();
 
    return CM_SUCCESS;
 }

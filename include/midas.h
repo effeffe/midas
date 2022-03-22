@@ -1722,6 +1722,7 @@ Data conversion flags */
    INT EXPRT cm_register_deferred_transition(INT transition, BOOL(*func) (INT, BOOL));
    INT EXPRT cm_check_deferred_transition(void);
    INT EXPRT cm_transition(INT transition, INT run_number, char *error, INT strsize, INT async_flag, INT debug_flag);
+   INT EXPRT cm_transition_cleanup();
    INT EXPRT cm_register_server(void);
    INT EXPRT cm_register_function(INT id, INT(*func) (INT, void **));
    INT EXPRT cm_connect_client(const char *client_name, HNDLE * hConn);
