@@ -149,7 +149,7 @@ endif(HAVE_ROOT)
 # Installation
 #
 
-install(TARGETS ${PROGS} ${MFEPROGS} mhttpd mhttpd6 odbedit DESTINATION bin)
+install(TARGETS ${PROGS} ${MFEPROGS} mhttpd mhttpd6 odbedit msequencer DESTINATION bin)
 
 if (HAVE_NVIDIA)
    install(TARGETS msysmon-nvidia DESTINATION bin)
