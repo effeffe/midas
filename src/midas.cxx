@@ -862,65 +862,6 @@ struct msg_buffer_entry {
 static std::deque<msg_buffer_entry> gMsgBuf;
 static std::mutex gMsgBufMutex;
 
-static INT cm_msg_buffer(DWORD ts, int message_type, const char *message) {
-   msg_buffer_entry e;
-   e.ts = ts;
-   e.message_type = message_type;
-   e.message = message;
-
-   std::lock_guard<std::mutex> lock(gMsgBufMutex);
-   gMsgBuf.push_back(e);
-   // implicit unlock on return
-   
-#if 0
-   int status;
-   int len;
-   char *wp;
-   void *vp;
-
-   //printf("cm_msg_buffer ts %d, type %d, message [%s]!\n", ts, message_type, message);
-
-   if (!_msg_rb) {
-      fprintf(stderr, "cm_msg_buffer: Error: dropped message [%s] because message ring buffer is not initialized\n",
-              message);
-      return CM_SUCCESS;
-   }
-
-   len = strlen(message) + 1;
-
-   // lock
-   status = ss_mutex_wait_for(_msg_mutex, 0);
-   assert(status == SS_SUCCESS);
-
-   status = rb_get_wp(_msg_rb, &vp, 1000);
-   wp = (char *) vp;
-
-   if (status != SUCCESS || wp == NULL) {
-      // unlock
-      ss_mutex_release(_msg_mutex);
-      return SS_NO_MEMORY;
-   }
-
-   *wp++ = 'M';
-   *wp++ = 'S';
-   *wp++ = 'G';
-   *wp++ = '_';
-   *(int *) wp = ts;
-   wp += sizeof(int);
-   *(int *) wp = message_type;
-   wp += sizeof(int);
-   *(int *) wp = len;
-   wp += sizeof(int);
-   memcpy(wp, message, len);
-   rb_increment_wp(_msg_rb, 4 + 3 * sizeof(int) + len);
-
-   // unlock
-   ss_mutex_release(_msg_mutex);
-#endif
-
-   return CM_SUCCESS;
-}
-
 /********************************************************************/
 /**
 This routine can be called to process messages buffered by cm_msg(). Normally
@@ -1041,27 +982,18 @@ formated line as it is already added by the client on the receiving side.
 @param format message to printout, ... Parameters like for printf()
 @return CM_SUCCESS
 */
-INT cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) {
-   va_list argptr;
-   INT status;
-   std::string message;
-   static BOOL in_routine = FALSE;
-   int ts = ss_time();
+INT cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...)
+{
+   DWORD ts = ss_time();
 
    /* print argument list into message */
+   std::string message;
+   va_list argptr;
    va_start(argptr, format);
    message = cm_msg_format(message_type, filename, line, routine, format, &argptr);
    va_end(argptr);
 
    //printf("message [%s]\n", message);
-
-   /* avoid recursive calls */
-   if (in_routine) {
-      fprintf(stderr, "cm_msg: Error: dropped message [%s] to break recursion\n", message.c_str());
-      return CM_SUCCESS;
-   }
-
-   in_routine = TRUE;
 
    /* call user function if set via cm_set_msg_print */
    if (_message_print != NULL && (message_type & _message_mask_user) != 0) {
@@ -1072,15 +1004,14 @@ INT cm_msg(INT message_type, const char *filename, INT line, const char *routine
 
    /* return if system mask is not set */
    if ((message_type & _message_mask_system) == 0) {
-      in_routine = FALSE;
       return CM_SUCCESS;
    }
 
-   status = cm_msg_buffer(ts, message_type, message.c_str());
+   gMsgBufMutex.lock();
+   gMsgBuf.push_back(msg_buffer_entry{ts, message_type, message});
+   gMsgBufMutex.unlock();
 
-   in_routine = FALSE;
-
-   return status;
+   return CM_SUCCESS;
 }
 
 /********************************************************************/
