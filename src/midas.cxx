@@ -6299,20 +6299,51 @@ static void bm_clear_buffer_statistics(HNDLE hDB, BUFFER *pbuf) {
    }
 }
 
-static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER *pbuf, BOOL force) {
-   //printf("bm_buffer_write_statistics_to_odb: buffer [%s] client [%s], lock count %d -> %d, force %d\n", pbuf->buffer_name, pbuf->client_name, pbuf->last_count_lock, pbuf->count_lock, force);
+struct BUFFER_INFO
+{
+   BOOL get_all_flag = false;         /**< this is a get_all reader     */
 
-   // FIXME: buffer should be locked here, but should not call ODB and cm_msg() with buffer locked!
+   /* buffer statistics */
+   int count_lock = 0;                /**< count how many times we locked the buffer */
+   int count_sent = 0;                /**< count how many events we sent */
+   double bytes_sent = 0;             /**< count how many bytes we sent */
+   int count_write_wait = 0;          /**< count how many times we waited for free space */
+   DWORD time_write_wait = 0;         /**< count for how long we waited for free space, in units of ss_millitime() */
+   int last_count_lock = 0;           /**< avoid writing statistics to odb if lock count did not change */
+   DWORD wait_start_time = 0;         /**< time when we started the wait */
+   int wait_client_index = 0;         /**< waiting for which client */
+   int max_requested_space = 0;       /**< waiting for this many bytes of free space */
+   int count_read = 0;                /**< count how many events we read */
+   double bytes_read = 0;             /**< count how many bytes we read */
+   int client_count_write_wait[MAX_CLIENTS]; /**< per-client count_write_wait */
+   DWORD client_time_write_wait[MAX_CLIENTS]; /**< per-client time_write_wait */
 
-   if (!force)
-      if (pbuf->count_lock == pbuf->last_count_lock)
-         return;
+   BUFFER_INFO(BUFFER* pbuf)
+   {
+      get_all_flag = pbuf->get_all_flag;
 
-   if ((strlen(pbuf->buffer_name) < 1) || (strlen(pbuf->client_name) < 1)) {
-      cm_msg(MERROR, "bm_write_buffer_statistics_to_odb", "Invalid empty buffer name \"%s\" or client name \"%s\"", pbuf->buffer_name, pbuf->client_name);
-      return;
-   }
+      /* buffer statistics */
+      count_lock        = pbuf->count_lock;
+      count_sent        = pbuf->count_sent;
+      bytes_sent        = pbuf->bytes_sent;
+      count_write_wait  = pbuf->count_write_wait;
+      time_write_wait   = pbuf->time_write_wait;
+      last_count_lock   = pbuf->last_count_lock;
+      wait_start_time   = pbuf->wait_start_time;
+      wait_client_index = pbuf->wait_client_index;
+      max_requested_space = pbuf->max_requested_space;
+      count_read        = pbuf->count_read;
+      bytes_read        = pbuf->bytes_read;
 
+      for (int i=0; i<MAX_CLIENTS; i++) {
+         client_count_write_wait[i] = pbuf->client_count_write_wait[i];
+         client_time_write_wait[i] = pbuf->client_time_write_wait[i];
+      }
+   };
+};
+
+static void bm_write_buffer_statistics_to_odb_copy(HNDLE hDB, const char* buffer_name, const char* client_name, int client_index, BUFFER_INFO *pbuf, BUFFER_HEADER* pheader)
+{
    int status;
 
    DWORD now = ss_millitime();
@@ -6327,62 +6358,58 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER *pbuf, BOOL forc
    }
 
    HNDLE hKeyBuffer;
-   status = db_find_key(hDB, hKey, pbuf->buffer_name, &hKeyBuffer);
+   status = db_find_key(hDB, hKey, buffer_name, &hKeyBuffer);
    if (status != DB_SUCCESS) {
-      db_create_key(hDB, hKey, pbuf->buffer_name, TID_KEY);
-      status = db_find_key(hDB, hKey, pbuf->buffer_name, &hKeyBuffer);
+      db_create_key(hDB, hKey, buffer_name, TID_KEY);
+      status = db_find_key(hDB, hKey, buffer_name, &hKeyBuffer);
       if (status != DB_SUCCESS)
          return;
    }
 
-   double buf_size = 0;
-   double buf_rptr = 0;
-   double buf_wptr = 0;
+   double buf_size = pheader->size;
+   double buf_rptr = pheader->read_pointer;
+   double buf_wptr = pheader->write_pointer;
+
    double buf_fill = 0;
    double buf_cptr = 0;
    double buf_cused = 0;
    double buf_cused_pct = 0;
 
-   if (pbuf->attached && pbuf->buffer_header) {
-      buf_size = pbuf->buffer_header->size;
-      buf_rptr = pbuf->buffer_header->read_pointer;
-      buf_wptr = pbuf->buffer_header->write_pointer;
-      if (pbuf->client_index >= 0 && pbuf->client_index <= pbuf->buffer_header->max_client_index) {
-         buf_cptr = pbuf->buffer_header->client[pbuf->client_index].read_pointer;
+   if (client_index >= 0 && client_index <= pheader->max_client_index) {
+      buf_cptr = pheader->client[client_index].read_pointer;
 
-         if (buf_wptr == buf_cptr) {
-            buf_cused = 0;
-         } else if (buf_wptr > buf_cptr) {
-            buf_cused = buf_wptr - buf_cptr;
-         } else {
-            buf_cused = (buf_size - buf_cptr) + buf_wptr;
-         }
-
-         buf_cused_pct = buf_cused / buf_size * 100.0;
-
-         // we cannot write buf_cused and buf_cused_pct into the buffer statistics
-         // because some other GET_ALL client may have different buf_cused & etc,
-         // so they must be written into the per-client statistics
-         // and the web page should look at all the GET_ALL clients and used
-         // the biggest buf_cused as the whole-buffer "bytes used" value.
-      }
-
-      if (buf_wptr == buf_rptr) {
-         buf_fill = 0;
-      } else if (buf_wptr > buf_rptr) {
-         buf_fill = buf_wptr - buf_rptr;
+      if (buf_wptr == buf_cptr) {
+         buf_cused = 0;
+      } else if (buf_wptr > buf_cptr) {
+         buf_cused = buf_wptr - buf_cptr;
       } else {
-         buf_fill = (buf_size - buf_rptr) + buf_wptr;
+         buf_cused = (buf_size - buf_cptr) + buf_wptr;
       }
-
-      double buf_fill_pct = buf_fill / buf_size * 100.0;
-
-      db_set_value(hDB, hKeyBuffer, "Size", &buf_size, sizeof(double), 1, TID_DOUBLE);
-      db_set_value(hDB, hKeyBuffer, "Write pointer", &buf_wptr, sizeof(double), 1, TID_DOUBLE);
-      db_set_value(hDB, hKeyBuffer, "Read pointer", &buf_rptr, sizeof(double), 1, TID_DOUBLE);
-      db_set_value(hDB, hKeyBuffer, "Filled", &buf_fill, sizeof(double), 1, TID_DOUBLE);
-      db_set_value(hDB, hKeyBuffer, "Filled pct", &buf_fill_pct, sizeof(double), 1, TID_DOUBLE);
+      
+      buf_cused_pct = buf_cused / buf_size * 100.0;
+      
+      // we cannot write buf_cused and buf_cused_pct into the buffer statistics
+      // because some other GET_ALL client may have different buf_cused & etc,
+      // so they must be written into the per-client statistics
+      // and the web page should look at all the GET_ALL clients and used
+      // the biggest buf_cused as the whole-buffer "bytes used" value.
    }
+
+   if (buf_wptr == buf_rptr) {
+      buf_fill = 0;
+   } else if (buf_wptr > buf_rptr) {
+      buf_fill = buf_wptr - buf_rptr;
+   } else {
+      buf_fill = (buf_size - buf_rptr) + buf_wptr;
+   }
+
+   double buf_fill_pct = buf_fill / buf_size * 100.0;
+
+   db_set_value(hDB, hKeyBuffer, "Size", &buf_size, sizeof(double), 1, TID_DOUBLE);
+   db_set_value(hDB, hKeyBuffer, "Write pointer", &buf_wptr, sizeof(double), 1, TID_DOUBLE);
+   db_set_value(hDB, hKeyBuffer, "Read pointer", &buf_rptr, sizeof(double), 1, TID_DOUBLE);
+   db_set_value(hDB, hKeyBuffer, "Filled", &buf_fill, sizeof(double), 1, TID_DOUBLE);
+   db_set_value(hDB, hKeyBuffer, "Filled pct", &buf_fill_pct, sizeof(double), 1, TID_DOUBLE);
 
    status = db_find_key(hDB, hKeyBuffer, "Clients", &hKey);
    if (status != DB_SUCCESS) {
@@ -6393,10 +6420,10 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER *pbuf, BOOL forc
    }
 
    HNDLE hKeyClient;
-   status = db_find_key(hDB, hKey, pbuf->client_name, &hKeyClient);
+   status = db_find_key(hDB, hKey, client_name, &hKeyClient);
    if (status != DB_SUCCESS) {
-      db_create_key(hDB, hKey, pbuf->client_name, TID_KEY);
-      status = db_find_key(hDB, hKey, pbuf->client_name, &hKeyClient);
+      db_create_key(hDB, hKey, client_name, TID_KEY);
+      status = db_find_key(hDB, hKey, client_name, &hKeyClient);
       if (status != DB_SUCCESS)
          return;
    }
@@ -6414,32 +6441,65 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER *pbuf, BOOL forc
    db_set_value(hDB, hKeyClient, "bytes_used", &buf_cused, sizeof(double), 1, TID_DOUBLE);
    db_set_value(hDB, hKeyClient, "pct_used", &buf_cused_pct, sizeof(double), 1, TID_DOUBLE);
 
-   if (pbuf->attached && pbuf->buffer_header) {
-      int i;
-      for (i = 0; i < MAX_CLIENTS; i++) {
-         if (!pbuf->client_count_write_wait[i])
-            continue;
-
-         if (pbuf->buffer_header->client[i].pid == 0)
-            continue;
-
-         if (pbuf->buffer_header->client[i].name[0] == 0)
-            continue;
-
-         char str[100 + NAME_LENGTH];
-
-         sprintf(str, "writes_blocked_by/%s/count_write_wait", pbuf->buffer_header->client[i].name);
-         db_set_value(hDB, hKeyClient, str, &pbuf->client_count_write_wait[i], sizeof(int), 1, TID_INT32);
-
-         sprintf(str, "writes_blocked_by/%s/time_write_wait", pbuf->buffer_header->client[i].name);
-         db_set_value(hDB, hKeyClient, str, &pbuf->client_time_write_wait[i], sizeof(DWORD), 1, TID_UINT32);
-      }
+   for (int i = 0; i < MAX_CLIENTS; i++) {
+      if (!pbuf->client_count_write_wait[i])
+         continue;
+      
+      if (pheader->client[i].pid == 0)
+         continue;
+      
+      if (pheader->client[i].name[0] == 0)
+         continue;
+      
+      char str[100 + NAME_LENGTH];
+      
+      sprintf(str, "writes_blocked_by/%s/count_write_wait", pheader->client[i].name);
+      db_set_value(hDB, hKeyClient, str, &pbuf->client_count_write_wait[i], sizeof(int), 1, TID_INT32);
+      
+      sprintf(str, "writes_blocked_by/%s/time_write_wait", pheader->client[i].name);
+      db_set_value(hDB, hKeyClient, str, &pbuf->client_time_write_wait[i], sizeof(DWORD), 1, TID_UINT32);
    }
 
    db_set_value(hDB, hKeyBuffer, "Last updated", &now, sizeof(DWORD), 1, TID_UINT32);
    db_set_value(hDB, hKeyClient, "last_updated", &now, sizeof(DWORD), 1, TID_UINT32);
+}
+
+static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER *pbuf, BOOL force)
+{
+   //printf("bm_buffer_write_statistics_to_odb: buffer [%s] client [%s], lock count %d -> %d, force %d\n", pbuf->buffer_name, pbuf->client_name, pbuf->last_count_lock, pbuf->count_lock, force);
+
+   // FIXME: buffer should be locked here, but should not call ODB and cm_msg() with buffer locked!
+
+   int status = bm_lock_buffer(pbuf);
+
+   if (status != BM_SUCCESS)
+      return;
+
+   if (!force) {
+      if (pbuf->count_lock == pbuf->last_count_lock) {
+         bm_unlock_buffer(pbuf);
+         return;
+      }
+   }
+
+   std::string buffer_name = pbuf->buffer_name;
+   std::string client_name = pbuf->client_name;
+
+   if ((strlen(buffer_name.c_str()) < 1) || (strlen(client_name.c_str()) < 1)) {
+      bm_unlock_buffer(pbuf);
+      cm_msg(MERROR, "bm_write_buffer_statistics_to_odb", "Invalid empty buffer name \"%s\" or client name \"%s\"", buffer_name.c_str(), client_name.c_str());
+      return;
+   }
 
    pbuf->last_count_lock = pbuf->count_lock;
+
+   BUFFER_INFO xbuf(pbuf);
+   BUFFER_HEADER xheader = *pbuf->buffer_header;
+   int client_index = pbuf->client_index;
+
+   bm_unlock_buffer(pbuf);
+
+   bm_write_buffer_statistics_to_odb_copy(hDB, buffer_name.c_str(), client_name.c_str(), client_index, &xbuf, &xheader);
 }
 
 static BUFFER* bm_get_buffer(const char* who, int buffer_handle, int* pstatus)
