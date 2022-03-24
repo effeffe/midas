@@ -3925,7 +3925,7 @@ struct TrClient {
    int async_flag = 0;
    int debug_flag = 0;
    int sequence_number = 0;
-   std::vector<TrClient*> pred;
+   std::vector<int> wait_for_index;
    char host_name[HOST_NAME_LENGTH];
    char client_name[NAME_LENGTH];
    int port = 0;
@@ -4159,46 +4159,55 @@ static int cm_transition_call(void *param) {
    write_tr_client_to_odb(hDB, tr_client);
 
    /* wait for predecessor if set */
-   if (tr_client->async_flag & TR_MTHREAD && !tr_client->pred.empty()) {
+   if (tr_client->async_flag & TR_MTHREAD && !tr_client->wait_for_index.empty()) {
       while (1) {
-         int wait_for = -1;
+         TrState *trct= tr_current_transition;
 
-         for (size_t i = 0; i < tr_client->pred.size(); i++) {
-            if (tr_client->pred[i]->status == 0) {
-               wait_for = i;
+         assert(trct != NULL);
+
+         TrClient* wait_for = NULL;
+
+         for (size_t i = 0; i < tr_client->wait_for_index.size(); i++) {
+            int wait_for_index = tr_client->wait_for_index[i];
+
+            assert(wait_for_index >= 0);
+            assert(wait_for_index < (int)trct->clients.size());
+
+            TrClient *t = trct->clients[wait_for_index];
+
+            if (!t)
+               continue;
+
+            if (t->status == 0) {
+               wait_for = t;
                break;
             }
 
-            if (tr_client->pred[i]->status != SUCCESS && tr_client->transition != TR_STOP) {
-               cm_msg(MERROR, "cm_transition_call", "Transition %d aborted: client \"%s\" returned status %d",
-                      tr_client->transition, tr_client->pred[i]->client_name, int(tr_client->pred[i]->status));
+            if (t->status != SUCCESS && tr_client->transition != TR_STOP) {
+               cm_msg(MERROR, "cm_transition_call", "Transition %d aborted: client \"%s\" returned status %d", tr_client->transition, t->client_name, int(t->status));
                tr_client->status = -1;
-               sprintf(tr_client->errorstr, "Aborted by failure of client \"%s\"", tr_client->pred[i]->client_name);
+               sprintf(tr_client->errorstr, "Aborted by failure of client \"%s\"", t->client_name);
                tr_client->end_time = ss_millitime();
                write_tr_client_to_odb(hDB, tr_client);
                return CM_SUCCESS;
             }
          }
 
-         if (wait_for < 0)
+         if (wait_for == NULL)
             break;
 
-         strlcpy(tr_client->waiting_for_client, tr_client->pred[wait_for]->client_name,
-                 sizeof(tr_client->waiting_for_client));
+         strlcpy(tr_client->waiting_for_client, wait_for->client_name, sizeof(tr_client->waiting_for_client));
          write_tr_client_to_odb(hDB, tr_client);
 
          if (tr_client->debug_flag == 1)
-            printf("Client \"%s\" waits for client \"%s\"\n", tr_client->client_name,
-                   tr_client->pred[wait_for]->client_name);
+            printf("Client \"%s\" waits for client \"%s\"\n", tr_client->client_name, wait_for->client_name);
 
          i = 0;
          size = sizeof(i);
          status = db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT32, FALSE);
 
          if (status == DB_SUCCESS && i == 0) {
-            cm_msg(MERROR, "cm_transition_call",
-                   "Client \"%s\" transition %d aborted while waiting for client \"%s\": \"/Runinfo/Transition in progress\" was cleared",
-                   tr_client->client_name, tr_client->transition, tr_client->pred[wait_for]->client_name);
+            cm_msg(MERROR, "cm_transition_call", "Client \"%s\" transition %d aborted while waiting for client \"%s\": \"/Runinfo/Transition in progress\" was cleared", tr_client->client_name, tr_client->transition, wait_for->client_name);
             tr_client->status = -1;
             sprintf(tr_client->errorstr, "Canceled");
             tr_client->end_time = ss_millitime();
@@ -4343,6 +4352,17 @@ static int cm_transition_call(void *param) {
    tr_client->end_time = ss_millitime();
 
    write_tr_client_to_odb(hDB, tr_client);
+
+#if 0
+   printf("cm_transition_call(%s) finished %d %d %d %d %d %d\n",
+          tr_client->client_name,
+          tr_client->init_time - tr_client->init_time,
+          tr_client->connect_start_time - tr_client->init_time,
+          tr_client->connect_end_time - tr_client->init_time,
+          tr_client->rpc_start_time - tr_client->init_time,
+          tr_client->rpc_end_time - tr_client->init_time,
+          tr_client->end_time - tr_client->init_time);
+#endif
 
    return CM_SUCCESS;
 }
@@ -4960,7 +4980,7 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
             for (size_t i = idx - 1; ; i--) {
                if (tr_clients[i]->sequence_number < tr_clients[idx]->sequence_number) {
                   if (tr_clients[i]->sequence_number > 0) {
-                     tr_clients[idx]->pred.push_back(tr_clients[i]);
+                     tr_clients[idx]->wait_for_index.push_back(i);
                   }
                }
                if (i==0)
