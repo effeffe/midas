@@ -2454,7 +2454,7 @@ int main(int argc, char **argv) {
    char host_name[HOST_NAME_LENGTH];
    char expt_name[HOST_NAME_LENGTH];
    BOOL daemon;
-   INT i, msg, ch, size, status, mainlast_time;
+   INT i, msg, size, status, mainlast_time;
    DWORD last_time_kb = 0;
    setbuf(stdout, NULL);
    setbuf(stderr, NULL);
@@ -2837,6 +2837,8 @@ int main(int argc, char **argv) {
    ss_getchar(0);
 
    DWORD period = lazy.period * 1000;
+
+   int ch = 0;
 
    do {
       msg = cm_yield(2000);
