@@ -803,6 +803,10 @@ msl_parse(HNDLE hDB, MVOdb *odb, int level, const char *path, const char *filena
             fprintf(fout, "<ODBGet l=\"%d\" lvl=\"%d\" path=\"%s\">%s</ODBGet>\n", line + 1, level, list[1], list[2]);
             xml += "<ODBGet " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBGet>\n";
 
+         } else if (equal_ustring(list[0], "odbsave")) {
+            fprintf(fout, "<ODBSave l=\"%d\" lvl=\"%d\" path=\"%s\">%s</ODBSave>\n", line + 1, level, list[1], list[2]);
+            xml += "<ODBSave " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBSave>\n";
+
          } else if (equal_ustring(list[0], "odbsubdir")) {
             if (list[2][0]) {
                fprintf(fout, "<ODBSubdir l=\"%d\" lvl=\"%d\" notify=\"%s\" path=\"%s\">\n", line + 1, level, list[2], list[1]);
@@ -1503,6 +1507,75 @@ void sequencer() {
       } else {
          //otherwise load at root
          status = db_load(hDB, 0, value, FALSE);
+      }
+
+      if (status == DB_SUCCESS) {
+         size = sizeof(seq);
+         db_get_record1(hDB, hKeySeq, &seq, &size, 0, strcomb1(sequencer_str).c_str());// could have changed seq tree
+         seq.current_line_number++;
+      } else if (status == DB_FILE_ERROR) {
+         sprintf(str, "Error reading file \"%s\"", value);
+         seq_error(seq, str);
+      } else {
+         //something went really wrong
+         seq_error(seq, "Internal error loading ODB file!");
+         return;
+      }
+   }
+
+   /*---- ODBSave ----*/
+   else if (equal_ustring(mxml_get_name(pn), "ODBSave")) {
+      if (mxml_get_value(pn)[0] == '/') {
+         //absolute path
+         strlcpy(value, mxml_get_value(pn), sizeof(value));
+
+      } else if (mxml_get_value(pn)[0] == '$') {
+         //path relative to the one set in /Sequencer/Path
+         strlcpy(value, seq.path, sizeof(value));
+         strlcat(value, mxml_get_value(pn), sizeof(value));
+         *strchr(value, '$') = '/';
+
+      } else {
+         //relative path to msl file
+         strlcpy(value, seq.path, sizeof(value));
+         strlcat(value, seq.filename, sizeof(value));
+         char *fullpath = strrchr(value, '/');
+         if (fullpath)
+            *(++fullpath) = '\0';
+         strlcat(value, mxml_get_value(pn), sizeof(value));
+      }
+
+      // if path attribute is given
+      if (mxml_get_attribute(pn, "path") && *mxml_get_attribute(pn, "path")) {
+         strlcpy(odbpath, seq.subdir, sizeof(odbpath));
+         if (strlen(odbpath) > 0 && odbpath[strlen(odbpath) - 1] != '/')
+            strlcat(odbpath, "/", sizeof(odbpath));
+         strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
+
+         // find key or subdirectory to save
+         status = db_find_key(hDB, 0, odbpath, &hKey);
+         if (status != DB_SUCCESS) {
+            char errorstr[512];
+            sprintf(errorstr, "Cannot find ODB key \"%s\"", odbpath);
+            seq_error(seq, errorstr);
+            return;
+         } else {
+            if (strstr(value, ".json") || strstr(value, ".JSON") || strstr(value, ".js") || strstr(value, ".JS"))
+               status = db_save_json(hDB, hKey, value);
+            else if  (strstr(value, ".xml") || strstr(value, ".XML"))
+               status = db_save_xml(hDB, hKey, value);
+            else
+               status = db_save(hDB, hKey, value, FALSE);
+            if (status != DB_SUCCESS) {
+               char err[256];
+               sprintf(err, "Cannot save file \"%s\", error %d", value, status);
+               seq_error(seq, err);
+               return;
+            }
+         }
+      } else {
+         seq_error(seq, "No ODB path specified in ODBSAVE command");
+         return;
       }
 
       if (status == DB_SUCCESS) {
