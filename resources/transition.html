@@ -58,7 +58,7 @@
       <tr class="mtabletitle">
          <th style="padding:7px">Client</th>
          <th style="padding:7px">Sequence</th>
-         <th style="padding:7px">Time<br>(Wait/Connect+Process=Total)</th>
+         <th style="padding:7px">Time<br>wait,connect,rpc,(total)</th>
          <th style="padding:7px">Status</th>
          <th style="text-align:left;padding:7px">Error message</th>
       </tr>
@@ -116,7 +116,8 @@
       tr.appendChild(td);
       
       td = document.createElement("td");
-      td.align = "center";
+      td.style = "text-align:left;font-family: monospace;";
+      //td.align = "center";
       td.innerHTML = "time";
       tr.appendChild(td);
       
@@ -209,10 +210,34 @@
    }
 
    function time2sec(time) {
-      var v = Math.round(time / 100);
+      let v = Math.round(time / 100);
       if (v == 0)
          return "0";
       return v / 10.0 + "s";
+   }
+
+   function time2dot(time, dot) {
+      let v = Math.ceil(time / 1000);
+      if (v == 0)
+         return dot;
+      //return "["+time+"/"+v+"]"+dot.repeat(v);
+      return dot.repeat(v);
+   }
+
+   function time2dot2(str, time0, time1, time2, dot) {
+      let v1 = Math.ceil((time1-time0)/1000);
+      let v2 = Math.ceil((time2-time0)/1000);
+      let v0 = str.length;
+      return str + dot.repeat(v2-v0);
+
+      let time = time2-time1;
+      if (time < 0)
+         return str;
+      let v = Math.ceil(time / 1000);
+      if (v == 0)
+         return str + dot;
+      //return "["+time+"/"+v+"]"+dot.repeat(v);
+      return str + dot.repeat(v);
    }
 
    function tr_name(tr) {
@@ -238,33 +263,53 @@
       
       var time_string = "";
       
-      if (client.connect_start_time == 0 && client.end_time == 0) {
-         var wait_time = millitime - client.init_time;
-         time_string += time2sec(wait_time);
-      } else {
-         var wait_time = client.connect_start_time - client.init_time;
-         time_string += time2sec(wait_time);
-         
-         if (client.connect_end_time == 0 && client.end_time == 0) {
-            var connect_time = millitime - client.connect_start_time;
-            time_string += "/" + time2sec(connect_time) + ", timeout " + time2sec(client.connect_timeout);
-         } else {
-            var connect_time = client.connect_end_time - client.connect_start_time;
-            time_string += "/" + time2sec(connect_time);
+      if (client.end_time != 0) {
+         // this client is done
+         if (client.connect_start_time == 0) {
+            client.connect_start_time = client.init_time;
+         }
+         if (client.connect_end_time == 0) {
+            client.connect_end_time = client.connect_start_time;
+         }
+         if (client.rpc_start_time == 0) {
+            client.rpc_start_time = client.connect_end_time;
+         }
+         if (client.rpc_end_time == 0) {
+            client.rpc_end_time = client.rpc_start_time;
+         }
 
-            if (client.rpc_end_time == 0 && client.end_time == 0) {
-               var rpc_time = millitime - client.rpc_start_time;
-               time_string += "+" + time2sec(rpc_time) + ", timeout " + time2sec(client.rpc_timeout);
+         time_string = time2dot2(time_string, client.init_time, client.init_time, client.connect_start_time, "w");
+         time_string = time2dot2(time_string, client.init_time, client.connect_start_time, client.connect_end_time, "c");
+         time_string = time2dot2(time_string, client.init_time, client.connect_end_time, client.rpc_end_time, "r");
+         time_string = time2dot2(time_string, client.init_time, client.rpc_end_time, client.end_time, ".");
+         time_string += "|";
+         let tr_time = client.end_time - client.connect_start_time;
+         time_string += " (" + time2sec(tr_time) + ")";
+      } else {
+         // this client is not done yet...
+         if (client.connect_start_time == 0) {
+            // waiting...
+            time_string += "w, waiting " + time2sec(millitime - client.init_time);
+         } else {
+            // connect started, maybe finished
+            time_string = time2dot2(time_string, client.init_time, client.init_time, client.connect_start_time, "w");
+            if (client.connect_end_time == 0) {
+               // connecting...
+               time_string += "c, connecting " + time2sec(millitime - client.connect_start_time);
+               time_string += ", timeout " + time2sec(client.connect_timeout);
             } else {
-               var rpc_time = client.rpc_end_time - client.rpc_start_time;
-               time_string += "+" + time2sec(rpc_time);
-               
-               if (client.end_time == 0) {
-                  var tr_time = millitime - client.connect_start_time;
-                  time_string += "=" + time2sec(tr_time);
-               } else {
-                  var tr_time = client.end_time - client.connect_start_time;
-                  time_string += "=" + time2sec(tr_time);
+               // connected or connect failed
+               time_string = time2dot2(time_string, client.init_time, client.connect_start_time, client.connect_end_time, "c");
+               if (client.rpc_start_time != 0) {
+                  // rpc started and maybe finished
+                  if (client.rpc_end_time == 0) {
+                     // rpc in progress...
+                     time_string += "r, rpc " + time2sec(millitime - client.rpc_start_time);
+                     time_string += ", timeout " + time2sec(client.rpc_timeout);
+                  } else {
+                     // rpc finished
+                     time_string = time2dot2(time_string, client.init_time, client.rpc_end_time, client.rpc_start_time, "r");
+                  }
                }
             }
          }
@@ -272,20 +317,24 @@
       
       e.childNodes[0].innerHTML = client.client_name;
       e.childNodes[1].innerHTML = client.sequence_number;
-      e.childNodes[2].innerHTML = time_string;
       if (client.status == 0) {
+         e.childNodes[2].innerHTML = time_string;
          e.childNodes[3].innerHTML = "Waiting...";
          e.childNodes[3].className = "";
       } else if (client.status == 1) {
+         e.childNodes[2].innerHTML = time_string;
          e.childNodes[3].innerHTML = "Success";
          e.childNodes[3].className = "mgreen mbox";
       } else if (client.status == 605) {
+         e.childNodes[2].innerHTML = time_string;
          e.childNodes[3].innerHTML = "Error";
          e.childNodes[3].className = "mred mbox";
       } else if (client.status == -1) {
+         e.childNodes[2].innerHTML = "Skipped";
          e.childNodes[3].innerHTML = "Skipped";
          e.childNodes[3].className = "mred mbox";
       } else {
+         e.childNodes[2].innerHTML = time_string;
          e.childNodes[3].innerHTML = client.status;
          e.childNodes[3].className = "mred mbox";
       }
