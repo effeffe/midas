@@ -12496,7 +12496,9 @@ static RPC_CLIENT_CONNECTION* rpc_get_locked_client_connection(HNDLE hConn)
          }
       }
    }
-   c->mutex.lock();
+   if (c) {
+      c->mutex.lock();
+   }
    _client_connections_mutex.unlock();
    return c;
 }
