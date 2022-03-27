@@ -64,19 +64,19 @@ endif()
 #set(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
 #set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-#add_compile_options("-O0") 
-#add_compile_options("-O2") 
-#add_compile_options("-g") 
-##add_compile_options("-std=c++11") 
+#add_compile_options("-O0")
+add_compile_options("-O2")
+add_compile_options("-g")
+##add_compile_options("-std=c++11")
 
-#add_compile_options("-Wnonnull") 
-#add_compile_options("-Walloca") 
+#add_compile_options("-Wnonnull")
+#add_compile_options("-Walloca")
 
 #add_compile_options(-fsanitize=address -fsanitize=leak)
 #add_link_options(-fsanitize=address -fsanitize=leak)
 
-#add_compile_options(-fsanitize=thread)
-#add_link_options(-fsanitize=thread)
+add_compile_options(-fsanitize=thread)
+add_link_options(-fsanitize=thread)
 
 #####################################################################
 # Nothing needs to be modified after this line
