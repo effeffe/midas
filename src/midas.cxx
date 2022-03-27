@@ -4028,17 +4028,23 @@ static void write_tr_client_to_odb(HNDLE hDB, const TrClient *tr_client) {
    if (tr_client->transition == TR_STARTABORT) {
       status = db_create_key(hDB, 0, "/System/Transition/TR_STARTABORT", TID_KEY);
       status = db_find_key(hDB, 0, "/System/Transition/TR_STARTABORT", &hKey);
-      assert(status == DB_SUCCESS);
+      if (status != DB_SUCCESS)
+         return;
    } else {
       status = db_create_key(hDB, 0, "/System/Transition/Clients", TID_KEY);
       status = db_find_key(hDB, 0, "/System/Transition/Clients", &hKey);
-      assert(status == DB_SUCCESS);
+      if (status != DB_SUCCESS)
+         return;
    }
 
-   status = db_create_key(hDB, hKey, tr_client->client_name.c_str(), TID_KEY);
-   status = db_find_key(hDB, hKey, tr_client->client_name.c_str(), &hKey);
-   assert(status == DB_SUCCESS);
+   // same client_name can exist with different sequence numbers!
+   std::string keyname = msprintf("%s_%d", tr_client->client_name.c_str(), tr_client->sequence_number);
 
+   status = db_create_key(hDB, hKey, keyname.c_str(), TID_KEY);
+   status = db_find_key(hDB, hKey, keyname.c_str(), &hKey);
+   if (status != DB_SUCCESS)
+      return;
+   
    DWORD now = ss_millitime();
 
    //int   transition;
@@ -4979,7 +4985,7 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
                   s.clients.push_back(std::unique_ptr<TrClient>(c));
                   c = NULL;
                } else {
-                  cm_msg(MERROR, "cm_transition", "transition %s ignored duplicate client \"%s\" with sequence number %d", trname, c->client_name.c_str(), c->sequence_number);
+                  cm_msg(MERROR, "cm_transition", "transition %s: client \"%s\" is registered with sequence number %d more than once", trname, c->client_name.c_str(), c->sequence_number);
                   delete c;
                   c = NULL;
                }
