@@ -3926,15 +3926,15 @@ struct TrClient {
    int debug_flag = 0;
    int sequence_number = 0;
    std::vector<int> wait_for_index;
-   char host_name[HOST_NAME_LENGTH];
-   char client_name[NAME_LENGTH];
+   std::string host_name;
+   std::string client_name;
    int port = 0;
-   char key_name[NAME_LENGTH]; /* this client key name in /System/Clients */
+   std::string key_name; /* this client key name in /System/Clients */
    std::atomic_int status{0};
    std::thread* thread = NULL;
-   char errorstr[1024];
+   std::string errorstr;
    DWORD init_time = 0;    // time when tr_client created
-   char waiting_for_client[NAME_LENGTH]; // name of client we are waiting for
+   std::string waiting_for_client; // name of client we are waiting for
    DWORD connect_timeout = 0;
    DWORD connect_start_time = 0; // time when client rpc connection is started
    DWORD connect_end_time = 0;   // time when client rpc connection is finished
@@ -3950,13 +3950,13 @@ struct TrClient {
 
    ~TrClient() // dtor
    {
-      printf("TrClient::dtor: client \"%s\"\n", client_name);
+      //printf("TrClient::dtor: client \"%s\"\n", client_name);
       assert(thread == NULL);
    }
 
    void Print() const
    {
-      printf("client \"%s\", transition %d, seqno %d, status %d", client_name, transition, sequence_number, int(status));
+      printf("client \"%s\", transition %d, seqno %d, status %d", client_name.c_str(), transition, sequence_number, int(status));
       if (wait_for_index.size() > 0) {
          printf(", wait for:");
          for (size_t i=0; i<wait_for_index.size(); i++) {
@@ -3978,7 +3978,7 @@ struct TrState {
    int async_flag = 0;
    int debug_flag = 0;
    int status     = 0;
-   char errorstr[TRANSITION_ERROR_STRING_LENGTH];
+   std::string errorstr;
    DWORD start_time = 0;
    DWORD end_time   = 0;
    std::vector<std::unique_ptr<TrClient>> clients;
@@ -4009,9 +4009,9 @@ static int tr_finish(HNDLE hDB, TrState* tr, int transition, int status, const c
    tr->status = status;
    tr->end_time = end_time;
    if (errorstr) {
-      strlcpy(tr->errorstr, errorstr, sizeof(tr->errorstr));
+      tr->errorstr = errorstr;
    } else {
-      strlcpy(tr->errorstr, "(null)", sizeof(tr->errorstr));
+      tr->errorstr = "(null)";
    }
 
    return status;
@@ -4020,7 +4020,7 @@ static int tr_finish(HNDLE hDB, TrState* tr, int transition, int status, const c
 /*------------------------------------------------------------------*/
 
 static void write_tr_client_to_odb(HNDLE hDB, const TrClient *tr_client) {
-   //printf("Writing client [%s] to ODB\n", tr_client->client_name);
+   //printf("Writing client [%s] to ODB\n", tr_client->client_name.c_str());
 
    int status;
    HNDLE hKey;
@@ -4035,8 +4035,8 @@ static void write_tr_client_to_odb(HNDLE hDB, const TrClient *tr_client) {
       assert(status == DB_SUCCESS);
    }
 
-   status = db_create_key(hDB, hKey, tr_client->client_name, TID_KEY);
-   status = db_find_key(hDB, hKey, tr_client->client_name, &hKey);
+   status = db_create_key(hDB, hKey, tr_client->client_name.c_str(), TID_KEY);
+   status = db_find_key(hDB, hKey, tr_client->client_name.c_str(), &hKey);
    assert(status == DB_SUCCESS);
 
    DWORD now = ss_millitime();
@@ -4046,14 +4046,11 @@ static void write_tr_client_to_odb(HNDLE hDB, const TrClient *tr_client) {
    //int   async_flag;
    //int   debug_flag;
    status = db_set_value(hDB, hKey, "sequence_number", &tr_client->sequence_number, sizeof(INT), 1, TID_INT32);
-   status = db_set_value(hDB, hKey, "client_name", &tr_client->client_name, strlen(tr_client->client_name) + 1, 1,
-                         TID_STRING);
-   status = db_set_value(hDB, hKey, "host_name", &tr_client->host_name, strlen(tr_client->host_name) + 1, 1,
-                         TID_STRING);
+   status = db_set_value(hDB, hKey, "client_name", tr_client->client_name.c_str(), tr_client->client_name.length() + 1, 1, TID_STRING);
+   status = db_set_value(hDB, hKey, "host_name", tr_client->host_name.c_str(), tr_client->host_name.length() + 1, 1, TID_STRING);
    status = db_set_value(hDB, hKey, "port", &tr_client->port, sizeof(INT), 1, TID_INT32);
    status = db_set_value(hDB, hKey, "init_time", &tr_client->init_time, sizeof(DWORD), 1, TID_UINT32);
-   status = db_set_value(hDB, hKey, "waiting_for_client", &tr_client->waiting_for_client,
-                         strlen(tr_client->waiting_for_client) + 1, 1, TID_STRING);
+   status = db_set_value(hDB, hKey, "waiting_for_client", tr_client->waiting_for_client.c_str(), tr_client->waiting_for_client.length() + 1, 1, TID_STRING);
    status = db_set_value(hDB, hKey, "connect_timeout", &tr_client->connect_timeout, sizeof(DWORD), 1, TID_UINT32);
    status = db_set_value(hDB, hKey, "connect_start_time", &tr_client->connect_start_time, sizeof(DWORD), 1, TID_UINT32);
    status = db_set_value(hDB, hKey, "connect_end_time", &tr_client->connect_end_time, sizeof(DWORD), 1, TID_UINT32);
@@ -4062,7 +4059,7 @@ static void write_tr_client_to_odb(HNDLE hDB, const TrClient *tr_client) {
    status = db_set_value(hDB, hKey, "rpc_end_time", &tr_client->rpc_end_time, sizeof(DWORD), 1, TID_UINT32);
    status = db_set_value(hDB, hKey, "end_time", &tr_client->end_time, sizeof(DWORD), 1, TID_UINT32);
    status = db_set_value(hDB, hKey, "status", &tr_client->status, sizeof(INT), 1, TID_INT32);
-   status = db_set_value(hDB, hKey, "error", &tr_client->errorstr, strlen(tr_client->errorstr) + 1, 1, TID_STRING);
+   status = db_set_value(hDB, hKey, "error", tr_client->errorstr.c_str(), tr_client->errorstr.length() + 1, 1, TID_STRING);
    status = db_set_value(hDB, hKey, "last_updated", &now, sizeof(DWORD), 1, TID_UINT32);
 }
 
@@ -4199,9 +4196,9 @@ static int cm_transition_call(TrState* s, int idx) {
             }
 
             if (t->status != SUCCESS && tr_client->transition != TR_STOP) {
-               cm_msg(MERROR, "cm_transition_call", "Transition %d aborted: client \"%s\" returned status %d", tr_client->transition, t->client_name, int(t->status));
+               cm_msg(MERROR, "cm_transition_call", "Transition %d aborted: client \"%s\" returned status %d", tr_client->transition, t->client_name.c_str(), int(t->status));
                tr_client->status = -1;
-               sprintf(tr_client->errorstr, "Aborted by failure of client \"%s\"", t->client_name);
+               tr_client->errorstr = msprintf("Aborted by failure of client \"%s\"", t->client_name.c_str());
                tr_client->end_time = ss_millitime();
                write_tr_client_to_odb(hDB, tr_client);
                return CM_SUCCESS;
@@ -4211,20 +4208,20 @@ static int cm_transition_call(TrState* s, int idx) {
          if (wait_for == NULL)
             break;
 
-         strlcpy(tr_client->waiting_for_client, wait_for->client_name, sizeof(tr_client->waiting_for_client));
+         tr_client->waiting_for_client = wait_for->client_name;
          write_tr_client_to_odb(hDB, tr_client);
 
          if (tr_client->debug_flag == 1)
-            printf("Client \"%s\" waits for client \"%s\"\n", tr_client->client_name, wait_for->client_name);
+            printf("Client \"%s\" waits for client \"%s\"\n", tr_client->client_name.c_str(), wait_for->client_name.c_str());
 
          i = 0;
          size = sizeof(i);
          status = db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT32, FALSE);
 
          if (status == DB_SUCCESS && i == 0) {
-            cm_msg(MERROR, "cm_transition_call", "Client \"%s\" transition %d aborted while waiting for client \"%s\": \"/Runinfo/Transition in progress\" was cleared", tr_client->client_name, tr_client->transition, wait_for->client_name);
+            cm_msg(MERROR, "cm_transition_call", "Client \"%s\" transition %d aborted while waiting for client \"%s\": \"/Runinfo/Transition in progress\" was cleared", tr_client->client_name.c_str(), tr_client->transition, wait_for->client_name.c_str());
             tr_client->status = -1;
-            sprintf(tr_client->errorstr, "Canceled");
+            tr_client->errorstr = "Canceled";
             tr_client->end_time = ss_millitime();
             write_tr_client_to_odb(hDB, tr_client);
             return CM_SUCCESS;
@@ -4238,12 +4235,9 @@ static int cm_transition_call(TrState* s, int idx) {
 
    /* contact client if transition mask set */
    if (tr_client->debug_flag == 1)
-      printf("Connecting to client \"%s\" on host %s...\n", tr_client->client_name,
-             tr_client->host_name);
+      printf("Connecting to client \"%s\" on host %s...\n", tr_client->client_name.c_str(), tr_client->host_name.c_str());
    if (tr_client->debug_flag == 2)
-      cm_msg(MINFO, "cm_transition_call",
-             "cm_transition_call: Connecting to client \"%s\" on host %s...",
-             tr_client->client_name, tr_client->host_name);
+      cm_msg(MINFO, "cm_transition_call", "cm_transition_call: Connecting to client \"%s\" on host %s...", tr_client->client_name.c_str(), tr_client->host_name.c_str());
 
    /* get transition timeout for rpc connect */
    size = sizeof(timeout);
@@ -4269,7 +4263,7 @@ static int cm_transition_call(TrState* s, int idx) {
    write_tr_client_to_odb(hDB, tr_client);
 
    /* client found -> connect to its server port */
-   status = rpc_client_connect(tr_client->host_name, tr_client->port, tr_client->client_name, &hConn);
+   status = rpc_client_connect(tr_client->host_name.c_str(), tr_client->port, tr_client->client_name.c_str(), &hConn);
 
    rpc_set_option(-2, RPC_OTIMEOUT, old_timeout);
 
@@ -4279,14 +4273,12 @@ static int cm_transition_call(TrState* s, int idx) {
    if (status != RPC_SUCCESS) {
       cm_msg(MERROR, "cm_transition_call",
              "cannot connect to client \"%s\" on host %s, port %d, status %d",
-             tr_client->client_name, tr_client->host_name, tr_client->port, status);
-      strlcpy(tr_client->errorstr, "Cannot connect to client \'", sizeof(tr_client->errorstr));
-      strlcat(tr_client->errorstr, tr_client->client_name, sizeof(tr_client->errorstr));
-      strlcat(tr_client->errorstr, "\'", sizeof(tr_client->errorstr));
+             tr_client->client_name.c_str(), tr_client->host_name.c_str(), tr_client->port, status);
+      tr_client->errorstr = msprintf("Cannot connect to client \"%s\"", tr_client->client_name.c_str());
 
       /* clients that do not respond to transitions are dead or defective, get rid of them. K.O. */
-      cm_shutdown(tr_client->client_name, TRUE);
-      cm_cleanup(tr_client->client_name, TRUE);
+      cm_shutdown(tr_client->client_name.c_str(), TRUE);
+      cm_cleanup(tr_client->client_name.c_str(), TRUE);
 
       if (tr_client->transition != TR_STOP) {
          /* indicate abort */
@@ -4304,12 +4296,11 @@ static int cm_transition_call(TrState* s, int idx) {
    }
 
    if (tr_client->debug_flag == 1)
-      printf("Connection established to client \"%s\" on host %s\n",
-             tr_client->client_name, tr_client->host_name);
+      printf("Connection established to client \"%s\" on host %s\n", tr_client->client_name.c_str(), tr_client->host_name.c_str());
    if (tr_client->debug_flag == 2)
       cm_msg(MINFO, "cm_transition_call",
              "cm_transition: Connection established to client \"%s\" on host %s",
-             tr_client->client_name, tr_client->host_name);
+             tr_client->client_name.c_str(), tr_client->host_name.c_str());
 
    /* call RC_TRANSITION on remote client with increased timeout */
    old_timeout = rpc_get_option(hConn, RPC_OTIMEOUT);
@@ -4321,15 +4312,20 @@ static int cm_transition_call(TrState* s, int idx) {
 
    if (tr_client->debug_flag == 1)
       printf("Executing RPC transition client \"%s\" on host %s...\n",
-             tr_client->client_name, tr_client->host_name);
+             tr_client->client_name.c_str(), tr_client->host_name.c_str());
    if (tr_client->debug_flag == 2)
       cm_msg(MINFO, "cm_transition_call",
              "cm_transition: Executing RPC transition client \"%s\" on host %s...",
-             tr_client->client_name, tr_client->host_name);
+             tr_client->client_name.c_str(), tr_client->host_name.c_str());
 
    t0 = ss_millitime();
 
-   status = rpc_client_call(hConn, RPC_RC_TRANSITION, tr_client->transition, tr_client->run_number, tr_client->errorstr, sizeof(tr_client->errorstr), tr_client->sequence_number);
+   char errorstr[TRANSITION_ERROR_STRING_LENGTH];
+   errorstr[0] = 0;
+
+   status = rpc_client_call(hConn, RPC_RC_TRANSITION, tr_client->transition, tr_client->run_number, errorstr, sizeof(errorstr), tr_client->sequence_number);
+
+   tr_client->errorstr = errorstr;
 
    t1 = ss_millitime();
 
@@ -4344,25 +4340,23 @@ static int cm_transition_call(TrState* s, int idx) {
    /* reset timeout */
    rpc_set_option(hConn, RPC_OTIMEOUT, old_timeout);
 
-   DWORD t2 = ss_millitime();
+   //DWORD t2 = ss_millitime();
 
    if (tr_client->debug_flag == 1)
       printf("RPC transition finished client \"%s\" on host \"%s\" in %d ms with status %d\n",
-             tr_client->client_name, tr_client->host_name, t1 - t0, status);
+             tr_client->client_name.c_str(), tr_client->host_name.c_str(), t1 - t0, status);
    if (tr_client->debug_flag == 2)
       cm_msg(MINFO, "cm_transition_call",
              "cm_transition: RPC transition finished client \"%s\" on host \"%s\" in %d ms with status %d",
-             tr_client->client_name, tr_client->host_name, t1 - t0, status);
+             tr_client->client_name.c_str(), tr_client->host_name.c_str(), t1 - t0, status);
 
    if (status == RPC_NET_ERROR || status == RPC_TIMEOUT) {
-      sprintf(tr_client->errorstr, "RPC network error or timeout from client \'%s\' on host \"%s\"",
-              tr_client->client_name, tr_client->host_name);
+      tr_client->errorstr = msprintf("RPC network error or timeout from client \'%s\' on host \"%s\"", tr_client->client_name.c_str(), tr_client->host_name.c_str());
       /* clients that do not respond to transitions are dead or defective, get rid of them. K.O. */
-      cm_shutdown(tr_client->client_name, TRUE);
-      cm_cleanup(tr_client->client_name, TRUE);
-   } else if (status != CM_SUCCESS && strlen(tr_client->errorstr) < 2) {
-      sprintf(tr_client->errorstr, "Unknown error %d from client \'%s\' on host \"%s\"", status, tr_client->client_name,
-              tr_client->host_name);
+      cm_shutdown(tr_client->client_name.c_str(), TRUE);
+      cm_cleanup(tr_client->client_name.c_str(), TRUE);
+   } else if (status != CM_SUCCESS && tr_client->errorstr.empty()) {
+      tr_client->errorstr = msprintf("Unknown error %d from client \'%s\' on host \"%s\"", status, tr_client->client_name.c_str(), tr_client->host_name.c_str());
    }
 
    tr_client->status = status;
@@ -4372,10 +4366,10 @@ static int cm_transition_call(TrState* s, int idx) {
 
    write_tr_client_to_odb(hDB, tr_client);
 
-#if 1
+#if 0
    printf("hconn %d cm_transition_call(%s) finished init %d connect %d end %d rpc %d end %d xxx %d end %d\n",
           hConn,
-          tr_client->client_name,
+          tr_client->client_name.c_str(),
           tr_client->init_time - tr_client->init_time,
           tr_client->connect_start_time - tr_client->init_time,
           tr_client->connect_end_time - tr_client->init_time,
@@ -4425,7 +4419,12 @@ static int cm_transition_call_direct(TrClient *tr_client) {
 
       tr_client->rpc_start_time = ss_millitime();
 
-      transition_status = _trans_table[i].func(tr_client->run_number, tr_client->errorstr);
+      char errorstr[TRANSITION_ERROR_STRING_LENGTH];
+      errorstr[0] = 0;
+
+      transition_status = _trans_table[i].func(tr_client->run_number, errorstr);
+
+      tr_client->errorstr = errorstr;
 
       tr_client->rpc_end_time = ss_millitime();
 
@@ -4488,7 +4487,7 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
    INT i, status, size, sequence_number, port, state;
    HNDLE hDB, hRootKey, hSubkey, hKey, hKeylocal, hKeyTrans;
    DWORD seconds;
-   char host_name[HOST_NAME_LENGTH], client_name[NAME_LENGTH], str[256], tr_key_name[256];
+   char str[256], tr_key_name[256];
    const char *trname = "unknown";
    KEY key;
    BOOL deferred;
@@ -4940,18 +4939,20 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
                c->debug_flag = debug_flag;
                c->sequence_number = sequence_number;
                c->status = 0;
-               strlcpy(c->key_name, subkey.name, sizeof(c->key_name));
+               c->key_name = subkey.name;
 
                /* get client info */
+               char client_name[NAME_LENGTH];
                size = sizeof(client_name);
                db_get_value(hDB, hSubkey, "Name", client_name, &size, TID_STRING, TRUE);
-               strlcpy(c->client_name, client_name, sizeof(c->client_name));
+               c->client_name = client_name;
 
+               char host_name[HOST_NAME_LENGTH];
                size = sizeof(host_name);
                db_get_value(hDB, hSubkey, "Host", host_name, &size, TID_STRING, TRUE);
-               strlcpy(c->host_name, host_name, sizeof(c->host_name));
+               c->host_name = host_name;
 
-               printf("Found client [%s] name [%s] transition [%s], i=%d, j=%d\n", subkey.name, client_name, tr_key_name, i, j);
+               //printf("Found client [%s] name [%s] transition [%s], i=%d, j=%d\n", subkey.name, client_name, tr_key_name, i, j);
 
                if (hSubkey == hKeylocal && ((async_flag & TR_MTHREAD) == 0)) {
                   /* remember own client */
@@ -4967,8 +4968,8 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
                bool found = false;
                for (size_t k=0; k<s.clients.size(); k++) {
                   TrClient* cc = s.clients[k].get();
-                  if (strcmp(cc->client_name, c->client_name) == 0)
-                     if (strcmp(cc->host_name, c->host_name) == 0)
+                  if (cc->client_name == c->client_name)
+                     if (cc->host_name == c->host_name)
                         if (cc->port == c->port)
                            if (cc->sequence_number == c->sequence_number)
                               found = true;
@@ -4976,6 +4977,11 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
 
                if (!found) {
                   s.clients.push_back(std::unique_ptr<TrClient>(c));
+                  c = NULL;
+               } else {
+                  cm_msg(MERROR, "cm_transition", "transition %s ignored duplicate client \"%s\" with sequence number %d", trname, c->client_name.c_str(), c->sequence_number);
+                  delete c;
+                  c = NULL;
                }
             }
          }
@@ -5008,7 +5014,7 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
       write_tr_client_to_odb(hDB, s.clients[idx].get());
    }
 
-#if 1
+#if 0
    for (size_t idx = 0; idx < s.clients.size(); idx++) {
       printf("TrClient[%d]: ", int(idx));
       s.clients[idx]->Print();
@@ -5021,11 +5027,11 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
    for (size_t idx = 0; idx < s.clients.size(); idx++) {
       if (debug_flag == 1)
          printf("\n==== Found client \"%s\" with sequence number %d\n",
-                s.clients[idx]->client_name, s.clients[idx]->sequence_number);
+                s.clients[idx]->client_name.c_str(), s.clients[idx]->sequence_number);
       if (debug_flag == 2)
          cm_msg(MINFO, "cm_transition",
                 "cm_transition: ==== Found client \"%s\" with sequence number %d",
-                s.clients[idx]->client_name, s.clients[idx]->sequence_number);
+                s.clients[idx]->client_name.c_str(), s.clients[idx]->sequence_number);
 
       if (async_flag & TR_MTHREAD) {
          status = CM_SUCCESS;
@@ -5043,7 +5049,7 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
          if (status == CM_SUCCESS && transition != TR_STOP)
             if (s.clients[idx]->status != SUCCESS) {
                cm_msg(MERROR, "cm_transition", "transition %s aborted: client \"%s\" returned status %d", trname,
-                      s.clients[idx]->client_name, int(s.clients[idx]->status));
+                      s.clients[idx]->client_name.c_str(), int(s.clients[idx]->status));
                break;
             }
       }
@@ -5095,10 +5101,8 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
       if (s.clients[idx]->status != CM_SUCCESS) {
          status = s.clients[idx]->status;
          if (errstr)
-            strlcpy(errstr, s.clients[idx]->errorstr, errstr_size);
-         strlcpy(s.errorstr, "Aborted by client \"", sizeof(s.errorstr));
-         strlcat(s.errorstr, s.clients[idx]->client_name, sizeof(s.errorstr));
-         strlcat(s.errorstr, "\"", sizeof(s.errorstr));
+            strlcpy(errstr, s.clients[idx]->errorstr.c_str(), errstr_size);
+         s.errorstr = msprintf("Aborted by client \"%s\"", s.clients[idx]->client_name.c_str());
          break;
       }
 
