@@ -6738,6 +6738,12 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
       /* allocate new BUFFER object */
       BUFFER* pbuf = new BUFFER;
 
+      // there is no constructor for BUFFER object, we have to zero the arrays manually
+      for (int i=0; i<MAX_CLIENTS; i++) {
+         pbuf->client_count_write_wait[i] = 0;
+         pbuf->client_time_write_wait[i] = 0;
+      }
+
       /* open shared memory region */
       void *p = NULL;
       status = ss_shm_open(buffer_name, sizeof(BUFFER_HEADER) + buffer_size, &p, &shm_size, &shm_handle, FALSE);
