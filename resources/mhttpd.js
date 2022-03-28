@@ -949,7 +949,9 @@ function mhttpd_add_menu_items(html, custom, current_page, path, level) {
          for (let i=0 ; i<level ; i++)
             ln += "&nbsp;&nbsp;";
          ln += custom[b + "/name"];
-         let lt = path + '/';
+         let lt = path;
+         if (lt !== "")
+            lt += "/";
          lt += custom[b + "/name"];
          if (ln.substr(-1) === '!')
             continue;
