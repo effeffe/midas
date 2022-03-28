@@ -973,7 +973,8 @@ typedef struct {
  * ok to call cm_msg()
  */
 
-typedef struct {
+struct BUFFER
+{
    std::atomic_bool attached{false};  /**< TRUE if buffer is attached   */
    std::timed_mutex buffer_mutex;     /**< buffer mutex                 */
    INT client_index = 0;              /**< index to CLIENT str. in buf. */
@@ -1011,8 +1012,7 @@ typedef struct {
    double bytes_read = 0;             /**< count how many bytes we read */
    int client_count_write_wait[MAX_CLIENTS]; /**< per-client count_write_wait */
    DWORD client_time_write_wait[MAX_CLIENTS]; /**< per-client time_write_wait */
-
-} BUFFER;
+};
 
 typedef struct {
    DWORD type;                        /**< TID_xxx type                      */
