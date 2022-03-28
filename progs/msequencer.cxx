@@ -1567,7 +1567,7 @@ void sequencer() {
             else
                status = db_save(hDB, hKey, value, FALSE);
             if (status != DB_SUCCESS) {
-               char err[256];
+               char err[1024];
                sprintf(err, "Cannot save file \"%s\", error %d", value, status);
                seq_error(seq, err);
                return;
