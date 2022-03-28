@@ -158,6 +158,11 @@ body.mcss {
    line-height: 1;
 }
 
+.mmenuitem {
+   text-align:left;
+   line-height: 1;
+}
+
 .mmenuitemsel {
    background-color: #d0e0e0;
 }
@@ -348,7 +353,7 @@ select {
 
 /* link colors for left side navigation bar */
 
-.mmenuitem:hover, .mmenuitem:focus {
+.mmenuitem:hover, .mmenuitem:focus, .msubmenuitem:hover, msubmenuitem:focus {
    background-color: #C0D0D0;
    color: #404040;
    cursor: pointer;

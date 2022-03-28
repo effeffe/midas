@@ -839,27 +839,8 @@ function mhttpd_init(current_page, interval, callback) {
          if (custom !== null && Object.keys(custom).length > 0) {
             // add separator
             html += "<div class='mseparator'></div>\n";
-
-            for (let b in custom) {
-               if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
-                  continue;
-               if (typeof custom[b] !== "string") // skip any items that don't have type of string, since can't be valid links
-                  continue;
-               cc = "mmenuitem";
-               if (custom[b + "/name"] === current_page)
-                  cc += " mmenuitemsel";
-               if (b === "path")
-                  continue;
-               let l = custom[b + "/name"];
-               if (l.substr(-1) === '!')
-                  continue;
-               if (l.substr(-1) === '&') {
-                  l = l.slice(0, -1);
-                  html += "<div class='" + cc + "'><a target='_blank' href='?cmd=custom&page=" + l + "' class='mmenulink'>" + l + "</a></div>\n";
-               } else {
-                  html += "<div class='" + cc + "'><a href='?cmd=custom&page=" + l + "' class='mmenulink'>" + l + "</a></div>\n";
-               }
-            }
+            // add menu items recursively
+            html = mhttpd_add_menu_items(html, custom, current_page, 0);
          }
 
          // script
@@ -933,6 +914,75 @@ function mhttpd_init(current_page, interval, callback) {
 
    // scan custom page to find all mxxx elements and install proper handlers etc.
    mhttpd_scan();
+}
+
+function mhttpd_add_menu_items(html, custom, current_page, level) {
+   for (let b in custom) {
+      if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
+         continue;
+      if (b === "path") // skip "path"
+         continue;
+
+      if (typeof custom[b] === "object") { // submenu created by subdirectory in ODB
+         let cc = "msubmenuitem";
+         let l = "";
+         for (let i=0 ; i<level ; i++)
+            l += "&nbsp;&nbsp;";
+         l += "&#9656;&nbsp;";
+         l += custom[b + "/name"];
+
+         html += "<div class='" + cc + "' onclick='mhttpd_submenu(this)'><div class='mmenulink'>" + l + "</div></div>\n";
+         // > 9656  v 9662
+
+         html += "<div style='display: none'>";
+         html = mhttpd_add_menu_items(html, custom[b], current_page, level+1);
+         html += "</div>";
+      } else if (typeof custom[b] === "string") { // skip any items that don't have type of string, since can't be valid links
+         cc = "mmenuitem";
+         if (custom[b + "/name"] === current_page)
+            cc += " mmenuitemsel";
+         let ln = "";
+         for (let i=0 ; i<level ; i++)
+            ln += "&nbsp;&nbsp;";
+         ln += custom[b + "/name"];
+         let lt = custom[b + "/name"];
+         if (ln.substr(-1) === '!')
+            continue;
+         let target = "";
+         let style = "";
+         // if (level > 0)
+         //    style = "style='display: none'";
+         if (ln.substr(-1) === '&') {
+            ln = ln.slice(0, -1);
+            lt = lt.slice(0, -1);
+            target += "target='_blank' ";
+         }
+
+         html += "<div class='" + cc + "' " + style + "><a " + target + " href='?cmd=custom&page=" + lt + "' class='mmenulink'>" + ln + "</a></div>\n";
+      }
+   }
+
+   return html;
+}
+
+function mhttpd_submenu(o) {
+   let i;
+   for (i=0 ; o.firstChild.innerHTML.charCodeAt(i) !== 9656 && o.firstChild.innerHTML.charCodeAt(i) !== 9662 ; i++);
+   if (o.firstChild.innerHTML.charCodeAt(i) === 9656) {
+      // expand
+      o.firstChild.innerHTML =
+         o.firstChild.innerHTML.substring(0, i-1) +
+         String.fromCharCode(9662) +
+         o.firstChild.innerHTML.substring(i+1);
+      o.nextElementSibling.style.display = "inline";
+   } else {
+      // collapse
+      o.firstChild.innerHTML =
+         o.firstChild.innerHTML.substring(0, i-1) +
+         String.fromCharCode(9656) +
+         o.firstChild.innerHTML.substring(i+1);
+      o.nextElementSibling.style.display = "none";
+   }
 }
 
 function mhttpd_refresh_pause(flag) {
