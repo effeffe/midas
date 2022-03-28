@@ -2945,6 +2945,8 @@ INT cm_connect_client(const char *client_name, HNDLE *hConn) {
    } while (TRUE);
 }
 
+static void rpc_client_shutdown();
+
 /********************************************************************/
 /**
 Disconnect from a MIDAS client
@@ -3007,12 +3009,12 @@ INT cm_disconnect_experiment(void) {
 
       cm_msg_close_buffer();
 
-      rpc_client_disconnect(-1, FALSE);
+      rpc_client_shutdown();
       rpc_server_disconnect();
 
       cm_set_experiment_database(0, 0);
    } else {
-      rpc_client_disconnect(-1, FALSE);
+      rpc_client_shutdown();
 
       /* delete client info */
       cm_get_experiment_database(&hDB, &hKey);
@@ -11248,15 +11250,15 @@ static void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
 class RPC_CLIENT_CONNECTION
 {
 public:
+   std::atomic_bool connected{false}; /*  socket is connected */
+   std::mutex mutex;            /*  connection lock           */
    int index = 0;               /* index in the connection array */
    std::string client_name;     /* name of remote client    */
    std::string host_name;       /*  server name             */
    int port = 0;                /*  server port             */
    int send_sock = 0;           /*  tcp socket              */
-   int connected = 0;           /*  socket is connected     */
    int remote_hw_type = 0;      /*  remote hardware type    */
    int rpc_timeout = 0;         /*  timeout in milliseconds */
-   std::mutex mutex;            /*  connection lock         */
 
    void print() {
       printf("index %d, client \"%s\", host \"%s\", port %d, socket %d, connected %d, timeout %d",
@@ -11265,7 +11267,7 @@ public:
              host_name.c_str(),
              port,
              send_sock,
-             connected,
+             int(connected),
              rpc_timeout);
    }
 
@@ -11276,16 +11278,36 @@ public:
       send_sock = 0;
       port = 0;
       remote_hw_type = 0;
-      connected = 0;
+      connected = false;
    }
 };
 
 /* globals */
 
+//
 // locking rules for client connections:
-// path 1: lock _client_connections_mutex, lock individual connection, work on the connection, unlock the connection, unlock _client_connections_mutex
-// path 2: lock _client_connections_mutex, lock individual connection, unlock _client_connections_mutex, work on the connection, unlock the connection
-// path 3: lock individual connection, work on the connection, unlock connection; lock of _client_connections_mutex not permitted (deadlock with paths 1 and 2).
+//
+// lock _client_connections_mutex, look at _client_connections vector and c->connected, unlock _client_connections_mutex
+// lock _client_connections_mutex, look at _client_connections vector and c->connected, lock individual connection, recheck c->connected, work on the connection, unlock the connection, unlock _client_connections_mutex
+// lock individual connection, check c->connected, work on the connection, unlock connection
+//
+// this will deadlock, wrong locking order: lock individual connection, lock of _client_connections_mutex
+// this will deadlock, wrong unlocking order: unlock of _client_connections_mutex, unlock individual connection
+//
+// lifetime of client connections:
+//
+// - client connection slots are allocated by rpc_client_connect()
+// - client connection slots are deleted by rpc_client_shutdown() called from cm_disconnect_experiment()
+// - client slots marked NULL are free and will be reused by rpc_client_connect()
+// - client slots marked c->connected == false are free and will be reused by rpc_client_connect()
+// - rpc_client_check() will close connections that have dead tcp sockets, set c->connected = FALSE to mark the slot free for reuse
+// - rpc_client_disconnect() will close the connection and set c->connected = FALSE to mark the slot free for reuse
+// - rpc_client_call() can race rpc_client_disconnect() running in another thread, if disconnect happens first,
+//   client call will see an empty slot and return an error
+// - rpc_client_call() can race a disconnect()/connect() pair, if disconnect and connect happen first,
+//   client call will be made to the wrong connection. for this reason, one should call rpc_client_disconnect()
+//   only when one is sure no other threads are running concurrent rpc client calls.
+//
 
 static std::mutex _client_connections_mutex;
 static std::vector<RPC_CLIENT_CONNECTION*> _client_connections;
@@ -11865,96 +11887,101 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
       return RPC_NET_ERROR;
    }
 
-   _client_connections_mutex.lock();
+   RPC_CLIENT_CONNECTION* c = NULL;
 
-   if (debug) {
-      printf("rpc_client_connect: host \"%s\", port %d, client \"%s\"\n", host_name, port, client_name);
-      for (size_t i = 0; i < _client_connections.size(); i++) {
-         if (_client_connections[i]) {
-            printf("client connection %d: ", (int)i);
-            _client_connections[i]->print();
+   {
+      std::lock_guard<std::mutex> guard(_client_connections_mutex);
+
+      if (debug) {
+         printf("rpc_client_connect: host \"%s\", port %d, client \"%s\"\n", host_name, port, client_name);
+         for (size_t i = 0; i < _client_connections.size(); i++) {
+            if (_client_connections[i]) {
+               printf("client connection %d: ", (int)i);
+               _client_connections[i]->print();
+               printf("\n");
+            }
+         }
+      }
+
+      // slot with index 0 is not used, fill it with a NULL
+      
+      if (_client_connections.empty()) {
+         _client_connections.push_back(NULL);
+      }
+
+      /* check if connection already exists */
+      for (size_t i = 1; i < _client_connections.size(); i++) {
+         RPC_CLIENT_CONNECTION* c = _client_connections[i];
+         if (c && c->connected) {
+            std::lock_guard<std::mutex> cguard(c->mutex);
+            // check if socket is still connected
+            if (c->connected) {
+               if ((c->host_name == host_name) && (c->port == port)) {
+                  // found connection slot with matching hostname and port number
+                  status = ss_socket_wait(c->send_sock, 0);
+                  if (status == SS_TIMEOUT) { // yes, still connected and empty
+                     // so reuse it connection
+                     *hConnection = c->index;
+                     if (debug) {
+                        printf("already connected: ");
+                        c->print();
+                        printf("\n");
+                     }
+                     // implicit unlock
+                     return RPC_SUCCESS;
+                  }
+                  //cm_msg(MINFO, "rpc_client_connect", "Stale connection to \"%s\" on host %s is closed", _client_connection[i].client_name, _client_connection[i].host_name);
+                  c->close_locked();
+               }
+            }
+            // implicit unlock of c->mutex
+         }
+      }
+      
+      // only start reusing connections once we have
+      // a good number of slots allocated.
+      if (_client_connections.size() > 10) {
+         static int last_reused = 0;
+
+         int size = _client_connections.size();
+         for (int j = 1; j < size; j++) {
+            int i = (last_reused + j) % size;
+            if (_client_connections[i] && !_client_connections[i]->connected) {
+               c = _client_connections[i];
+               if (debug) {
+                  printf("last reused %d, reusing slot %d: ", last_reused, (int)i);
+                  c->print();
+                  printf("\n");
+               }
+               last_reused = i;
+               break;
+            }
+         }
+      }
+
+      // no slots to reuse, allocate a new slot.
+      if (!c) {
+         c = new RPC_CLIENT_CONNECTION;
+         c->mutex.lock();
+         c->connected = false;
+
+         // if empty slot not found, add to end of array
+         c->index = _client_connections.size();
+         _client_connections.push_back(c);
+
+         if (debug) {
+            printf("new connection appended to array: ");
+            c->print();
             printf("\n");
          }
       }
+
+      // done with the array of connections
+      // implicit unlock of _client_connections_mutex
    }
 
-   // slot with index 0 is not used, fill it with a NULL
-
-   if (_client_connections.empty()) {
-      _client_connections.push_back(NULL);
-   }
-
-   /* check if connection already exists */
-   for (size_t i = 1; i < _client_connections.size(); i++) {
-      RPC_CLIENT_CONNECTION* c = _client_connections[i];
-      if (c) {
-         c->mutex.lock();
-         if ((c->host_name == host_name) && (c->port == port)) {
-            // found connection slot with matching hostname and port number
-            if (c->connected) {
-               // check if socket is still connected
-               status = ss_socket_wait(c->send_sock, 0);
-               if (status == SS_TIMEOUT) { // yes, still connected and empty
-                  // so reuse it connection
-                  *hConnection = c->index;
-                  if (debug) {
-                     printf("already connected: ");
-                     c->print();
-                     printf("\n");
-                  }
-                  c->mutex.unlock();
-                  _client_connections_mutex.unlock();
-                  return RPC_SUCCESS;
-               }
-               //cm_msg(MINFO, "rpc_client_connect", "Stale connection to \"%s\" on host %s is closed", _client_connection[i].client_name, _client_connection[i].host_name);
-               c->close_locked();
-            }
-         }
-         c->mutex.unlock();
-      }
-   }
-
-   RPC_CLIENT_CONNECTION* c = NULL;
-
-   // only start reusing connections once we have
-   // a good number of slots allocated.
-   if (_client_connections.size() > 10) {
-      static int last_reused = 0;
-
-      int size = _client_connections.size();
-      for (int j = 1; j < size; j++) {
-         int i = (last_reused + j) % size;
-         if (_client_connections[i] && !_client_connections[i]->connected) {
-            c = _client_connections[i];
-            if (debug) {
-               printf("last reused %d, reusing slot %d: ", last_reused, (int)i);
-               c->print();
-               printf("\n");
-            }
-            last_reused = i;
-            break;
-         }
-      }
-   }
-
-   // no slots to reuse, allocate a new slot.
-   if (!c) {
-      c = new RPC_CLIENT_CONNECTION;
-      c->mutex.lock();
-
-      // if empty slot not found, add to end of array
-      c->index = _client_connections.size();
-      _client_connections.push_back(c);
-
-      if (debug) {
-         printf("new connection appended to array: ");
-         c->print();
-         printf("\n");
-      }
-   }
-
-   // done with the array of connections
-   _client_connections_mutex.unlock();
+   // locked connection slot for new connection
+   assert(c != NULL);
 
    /* create a new socket for connecting to remote server */
    c->send_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -11968,7 +11995,6 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    c->client_name = client_name;
    c->port        = port;
    c->rpc_timeout = DEFAULT_RPC_TIMEOUT;
-   c->connected   = 0;
 
    /* connect to remote node */
    struct sockaddr_in bind_addr;
@@ -12014,7 +12040,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
       return RPC_NET_ERROR;
    }
 
-   c->connected = 1;
+   c->connected = true;
 
    /* set TCP_NODELAY option for better performance */
    i = 1;
@@ -12087,7 +12113,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
       cm_msg(MERROR, "rpc_client_connect", "remote MIDAS version \'%s\' differs from local version \'%s\'", remote_version, cm_get_version());
    }
 
-   c->connected = 1;
+   c->connected = true;
 
    *hConnection = c->index;
 
@@ -12112,13 +12138,18 @@ void rpc_client_check()
          printf("slot %d, checking client %s socket %d, connected %d\n", i, _client_connection[i].client_name, _client_connection[i].send_sock, _client_connection[i].connected);
 #endif
 
-   _client_connections_mutex.lock();
+   std::lock_guard<std::mutex> guard(_client_connections_mutex);
 
    /* check for broken connections */
    for (unsigned i = 0; i < _client_connections.size(); i++) {
       RPC_CLIENT_CONNECTION* c = _client_connections[i];
       if (c && c->connected) {
-         c->mutex.lock();
+         std::lock_guard<std::mutex> cguard(c->mutex);
+
+         if (!c->connected) {
+            // implicit unlock
+            continue;
+         }
 
          //printf("rpc_client_check: connection %d: ", i);
          //c->print();
@@ -12145,7 +12176,7 @@ void rpc_client_check()
 #endif
 
          if (!FD_ISSET(c->send_sock, &readfds)) {
-            c->mutex.unlock();
+            // implicit unlock
             continue;
          }
 
@@ -12194,11 +12225,11 @@ void rpc_client_check()
             c->close_locked();
          }
 
-         c->mutex.unlock();
+         // implicit unlock
       }
    }
 
-   _client_connections_mutex.unlock();
+   // implicit unlock of _client_connections_mutex
 }
 
 
@@ -12520,21 +12551,66 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
 
 static RPC_CLIENT_CONNECTION* rpc_get_locked_client_connection(HNDLE hConn)
 {
-   RPC_CLIENT_CONNECTION* c = NULL;
    _client_connections_mutex.lock();
    if (hConn >= 0 && hConn < (int)_client_connections.size()) {
-      c = _client_connections[hConn];
-      if (c) {
+      RPC_CLIENT_CONNECTION* c = _client_connections[hConn];
+      if (c && c->connected) {
+         _client_connections_mutex.unlock();
+         c->mutex.lock();
          if (!c->connected) {
-            c = NULL;
+            // disconnected while we were waiting for the lock
+            c->mutex.unlock();
+            return NULL;
+         }
+         return c;
+      }
+   }
+   _client_connections_mutex.unlock();
+   return NULL;
+}
+
+static void rpc_client_shutdown()
+{
+   /* close all open connections */
+
+   _client_connections_mutex.lock();
+
+   for (unsigned i = 0; i < _client_connections.size(); i++) {
+      RPC_CLIENT_CONNECTION* c = _client_connections[i];
+      if (c && c->connected) {
+         int index = c->index;
+         // must unlock the array, otherwise we hang -
+         // rpc_client_disconnect() will do rpc_call_client()
+         // which needs to lock the array to convert handle
+         // to connection pointer. Ouch! K.O. Dec 2020.
+         _client_connections_mutex.unlock();
+         rpc_client_disconnect(index, FALSE);
+         _client_connections_mutex.lock();
+      }
+   }
+
+   for (unsigned i = 0; i < _client_connections.size(); i++) {
+      RPC_CLIENT_CONNECTION* c = _client_connections[i];
+      //printf("client connection %d %p\n", i, c);
+      if (c) {
+         //printf("client connection %d %p connected %d\n", i, c, c->connected);
+         if (!c->connected) {
+            delete c;
+            _client_connections[i] = NULL;
          }
       }
    }
-   if (c) {
-      c->mutex.lock();
-   }
+
    _client_connections_mutex.unlock();
-   return c;
+
+   /* close server connection from other clients */
+   for (unsigned i = 0; i < _server_acceptions.size(); i++) {
+      if (_server_acceptions[i] && _server_acceptions[i]->recv_sock) {
+         send(_server_acceptions[i]->recv_sock, "EXIT", 5, 0);
+         closesocket(_server_acceptions[i]->recv_sock);
+         _server_acceptions[i]->recv_sock = 0;
+      }
+   }
 }
 
 /********************************************************************/
@@ -12557,53 +12633,14 @@ INT rpc_client_disconnect(HNDLE hConn, BOOL bShutdown)
 
 \********************************************************************/
 {
-   if (hConn == -1) {
-      /* close all open connections */
-      _client_connections_mutex.lock();
-      for (unsigned i = 0; i < _client_connections.size(); i++) {
-         RPC_CLIENT_CONNECTION* c = _client_connections[i];
-         if (c && c->connected) {
-            int index = c->index;
-            // must unlock the array, otherwise we hang -
-            // rpc_client_disconnect() will do rpc_call_client()
-            // which needs to lock the array to convert handle
-            // to connection pointer. Ouch! K.O. Dec 2020.
-            _client_connections_mutex.unlock();
-            rpc_client_disconnect(index, FALSE);
-            _client_connections_mutex.lock();
-         }
-      }
-      for (unsigned i = 0; i < _client_connections.size(); i++) {
-         RPC_CLIENT_CONNECTION* c = _client_connections[i];
-         //printf("client connection %d %p\n", i, c);
-         if (c) {
-            //printf("client connection %d %p connected %d\n", i, c, c->connected);
-            if (!c->connected) {
-               delete c;
-               _client_connections[i] = NULL;
-            }
-         }
-      }
-      _client_connections_mutex.unlock();
-
-      /* close server connection from other clients */
-      for (unsigned i = 0; i < _server_acceptions.size(); i++)
-         if (_server_acceptions[i] && _server_acceptions[i]->recv_sock) {
-            send(_server_acceptions[i]->recv_sock, "EXIT", 5, 0);
-            closesocket(_server_acceptions[i]->recv_sock);
-            _server_acceptions[i]->recv_sock = 0;
-         }
-   } else {
-      /* notify server about exit */
-
-      /* call exit and shutdown with RPC_NO_REPLY because client will exit immediately without possibility of replying */
-
-      rpc_client_call(hConn, bShutdown ? (RPC_ID_SHUTDOWN | RPC_NO_REPLY) : (RPC_ID_EXIT | RPC_NO_REPLY));
-   }
+   /* notify server about exit */
+   
+   /* call exit and shutdown with RPC_NO_REPLY because client will exit immediately without possibility of replying */
+   
+   rpc_client_call(hConn, bShutdown ? (RPC_ID_SHUTDOWN | RPC_NO_REPLY) : (RPC_ID_EXIT | RPC_NO_REPLY));
 
    return RPC_SUCCESS;
 }
-
 
 /********************************************************************/
 INT rpc_server_disconnect()
