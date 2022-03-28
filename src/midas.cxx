@@ -276,7 +276,8 @@ typedef struct {
 static DBG_MEM_LOC *_mem_loc = NULL;
 static INT _n_mem = 0;
 
-typedef struct {
+struct TR_PARAM
+{
    INT transition;
    INT run_number;
    char *errstr;
@@ -286,7 +287,7 @@ typedef struct {
    std::atomic_int status{0};
    std::atomic_bool finished{false};
    std::atomic<std::thread*> thread{NULL};
-} TR_PARAM;
+};
 
 static TR_PARAM _trp;
 
