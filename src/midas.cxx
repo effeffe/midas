@@ -264,9 +264,9 @@ typedef struct {
    INT errstr_size;
    INT async_flag;
    INT debug_flag;
-   std::atomic_int status{0};
-   std::atomic_bool finished{false};
-   std::atomic<std::thread*> thread{NULL};
+   std::atomic_int status;
+   std::atomic_bool finished;
+   std::atomic<std::thread*> thread;
 } TR_PARAM;
 
 static TR_PARAM _trp;
