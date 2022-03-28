@@ -840,7 +840,7 @@ function mhttpd_init(current_page, interval, callback) {
             // add separator
             html += "<div class='mseparator'></div>\n";
             // add menu items recursively
-            html = mhttpd_add_menu_items(html, custom, current_page, 0);
+            html = mhttpd_add_menu_items(html, custom, current_page, "", 0);
          }
 
          // script
@@ -916,7 +916,7 @@ function mhttpd_init(current_page, interval, callback) {
    mhttpd_scan();
 }
 
-function mhttpd_add_menu_items(html, custom, current_page, level) {
+function mhttpd_add_menu_items(html, custom, current_page, path, level) {
    for (let b in custom) {
       if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
          continue;
@@ -930,12 +930,16 @@ function mhttpd_add_menu_items(html, custom, current_page, level) {
             l += "&nbsp;&nbsp;";
          l += "&#9656;&nbsp;";
          l += custom[b + "/name"];
+         let p = path;
+         if (p !== "")
+            p += "/";
+         p += b;
 
          html += "<div class='" + cc + "' onclick='mhttpd_submenu(this)'><div class='mmenulink'>" + l + "</div></div>\n";
          // > 9656  v 9662
 
          html += "<div style='display: none'>";
-         html = mhttpd_add_menu_items(html, custom[b], current_page, level+1);
+         html = mhttpd_add_menu_items(html, custom[b], current_page, p, level+1);
          html += "</div>";
       } else if (typeof custom[b] === "string") { // skip any items that don't have type of string, since can't be valid links
          cc = "mmenuitem";
@@ -945,7 +949,8 @@ function mhttpd_add_menu_items(html, custom, current_page, level) {
          for (let i=0 ; i<level ; i++)
             ln += "&nbsp;&nbsp;";
          ln += custom[b + "/name"];
-         let lt = custom[b + "/name"];
+         let lt = path + '/';
+         lt += custom[b + "/name"];
          if (ln.substr(-1) === '!')
             continue;
          let target = "";
