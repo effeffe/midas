@@ -920,7 +920,7 @@ function mhttpd_add_menu_items(html, custom, current_page, level) {
    for (let b in custom) {
       if (b.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
          continue;
-      if (b === "path") // skip "path"
+      if (b === "path" || b === "Images") // skip "path" and "Images"
          continue;
 
       if (typeof custom[b] === "object") { // submenu created by subdirectory in ODB
