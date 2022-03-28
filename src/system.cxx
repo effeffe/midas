@@ -3078,6 +3078,57 @@ INT ss_mutex_delete(MUTEX_T *mutex)
 #endif                          /* OS_UNIX */
 }
 
+/*------------------------------------------------------------------*/
+bool ss_timed_mutex_wait_for_sec(std::timed_mutex& mutex, const char* mutex_name, double timeout_sec)
+/********************************************************************\
+
+  Routine: ss_timed_mutex_wait_for_sec
+
+  Purpose: Lock C++11 timed mutex with a timeout
+
+  Input:
+    std::timed_mutex&  mutex         Pointer to mutex
+    double             timeout_sec   Timeout in seconds, zero to wait forever
+
+  Function value:
+    true                    Successful completion
+    false                   Timeout
+
+\********************************************************************/
+{
+   if (timeout_sec <= 0) {
+      mutex.lock();
+      return true;
+   }
+
+   double starttime = ss_time_sec();
+   double endtime = starttime + timeout_sec;
+
+   // NB: per timed mutex try_lock_for(), one must always
+   // look waiting for successful lock because it is permitted
+   // to return "false" even if timeout did not yet expire. (cannot
+   // tell permitted spurious failure from normal timeout). K.O.
+
+   while (1) {
+      bool ok = mutex.try_lock_for(std::chrono::milliseconds(1000));
+
+      if (ok) {
+         //double now = ss_time_sec();
+         //fprintf(stderr, "ss_timed_mutex_wait_for_sec: mutex %s locked in %.1f seconds. timeout %.1f seconds\n", mutex_name, now-starttime, timeout_sec);
+         return true;
+      }
+
+      if (mutex_name) {
+         double now = ss_time_sec();
+         fprintf(stderr, "ss_timed_mutex_wait_for_sec: long wait for mutex %s, %.1f seconds. %.1f seconds until timeout\n", mutex_name, now-starttime, endtime-now);
+      }
+
+      double now = ss_time_sec();
+      if (now > endtime)
+         return false;
+   }
+}
+
 //
 // thread-safe versions of tzset() and mktime().
 //
@@ -3219,6 +3270,13 @@ printf("Operation took %1.3lf seconds\n",stop-start);
 DWORD ss_time()
 {
    return (DWORD) time(NULL);
+}
+
+double ss_time_sec()
+{
+   struct timeval tv; 
+   gettimeofday(&tv, NULL); 
+   return tv.tv_sec*1.0 + tv.tv_usec/1000000.0; 
 }
 
 /*------------------------------------------------------------------*/

@@ -14941,13 +14941,41 @@ static int handle_decode_get(struct mg_connection *nc, const http_message* msg, 
 
 #ifdef HAVE_MONGOOSE616
 
-static uint32_t s_mwo_seqno = 0;
+static uint32_t s_ncseqno = 1;
+
+struct MongooseNcUserData
+{
+   uint32_t ncseqno = 0;
+
+   MongooseNcUserData() // ctor
+   {
+      ncseqno = s_ncseqno++;
+      //printf("MongooseNcUserData::ctor! ncseqno %d\n", ncseqno);
+   }
+
+   ~MongooseNcUserData() // ctor
+   {
+      //printf("MongooseNcUserData::dtor! ncseqno %d\n", ncseqno);
+   }
+};
+
+static uint32_t GetNcSeqno(const mg_connection* nc)
+{
+   if (nc == NULL)
+      return 0;
+   if (nc->user_data == NULL)
+      return 0;
+   const MongooseNcUserData* ncud = (const MongooseNcUserData*)nc->user_data;
+   return ncud->ncseqno;
+}
+
+static uint32_t s_wseqno = 1;
 
 struct MongooseWorkObject
 {
-   uint32_t seqno = 0;
-   void* nc = NULL;
-   int socket = -1;
+   uint32_t wseqno = 0;
+   mg_connection* nc = NULL;
+   uint32_t wncseqno = 0;
    bool http_get  = false;
    bool http_post = false;
    bool mjsonrpc  = false;
@@ -14959,6 +14987,24 @@ struct MongooseWorkObject
    std::string post_boundary;
    RequestTrace* t = NULL;
    bool send_done = false;
+
+   MongooseWorkObject(mg_connection* xnc) // ctor
+   {
+      wseqno = s_wseqno++;
+      nc = xnc;
+      wncseqno = GetNcSeqno(nc);
+
+      //printf("MongooseWorkObject::ctor! wseqno %d, nc %p, wncseqno %d\n", wseqno, nc, wncseqno);
+   }
+
+   ~MongooseWorkObject() // dtor
+   {
+      //printf("MongooseWorkObject::dtor! wseqno %d, nc %p, wncseqno %d\n", wseqno, nc, wncseqno);
+
+      // poison pointers
+      nc = NULL;
+      t = NULL;
+   }
 };
 
 struct MongooseThreadObject
@@ -15040,7 +15086,7 @@ void FreeThread(void* nc)
    //printf("to %p, nc %p: connection closed, but no thread\n", nullptr, nc);
 }
 
-static void mongoose_queue(void* nc, MongooseWorkObject* w)
+static void mongoose_queue(mg_connection* nc, MongooseWorkObject* w)
 {
    w->nc = nc;
    MongooseThreadObject* to = FindThread(nc);
@@ -15051,13 +15097,11 @@ static void mongoose_queue(void* nc, MongooseWorkObject* w)
    to->fNotify.notify_one();
 }
 
-static void mongoose_send(void* nc, MongooseWorkObject* w, const char* p1, size_t s1, const char* p2, size_t s2, bool close_flag = false);
+static void mongoose_send(mg_connection* nc, MongooseWorkObject* w, const char* p1, size_t s1, const char* p2, size_t s2, bool close_flag = false);
 
 static int queue_decode_get(struct mg_connection *nc, const http_message* msg, const char* uri, const char* query_string, RequestTrace* t)
 {
-   MongooseWorkObject* w = new MongooseWorkObject();
-   w->socket = nc->sock;
-   w->seqno = s_mwo_seqno++;
+   MongooseWorkObject* w = new MongooseWorkObject(nc);
    w->http_get = true;
    decode_cookies(&w->cookies, msg);
    w->uri = uri;
@@ -15071,9 +15115,7 @@ static int queue_decode_get(struct mg_connection *nc, const http_message* msg, c
 
 static int queue_decode_post(struct mg_connection *nc, const http_message* msg, const char* boundary, const char* uri, const char* query_string, RequestTrace* t)
 {
-   MongooseWorkObject* w = new MongooseWorkObject();
-   w->socket = nc->sock;
-   w->seqno = s_mwo_seqno++;
+   MongooseWorkObject* w = new MongooseWorkObject(nc);
    w->http_post = true;
    decode_cookies(&w->cookies, msg);
    w->uri = uri;
@@ -15089,9 +15131,7 @@ static int queue_decode_post(struct mg_connection *nc, const http_message* msg, 
 
 static int queue_mjsonrpc(struct mg_connection *nc, const std::string& origin, const std::string& post_body, RequestTrace* t)
 {
-   MongooseWorkObject* w = new MongooseWorkObject();
-   w->socket = nc->sock;
-   w->seqno = s_mwo_seqno++;
+   MongooseWorkObject* w = new MongooseWorkObject(nc);
    w->mjsonrpc = true;
    w->origin = origin;
    w->post_body = post_body;
@@ -15102,7 +15142,7 @@ static int queue_mjsonrpc(struct mg_connection *nc, const std::string& origin, c
    return RESPONSE_QUEUED;
 }
 
-static int thread_http_get(void *nc, MongooseWorkObject *w)
+static int thread_http_get(mg_connection *nc, MongooseWorkObject *w)
 {
    // lock shared structures
 
@@ -15158,7 +15198,7 @@ static int thread_http_get(void *nc, MongooseWorkObject *w)
    return RESPONSE_SENT;
 }
 
-static int thread_http_post(void *nc, MongooseWorkObject *w)
+static int thread_http_post(mg_connection *nc, MongooseWorkObject *w)
 {
    const char* post_data = w->post_body.c_str();
    int post_data_len = w->post_body.length();
@@ -15208,7 +15248,7 @@ static int thread_http_post(void *nc, MongooseWorkObject *w)
 
 }
 
-static int thread_mjsonrpc(void *nc, MongooseWorkObject *w)
+static int thread_mjsonrpc(mg_connection *nc, MongooseWorkObject *w)
 {
    w->t->fRPC = w->post_body;
 
@@ -15287,7 +15327,7 @@ static int thread_mjsonrpc(void *nc, MongooseWorkObject *w)
    return RESPONSE_SENT;
 }
 
-static int thread_work_function(void *nc, MongooseWorkObject *w)
+static int thread_work_function(mg_connection *nc, MongooseWorkObject *w)
 {
    if (w->http_get)
       return thread_http_get(nc, w);
@@ -15844,7 +15884,7 @@ static void handle_http_redirect(struct mg_connection *nc, int ev, void *ev_data
 //static sock_t s_sock[2];
 static std::atomic_bool s_shutdown{false};
 static struct mg_mgr s_mgr;
-static std::atomic_int s_seqno{0};
+static std::atomic_int s_rseqno{1};
 static std::mutex s_mg_broadcast_mutex;
 
 #if 0
@@ -15857,9 +15897,9 @@ struct work_request {
 
 // This info is passed by the worker thread to mg_broadcast
 struct work_result {
-   void* nc = NULL;
+   mg_connection* nc = NULL;
    uint32_t check = 0x12345678;
-   int seqno = 0;
+   int rseqno = 0;
    MongooseWorkObject* w = NULL;
    const char* p1 = NULL;
    size_t s1 = 0;
@@ -15874,7 +15914,7 @@ static void mongoose_queue(void *nc, MongooseWorkObject *w)
 {
    struct work_request req = {nc, w};
 
-   //printf("nc: %p: w: %d, queue work object!\n", nc, w->seqno);
+   //printf("nc: %p: wseqno: %d, queue work object!\n", nc, w->wseqno);
          
    if (write(s_sock[0], &req, sizeof(req)) < 0) {
       fprintf(stderr, "mongoose_queue: Error: write(s_sock(0)) error %d (%s)\n", errno, strerror(errno));
@@ -15888,22 +15928,22 @@ static void on_work_complete(struct mg_connection *nc, int ev, void *ev_data)
    (void) ev;
    struct work_result *res = (struct work_result *)ev_data;
 
-   //printf("nc: %p: w: %d, seqno: %d, check 0x%08x, offered nc %p, flags 0x%08x\n", res->nc, res->w->seqno, res->seqno, res->check, nc, (int)nc->flags);
+   assert(res != NULL);
+   assert(res->w != NULL);
 
-   if (res->nc != nc)
+   //printf("nc: %p, ncseqno: %d, wseqno: %d, rseqno: %d, check 0x%08x, offered nc %p ncseqno %d, flags 0x%08x\n", res->nc, GetNcSeqno(res->nc), res->w->wseqno, res->rseqno, res->check, nc, GetNcSeqno(nc), (int)nc->flags);
+
+   // check for correct connection, note that nc objects are reused and after a socket is closed
+   // and a new one is opened, the same nc address and the same nc->sock can now refer to a completely
+   // different tcp connection. So we check ncseqno instead of nc. K.O.
+
+   //if (res->nc != nc)
+   //return;
+   
+   if (GetNcSeqno(nc) != res->w->wncseqno)
       return;
-
-   //printf("nc: %p: w: %d, on_work_complete: seqno: %d, send_501: %d, s1 %d, s2: %d, close_flag: %d\n", res->nc, res->w->seqno, res->seqno, res->send_501, (int)res->s1, (int)res->s2, res->close_flag);
-
-   if (!res->w) {
-      cm_msg(MERROR, "on_work_complete", "no work object!");
-   } else {
-      if (res->w->socket != nc->sock) {
-         cm_msg(MERROR, "on_work_complete", "Should not send response to request from socket %d to socket %d, abort!", res->w->socket, nc->sock);
-         cm_msg_flush_buffer();
-         abort();
-      }
-   }
+   
+   //printf("nc: %p, ncseqno: %d, wseqno: %d, wncseqno %d, on_work_complete: rseqno: %d, send_501: %d, s1 %d, s2: %d, close_flag: %d\n", res->nc, GetNcSeqno(nc), res->w->wseqno, res->w->wncseqno, res->rseqno, res->send_501, (int)res->s1, (int)res->s2, res->close_flag);
 
    if (res->send_501) {
       std::string response = "501 Not Implemented";
@@ -15927,13 +15967,13 @@ static void on_work_complete(struct mg_connection *nc, int ev, void *ev_data)
    res->w->send_done = true;
 }
 
-static void mongoose_send(void* nc, MongooseWorkObject* w, const char* p1, size_t s1, const char* p2, size_t s2, bool close_flag)
+static void mongoose_send(mg_connection* nc, MongooseWorkObject* w, const char* p1, size_t s1, const char* p2, size_t s2, bool close_flag)
 {
    //printf("nc: %p: send %d and %d\n", nc, (int)s1, (int)s2);
    struct work_result res;
    res.nc = nc;
    res.w  = w;
-   res.seqno = s_seqno++; // thread-asfe, s_seqno is std::atomic_int
+   res.rseqno = s_rseqno++; // thread-asfe, s_rseqno is std::atomic_int
    res.p1 = p1;
    res.s1 = s1;
    res.p2 = p2;
@@ -15986,12 +16026,12 @@ static void mongoose_send(void* nc, MongooseWorkObject* w, const char* p1, size_
    s_mg_broadcast_mutex.unlock();
 }
 
-static void mongoose_send_501(void* nc, MongooseWorkObject* w)
+static void mongoose_send_501(mg_connection* nc, MongooseWorkObject* w)
 {
    struct work_result res;
    res.nc = nc;
    res.w  = w;
-   res.seqno = s_seqno++; // thread-asfe, s_seqno is std::atomic_int
+   res.rseqno = s_rseqno++; // thread-asfe, s_rseqno is std::atomic_int
    res.p1 = 0;
    res.s1 = 0;
    res.p2 = 0;
@@ -16039,7 +16079,7 @@ void *worker_thread_proc(void *param)
       req.w->t->fCompleted = true;
       gTraceBuf->AddTraceMTS(req.w->t);
 
-      //printf("nc: %p: w: %d, delete work object!\n", req.nc, req.w->seqno);
+      //printf("nc: %p: wseqno: %d, delete work object!\n", req.nc, req.w->wseqno);
 
       delete req.w;
       req.w = NULL;
@@ -16076,7 +16116,7 @@ static void mongoose_thread(MongooseThreadObject* to)
       to->fQueue.pop_front();
       ulm.unlock();
 
-      //printf("to %p, nc %p: w: %d, received request!\n", to, w->nc, w->seqno);
+      //printf("to %p, nc %p: wseqno: %d, received request!\n", to, w->nc, w->wseqno);
 
       int response = thread_work_function(w->nc, w);
 
@@ -16086,10 +16126,18 @@ static void mongoose_thread(MongooseThreadObject* to)
          mongoose_send_501(w->nc, w);
       }
 
+      // mg_broadcast() called on_work_complete() on the main thread and waited until it finished
+
+      if (!w->send_done) {
+         // NB: careful here, if connection nc was closed, pointer nc points to nowhere! do not dereference it!
+         // NB: stay quiet about it, nothing special about network connctions closing and opening as they wish.
+         //printf("to %p, nc %p: wseqno: %d, wncseqno: %d, request was not sent, maybe nc was closed while we were thinking\n", to, w->nc, w->wseqno, w->wncseqno);
+      }
+
       w->t->fCompleted = true;
       gTraceBuf->AddTraceMTS(w->t);
 
-      //printf("nc: %p: w: %d, delete work object!\n", w->nc, w->seqno);
+      //printf("nc: %p: wseqno: %d, delete work object!\n", w->nc, w->wseqno);
 
       delete w;
    }
@@ -16120,8 +16168,11 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
       break;
    }
    case MG_EV_ACCEPT:
+      assert(nc->user_data == NULL);
+      nc->user_data = new MongooseNcUserData();
+
       if (trace_mg) {
-         printf("ev_handler: connection %p, MG_EV_ACCEPT\n", nc);
+         printf("ev_handler: connection %p, MG_EV_ACCEPT, user_data %p, ncseqno %d\n", nc, nc->user_data, GetNcSeqno(nc));
       }
       if (s_shutdown) {
          //printf("XXX nc %p!\n", nc);
@@ -16171,10 +16222,16 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
    }
    case MG_EV_CLOSE: {
       if (trace_mg) {
-         printf("ev_handler: connection %p, MG_EV_CLOSE\n", nc);
+         printf("ev_handler: connection %p, MG_EV_CLOSE, user_data %p, ncseqno %d\n", nc, nc->user_data, GetNcSeqno(nc));
       }
       //printf("CCC nc %p!\n", nc);
       FreeThread(nc);
+      if (nc->user_data) {
+         MongooseNcUserData* ncud = (MongooseNcUserData*)nc->user_data;
+         nc->user_data = NULL;
+         delete ncud;
+         ncud = NULL;
+      }
    }
    }
 }

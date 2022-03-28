@@ -604,6 +604,7 @@ typedef struct {
    INT EXPRT ss_mutex_wait_for(MUTEX_T *mutex, INT timeout);
    INT EXPRT ss_mutex_release(MUTEX_T *mutex);
    INT EXPRT ss_mutex_delete(MUTEX_T *mutex);
+   bool EXPRT ss_timed_mutex_wait_for_sec(std::timed_mutex& mutex, const char* mutex_name, double timeout_sec);
    INT ss_alarm(INT millitime, void (*func) (int));
    INT ss_suspend_init_odb_port();
    INT ss_suspend_get_odb_port(INT * port);
