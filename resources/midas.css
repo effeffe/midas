@@ -169,6 +169,7 @@ body.mcss {
 
 .mmenulink {
    padding: 5px;
+   text-align: left;
 }
 
 .mseparator {
