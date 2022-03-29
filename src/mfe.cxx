@@ -2625,7 +2625,7 @@ int main(int argc, char *argv[])
    cm_start_watchdog_thread();
 
    /* increase RPC timeout to 2min for logger with exabyte or blocked disk */
-   rpc_set_option(-1, RPC_OTIMEOUT, 120000);
+   rpc_set_timeout(RPC_HNDLE_MSERVER, 120000);
 
    /* reqister equipment in ODB */
    if (register_equipment() != SUCCESS) {

@@ -2558,8 +2558,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
    strcpy(client_name1, client_name);
    password[0] = 0;
-   status = cm_set_client_info(hDB, &hKeyClient, local_host_name, client_name1, rpc_get_option(0, RPC_OHW_TYPE),
-                               password, watchdog_timeout);
+   status = cm_set_client_info(hDB, &hKeyClient, local_host_name, client_name1, rpc_get_hw_type(), password, watchdog_timeout);
 
    if (status == CM_WRONG_PASSWORD) {
       if (func == NULL)
@@ -2568,8 +2567,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
          func(str);
 
       strcpy(password, ss_crypt(str, "mi"));
-      status = cm_set_client_info(hDB, &hKeyClient, local_host_name, client_name1, rpc_get_option(0, RPC_OHW_TYPE),
-                                  password, watchdog_timeout);
+      status = cm_set_client_info(hDB, &hKeyClient, local_host_name, client_name1, rpc_get_hw_type(), password, watchdog_timeout);
       if (status != CM_SUCCESS) {
          /* disconnect */
          if (rpc_is_remote())
@@ -4263,8 +4261,8 @@ static int cm_transition_call(TrState* s, int idx) {
       timeout = 1000;
 
    /* set our timeout for rpc_client_connect() */
-   old_timeout = rpc_get_option(-2, RPC_OTIMEOUT);
-   rpc_set_option(-2, RPC_OTIMEOUT, connect_timeout);
+   //old_timeout = rpc_get_timeout(RPC_HNDLE_CONNECT);
+   rpc_set_timeout(RPC_HNDLE_CONNECT, connect_timeout, &old_timeout);
 
    tr_client->connect_timeout = connect_timeout;
    tr_client->connect_start_time = ss_millitime();
@@ -4274,7 +4272,7 @@ static int cm_transition_call(TrState* s, int idx) {
    /* client found -> connect to its server port */
    status = rpc_client_connect(tr_client->host_name.c_str(), tr_client->port, tr_client->client_name.c_str(), &hConn);
 
-   rpc_set_option(-2, RPC_OTIMEOUT, old_timeout);
+   rpc_set_timeout(RPC_HNDLE_CONNECT, old_timeout);
 
    tr_client->connect_end_time = ss_millitime();
    write_tr_client_to_odb(hDB, tr_client);
@@ -4312,8 +4310,8 @@ static int cm_transition_call(TrState* s, int idx) {
              tr_client->client_name.c_str(), tr_client->host_name.c_str());
 
    /* call RC_TRANSITION on remote client with increased timeout */
-   old_timeout = rpc_get_option(hConn, RPC_OTIMEOUT);
-   rpc_set_option(hConn, RPC_OTIMEOUT, timeout);
+   //old_timeout = rpc_get_timeout(hConn);
+   rpc_set_timeout(hConn, timeout, &old_timeout);
 
    tr_client->rpc_timeout = timeout;
    tr_client->rpc_start_time = ss_millitime();
@@ -4347,7 +4345,7 @@ static int cm_transition_call(TrState* s, int idx) {
       status = FE_ERR_HW;
 
    /* reset timeout */
-   rpc_set_option(hConn, RPC_OTIMEOUT, old_timeout);
+   rpc_set_timeout(hConn, old_timeout);
 
    //DWORD t2 = ss_millitime();
 
@@ -11420,7 +11418,7 @@ void rpc_calc_convert_flags(INT hw_type, INT remote_hw_type, INT *convert_flags)
 
 /********************************************************************/
 void rpc_get_convert_flags(INT *convert_flags) {
-   rpc_calc_convert_flags(rpc_get_option(0, RPC_OHW_TYPE), _server_connection.remote_hw_type, convert_flags);
+   rpc_calc_convert_flags(rpc_get_hw_type(), _server_connection.remote_hw_type, convert_flags);
 }
 
 /********************************************************************/
@@ -12050,7 +12048,7 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
    std::string local_prog_name = rpc_get_name();
    std::string local_host_name = ss_gethostname();
 
-   int hw_type = rpc_get_option(0, RPC_OHW_TYPE);
+   int hw_type = rpc_get_hw_type();
 
    std::string cstr = msprintf("%d %s %s %s", hw_type, cm_get_version(), local_prog_name.c_str(), local_host_name.c_str());
 
@@ -12525,7 +12523,7 @@ INT rpc_server_connect(const char *host_name, const char *exp_name)
 
    /* send local computer info */
    std::string local_prog_name = rpc_get_name();
-   hw_type = rpc_get_option(0, RPC_OHW_TYPE);
+   hw_type = rpc_get_hw_type();
    sprintf(str, "%d %s", hw_type, local_prog_name.c_str());
 
    send(_server_connection.send_sock, str, strlen(str) + 1, 0);
@@ -12749,43 +12747,20 @@ bool rpc_is_mserver(void)
 }
 
 /********************************************************************/
-INT rpc_get_option(HNDLE hConn, INT item)
+INT rpc_get_hw_type()
 /********************************************************************\
 
-  Routine: rpc_get_option
+  Routine: rpc_get_hw_type
 
-  Purpose: Get actual RPC option
-
-  Input:
-    HNDLE hConn             RPC connection handle, -1 for server connection, -2 for rpc connect timeout
-
-    INT   item              One of RPC_Oxxx
-
-  Output:
-    none
+  Purpose: get hardware information
 
   Function value:
-    INT                     Actual option
+    INT                     combination of DRI_xxx bits
 
 \********************************************************************/
 {
-   switch (item) {
-      case RPC_OTIMEOUT: {
-         if (hConn == -1)
-            return _server_connection.rpc_timeout;
-         if (hConn == -2)
-            return _rpc_connect_timeout;
-
-         RPC_CLIENT_CONNECTION* c = rpc_get_locked_client_connection(hConn);
-         if (c) {
-            int rpc_timeout = c->rpc_timeout;
-            c->mutex.unlock();
-            return rpc_timeout;
-         } else {
-            return 0;
-         }
-      }
-      case RPC_OHW_TYPE: {
+   {
+      {
          INT tmp_type, size;
          DWORD dummy;
          unsigned char *p;
@@ -12853,13 +12828,7 @@ INT rpc_get_option(HNDLE hConn, INT item)
 
          return tmp_type;
       }
-
-      default:
-         cm_msg(MERROR, "rpc_get_option", "invalid argument");
-         break;
    }
-
-   return 0;
 }
 
 /**dox***************************************************************/
@@ -12873,6 +12842,7 @@ Set RPC option
 @param value              Value to set
 @return RPC_SUCCESS
 */
+#if 0
 INT rpc_set_option(HNDLE hConn, INT item, INT value) {
    switch (item) {
       case RPC_OTIMEOUT:
@@ -12907,6 +12877,65 @@ INT rpc_set_option(HNDLE hConn, INT item, INT value) {
    }
 
    return 0;
+}
+#endif
+
+/********************************************************************/
+/**
+Get RPC timeout
+@param hConn              RPC connection handle, RPC_HNDLE_MSERVER for mserver connection, RPC_HNDLE_CONNECT for rpc connect timeout
+@return timeout value
+*/
+INT rpc_get_timeout(HNDLE hConn)
+{
+   if (hConn == RPC_HNDLE_MSERVER) {
+      return _server_connection.rpc_timeout;
+   } else if (hConn == RPC_HNDLE_CONNECT) {
+      return _rpc_connect_timeout;
+   } else {
+      RPC_CLIENT_CONNECTION* c = rpc_get_locked_client_connection(hConn);
+      if (c) {
+         int timeout = c->rpc_timeout;
+         c->mutex.unlock();
+         return timeout;
+      }
+   }
+   return 0;
+}
+
+/********************************************************************/
+/**
+Set RPC timeout
+@param hConn              RPC connection handle, RPC_HNDLE_MSERVER for mserver connection, RPC_HNDLE_CONNECT for rpc connect timeout
+@param timeout_msec       RPC timeout in milliseconds
+@param old_timeout_msec   returns old value of RPC timeout in milliseconds
+@return RPC_SUCCESS
+*/
+INT rpc_set_timeout(HNDLE hConn, int timeout_msec, int* old_timeout_msec)
+{
+   //printf("rpc_set_timeout: hConn %d, timeout_msec %d\n", hConn, timeout_msec);
+
+   if (hConn == RPC_HNDLE_MSERVER) {
+      if (old_timeout_msec)
+         *old_timeout_msec = _server_connection.rpc_timeout;
+      _server_connection.rpc_timeout = timeout_msec;
+   } else if (hConn == RPC_HNDLE_CONNECT) {
+      if (old_timeout_msec)
+         *old_timeout_msec = _rpc_connect_timeout;
+      _rpc_connect_timeout = timeout_msec;
+   } else {
+      RPC_CLIENT_CONNECTION* c = rpc_get_locked_client_connection(hConn);
+      if (c) {
+         if (old_timeout_msec)
+            *old_timeout_msec = c->rpc_timeout;
+         c->rpc_timeout = timeout_msec;
+         c->mutex.unlock();
+      } else {
+         if (old_timeout_msec)
+            *old_timeout_msec = 0;
+      }
+   }
+   return RPC_SUCCESS;
 }
 
 
@@ -13129,7 +13158,7 @@ static void rpc_call_encode(va_list& ap, int idx, const char* rpc_name, NET_COMM
    (*nc) = (NET_COMMAND*) buf;
 
    /* find out if we are on a big endian system */
-   bool bbig = ((rpc_get_option(0, RPC_OHW_TYPE) & DRI_BIG_ENDIAN) > 0);
+   bool bbig = ((rpc_get_hw_type() & DRI_BIG_ENDIAN) > 0);
 
    char* param_ptr = (*nc)->param;
 
@@ -15424,7 +15453,7 @@ INT rpc_client_accept(int lsock)
    sa->is_mserver = FALSE;
 
    /* send my own computer id */
-   hw_type = rpc_get_option(0, RPC_OHW_TYPE);
+   hw_type = rpc_get_hw_type();
    std::string str = msprintf("%d %s", hw_type, cm_get_version());
    status = send(sock, str.c_str(), str.length() + 1, 0);
    if (status != (INT) str.length() + 1)
@@ -15628,7 +15657,7 @@ INT rpc_server_callback(struct callback_addr *pcallback)
    //printf("rpc_server_callback: _mserver_acception %p\n", _mserver_acception);
 
    /* send my own computer id */
-   hw_type = rpc_get_option(0, RPC_OHW_TYPE);
+   hw_type = rpc_get_hw_type();
    sprintf(str, "%d", hw_type);
    send(recv_sock, str, strlen(str) + 1, 0);
 

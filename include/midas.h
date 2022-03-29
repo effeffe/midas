@@ -372,18 +372,22 @@ Access modes */
 
 /**
 RPC options */
-#define RPC_OTIMEOUT       1
+//#define RPC_OTIMEOUT       1
 //#define RPC_OTRANSPORT     2
-#define RPC_OCONVERT_FLAG  3
-#define RPC_OHW_TYPE       4
+//#define RPC_OCONVERT_FLAG  3
+//#define RPC_OHW_TYPE       4
 //#define RPC_OSERVER_TYPE   5
 //#define RPC_OSERVER_NAME   6
-#define RPC_CONVERT_FLAGS  7
+//#define RPC_CONVERT_FLAGS  7
 //#define RPC_ODB_HANDLE     8
 //#define RPC_CLIENT_HANDLE  9
-#define RPC_SEND_SOCK      10
-#define RPC_WATCHDOG_TIMEOUT 11
-#define RPC_NODELAY        12
+//#define RPC_SEND_SOCK      10
+//#define RPC_WATCHDOG_TIMEOUT 11
+//#define RPC_NODELAY        12
+
+/* special RPC handles for rpc_get_timeout() and rpc_set_timeout() */
+#define RPC_HNDLE_MSERVER -1
+#define RPC_HNDLE_CONNECT -2
 
 #define RPC_NO_REPLY 0x80000000l
 
@@ -1978,8 +1982,9 @@ Data conversion flags */
 
    INT EXPRT rpc_register_functions(const RPC_LIST * new_list, RPC_HANDLER func);
    INT EXPRT rpc_register_function(INT id, RPC_HANDLER func);
-   INT EXPRT rpc_get_option(HNDLE hConn, INT item);
-   INT EXPRT rpc_set_option(HNDLE hConn, INT item, INT value);
+   INT EXPRT rpc_get_hw_type();
+   INT EXPRT rpc_get_timeout(HNDLE hConn);
+   INT EXPRT rpc_set_timeout(HNDLE hConn, int timeout_msec, int* old_timeout_msec = NULL);
    INT EXPRT rpc_set_name(const char *name);
    std::string rpc_get_name();
    INT EXPRT rpc_is_remote(void);
