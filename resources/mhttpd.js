@@ -934,9 +934,19 @@ function mhttpd_add_menu_items(html, custom, current_page, path, level) {
       if (typeof custom[b] === "object") { // submenu created by subdirectory in ODB
          let cc = "msubmenuitem";
          let l = "";
+         let expand = (current_page.search(custom[b + "/name"]) !== -1 ||
+                       current_page.search(custom[b + "/name"].toLowerCase()) !== -1)
+
+         // add blanks according to nesting level
          for (let i=0 ; i<level ; i++)
             l += "&nbsp;&nbsp;";
-         l += "&#9656;&nbsp;";
+
+         if (expand)
+            l += "&#9662;&nbsp;"; // caret down
+         else
+            l += "&#9656;&nbsp;"; // caret right
+
+         l += "&nbsp;";
          l += custom[b + "/name"];
          let p = path;
          if (p !== "")
@@ -944,12 +954,8 @@ function mhttpd_add_menu_items(html, custom, current_page, path, level) {
          p += b;
 
          html += "<div class='" + cc + "' onclick='mhttpd_submenu(this)'><div class='mmenulink'>" + l + "</div></div>\n";
-         // > 9656  v 9662
 
-         console.log("current_page: " + current_page + ", custom: " + custom[b+"/name"]);
-
-         if (current_page.search(custom[b + "/name"]) !== -1 ||
-             current_page.search(custom[b + "/name"].toLowerCase()) !== -1)
+         if (expand)
             html += "<div>"; // do not hide submenu if current page is under it
          else
             html += "<div style='display: none'>";
