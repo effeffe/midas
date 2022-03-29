@@ -5498,9 +5498,7 @@ int cm_exec_script(const char *odb_path_to_script)
             if (subkey.type == TID_STRING) {
                command += buf;
             } else {
-               char str[256];
-               db_sprintf(str, buf, subkey.item_size, 0, subkey.type);
-               command += str;
+               command += db_sprintf(buf, subkey.item_size, 0, subkey.type);
             }
             free(buf);
          }
