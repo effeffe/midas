@@ -1228,8 +1228,8 @@ void create_experim_h(HNDLE hDB, const char *analyzer_name)
 
    close(hfile);
 
-   if (getcwd(str, sizeof(str)))
-      printf("\"experim.h\" has been written to %s\n", str);
+   std::string cwd = ss_getcwd();
+   printf("\"experim.h\" has been written to %s/%s\n", cwd.c_str(), file_name);
 }
 
 /*------------------------------------------------------------------*/

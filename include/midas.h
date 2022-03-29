@@ -2030,6 +2030,7 @@ Data conversion flags */
    std::string EXPRT ss_asctime(void);
    INT EXPRT ss_sleep(INT millisec);
    BOOL EXPRT ss_kbhit(void);
+   std::string EXPRT ss_getcwd();
 
    double EXPRT ss_nan(void);
    int EXPRT ss_isnan(double x);

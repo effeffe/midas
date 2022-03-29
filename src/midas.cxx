@@ -592,11 +592,7 @@ void cm_msg_get_logfile(const char *fac, time_t t, std::string* filename, std::s
       if (message_dir.empty()) {
          message_dir = cm_get_path();
          if (message_dir.empty()) {
-            char *s = getcwd(NULL, 0);
-            if (s) {
-               message_dir = s;
-               free(s);
-            }
+            message_dir = ss_getcwd();
          }
       }
    }

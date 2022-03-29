@@ -1000,10 +1000,7 @@ std::vector<std::string> get_resource_paths()
    // add  "/Logger/History/IMAGE/History dir"
    paths.push_back(cm_get_history_path("IMAGE"));
 
-   char* s = getcwd(NULL, 0);
-   assert(s);
-   std::string cwd = s;
-   free(s);
+   std::string cwd = ss_getcwd();
    if (!cwd.empty()) {
       paths.push_back(cwd + "/");
       paths.push_back(cwd + "/resources/");
@@ -1604,9 +1601,8 @@ void show_help_page(Return* r, const char* dec_path)
 
    r->rsprintf("        <tr>\n");
    r->rsprintf("          <td style=\"text-align:right;\">mhttpd current directory:</td>\n");
-   if (!getcwd(str, sizeof(str)))
-      str[0] = 0;
-   r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", str);
+   std::string cwd = ss_getcwd();
+   r->rsprintf("          <td style=\"text-align:left;\">%s</td>\n", cwd.c_str());
    r->rsprintf("        </tr>\n");
 
    r->rsprintf("        <tr>\n");

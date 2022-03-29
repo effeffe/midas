@@ -5234,6 +5234,21 @@ INT ss_gethostname(char* buffer, int buffer_size)
 
 /*------------------------------------------------------------------*/
 
+std::string ss_getcwd()
+{
+   char *s = getcwd(NULL, 0);
+   if (s) {
+      std::string cwd = s;
+      free(s);
+      //printf("ss_getcwd: %s\n", cwd.c_str());
+      return cwd;
+   } else {
+      return "/GETCWD-FAILED-ON-US";
+   }
+}
+
+/*------------------------------------------------------------------*/
+
 #ifdef OS_MSDOS
 #ifdef sopen
 /********************************************************************\
