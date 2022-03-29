@@ -177,6 +177,7 @@ extern INT _database_entries;
 
 //
 // locking rules for gBuffers and gBuffersMutex:
+//
 // - all access to gBuffers must be done while holding gBufferMutex
 // - while holding gBufferMutex:
 // - taking additional locks not permitted (no calling odb, no locking event buffers, etc)
@@ -184,12 +185,20 @@ extern INT _database_entries;
 // - calling functions that can come back recursively not permitted
 //
 // after obtaining a BUFFER*pbuf pointer from gBuffers:
+//
 // - holding gBuffersMutex is not required
 // - to access pbuf data, must hold buffer_mutex or call bm_lock_buffer()
+// - except for:
+//     pbuf->attached - no need to hold a lock (std::atomic)
+//     pbuf->buffer_name - no need to hold a lock (constant data, only changed by bm_open_buffer())
 //
-// buffer removal:
+// object life time:
+//
 // - gBuffers never shrinks
-// - BUFFER*pbuf objects are never deleted to avoid problem of other thread waiting to lock it as we are deleting it. close buffers are marked by pbuf->attached set to false.
+// - new BUFFER objects are created by bm_open_buffer(), added to gBuffers when ready for use, pbuf->attached set to true
+// - bm_close_buffer() sets pbuf->attached to false
+// - BUFFER objects are never deleted to avoid race between delete and bm_send_event() & co
+// - BUFFER objects are never reused, bm_open_buffer() always creates a new object
 // - gBuffers[i] set to NULL are empty slots available for reuse
 // - closed buffers have corresponding gBuffers[i]->attached set to false
 // 
@@ -2129,35 +2138,30 @@ INT cm_set_client_info(HNDLE hDB, HNDLE *hKeyClient, const char *host_name,
 
 /********************************************************************/
 /**
-Get info about the current client
-@param  *client_name       Client name.
-@return   CM_SUCCESS, CM_UNDEF_EXP
+Get current client name
+@return   current client name
 */
-INT cm_get_client_info(char *client_name) {
-   INT status, length;
+std::string cm_get_client_name()
+{
+   INT status;
    HNDLE hDB, hKey;
 
    /* get root key of client */
    cm_get_experiment_database(&hDB, &hKey);
    if (!hDB) {
-      client_name[0] = 0;
-      return CM_UNDEF_EXP;
+      return "unknown";
    }
 
-   status = db_find_key(hDB, hKey, "Name", &hKey);
+   std::string name;
+
+   status = db_get_value_string(hDB, hKey, "Name", 0, &name);
    if (status != DB_SUCCESS) {
-      client_name[0] = 0;
-      return status;
+      return "unknown";
    }
 
-   length = NAME_LENGTH;
-   status = db_get_data(hDB, hKey, client_name, &length, TID_STRING);
-   if (status != DB_SUCCESS) {
-      client_name[0] = 0;
-      return status;
-   }
+   //printf("get client name: [%s]\n", name.c_str());
 
-   return CM_SUCCESS;
+   return name;
 }
 
 /********************************************************************/
@@ -6669,9 +6673,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
    {
       HNDLE shm_handle;
       size_t shm_size;
-      BUFFER_HEADER *pheader;
-      HNDLE hDB, odb_key;
-      char odb_path[256];
+      HNDLE hDB;
       const int max_buffer_size = 2 * 1000 * 1024 * 1024; // limited by 32-bit integers in the buffer header
 
       bm_cleanup("bm_open_buffer", ss_millitime(), FALSE);
@@ -6686,7 +6688,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
          return BM_INVALID_PARAM;
       }
 
-      status = cm_get_experiment_database(&hDB, &odb_key);
+      status = cm_get_experiment_database(&hDB, NULL);
 
       if (status != SUCCESS || hDB == 0) {
          //cm_msg(MERROR, "bm_open_buffer", "cannot open buffer \'%s\' - not connected to ODB", buffer_name);
@@ -6694,16 +6696,17 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
       }
 
       /* get buffer size from ODB, user parameter as default if not present in ODB */
-      strlcpy(odb_path, "/Experiment/Buffer sizes/", sizeof(odb_path));
-      strlcat(odb_path, buffer_name, sizeof(odb_path));
+      std::string odb_path;
+      odb_path += "/Experiment/Buffer sizes/";
+      odb_path += buffer_name;
 
       int size = sizeof(INT);
-      status = db_get_value(hDB, 0, odb_path, &buffer_size, &size, TID_UINT32, TRUE);
+      status = db_get_value(hDB, 0, odb_path.c_str(), &buffer_size, &size, TID_UINT32, TRUE);
 
       if (buffer_size <= 0 || buffer_size > max_buffer_size) {
          cm_msg(MERROR, "bm_open_buffer",
                 "Cannot open buffer \"%s\", invalid buffer size %d in ODB \"%s\", maximum buffer size is %d",
-                buffer_name, buffer_size, odb_path, max_buffer_size);
+                buffer_name, buffer_size, odb_path.c_str(), max_buffer_size);
          return BM_INVALID_PARAM;
       }
 
@@ -6722,7 +6725,27 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
       gBuffersMutex.lock();
       for (size_t i = 0; i < gBuffers.size(); i++) {
          BUFFER* pbuf = gBuffers[i];
-         if (pbuf && pbuf->attached && equal_ustring(pbuf->buffer_header->name, buffer_name)) {
+         if (pbuf && pbuf->attached && equal_ustring(pbuf->buffer_name, buffer_name)) {
+            *buffer_handle = i + 1;
+            gBuffersMutex.unlock();
+            return BM_SUCCESS;
+         }
+      }
+      gBuffersMutex.unlock();
+
+      // only one thread at a time should create new buffers
+
+      static std::mutex gNewBufferMutex;
+      std::lock_guard<std::mutex> guard(gNewBufferMutex);
+
+      // if we had a race against another thread
+      // and while we were waiting for gNewBufferMutex
+      // the other thread created this buffer, we return it.
+
+      gBuffersMutex.lock();
+      for (size_t i = 0; i < gBuffers.size(); i++) {
+         BUFFER* pbuf = gBuffers[i];
+         if (pbuf && pbuf->attached && equal_ustring(pbuf->buffer_name, buffer_name)) {
             *buffer_handle = i + 1;
             gBuffersMutex.unlock();
             return BM_SUCCESS;
@@ -6731,36 +6754,67 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
       gBuffersMutex.unlock();
 
       /* allocate new BUFFER object */
+
       BUFFER* pbuf = new BUFFER;
 
-      // there is no constructor for BUFFER object, we have to zero the arrays manually
+      /* there is no constructor for BUFFER object, we have to zero the arrays manually */
+
       for (int i=0; i<MAX_CLIENTS; i++) {
          pbuf->client_count_write_wait[i] = 0;
          pbuf->client_time_write_wait[i] = 0;
       }
 
-      /* open shared memory region */
+      /* create buffer semaphore */
+
+      status = ss_semaphore_create(buffer_name, &(pbuf->semaphore));
+
+      if (status != SS_CREATED && status != SS_SUCCESS) {
+         *buffer_handle = 0;
+         delete pbuf;
+         return BM_NO_SEMAPHORE;
+      }
+
+      /* lock buffer semaphore to avoid race with bm_open_buffer() in a different program */
+
+      pbuf->attached = true; // required by bm_lock_buffer()
+
+      status = bm_lock_buffer(pbuf);
+
+      if (status != BM_SUCCESS) {
+         // cannot happen, no other thread can see this pbuf
+         abort();
+         return BM_NO_SEMAPHORE;
+      }
+
+      /* open shared memory */
+
       void *p = NULL;
       status = ss_shm_open(buffer_name, sizeof(BUFFER_HEADER) + buffer_size, &p, &shm_size, &shm_handle, FALSE);
 
       if (status != SS_SUCCESS && status != SS_CREATED) {
          *buffer_handle = 0;
+         bm_unlock_buffer(pbuf);
          delete pbuf;
          return BM_NO_SHM;
       }
 
       pbuf->buffer_header = (BUFFER_HEADER *) p;
-      pheader = pbuf->buffer_header;
+
+      BUFFER_HEADER *pheader = pbuf->buffer_header;
 
       bool shm_created = (status == SS_CREATED);
 
       if (shm_created) {
-         /* setup header info if buffer was created */
+         /* initialize newly created shared memory */
+
          memset(pheader, 0, sizeof(BUFFER_HEADER) + buffer_size);
 
          strlcpy(pheader->name, buffer_name, sizeof(pheader->name));
          pheader->size = buffer_size;
+
       } else {
+         /* validate existing shared memory */
+
          if (!equal_ustring(pheader->name, buffer_name)) {
             cm_msg(MERROR, "bm_open_buffer",
                    "Buffer \"%s\" is corrupted, mismatch of buffer name in shared memory \"%s\"", buffer_name,
@@ -6812,21 +6866,9 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
 
       pbuf->attached = true;
 
-      /* create semaphore for the buffer */
-      status = ss_semaphore_create(buffer_name, &(pbuf->semaphore));
-      if (status != SS_CREATED && status != SS_SUCCESS) {
-         *buffer_handle = 0;
-         delete pbuf;
-         return BM_NO_SEMAPHORE;
-      }
-
-      /* lock buffer */
-      status = bm_lock_buffer(pbuf);
-
-      if (status != BM_SUCCESS) {
-         // THIS CANNOT HAPPEN, we are in bm_open_buffer()
-         abort();
-      }
+      pbuf->shm_handle = shm_handle;
+      pbuf->shm_size = shm_size;
+      pbuf->callback = FALSE;
 
       bm_cleanup_buffer_locked(pbuf, "bm_open_buffer", ss_millitime());
 
@@ -6839,11 +6881,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
          cm_msg(MINFO, "bm_open_buffer", "buffer \'%s\' was reset, all buffered events were lost", buffer_name);
       }
 
-      /*
-         Now we have a BUFFER_HEADER, so let's setup a CLIENT
-         structure in that buffer. The information there can also
-         be seen by other processes.
-       */
+      /* add our client BUFFER_HEADER */
 
       int iclient = 0;
       for (; iclient < MAX_CLIENTS; iclient++)
@@ -6853,24 +6891,19 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
       if (iclient == MAX_CLIENTS) {
          bm_unlock_buffer(pbuf);
          *buffer_handle = 0;
+         bm_unlock_buffer(pbuf);
          delete pbuf;
          cm_msg(MERROR, "bm_open_buffer", "buffer \'%s\' maximum number of clients %d exceeded", buffer_name, MAX_CLIENTS);
          return BM_NO_SLOT;
       }
 
-      /* get our client name previously set by bm_set_name */
-
-      char client_name[NAME_LENGTH];
-
-      cm_get_client_info(client_name);
-      if (client_name[0] == 0)
-         strlcpy(client_name, "unknown", sizeof(client_name));
+      std::string client_name = cm_get_client_name();
 
       /* store slot index in _buffer structure */
       pbuf->client_index = iclient;
 
       /* store client name */
-      strlcpy(pbuf->client_name, client_name, sizeof(pbuf->client_name));
+      strlcpy(pbuf->client_name, client_name.c_str(), sizeof(pbuf->client_name));
 
       /* store buffer name */
       strlcpy(pbuf->buffer_name, buffer_name, sizeof(pbuf->buffer_name));
@@ -6888,8 +6921,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
 
       memset(pclient, 0, sizeof(BUFFER_CLIENT));
 
-      /* use client name previously set by bm_set_name */
-      strlcpy(pclient->name, client_name, sizeof(pclient->name));
+      strlcpy(pclient->name, client_name.c_str(), sizeof(pclient->name));
 
       pclient->pid = ss_getpid();
 
@@ -6902,13 +6934,11 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
 
       bm_unlock_buffer(pbuf);
 
-      // FIXME: we should still be holding the pbuf mutex
+      /* shared memory is not locked from here down, do not touch pheader and pbuf->buffer_header! */
 
-      /* setup _buffer entry */
-      pbuf->attached = TRUE;
-      pbuf->shm_handle = shm_handle;
-      pbuf->shm_size = shm_size;
-      pbuf->callback = FALSE;
+      pheader = NULL;
+
+      /* we are not holding any locks from here down, but other threads cannot see this pbuf yet */
 
       bm_clear_buffer_statistics(hDB, pbuf);
       bm_write_buffer_statistics_to_odb(hDB, pbuf, true);
@@ -6930,6 +6960,10 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
          *buffer_handle = gBuffers.size() + 1;
          gBuffers.push_back(pbuf);
       }
+
+      /* from here down we should not touch pbuf without locking it */
+
+      pbuf = NULL;
 
       gBuffersMutex.unlock();
 
@@ -7013,7 +7047,7 @@ INT bm_close_buffer(INT buffer_handle) {
       BUFFER_HEADER *pheader = pbuf->buffer_header;
 
       /* mark entry in _buffer as empty */
-      pbuf->attached = FALSE;
+      pbuf->attached = false;
 
       BUFFER_CLIENT* pclient = bm_get_my_client(pbuf, pheader);
 
@@ -7062,39 +7096,27 @@ INT bm_close_buffer(INT buffer_handle) {
             ss_resume(pclient->port, "B  ");
       }
 
-      ///* remove from list of buffers */
-      //
-      //gBuffersMutex.lock();
-      //
-      //for (size_t i=0; i<gBuffers.size(); i++) {
-      //   if (gBuffers[i] == pbuf) {
-      //      gBuffers[i] = NULL;
-      //   }
-      //}
-      //
-      //gBuffersMutex.unlock();
-
-      /* unmap shared memory */
-
-      char xname[256];
-      strlcpy(xname, pheader->name, sizeof(xname));
-
-      pheader = NULL; // after ss_shm_close(), pheader points nowhere
-
       /* unmap shared memory, delete it if we are the last */
-      ss_shm_close(xname, pbuf->buffer_header, pbuf->shm_size, pbuf->shm_handle, destroy_flag);
+
+      ss_shm_close(pbuf->buffer_name, pbuf->buffer_header, pbuf->shm_size, pbuf->shm_handle, destroy_flag);
+
+      /* after ss_shm_close() these are invalid: */
+
+      pheader = NULL;
+      pbuf->buffer_header = NULL;
+      pbuf->shm_size = 0;
+      pbuf->shm_handle = 0;
 
       /* unlock buffer */
+
       bm_unlock_buffer(pbuf);
 
       pbuf->write_cache_mutex.unlock();
       pbuf->read_cache_mutex.unlock();
 
       /* delete semaphore */
-      ss_semaphore_delete(pbuf->semaphore, destroy_flag);
 
-      //delete pbuf;
-      //pbuf = NULL;
+      ss_semaphore_delete(pbuf->semaphore, destroy_flag);
    }
 #endif                          /* LOCAL_ROUTINES */
 
