@@ -718,12 +718,20 @@ function mhttpd_init(current_page, interval, callback) {
     For possible ODB tags please refer to
 
     https://midas.triumf.ca/MidasWiki/index.php/New_Custom_Pages_(2017)
-    */
+   */
 
    // initialize URL
    url = mhttpd_getParameterByName("URL");
    if (url)
       mjsonrpc_set_url(url);
+
+   // retrieve current page if not given
+   if (current_page === undefined) {
+      current_page = mhttpd_getParameterByName("page");
+   }
+   if (current_page === undefined) {
+      dlgAlert("Please specify name of page via mhttpd_init('&lt;name&gt;')<br>or make sure to have '&amp;page=&lt;name&gt;' in URL");
+   }
 
    // create header
    let h = document.getElementById("mheader");
@@ -771,7 +779,7 @@ function mhttpd_init(current_page, interval, callback) {
          let item = menu.children;
          for (let i = 0; i < item.length; i++) {
             if (item[i].className !== "mseparator") {
-               if (item[i].innerHTML === current_page)
+               if (current_page.search(item[i].innerHTML) !== -1)
                   item[i].className = "mmenuitem mmenuitemsel";
                else
                   item[i].className = "mmenuitem";
@@ -938,12 +946,19 @@ function mhttpd_add_menu_items(html, custom, current_page, path, level) {
          html += "<div class='" + cc + "' onclick='mhttpd_submenu(this)'><div class='mmenulink'>" + l + "</div></div>\n";
          // > 9656  v 9662
 
-         html += "<div style='display: none'>";
+         console.log("current_page: " + current_page + ", custom: " + custom[b+"/name"]);
+
+         if (current_page.search(custom[b + "/name"]) !== -1 ||
+             current_page.search(custom[b + "/name"].toLowerCase()) !== -1)
+            html += "<div>"; // do not hide submenu if current page is under it
+         else
+            html += "<div style='display: none'>";
          html = mhttpd_add_menu_items(html, custom[b], current_page, p, level+1);
          html += "</div>";
       } else if (typeof custom[b] === "string") { // skip any items that don't have type of string, since can't be valid links
          cc = "mmenuitem";
-         if (custom[b + "/name"] === current_page)
+         if (current_page.search(custom[b + "/name"]) !== -1 ||
+             current_page.search(custom[b + "/name"].toLowerCase()) !== -1)
             cc += " mmenuitemsel";
          let ln = "";
          for (let i=0 ; i<level ; i++)
