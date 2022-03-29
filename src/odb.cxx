@@ -10823,9 +10823,6 @@ INT db_sprintff(char *string, const char *format, const void *data, INT data_siz
    return DB_SUCCESS;
 }
 
-/**dox***************************************************************/
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
-
 /*------------------------------------------------------------------*/
 INT db_sprintfh(char *string, const void *data, INT data_size, INT idx, DWORD type)
 /********************************************************************\
@@ -10902,6 +10899,233 @@ INT db_sprintfh(char *string, const void *data, INT data_size, INT idx, DWORD ty
       }
 
    return DB_SUCCESS;
+}
+
+/********************************************************************/
+/**
+Convert a database value to a string according to its type.
+
+This function is a convenient way to convert a binary ODB value into a
+string depending on its type if is not known at compile time. If it is known, the
+normal sprintf() function can be used.
+\code
+...
+  for (j=0 ; j<key.num_values ; j++)
+  {
+    std::string s = db_sprintf(pdata, key.item_size, j, key.type);
+  }
+  ...
+\endcode
+@param data Value data.
+@param data_size Size of single data element.
+@param idx Index for array data.
+@param type Type of key, one of TID_xxx (see @ref Midas_Data_Types).
+@return string output ASCII string of data.
+*/
+std::string db_sprintf(const void *data, INT data_size, INT idx, DWORD type)
+{
+   if (data_size == 0) {
+      return "<NULL>";
+   } else {
+      char buf[256];
+      switch (type) {
+      case TID_UINT8:
+         sprintf(buf, "%d", *(((BYTE *) data) + idx));
+         return buf;
+      case TID_INT8:
+         sprintf(buf, "%d", *(((char *) data) + idx));
+         return buf;
+      case TID_CHAR:
+         sprintf(buf, "%c", *(((char *) data) + idx));
+         return buf;
+      case TID_UINT16:
+         sprintf(buf, "%u", *(((WORD *) data) + idx));
+         return buf;
+      case TID_INT16:
+         sprintf(buf, "%d", *(((short *) data) + idx));
+         return buf;
+      case TID_UINT32:
+         sprintf(buf, "%u", *(((DWORD *) data) + idx));
+         return buf;
+      case TID_INT32:
+         sprintf(buf, "%d", *(((INT *) data) + idx));
+         return buf;
+      case TID_BOOL:
+         sprintf(buf, "%c", *(((BOOL *) data) + idx) ? 'y' : 'n');
+         return buf;
+      case TID_FLOAT:
+         if (ss_isnan(*(((float *) data) + idx))) {
+            return "NAN";
+         } else {
+            sprintf(buf, "%.7g", *(((float *) data) + idx));
+            return buf;
+         }
+      case TID_DOUBLE:
+         if (ss_isnan(*(((double *) data) + idx))) {
+            return "NAN";
+         } else {
+            sprintf(buf, "%.16lg", *(((double *) data) + idx));
+            return buf;
+         }
+      case TID_BITFIELD:
+         return "<BITFIELD>";
+      case TID_STRING:
+      case TID_LINK:
+         return (((char *) data) + data_size * idx);
+      default:
+         return "<unknown>";
+      }
+   }
+}
+
+/********************************************************************/
+/**
+Same as db_sprintf, but with additional format parameter
+
+@param string output ASCII string of data.
+@param format Format specifier passed to sprintf()
+@param data Value data.
+@param data_size Size of single data element.
+@param idx Index for array data.
+@param type Type of key, one of TID_xxx (see @ref Midas_Data_Types).
+@return DB_SUCCESS
+*/
+
+std::string db_sprintff(const char *format, const void *data, INT data_size, INT idx, DWORD type)
+{
+   if (data_size == 0) {
+      return "<NULL>";
+   } else {
+      char buf[256];
+      switch (type) {
+      case TID_UINT8:
+         sprintf(buf, format, *(((BYTE *) data) + idx));
+         return buf;
+      case TID_INT8:
+         sprintf(buf, format, *(((char *) data) + idx));
+         return buf;
+      case TID_CHAR:
+         sprintf(buf, format, *(((char *) data) + idx));
+         return buf;
+      case TID_UINT16:
+         sprintf(buf, format, *(((WORD *) data) + idx));
+         return buf;
+      case TID_INT16:
+         sprintf(buf, format, *(((short *) data) + idx));
+         return buf;
+      case TID_UINT32:
+         sprintf(buf, format, *(((DWORD *) data) + idx));
+         return buf;
+      case TID_INT32:
+         sprintf(buf, format, *(((INT *) data) + idx));
+         return buf;
+      case TID_BOOL:
+         sprintf(buf, format, *(((BOOL *) data) + idx) ? 'y' : 'n');
+         return buf;
+      case TID_FLOAT:
+         if (ss_isnan(*(((float *) data) + idx))) {
+            return "NAN";
+         } else {
+            sprintf(buf, format, *(((float *) data) + idx));
+            return buf;
+         }
+      case TID_DOUBLE:
+         if (ss_isnan(*(((double *) data) + idx))) {
+            return "NAN";
+         } else {
+            sprintf(buf, format, *(((double *) data) + idx));
+            return buf;
+         }
+      case TID_BITFIELD:
+         return "<BITFIELD>";
+      case TID_STRING:
+      case TID_LINK:
+         return (((char *) data) + data_size * idx);
+      default:
+         return "<unknown>";
+      }
+   }
+}
+
+/**dox***************************************************************/
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+
+/*------------------------------------------------------------------*/
+std::string db_sprintfh(const void *data, INT data_size, INT idx, DWORD type)
+/********************************************************************\
+
+  Routine: db_sprintfh
+
+  Purpose: Convert a database value to a string according to its type
+           in hex format
+
+  Input:
+    void  *data             Value data
+    INT   idx               Index for array data
+    INT   data_size         Size of single data element
+    DWORD type              Valye type, one of TID_xxx
+
+  Output:
+    char  *string           ASCII string of data
+
+  Function value:
+    DB_SUCCESS              Successful completion
+
+\********************************************************************/
+{
+   if (data_size == 0) {
+      return "<NULL>";
+   } else {
+      char buf[256];
+      switch (type) {
+      case TID_UINT8:
+         sprintf(buf, "0x%X", *(((BYTE *) data) + idx));
+         return buf;
+      case TID_INT8:
+         sprintf(buf, "0x%X", *(((char *) data) + idx));
+         return buf;
+      case TID_CHAR:
+         sprintf(buf, "%c", *(((char *) data) + idx));
+         return buf;
+      case TID_UINT16:
+         sprintf(buf, "0x%X", *(((WORD *) data) + idx));
+         return buf;
+      case TID_INT16:
+         sprintf(buf, "0x%hX", *(((short *) data) + idx));
+         return buf;
+      case TID_UINT32:
+         sprintf(buf, "0x%X", *(((DWORD *) data) + idx));
+         return buf;
+      case TID_INT32:
+         sprintf(buf, "0x%X", *(((INT *) data) + idx));
+         return buf;
+      case TID_BOOL:
+         sprintf(buf, "%c", *(((BOOL *) data) + idx) ? 'y' : 'n');
+         return buf;
+      case TID_FLOAT:
+         if (ss_isnan(*(((float *) data) + idx))) {
+            return "NAN";
+         } else {
+            sprintf(buf, "%.7g", *(((float *) data) + idx));
+            return buf;
+         }
+      case TID_DOUBLE:
+         if (ss_isnan(*(((double *) data) + idx))) {
+            return "NAN";
+         } else {
+            sprintf(buf, "%.16lg", *(((double *) data) + idx));
+            return buf;
+         }
+      case TID_BITFIELD:
+         /* TBD */
+         return "<BITFIELD>";
+      case TID_STRING:
+      case TID_LINK:
+         return (((char *) data) + data_size * idx);
+      default:
+         return "<unknown>";
+      }
+   }
 }
 
 /*------------------------------------------------------------------*/

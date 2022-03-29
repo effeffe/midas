@@ -1947,6 +1947,9 @@ Data conversion flags */
    INT EXPRT db_sprintf(char *string, const void *data, INT data_size, INT index, DWORD type);
    INT EXPRT db_sprintff(char *string, const char *format, const void *data, INT data_size, INT index, DWORD type);
    INT EXPRT db_sprintfh(char *string, const void *data, INT data_size, INT index, DWORD type);
+   std::string EXPRT db_sprintf(const void *data, INT data_size, INT index, DWORD type);
+   std::string EXPRT db_sprintff(const char *format, const void *data, INT data_size, INT index, DWORD type);
+   std::string EXPRT db_sprintfh(const void *data, INT data_size, INT index, DWORD type);
    INT EXPRT db_sscanf(const char *string, void *data, INT * data_size, INT index, DWORD type);
    INT db_get_watchdog_info(HNDLE hDB, const char *client_name, DWORD * timeout, DWORD * last);
    INT EXPRT db_update_last_activity(DWORD millitime);
