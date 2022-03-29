@@ -1753,7 +1753,8 @@ Data conversion flags */
    INT EXPRT cm_set_client_info(HNDLE hDB, HNDLE * hKeyClient,
                                 const char *host_name, char *client_name,
                                 INT computer_id, const char *password, DWORD watchdog_timeout);
-   INT EXPRT cm_get_client_info(char *client_name);
+#define HAVE_CM_GET_CLIENT_NAME 1
+   std::string EXPRT cm_get_client_name();
    INT EXPRT cm_check_client(HNDLE hDB, HNDLE hKeyClient);
    INT EXPRT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout);
    INT EXPRT cm_get_watchdog_params(BOOL * call_watchdog, DWORD * timeout);

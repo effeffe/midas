@@ -32,9 +32,8 @@ INT rpc_server_dispatch(INT index, void *prpc_param[]);
 
 void debug_print(const char *msg)
 {
-   FILE *f;
-   char file_name[256], str[1000];
-   static char client_name[NAME_LENGTH] = "";
+   std::string file_name;
+   static std::string client_name;
    static DWORD start_time = 0;
 
    if (!start_time)
@@ -42,29 +41,32 @@ void debug_print(const char *msg)
 
    /* print message to file */
 #ifdef OS_LINUX
-   strlcpy(file_name, "/tmp/mserver.log", sizeof(file_name));
+   file_name = "/tmp/mserver.log";
 #else
-   getcwd(file_name, sizeof(file_name));
-   if (file_name[strlen(file_name) - 1] != DIR_SEPARATOR)
-      strlcat(file_name, DIR_SEPARATOR_STR, sizeof(file_name));
-   strlcat(file_name, "mserver.log", sizeof(file_name));
-#endif
-   f = fopen(file_name, "a");
-
-   if (!client_name[0])
-      cm_get_client_info(client_name);
-
-   sprintf(str, "%10.3lf [%d,%s,%s] ", (ss_millitime() - start_time) / 1000.0,
-           ss_getpid(), callback.host_name.c_str(), client_name);
-   strlcat(str, msg, sizeof(str));
-   strlcat(str, "\n", sizeof(str));
-
-   if (f != NULL) {
-      fputs(str, f);
-      fclose(f);
-   } else {
-      printf("Cannot open \"%s\": %s\n", file_name, strerror(errno));
+   file_name = ss_getcwd();
+   if (!ends_with_char(file_name, DIR_SEPARATOR)) {
+      file_name += DIR_SEPARATOR_STRING;
    }
+   file_name += "mserver.log";
+#endif
+
+   FILE *f = fopen(file_name.c_str(), "a");
+
+   if (!f) {
+      fprintf(stderr, "Cannot open \"%s\", errno %d (%s)\n", file_name.c_str(), errno, strerror(errno));
+      return;
+   }
+
+   if (client_name.empty())
+      client_name = cm_get_client_name();
+
+   std::string str = msprintf("%10.3lf [%d,%s,%s] ", (ss_millitime() - start_time) / 1000.0,
+           ss_getpid(), callback.host_name.c_str(), client_name.c_str());
+   str += msg;
+   str += "\n";
+
+   fputs(str.c_str(), f);
+   fclose(f);
 }
 
 /*---- main --------------------------------------------------------*/
