@@ -4923,6 +4923,7 @@ class FileHistory: public SchemaHistoryBase
 protected:
    std::string fPath;
    time_t fPathLastMtime;
+   std::vector<std::string> fSortedFiles;
    time_t fConfMaxFileAge;
    double fConfMaxFileSize;
 
@@ -4944,6 +4945,7 @@ public:
 protected:
    int create_file(const char* event_name, time_t timestamp, int ntags, const TAG tags[], std::string* filenamep);
    HsFileSchema* read_file_schema(const char* filename);
+   int read_file_list(bool *pchanged);
 };
 
 int FileHistory::hs_connect(const char* connect_string)
@@ -4984,15 +4986,18 @@ int FileHistory::hs_disconnect()
    return HS_SUCCESS;
 }
 
-int FileHistory::read_schema(HsSchemaVector* sv, const char* event_name, const time_t timestamp)
+int FileHistory::read_file_list(bool* pchanged)
 {
    int status;
-   DWORD start_time = ss_millitime();
+   double start_time = ss_time_sec();
+
+   if (pchanged)
+      *pchanged = false;
 
    struct stat stat_buf;
    status = stat(fPath.c_str(), &stat_buf);
    if (status != 0) {
-      cm_msg(MERROR, "FileHistory::read_schema", "Cannot stat(%s), errno %d (%s)", fPath.c_str(), errno, strerror(errno));
+      cm_msg(MERROR, "FileHistory::read_file_list", "Cannot stat(%s), errno %d (%s)", fPath.c_str(), errno, strerror(errno));
       return HS_FILE_ERROR;
    }
 
@@ -5000,26 +5005,25 @@ int FileHistory::read_schema(HsSchemaVector* sv, const char* event_name, const t
 
    if (stat_buf.st_mtime == fPathLastMtime) {
       if (fDebug)
-         printf("FileHistory::read_schema: loading schema for event [%s] at time %s: nothing to reload, history directory mtime did not change\n", event_name, TimeToString(timestamp).c_str());
+         printf("FileHistory::read_file_list: history directory \"%s\" mtime %d did not change\n", fPath.c_str(), int(stat_buf.st_mtime));
       return HS_SUCCESS;
    }
 
    fPathLastMtime = stat_buf.st_mtime;
 
    if (fDebug)
-      printf("FileHistory::read_schema: loading schema for event [%s] at time %s\n", event_name, TimeToString(timestamp).c_str());
+      printf("FileHistory::read_file_list: reading list of history files in \"%s\"\n", fPath.c_str());
 
    std::vector<std::string> flist;
 
-   char *plist = NULL;
-   int n = ss_file_find((char *)fPath.c_str(), "mhf_*.dat", &plist);
-   for (int i=0 ; i<n ; i++)
-      flist.push_back(plist+i*MAX_STRING_LENGTH);
+   ss_file_find(fPath.c_str(), "mhf_*.dat", &flist);
 
-   free(plist);
-   plist = NULL;
-
-   //printf("Found %d files\n", flist.size());
+   double ls_time = ss_time_sec();
+   double ls_elapsed = ls_time - start_time;
+   if (ls_elapsed > 5.000) {
+      cm_msg(MINFO, "FileHistory::read_file_list", "\"ls -l\" of \"%s\" took %.1f sec", fPath.c_str(), ls_elapsed);
+      cm_msg_flush_buffer();
+   }
 
    // note: reverse iterator is used to sort filenames by time, newest first
    std::sort(flist.rbegin(), flist.rend());
@@ -5033,8 +5037,48 @@ int FileHistory::read_schema(HsSchemaVector* sv, const char* event_name, const t
    }
 #endif
 
-   for (unsigned i=0; i<flist.size(); i++) {
-      std::string file_name = fPath + flist[i];
+   fSortedFiles = flist;
+
+   if (pchanged)
+      *pchanged = true;
+
+   return HS_SUCCESS;
+}
+
+int FileHistory::read_schema(HsSchemaVector* sv, const char* event_name, const time_t timestamp)
+{
+   if (fDebug)
+      printf("FileHistory::read_schema: event [%s] at time %s\n", event_name, TimeToString(timestamp).c_str());
+
+   BOOL old_call_watchdog = FALSE;
+   DWORD old_timeout = 0;
+   cm_get_watchdog_params(&old_call_watchdog, &old_timeout);
+   cm_set_watchdog_params(old_call_watchdog, 0);
+
+   bool changed = false;
+
+   int status = read_file_list(&changed);
+
+   if (status != HS_SUCCESS) {
+      cm_set_watchdog_params(old_call_watchdog, old_timeout);
+      return status;
+   }
+
+   if (!changed) {
+      if ((*sv).find_event(event_name, timestamp)) {
+         if (fDebug)
+            printf("FileHistory::read_schema: event [%s] at time %s, no new history files, already have this schema\n", event_name, TimeToString(timestamp).c_str());
+         cm_set_watchdog_params(old_call_watchdog, old_timeout);
+         return HS_SUCCESS;
+      }
+   }
+
+   double start_time = ss_time_sec();
+
+   int count_read = 0;
+
+   for (unsigned i=0; i<fSortedFiles.size(); i++) {
+      std::string file_name = fPath + fSortedFiles[i];
       bool dupe = false;
       for (unsigned ss=0; ss<sv->size(); ss++) {
          HsFileSchema* ssp = (HsFileSchema*)(*sv)[ss];
@@ -5049,19 +5093,29 @@ int FileHistory::read_schema(HsSchemaVector* sv, const char* event_name, const t
       if (!s)
          continue;
       sv->add(s);
-      // NB: this function always loads all data
-      // if (event_name)
-      //    if (s->event_name == event_name)
-      //       if (s->time_from <= timestamp)
-      //          break;
+      count_read++;
+
+      if (event_name) {
+         if (s->event_name == event_name) {
+            //printf("file %s event_name %s time %s, age %f\n", file_name.c_str(), s->event_name.c_str(), TimeToString(s->time_from).c_str(), double(timestamp - s->time_from));
+            if (s->time_from <= timestamp) {
+               // this file is older than the time requested,
+               // subsequent files will be even older,
+               // we can stop reading here.
+               break;
+            }
+         }
+      }
    }
 
-   DWORD end_time = ss_millitime();
-   DWORD elapsed = end_time - start_time;
-   if (elapsed > 5000) {
-      cm_msg(MINFO, "FileHistory::read_schema", "Loading schema for event \"%s\" timestamp %s, operation took %d ms", event_name, TimeToString(timestamp).c_str(), (int)elapsed);
+   double end_time = ss_time_sec();
+   double read_elapsed = end_time - start_time;
+   if (read_elapsed > 5.000) {
+      cm_msg(MINFO, "FileHistory::read_schema", "Loading schema for event \"%s\" timestamp %s, reading %d history files took %.1f sec", event_name, TimeToString(timestamp).c_str(), count_read, read_elapsed);
       cm_msg_flush_buffer();
    }
+
+   cm_set_watchdog_params(old_call_watchdog, old_timeout);
 
    return HS_SUCCESS;
 }
@@ -5076,10 +5130,13 @@ HsSchema* FileHistory::new_event(const char* event_name, time_t timestamp, int n
    HsFileSchema* s = (HsFileSchema*)fWriterCurrentSchema.find_event(event_name, timestamp);
 
    if (!s) {
+      //printf("hs_define_event: no schema for event %s\n", event_name);
       status = read_schema(&fWriterCurrentSchema, event_name, timestamp);
       if (status != HS_SUCCESS)
          return NULL;
       s = (HsFileSchema*)fWriterCurrentSchema.find_event(event_name, timestamp);
+   } else {
+      //printf("hs_define_event: already have schema for event %s\n", s->event_name.c_str());
    }
 
    bool xdebug = false;
