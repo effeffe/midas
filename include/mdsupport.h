@@ -113,12 +113,12 @@ Display format */
 
 /*---- function declarations ---------------------------------------*/
 
-  INT  mftp_open(char *destination, FTP_CON ** con);
+//INT  mftp_open(char *destination, FTP_CON ** con);
   void EXPRT md_bank_display(void *pmbh, void *pbk, INT fmt, INT dsp_mode, INT dsp_fmt);
-  void EXPRT md_event_display(void *pevt, INT data_fmt, INT dsp_mode, INT dsp_fmt, char * bn);
+  void EXPRT md_event_display(const void *pevt, INT data_fmt, INT dsp_mode, INT dsp_fmt, const char * bn);
   INT EXPRT md_all_info_display(INT what);
-  INT EXPRT md_physrec_display(INT data_fmt);
-  INT EXPRT md_physrec_skip(INT data_fmt, INT bl);
+//INT EXPRT md_physrec_display(INT data_fmt);
+//INT EXPRT md_physrec_skip(INT data_fmt, INT bl);
   INT EXPRT md_physrec_get(INT data_fmt, void **prec, DWORD * psize);
   INT EXPRT md_file_rclose(INT data_fmt);
   INT EXPRT md_file_ropen(char *infile, INT data_fmt, INT openzip, INT max_event_size);
@@ -126,7 +126,7 @@ Display format */
   INT EXPRT md_file_wclose(INT handle, INT type, INT data_fmt, char *filename);
   INT EXPRT md_log_write(INT handle, INT data_fmt, INT type, void *prec, DWORD nbytes);
   INT EXPRT md_event_swap(INT data_fmt, void *pevent);
-  INT EXPRT md_event_get(INT data_fmt, void **pevent, DWORD * psize);
+//INT EXPRT md_event_get(INT data_fmt, void **pevent, DWORD * psize);
   
 /*------------ END --------------------------------------------------------------*/
 /**dox***************************************************************/

@@ -12,6 +12,7 @@ Contents:     Dump event on screen with MIDAS or YBOS data format
 #include "msystem.h"
 #include "mrpc.h"
 #include "mdsupport.h"
+#include "midasio.h"
 
 #ifndef HAVE_STRLCPY
 #include "strlcpy.h"
@@ -100,148 +101,181 @@ DWORD data_format_check(EVENT_HEADER *pevent, INT *i) {
    return 0;
 }
 
+void md_all_info_display(int seqno, int runno, TMEvent* e)
+{
+   printf("Evt#%d- ", seqno);
+   printf("%irun 0x%4.4uxid 0x%4.4uxmsk %5dmevt#", runno, e->event_id, e->trigger_mask, seqno);
+   printf("%5del/x%x %5dserial\n", int(e->data.size()), int(e->data.size()), e->serial_number);
+}
+
 /*----- Replog function ----------------------------------------*/
 int replog(int data_fmt, char *rep_file, int bl, int action, int max_event_size) {
-   char banklist[STRING_BANKLIST_MAX];
-   short int msk, id;
    static char bars[] = "|/-\\";
    static int i_bar;
-   static EVENT_HEADER pevh;
-   BOOL bank_found = FALSE;
-   INT status = 0, i;
-   DWORD physize, evtlen;
-   void *physrec, *pbk;
-   char *pmyevt;
-   EVENT_HEADER *pme;
-   BANK_HEADER *pmbkh;
-   DWORD bklen, bktyp;
 
-   if (data_fmt == FORMAT_YBOS)
-      assert(!"YBOS not supported anymore");
+   TMReaderInterface* r = TMNewReader(rep_file);
 
    /* open data file */
-   if (md_file_ropen(rep_file, data_fmt, openzip, max_event_size) != SS_SUCCESS)
+   if (r->fError) {
+      fprintf(stderr, "Cannot open %s: %s\n", rep_file, r->fErrorString.c_str());
+      r->Close();
+      delete r;
       return (-1);
+   }
+
+   int seqno = 0;
+   int runno = 0;
+
+   //printf("skip %d\n", bl);
+
+   while (bl > 0) {
+      TMEvent* e = TMReadEvent(r);
+      if (!e) {
+         printf("\n");
+         return -1;
+      }
+      seqno++;
+      if (e->event_id == EVENTID_BOR)
+         runno = e->serial_number;
+      if (seqno < bl) {
+         printf("Skipping event_# ... ");
+         printf("%d \r", seqno);
+         fflush(stdout);
+      } else {
+         printf("\n");
+         delete e;
+         break;
+      }
+      delete e;
+   }
 
    switch (action) {
       case REP_HEADER:
       case REP_RECORD:
-         /* get only physical record header */
-         if (md_physrec_skip(data_fmt, bl) != MD_SUCCESS)
-            return (-1);
-         do {
-            if (action == REP_HEADER)
-               status = md_all_info_display(D_HEADER);
-            else if (action == REP_RECORD)
-               status = md_physrec_display(data_fmt);
-            if ((status == MD_DONE) || (bl != -1))
-               break;
-         } while (md_physrec_get(data_fmt, &physrec, &physize) == MD_SUCCESS);
+      // MIDAS format does not implement REP_HEADER and REP_RECORD
+      //   ///* get only physical record header */
+      //   //if (md_physrec_skip(data_fmt, bl) != MD_SUCCESS)
+      //   //   return (-1);
+      //   do {
+      //      if (action == REP_HEADER) {
+      //         status = md_all_info_display(D_HEADER);
+      //      } else if (action == REP_RECORD) {
+      //         status = md_physrec_display(data_fmt);
+      //      } if ((status == MD_DONE) || (bl != -1)) {
+      //         break;
+      //      }
+      //   } while (md_physrec_get(data_fmt, &physrec, &physize) == MD_SUCCESS);
          break;
 
       case REP_LENGTH:
       case REP_EVENT:
       case REP_BANKLIST:
-         /* skip will read atleast on record */
-         if (md_physrec_skip(data_fmt, bl) != MD_SUCCESS)
-            return (-1);
+         ///* skip will read atleast on record */
+         //if (md_physrec_skip(data_fmt, bl) != MD_SUCCESS)
+         //   return (-1);
          i = 0;
 
-         while (md_event_get(data_fmt, (void **) &pmyevt, &evtlen) == MD_SUCCESS) {
-            status = md_event_swap(data_fmt, pmyevt);
+         TMEvent prev_e; 
+
+         TMEvent* e = NULL;
+         while (1) {
+            if (e)
+               delete e;
+            TMEvent* e = TMReadEvent(r);
+            if (!e)
+               break;
+            if (e->error)
+               continue;
+            seqno++;
+
+            if (e->event_id == EVENTID_BOR)
+               runno = e->serial_number;
+
             if ((consistency == 1) && (data_fmt == FORMAT_MIDAS)) {
-               pme = (EVENT_HEADER *) pmyevt;
                // if ID is given skip the inconsistency event of different ID
-               if ((event_id != EVENTID_ALL) && (pme->event_id != event_id)) {
+               if ((event_id != EVENTID_ALL) && (e->event_id != event_id)) {
                   continue;  // Next event
-               } else if (pme->serial_number != pevh.serial_number + 1) {
+               } else if (e->serial_number != prev_e.serial_number + 1) {
                   /* event header : show last event consistent and new one (ID may be different!) */
                   printf("\nLast - Evid:%4.4x- Mask:%4.4x- Serial:%i- Time:0x%x- Dsize:%i/0x%x\n",
-                         pevh.event_id, pevh.trigger_mask, pevh.serial_number, pevh.time_stamp,
-                         pevh.data_size, pevh.data_size);
+                         prev_e.event_id, prev_e.trigger_mask, prev_e.serial_number, prev_e.time_stamp,
+                         prev_e.data_size, prev_e.data_size);
                   printf("Now  - Evid:%4.4x- Mask:%4.4x- Serial:%i- Time:0x%x- Dsize:%i/0x%x\n",
-                         pme->event_id, pme->trigger_mask, pme->serial_number,
-                         pme->time_stamp, pme->data_size, pme->data_size);
+                         e->event_id, e->trigger_mask, e->serial_number,
+                         e->time_stamp, e->data_size, e->data_size);
                } else {
                   // last and current SN are seprate by one
                   printf("Consistency check: %c - %i (Data size:%i)\r", bars[i_bar++ % 4],
-                         pme->serial_number, pme->data_size);
+                         prev_e.serial_number, prev_e.data_size);
                   fflush(stdout);
                }
                // save current header for later comparison
-               memcpy((char *) &pevh, (char *) pme, sizeof(EVENT_HEADER));
+               prev_e = *e;
                continue;  // Next event
             } // consistency==1
-            if (action == REP_LENGTH)
-               status = md_all_info_display(D_EVTLEN);
+            if (action == REP_LENGTH) {
+               md_all_info_display(seqno, runno, e);
+            }
             if ((action == REP_BANKLIST) || (disp_bank_list == 1)) {
-               if (data_fmt == FORMAT_YBOS)
-                  assert(!"YBOS not supported anymore");
-               else if (data_fmt == FORMAT_MIDAS) {
-                  pme = (EVENT_HEADER *) pmyevt;
-                  if (pme->event_id == EVENTID_BOR ||
-                      pme->event_id == EVENTID_EOR || pme->event_id == EVENTID_MESSAGE)
-                     continue;
-                  printf("Evid:%4.4x- Mask:%4.4x- Serial:%d- Time:0x%x- Dsize:%d/0x%x\n",
-                         pme->event_id, pme->trigger_mask, pme->serial_number, pme->time_stamp,
-                         pme->data_size, pme->data_size);
-                  pmbkh = (BANK_HEADER *) (((EVENT_HEADER *) pmyevt) + 1);
-                  status = bk_list(pmbkh, banklist);
+               if (e->event_id == uint16_t(EVENTID_BOR) ||
+                   e->event_id == uint16_t(EVENTID_EOR) || e->event_id == uint16_t(EVENTID_MESSAGE))
+                  continue;
+               printf("Evid:%4.4x- Mask:%4.4x- Serial:%d- Time:0x%x- Dsize:%d/0x%x\n",
+                      e->event_id, e->trigger_mask, e->serial_number, e->time_stamp,
+                      e->data_size, e->data_size);
+               e->FindAllBanks();
+               std::string banklist;
+               for (unsigned b=0; b<e->banks.size(); b++) {
+                  banklist += msprintf("%4s", e->banks[b].name.c_str());
                }
-               printf("#banks:%i Bank list:-%s-\n", status, banklist);
+               printf("#banks:%i Bank list:-%s-\n", int(e->banks.size()), banklist.c_str());
             } else if ((action == REP_EVENT) && (event_id == EVENTID_ALL) && (event_msk == TRIGGER_ALL) &&
                        (sbank_name[0] == 0)) { /* a quick by-pass to prevent bank search if not necessary */
-               printf("------------------------ Event# %i --------------------------------\n",
-                      i++);
-               md_event_display(pmyevt, data_fmt, dsp_mode, dsp_fmt, sbank_name);
+               printf("------------------------ Event# %i --------------------------------\n", i++);
+               md_event_display(e->data.data(), data_fmt, dsp_mode, dsp_fmt, sbank_name);
             } else if (action == REP_EVENT) {
-               id = EVENTID_ALL;
-               msk = TRIGGER_ALL;
-               if (data_fmt == FORMAT_MIDAS) {
-                  pme = (EVENT_HEADER *) pmyevt;
-                  id = pme->event_id;
-                  msk = pme->trigger_mask;
-                  /* Search bank if necessary */
-                  if (sbank_name[0] != 0) {        /* bank name given through argument list */
-                     bank_found = FALSE;
-                     pmbkh = (BANK_HEADER *) (((EVENT_HEADER *) pmyevt) + 1);
-                     if ((pmbkh->data_size + 8) == ((EVENT_HEADER *) pmyevt)->data_size) {
-                        if ((status = bk_find(pmbkh, sbank_name, &bklen, &bktyp, (void **) &pbk)) ==
-                            SS_SUCCESS) { /* given bank found in list */
-                           status = bk_list(pmbkh, banklist);
-                           bank_found = TRUE;
-                        }
-                     }
-                  }
-               } else if (data_fmt == FORMAT_YBOS) {
-                  assert(!"YBOS not supported anymore");
+               if (e->event_id == uint16_t(EVENTID_BOR) ||
+                   e->event_id == uint16_t(EVENTID_EOR) || e->event_id == uint16_t(EVENTID_MESSAGE)) {
+                  printf("Searching for Bank -%s- Skiping event...%i\r", sbank_name, i++);
+                  fflush(stdout);
+                  continue;
+               }
+               uint16_t id = e->event_id;
+               uint16_t msk = e->trigger_mask;
+               /* Search bank if necessary */
+               TMBank* b = NULL;
+               if (sbank_name[0] != 0) {        /* bank name given through argument list */
+                  b = e->FindBank(sbank_name);
                }
                /* check user request through switch setting (id, msk ,bank) */
                if ((event_msk != TRIGGER_ALL) || (event_id != EVENTID_ALL) ||
                    (sbank_name[0] != 0)) {      /* check request or skip event if not satisfied */
                   if (((event_id != EVENTID_ALL) && (id != event_id)) ||   /* id check ==> skip */
                       ((event_msk != TRIGGER_ALL) && (msk != event_msk)) ||        /* msk check ==> skip */
-                      ((sbank_name[0] != 0) && !bank_found)) {     /* bk check ==> skip *//* skip event */
+                      ((sbank_name[0] != 0) && !b)) {     /* bk check ==> skip *//* skip event */
                      printf("Searching for Bank -%s- Skiping event...%i\r", sbank_name, i++);
                      fflush(stdout);
                   } else {         /* request match ==> display any event */
-                     printf("------------------------ Event# %i --------------------------------\n",
-                            i++);
-                     md_event_display(pmyevt, data_fmt, dsp_mode, dsp_fmt, sbank_name);
+                     printf("------------------------ Event# %i --------------------------------\n", i++);
+                     md_event_display(e->data.data(), data_fmt, dsp_mode, dsp_fmt, sbank_name);
                   }
                } else {            /* no user request ==> display any event */
-                  printf("------------------------ Event# %i --------------------------------\n",
-                         i++);
-                  md_event_display(pmyevt, data_fmt, dsp_mode, dsp_fmt, sbank_name);
+                  printf("------------------------ Event# %i --------------------------------\n", i++);
+                  md_event_display(e->data.data(), data_fmt, dsp_mode, dsp_fmt, sbank_name);
                }
             }
          }
+         if (e)
+            delete e;
          break;
    }                            /* switch */
 
    /* close data file */
    printf("\n");
-   md_file_rclose(data_fmt);
+
+   r->Close();
+   delete r;
+
    return 0;
 }
 
@@ -576,21 +610,24 @@ int main(int argc, char **argv) {
    if (rep_flag && data_fmt == 0) {
       char *pext;
       if ((pext = strrchr(rep_file, '.')) != 0) {
-         if (equal_ustring(pext + 1, "mid"))
+         if (equal_ustring(pext + 1, "mid")) {
             data_fmt = FORMAT_MIDAS;
-         else if (equal_ustring(pext + 1, "ybs"))
+         } else if (equal_ustring(pext + 1, "ybs")) {
             data_fmt = FORMAT_YBOS;
-         else if (equal_ustring(pext + 1, "gz")) {
+         } else if (equal_ustring(pext + 1, "gz")) {
             if ((pext = strchr(rep_file, '.')) != 0) {
                if (strstr(pext + 1, "mid"))
                   data_fmt = FORMAT_MIDAS;
                else if (strstr(pext + 1, "ybs"))
                   data_fmt = FORMAT_YBOS;
             } else {
-               printf
-                       ("\n>>> data type (-t) should be set by hand in -x mode for tape <<< \n\n");
+               printf("\n>>> data type (-t) should be set by hand in -x mode for tape <<< \n\n");
                goto usage;
             }
+         } else if (equal_ustring(pext + 1, "lz4")) {
+            data_fmt = FORMAT_MIDAS;
+         } else if (equal_ustring(pext + 1, "bz2")) {
+            data_fmt = FORMAT_MIDAS;
          } else {
             printf
                     ("\n>>> data type (-t) should be set by hand in -x mode for tape <<< \n\n");

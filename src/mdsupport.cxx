@@ -49,9 +49,9 @@ INT md_dev_os_read(INT handle, INT type, void *prec, DWORD nbytes, DWORD *nread)
 
 INT md_dev_os_write(INT handle, INT type, void *prec, DWORD nbytes, DWORD *written);
 
-void md_bank_event_display(void *pevent, INT data_fmt, INT dsp_fmt, INT dsp_mode, char *bn);
+void md_bank_event_display(const void *pevent, INT data_fmt, INT dsp_fmt, INT dsp_mode, const char *bn);
 
-void md_raw_event_display(void *pevent, INT data_fmt, INT dsp_fmt);
+void md_raw_event_display(const void *pevent, INT data_fmt, INT dsp_fmt);
 
 void md_raw_bank_display(void *pbank, INT data_fmt, INT dsp_fmt);
 
@@ -600,6 +600,7 @@ status : from lower function  SS_SUCCESS, SS_FILE_ERROR
    return status;
 }
 
+#if 0 // OBSOLETE, NOT USED ANYMORE
 /*------------------------------------------------------------------*/
 INT md_physrec_skip(INT data_fmt, INT bl)
 /********************************************************************\
@@ -623,7 +624,9 @@ status : from lower function
    } else
       return MD_UNKNOWN_FORMAT;
 }
+#endif
 
+#if 0 // NOT USED
 /*------------------------------------------------------------------*/
 INT midas_event_skip(INT evtn)
 /********************************************************************\
@@ -658,7 +661,9 @@ MD_SUCCESS        Ok
    }
    return MD_DONE;
 }
+#endif
 
+#if 0 // OBSOLETE, NOT USED ANYMORE
 /*------------------------------------------------------------------*/
 INT md_physrec_display(INT data_fmt)
 /********************************************************************\
@@ -684,6 +689,7 @@ status          Lower function
    } else
       return MD_UNKNOWN_FORMAT;
 }
+#endif
 
 /*------------------------------------------------------------------*/
 INT md_all_info_display(INT what)
@@ -757,6 +763,7 @@ status :  from the lower function
    return MD_UNKNOWN_FORMAT;
 }
 
+#if 0 // OBSOLETE, NOT USED ANYMORE
 /*------------------------------------------------------------------*/
 INT md_event_get(INT data_fmt, void **pevent, DWORD *readn)
 /********************************************************************\
@@ -780,9 +787,10 @@ status : from lower function
       assert(!"YBOS not supported anymore");
    return (status);
 }
+#endif
 
 /*------------------------------------------------------------------*/
-void md_event_display(void *pevent, INT data_fmt, INT dsp_mode, INT dsp_fmt, char *bn)
+void md_event_display(const void *pevent, INT data_fmt, INT dsp_mode, INT dsp_fmt, const char *bn)
 /********************************************************************\
 Routine: external md_event_display
 Purpose: display on screen the event data in either Decimal or Hexadecimal.
@@ -807,7 +815,7 @@ none
 }
 
 /*------------------------------------------------------------------*/
-void md_raw_event_display(void *pevent, INT data_fmt, INT dsp_fmt)
+void md_raw_event_display(const void *pevent, INT data_fmt, INT dsp_fmt)
 /********************************************************************\
 Routine: md_raw_event_display
 Purpose: display on screen the RAW data of MIDAS format.
@@ -848,7 +856,7 @@ none
 }
 
 /*------------------------------------------------------------------*/
-void md_bank_event_display(void *pevent, INT data_fmt, INT dsp_fmt, INT dsp_mode, char *bn)
+void md_bank_event_display(const void *pevent, INT data_fmt, INT dsp_fmt, INT dsp_mode, const char *bn)
 /********************************************************************\
 Routine: md_bank_event_display
 Purpose: display on screen the event header, bank list and bank content
@@ -1021,6 +1029,7 @@ none
    }
 }
 
+#if 0 // OBSOLETE, NOT USED ANYMORE
 /*------------------------------------------------------------------*/
 INT midas_event_get(void **pevent, DWORD *readn)
 /********************************************************************\
@@ -1112,6 +1121,7 @@ MD_SUCCESS        Ok
    my.evtn++;
    return MD_SUCCESS;
 }
+#endif
 
 /*------------------------------------------------------------------*/
 INT midas_physrec_get(void *prec, DWORD *readn)
