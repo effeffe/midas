@@ -112,11 +112,6 @@ int mjsonrpc_debug = 0; // in mjsonrpc.h
 static int mjsonrpc_sleep = 0;
 static int mjsonrpc_time = 0;
 
-// Use a mutex per client when doing JRPC communications,
-// so multiple requests don't interfere with each other.
-// Key is the client name.
-static std::map<std::string, std::mutex> jrpc_client_mutexes;
-
 static double GetTimeSec()
 {
    struct timeval tv;
@@ -3158,12 +3153,10 @@ static MJsonNode* jrpc(const MJsonNode* params)
    buf[0] = 0;
 
    HNDLE hconn;
-   jrpc_client_mutexes[name].lock();
 
    status = cm_connect_client(name.c_str(), &hconn);
 
    if (status != RPC_SUCCESS) {
-	  jrpc_client_mutexes[name].unlock();
       return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
    }
 
@@ -3174,7 +3167,6 @@ static MJsonNode* jrpc(const MJsonNode* params)
    // of connections. dead and closed connections are reaped
    // automatically. K.O. Feb 2021.
    // cm_disconnect_client(hconn, FALSE);
-   jrpc_client_mutexes[name].unlock();
 
    if (status != RPC_SUCCESS) {
       free(buf);
@@ -3918,7 +3910,7 @@ void mjsonrpc_init()
    // methods that perform computations or invoke actions
    mjsonrpc_add_handler("get_alarms",  get_alarms);
    //mjsonrpc_add_handler("get_messages",  get_messages);
-   mjsonrpc_add_handler("jrpc",  jrpc); // Uses a mutex per client, not the global mutex
+   mjsonrpc_add_handler("jrpc",  jrpc);
    mjsonrpc_add_handler("start_program", start_program);
    mjsonrpc_add_handler("exec_script", exec_script);
    // timezone function
