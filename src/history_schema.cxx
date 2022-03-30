@@ -2290,7 +2290,7 @@ int HsFileSchema::read_data(const time_t start_time,
    ::close(fd);
 
    if (bad_last_time) {
-//      cm_msg(MERROR, "FileHistory::read_data", "Detected duplicated or non-monotonous data in history file \'%s\'", s->file_name.c_str());
+      cm_msg(MERROR, "FileHistory::read_data", "Detected duplicated or non-monotonous data in history file \'%s\'", s->file_name.c_str());
    }
 
    if (debug)
