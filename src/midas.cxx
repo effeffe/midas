@@ -6774,6 +6774,14 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
          return BM_NO_SEMAPHORE;
       }
 
+      std::string client_name = cm_get_client_name();
+
+      /* store client name */
+      strlcpy(pbuf->client_name, client_name.c_str(), sizeof(pbuf->client_name));
+
+      /* store buffer name */
+      strlcpy(pbuf->buffer_name, buffer_name, sizeof(pbuf->buffer_name));
+
       /* lock buffer semaphore to avoid race with bm_open_buffer() in a different program */
 
       pbuf->attached = true; // required by bm_lock_buffer()
@@ -6897,16 +6905,8 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
          return BM_NO_SLOT;
       }
 
-      std::string client_name = cm_get_client_name();
-
       /* store slot index in _buffer structure */
       pbuf->client_index = iclient;
-
-      /* store client name */
-      strlcpy(pbuf->client_name, client_name.c_str(), sizeof(pbuf->client_name));
-
-      /* store buffer name */
-      strlcpy(pbuf->buffer_name, buffer_name, sizeof(pbuf->buffer_name));
 
       /*
          Save the index of the last client of that buffer so that later only
