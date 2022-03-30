@@ -135,7 +135,7 @@ int replog(int data_fmt, char *rep_file, int bl, int action, int max_event_size)
          return -1;
       }
       seqno++;
-      if (e->event_id == EVENTID_BOR)
+      if (e->event_id == uint16_t(EVENTID_BOR))
          runno = e->serial_number;
       if (seqno < bl) {
          printf("Skipping event_# ... ");
@@ -188,7 +188,7 @@ int replog(int data_fmt, char *rep_file, int bl, int action, int max_event_size)
                continue;
             seqno++;
 
-            if (e->event_id == EVENTID_BOR)
+            if (e->event_id == uint16_t(EVENTID_BOR))
                runno = e->serial_number;
 
             if ((consistency == 1) && (data_fmt == FORMAT_MIDAS)) {
