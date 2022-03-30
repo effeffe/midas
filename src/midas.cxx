@@ -11265,11 +11265,11 @@ class RPC_CLIENT_CONNECTION
 {
 public:
    std::atomic_bool connected{false}; /*  socket is connected */
+   std::string host_name;       /*  server name             */
+   int port = 0;                /*  server port             */
    std::mutex mutex;            /*  connection lock           */
    int index = 0;               /* index in the connection array */
    std::string client_name;     /* name of remote client    */
-   std::string host_name;       /*  server name             */
-   int port = 0;                /*  server port             */
    int send_sock = 0;           /*  tcp socket              */
    int remote_hw_type = 0;      /*  remote hardware type    */
    int rpc_timeout = 0;         /*  timeout in milliseconds */
@@ -11288,10 +11288,8 @@ public:
    void close_locked() {
       if (send_sock > 0) {
          closesocket(send_sock);
+         send_sock = 0;
       }
-      send_sock = 0;
-      port = 0;
-      remote_hw_type = 0;
       connected = false;
    }
 };
@@ -11304,6 +11302,11 @@ public:
 // lock _client_connections_mutex, look at _client_connections vector and c->connected, unlock _client_connections_mutex
 // lock _client_connections_mutex, look at _client_connections vector and c->connected, lock individual connection, recheck c->connected, work on the connection, unlock the connection, unlock _client_connections_mutex
 // lock individual connection, check c->connected, work on the connection, unlock connection
+//
+// ok to access without locking client connection:
+//
+// - c->connected (std::atomic, but must recheck it after taking the lock)
+// - only inside rpc_client_connect() under protection of gHostnameMutex: c->host_name and c->port
 //
 // this will deadlock, wrong locking order: lock individual connection, lock of _client_connections_mutex
 // this will deadlock, wrong unlocking order: unlock of _client_connections_mutex, unlock individual connection
@@ -11903,6 +11906,8 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
 
    RPC_CLIENT_CONNECTION* c = NULL;
 
+   static std::mutex gHostnameMutex;
+
    {
       std::lock_guard<std::mutex> guard(_client_connections_mutex);
 
@@ -11923,14 +11928,27 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
          _client_connections.push_back(NULL);
       }
 
+      bool hostname_locked = false;
+
       /* check if connection already exists */
       for (size_t i = 1; i < _client_connections.size(); i++) {
          RPC_CLIENT_CONNECTION* c = _client_connections[i];
          if (c && c->connected) {
-            std::lock_guard<std::mutex> cguard(c->mutex);
-            // check if socket is still connected
-            if (c->connected) {
-               if ((c->host_name == host_name) && (c->port == port)) {
+
+            if (!hostname_locked) {
+               gHostnameMutex.lock();
+               hostname_locked = true;
+            }
+
+            if ((c->host_name == host_name) && (c->port == port)) {
+               // NB: we must release the hostname lock before taking
+               // c->mutex to avoid a locking order inversion deadlock:
+               // later on we lock the hostname mutex while holding the c->mutex
+               gHostnameMutex.unlock();
+               hostname_locked = false;
+               std::lock_guard<std::mutex> cguard(c->mutex);
+               // check if socket is still connected
+               if (c->connected) {
                   // found connection slot with matching hostname and port number
                   status = ss_socket_wait(c->send_sock, 0);
                   if (status == SS_TIMEOUT) { // yes, still connected and empty
@@ -11941,15 +11959,21 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
                         c->print();
                         printf("\n");
                      }
-                     // implicit unlock
+                     // implicit unlock of c->mutex
+                     // gHostnameLock is not locked here
                      return RPC_SUCCESS;
                   }
                   //cm_msg(MINFO, "rpc_client_connect", "Stale connection to \"%s\" on host %s is closed", _client_connection[i].client_name, _client_connection[i].host_name);
                   c->close_locked();
                }
+               // implicit unlock of c->mutex
             }
-            // implicit unlock of c->mutex
          }
+      }
+
+      if (hostname_locked) {
+         gHostnameMutex.unlock();
+         hostname_locked = false;
       }
       
       // only start reusing connections once we have
@@ -12005,9 +12029,14 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
       return RPC_NET_ERROR;
    }
 
+   gHostnameMutex.lock();
+
    c->host_name   = host_name;
-   c->client_name = client_name;
    c->port        = port;
+
+   gHostnameMutex.unlock();
+
+   c->client_name = client_name;
    c->rpc_timeout = DEFAULT_RPC_TIMEOUT;
 
    /* connect to remote node */
