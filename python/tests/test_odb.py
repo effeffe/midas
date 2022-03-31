@@ -69,7 +69,6 @@ class TestOdb(unittest.TestCase):
         else:
             self.assert_equal(value, retval, expected_key_type)
             
-            
     def set_and_readback(self, path, value, expected_key_type):
         self.client.odb_set(path, value)
         retval = self.client.odb_get(path)
@@ -88,7 +87,6 @@ class TestOdb(unittest.TestCase):
         assert(midas_type == expected_key_type)
         
         self.validate_readback(value, retval[key_name], expected_key_type)
-        
         
     def testBool(self):
         self.set_and_readback("/pytest/bool", True, midas.TID_BOOL)
@@ -128,6 +126,7 @@ class TestOdb(unittest.TestCase):
         self.set_and_readback("/pytest/float", 4.56, midas.TID_FLOAT)
         self.set_and_readback("/pytest/float", [9.81, 4.34], midas.TID_FLOAT)
         self.set_and_readback("/pytest/float", (1.1, 2.2), midas.TID_FLOAT)
+        self.set_and_readback("/pytest/float", (float('inf'), float('-inf')), midas.TID_FLOAT)
         self.set_and_readback("/pytest/float", ctypes.c_float(1.23), midas.TID_FLOAT)
         self.set_and_readback("/pytest/float", (ctypes.c_float * 3)(*[1.1,2.2,3.3]), midas.TID_FLOAT)
         
@@ -137,6 +136,7 @@ class TestOdb(unittest.TestCase):
     def testDouble(self):
         self.set_and_readback("/pytest/double", (ctypes.c_double(9.11), ctypes.c_double(3.14)), midas.TID_DOUBLE)
         self.set_and_readback("/pytest/double", [ctypes.c_double(1.23), ctypes.c_double(3.45)], midas.TID_DOUBLE)
+        self.set_and_readback("/pytest/double", [ctypes.c_double(float('inf')), ctypes.c_double(float('-inf'))], midas.TID_DOUBLE)
         self.set_and_readback("/pytest/double", ctypes.c_double(1.23), midas.TID_DOUBLE)
         self.set_and_readback("/pytest/double", (ctypes.c_double * 3)(*[1.1,2.2,3.3]), midas.TID_DOUBLE)
         

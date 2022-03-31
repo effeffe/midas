@@ -47,8 +47,8 @@ class TestEvents(unittest.TestCase):
         event.create_bank("QWOR", midas.TID_QWORD, [1,2,3,4])
         event.create_bank("IN64", midas.TID_INT64, [-1,2,-3,4])
         event.create_bank("BOOL", midas.TID_BOOL, [True, False, True, False])
-        event.create_bank("FLOA", midas.TID_FLOAT, [-1,2,-3,4])
-        event.create_bank("DOUB", midas.TID_DOUBLE, [-1,2,-3,4])
+        event.create_bank("FLOA", midas.TID_FLOAT, [-1,2,-3,4,float('inf'),float('-inf')])
+        event.create_bank("DOUB", midas.TID_DOUBLE, [-1,2,-3,4,float('inf'),float('-inf')])
         event.create_bank("BITF", midas.TID_BITFIELD, [1,2,3,4])
         
         if have_numpy:
