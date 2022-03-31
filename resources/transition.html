@@ -379,6 +379,8 @@
       }
    }
 
+   let displayed_transition = 0;
+
    function callback(rpc_batch) {
       //console.log(JSON.stringify(rpc.result));
 
@@ -407,6 +409,17 @@
 
       //console.log("here: " + JSON.stringify(rpc_db_get_values.result.data[0]));
       //console.log("here: " + JSON.stringify(odb));
+
+      //console.log("old transition: " + displayed_transition + " new transition: " + odb.transition);
+      if (displayed_transition != 0) {
+         // there is no code here to clear the table of clients for a new transition,
+         // so we reload the page instead...
+         if (odb.transition != displayed_transition) {
+            window.location.reload();
+         }
+      } else {
+         displayed_transition = odb.transition;
+      }
 
       set_text("run_number", odb.run_number + "/" + runinfo["run number"]);
       
