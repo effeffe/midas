@@ -227,9 +227,9 @@ static int disable_bind_rpc_to_localhost = 0;
 /* table for transition functions */
 
 struct TRANS_TABLE {
-   INT transition = 0;
-   INT sequence_number = 0;
-   INT (*func)(INT, char *) = NULL;
+   INT transition;
+   INT sequence_number;
+   INT (*func)(INT, char *);
 };
 
 static std::mutex _trans_table_mutex;
