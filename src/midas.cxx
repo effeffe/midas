@@ -13998,15 +13998,17 @@ INT rpc_flush_event() {
 
 /********************************************************************/
 
-typedef struct {
-   int transition;
-   int run_number;
-   time_t trans_time;
-   int sequence_number;
-} TR_FIFO;
+struct TR_FIFO {
+   int transition = 0;
+   int run_number = 0;
+   time_t trans_time = 0;
+   int sequence_number = 0;
+};
 
-static TR_FIFO tr_fifo[10];
-static int trf_wp, trf_rp;
+static std::mutex _tr_fifo_mutex;
+static TR_FIFO _tr_fifo[10];
+static int _tr_fifo_wp = 0;
+static int _tr_fifo_rp = 0;
 
 static INT rpc_transition_dispatch(INT idx, void *prpc_param[])
 /********************************************************************\
@@ -14050,12 +14052,14 @@ static INT rpc_transition_dispatch(INT idx, void *prpc_param[])
                /* execute callback if defined */
                return tt.func(CINT(1), CSTRING(2));
             } else {
+               std::lock_guard<std::mutex> guard(_tr_fifo_mutex);
                /* store transition in FIFO */
-               tr_fifo[trf_wp].transition = CINT(0);
-               tr_fifo[trf_wp].run_number = CINT(1);
-               tr_fifo[trf_wp].trans_time = time(NULL);
-               tr_fifo[trf_wp].sequence_number = CINT(4);
-               trf_wp = (trf_wp + 1) % 10;
+               _tr_fifo[_tr_fifo_wp].transition = CINT(0);
+               _tr_fifo[_tr_fifo_wp].run_number = CINT(1);
+               _tr_fifo[_tr_fifo_wp].trans_time = time(NULL);
+               _tr_fifo[_tr_fifo_wp].sequence_number = CINT(4);
+               _tr_fifo_wp = (_tr_fifo_wp + 1) % 10;
+               // implicit unlock
                return RPC_SUCCESS;
             }
          }
@@ -14095,21 +14099,23 @@ int cm_query_transition(int *transition, int *run_number, int *trans_time)
 
 \********************************************************************/
 {
+   std::lock_guard<std::mutex> guard(_tr_fifo_mutex);
 
-   if (trf_wp == trf_rp)
+   if (_tr_fifo_wp == _tr_fifo_rp)
       return FALSE;
 
    if (transition)
-      *transition = tr_fifo[trf_rp].transition;
+      *transition = _tr_fifo[_tr_fifo_rp].transition;
 
    if (run_number)
-      *run_number = tr_fifo[trf_rp].run_number;
+      *run_number = _tr_fifo[_tr_fifo_rp].run_number;
 
    if (trans_time)
-      *trans_time = (int) tr_fifo[trf_rp].trans_time;
+      *trans_time = (int) _tr_fifo[_tr_fifo_rp].trans_time;
 
-   trf_rp = (trf_rp + 1) % 10;
+   _tr_fifo_rp = (_tr_fifo_rp + 1) % 10;
 
+   // implicit unlock
    return TRUE;
 }
 
