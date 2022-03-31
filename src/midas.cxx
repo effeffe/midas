@@ -427,10 +427,12 @@ std::string msprintf(const char *format, ...) {
 *                                                                    *
 \********************************************************************/
 
-static int (*_message_print)(const char *) = puts;
+typedef int (*MessagePrintCallback)(const char *);
 
-static INT _message_mask_system = MT_ALL;
-static INT _message_mask_user = MT_ALL;
+static std::atomic<MessagePrintCallback> _message_print{puts};
+
+static std::atomic_int _message_mask_system{MT_ALL};
+static std::atomic_int _message_mask_user{MT_ALL};
 
 
 /**dox***************************************************************/
@@ -4168,9 +4170,9 @@ static int cm_transition_call(TrState* s, int idx) {
 
    TrClient *tr_client = s->clients[idx].get();
 
-   tr_client->errorstr[0] = 0;
-   tr_client->init_time = ss_millitime();
-   tr_client->waiting_for_client[0] = 0;
+   tr_client->errorstr = "";
+   //tr_client->init_time = ss_millitime();
+   tr_client->waiting_for_client = "";
    tr_client->connect_timeout = 0;
    tr_client->connect_start_time = 0;
    tr_client->connect_end_time = 0;
@@ -4391,18 +4393,17 @@ static int cm_transition_call(TrState* s, int idx) {
 
 /*------------------------------------------------------------------*/
 
-static int cm_transition_call_direct(TrClient *tr_client) {
-   int i;
-   int transition_status = CM_SUCCESS;
+static int cm_transition_call_direct(TrClient *tr_client)
+{
    HNDLE hDB;
 
    cm_get_experiment_database(&hDB, NULL);
 
    DWORD now = ss_millitime();
 
-   tr_client->errorstr[0] = 0;
-   tr_client->init_time = now;
-   tr_client->waiting_for_client[0] = 0;
+   tr_client->errorstr = "";
+   //tr_client->init_time = now;
+   tr_client->waiting_for_client = "";
    tr_client->connect_timeout = 0;
    tr_client->connect_start_time = now;
    tr_client->connect_end_time = now;
@@ -4413,41 +4414,58 @@ static int cm_transition_call_direct(TrClient *tr_client) {
 
    write_tr_client_to_odb(hDB, tr_client);
 
-   for (i = 0; _trans_table[i].transition; i++)
-      if (_trans_table[i].transition == tr_client->transition)
-         break;
+   // find registered handler
+   // NB: this code should match same code in rpc_transition_dispatch()
+   // NB: only use the first handler, this is how MIDAS always worked
+   // NB: we could run all handlers, but we can return the status and error string of only one of them.
+   for (int i = 0; i<MAX_TRANSITIONS; i++) {
+      if (_trans_table[i].transition == tr_client->transition && _trans_table[i].sequence_number == tr_client->sequence_number) {
+         /* call registered function */
+         if (_trans_table[i].func) {
+            if (tr_client->debug_flag == 1)
+               printf("Calling local transition callback\n");
+            if (tr_client->debug_flag == 2)
+               cm_msg(MINFO, "cm_transition_call_direct", "cm_transition: Calling local transition callback");
+            
+            tr_client->rpc_start_time = ss_millitime();
 
-   /* call registered function */
-   if (_trans_table[i].transition == tr_client->transition && _trans_table[i].func) {
-      if (tr_client->debug_flag == 1)
-         printf("Calling local transition callback\n");
-      if (tr_client->debug_flag == 2)
-         cm_msg(MINFO, "cm_transition_call_direct", "cm_transition: Calling local transition callback");
+            write_tr_client_to_odb(hDB, tr_client);
 
-      tr_client->rpc_start_time = ss_millitime();
+            char errorstr[TRANSITION_ERROR_STRING_LENGTH];
+            errorstr[0] = 0;
+            
+            tr_client->status = _trans_table[i].func(tr_client->run_number, errorstr);
 
-      char errorstr[TRANSITION_ERROR_STRING_LENGTH];
-      errorstr[0] = 0;
+            tr_client->errorstr = errorstr;
+            
+            tr_client->rpc_end_time = ss_millitime();
+            
+            if (tr_client->debug_flag == 1)
+               printf("Local transition callback finished, status %d\n", int(tr_client->status));
+            if (tr_client->debug_flag == 2)
+               cm_msg(MINFO, "cm_transition_call_direct", "cm_transition: Local transition callback finished, status %d", int(tr_client->status));
 
-      transition_status = _trans_table[i].func(tr_client->run_number, errorstr);
+            tr_client->end_time = ss_millitime();
 
-      tr_client->errorstr = errorstr;
+            // write status and end_time to ODB
 
-      tr_client->rpc_end_time = ss_millitime();
+            write_tr_client_to_odb(hDB, tr_client);
 
-      if (tr_client->debug_flag == 1)
-         printf("Local transition callback finished, status %d\n", transition_status);
-      if (tr_client->debug_flag == 2)
-         cm_msg(MINFO, "cm_transition_call_direct", "cm_transition: Local transition callback finished, status %d",
-                transition_status);
+            return tr_client->status;
+         }
+      }
    }
 
-   tr_client->status = transition_status;
+   cm_msg(MERROR, "cm_transition_call_direct", "no handler for transition %d with sequence number %d", tr_client->transition, tr_client->sequence_number);
+
+   tr_client->status = CM_SUCCESS;
    tr_client->end_time = ss_millitime();
+
+   // write status and end_time to ODB
 
    write_tr_client_to_odb(hDB, tr_client);
 
-   return transition_status;
+   return CM_SUCCESS;
 }
 
 /********************************************************************/
@@ -4490,7 +4508,8 @@ tapes.
 @param debug_flag If 1 output debugging information, if 2 output via cm_msg().
 @return CM_SUCCESS, \<error\> error code from remote client
 */
-static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag) {
+static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errstr_size, INT async_flag, INT debug_flag)
+{
    INT i, status, size, sequence_number, port, state;
    HNDLE hDB, hRootKey, hSubkey, hKey, hKeylocal, hKeyTrans;
    DWORD seconds;
@@ -4499,6 +4518,8 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
    KEY key;
    BOOL deferred;
    char xerrstr[TRANSITION_ERROR_STRING_LENGTH];
+
+   //printf("cm_transition2: transition %d, run_number %d, errstr %p, errstr_size %d, async_flag %d, debug_flag %d\n", transition, run_number, errstr, errstr_size, async_flag, debug_flag);
 
    /* if needed, use internal error string */
    if (!errstr) {
@@ -4522,6 +4543,29 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
       strlcpy(errstr, "Invalid transition request", errstr_size);
       return CM_INVALID_TRANSITION;
    }
+
+   /* check if transition in progress */
+   if (!deferred) {
+      i = 0;
+      size = sizeof(i);
+      db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT32, TRUE);
+      if (i == 1) {
+         if (errstr) {
+            sprintf(errstr, "Start/Stop transition %d already in progress, please try again later\n", i);
+            strlcat(errstr, "or set \"/Runinfo/Transition in progress\" manually to zero.\n", errstr_size);
+         }
+         cm_msg(MERROR, "cm_transition", "another transition is already in progress");
+         return CM_TRANSITION_IN_PROGRESS;
+      }
+   }
+
+   /* indicate transition in progress */
+   i = transition;
+   db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT32);
+
+   /* clear run abort flag */
+   i = 0;
+   db_set_value(hDB, 0, "/Runinfo/Start abort", &i, sizeof(INT), 1, TID_INT32);
 
    /* construct new transition state */
 
@@ -4550,14 +4594,11 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
       }
    }
 
-   DWORD start_time = ss_millitime();
-   DWORD end_time = 0;
-
    if (transition != TR_STARTABORT) {
       db_set_value(hDB, 0, "/System/Transition/transition", &transition, sizeof(INT), 1, TID_INT32);
       db_set_value(hDB, 0, "/System/Transition/run_number", &run_number, sizeof(INT), 1, TID_INT32);
-      db_set_value(hDB, 0, "/System/Transition/start_time", &start_time, sizeof(DWORD), 1, TID_UINT32);
-      db_set_value(hDB, 0, "/System/Transition/end_time", &end_time, sizeof(DWORD), 1, TID_UINT32);
+      db_set_value(hDB, 0, "/System/Transition/start_time", &s.start_time, sizeof(DWORD), 1, TID_UINT32);
+      db_set_value(hDB, 0, "/System/Transition/end_time", &s.end_time, sizeof(DWORD), 1, TID_UINT32);
       status = 0;
       db_set_value(hDB, 0, "/System/Transition/status", &status, sizeof(INT), 1, TID_INT32);
       db_set_value(hDB, 0, "/System/Transition/error", "", 1, 1, TID_STRING);
@@ -4654,28 +4695,6 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
       cm_msg(MERROR, "cm_transition", "aborting on attempt to use invalid run number %d", run_number);
       abort();
    }
-
-   /* check if transition in progress */
-   if (!deferred) {
-      i = 0;
-      size = sizeof(i);
-      db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT32, TRUE);
-      if (i == 1) {
-         if (errstr) {
-            sprintf(errstr, "Start/Stop transition %d already in progress, please try again later\n", i);
-            strlcat(errstr, "or set \"/Runinfo/Transition in progress\" manually to zero.\n", errstr_size);
-         }
-         return tr_finish(hDB, &s, transition, CM_TRANSITION_IN_PROGRESS, "Transition already in progress, see messages");
-      }
-   }
-
-   /* indicate transition in progress */
-   i = transition;
-   db_set_value(hDB, 0, "/Runinfo/Transition in progress", &i, sizeof(INT), 1, TID_INT32);
-
-   /* clear run abort flag */
-   i = 0;
-   db_set_value(hDB, 0, "/Runinfo/Start abort", &i, sizeof(INT), 1, TID_INT32);
 
    /* Set new run number in ODB */
    if (transition == TR_START) {
@@ -4940,6 +4959,7 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
 
                TrClient *c = new TrClient;
 
+               c->init_time  = ss_millitime();
                c->transition = transition;
                c->run_number = run_number;
                c->async_flag = async_flag;
@@ -5283,6 +5303,36 @@ INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size,
    if (status != CM_SUCCESS) {
       cm_msg(MERROR, "cm_transition", "previous transition did not finish yet");
       return CM_TRANSITION_IN_PROGRESS;
+   }
+
+   /* get key of local client */
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   bool deferred = (transition & TR_DEFERRED) > 0;
+
+   /* check for valid transition */
+   if (transition != TR_START && transition != TR_STOP && transition != TR_PAUSE && transition != TR_RESUME && transition != TR_STARTABORT) {
+      cm_msg(MERROR, "cm_transition", "Invalid transition request \"%d\"", transition);
+      if (errstr) {
+         strlcpy(errstr, "Invalid transition request", errstr_size);
+      }
+      return CM_INVALID_TRANSITION;
+   }
+
+   /* check if transition in progress */
+   if (!deferred) {
+      int i = 0;
+      int size = sizeof(i);
+      db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT32, TRUE);
+      if (i == 1) {
+         if (errstr) {
+            sprintf(errstr, "Start/Stop transition %d already in progress, please try again later\n", i);
+            strlcat(errstr, "or set \"/Runinfo/Transition in progress\" manually to zero.\n", errstr_size);
+         }
+         cm_msg(MERROR, "cm_transition", "another transition is already in progress");
+         return CM_TRANSITION_IN_PROGRESS;
+      }
    }
 
    if (mflag) {
@@ -12000,8 +12050,6 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
       // no slots to reuse, allocate a new slot.
       if (!c) {
          c = new RPC_CLIENT_CONNECTION;
-         c->mutex.lock();
-         c->connected = false;
 
          // if empty slot not found, add to end of array
          c->index = _client_connections.size();
@@ -12013,6 +12061,9 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
             printf("\n");
          }
       }
+
+      c->mutex.lock();
+      c->connected = true; // rpc_client_connect() in another thread may try to grab this slot
 
       // done with the array of connections
       // implicit unlock of _client_connections_mutex
@@ -12082,8 +12133,6 @@ INT rpc_client_connect(const char *host_name, INT port, const char *client_name,
       c->mutex.unlock();
       return RPC_NET_ERROR;
    }
-
-   c->connected = true;
 
    /* set TCP_NODELAY option for better performance */
    i = 1;
@@ -13970,39 +14019,37 @@ static INT rpc_transition_dispatch(INT idx, void *prpc_param[])
 
 \********************************************************************/
 {
-   INT status, i;
-
    /* erase error string */
    *(CSTRING(2)) = 0;
 
    if (idx == RPC_RC_TRANSITION) {
-      for (i = 0; i < MAX_TRANSITIONS; i++)
-         if (_trans_table[i].transition == CINT(0) && _trans_table[i].sequence_number == CINT(4))
-            break;
-
-      /* call registerd function */
-      if (i < MAX_TRANSITIONS) {
-         if (_trans_table[i].func)
-            /* execute callback if defined */
-            status = _trans_table[i].func(CINT(1), CSTRING(2));
-         else {
-            /* store transition in FIFO */
-            tr_fifo[trf_wp].transition = CINT(0);
-            tr_fifo[trf_wp].run_number = CINT(1);
-            tr_fifo[trf_wp].trans_time = time(NULL);
-            tr_fifo[trf_wp].sequence_number = CINT(4);
-            trf_wp = (trf_wp + 1) % 10;
-            status = RPC_SUCCESS;
+      // find registered handler
+      // NB: this code should match same code in cm_transition_call_direct()
+      // NB: only use the first handler, this is how MIDAS always worked
+      // NB: we could run all handlers, but we can return the status and error string of only one of them.
+      for (int i = 0; i < MAX_TRANSITIONS; i++) {
+         if (_trans_table[i].transition == CINT(0) && _trans_table[i].sequence_number == CINT(4)) {
+            if (_trans_table[i].func) {
+               /* execute callback if defined */
+               return _trans_table[i].func(CINT(1), CSTRING(2));
+            } else {
+               /* store transition in FIFO */
+               tr_fifo[trf_wp].transition = CINT(0);
+               tr_fifo[trf_wp].run_number = CINT(1);
+               tr_fifo[trf_wp].trans_time = time(NULL);
+               tr_fifo[trf_wp].sequence_number = CINT(4);
+               trf_wp = (trf_wp + 1) % 10;
+               return RPC_SUCCESS;
+            }
          }
-      } else
-         status = RPC_SUCCESS;
-
+      }
+      // no handler for this transition
+      cm_msg(MERROR, "rpc_transition_dispatch", "no handler for transition %d with sequence number %d", CINT(0), CINT(4));
+      return CM_SUCCESS;
    } else {
-      cm_msg(MERROR, "rpc_transition_dispatch", "received unrecognized command");
-      status = RPC_INVALID_ID;
+      cm_msg(MERROR, "rpc_transition_dispatch", "received unrecognized command %d", idx);
+      return RPC_INVALID_ID;
    }
-
-   return status;
 }
 
 /********************************************************************/
