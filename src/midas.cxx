@@ -132,25 +132,16 @@ static const char *tid_name[] = {
         "UINT64"
 };
 
-
-static struct {
-   int transition;
-   char name[32];
-} trans_name[] = {
-        {
-                TR_START,      "START",},
-        {
-                TR_STOP,       "STOP",},
-        {
-                TR_PAUSE,      "PAUSE",},
-        {
-                TR_RESUME,     "RESUME",},
-        {
-                TR_STARTABORT, "STARTABORT",},
-        {
-                TR_DEFERRED,   "DEFERRED",},
-        {
-                0,             "",},};
+std::string cm_transition_name(int transition)
+{
+   if (transition == TR_START) return "START";
+   if (transition == TR_STOP)  return "STOP";
+   if (transition == TR_PAUSE) return "PAUSE";
+   if (transition == TR_RESUME) return "RESUME";
+   if (transition == TR_STARTABORT) return "STARTABORT";
+   if (transition == TR_DEFERRED) return "DEFERRED";
+   return msprintf("UNKNOWN TRANSITION %d", transition);
+}
 
 const char *mname[] = {
         "January",
@@ -235,16 +226,14 @@ static int disable_bind_rpc_to_localhost = 0;
 
 /* table for transition functions */
 
-typedef struct {
-   INT transition;
-   INT sequence_number;
+struct TRANS_TABLE {
+   INT transition = 0;
+   INT sequence_number = 0;
+   INT (*func)(INT, char *) = NULL;
+};
 
-   INT (*func)(INT, char *);
-} TRANS_TABLE;
-
-#define MAX_TRANSITIONS 20
-
-static TRANS_TABLE _trans_table[MAX_TRANSITIONS];
+static std::mutex _trans_table_mutex;
+static std::vector<TRANS_TABLE> _trans_table;
 
 static TRANS_TABLE _deferred_trans_table[] = {
         {TR_START,  0, NULL},
@@ -3613,7 +3602,7 @@ main()
 @return CM_SUCCESS
 */
 INT cm_register_transition(INT transition, INT(*func)(INT, char *), INT sequence_number) {
-   INT status, i;
+   INT status;
    HNDLE hDB, hKey, hKeyTrans;
    KEY key;
    char str[256];
@@ -3630,25 +3619,35 @@ INT cm_register_transition(INT transition, INT(*func)(INT, char *), INT sequence
 
    /* register new transition request */
 
-   /* find empty slot */
-   for (i = 0; i < MAX_TRANSITIONS; i++)
-      if (!_trans_table[i].transition)
-         break;
+   {
+      std::lock_guard<std::mutex> guard(_trans_table_mutex);
 
-   if (i == MAX_TRANSITIONS) {
-      cm_msg(MERROR, "cm_register_transition", "To many transition registrations. Please increase MAX_TRANSITIONS and recompile");
-      return CM_TOO_MANY_REQUESTS;
+      for (size_t i = 0; i < _trans_table.size(); i++) {
+         if (_trans_table[i].transition == transition && _trans_table[i].sequence_number == sequence_number) {
+            cm_msg(MERROR, "cm_register_transition", "transition %s with sequence number %d is already registered", cm_transition_name(transition).c_str(), sequence_number);
+            return CM_INVALID_TRANSITION;
+         }
+      }
+
+      bool found = false;
+      for (size_t i = 0; i < _trans_table.size(); i++) {
+         if (!_trans_table[i].transition) {
+            _trans_table[i].transition = transition;
+            _trans_table[i].sequence_number = sequence_number;
+            _trans_table[i].func = func;
+            found = true;
+            break;
+         }
+      }
+
+      if (!found) {
+         _trans_table.push_back(TRANS_TABLE{transition, sequence_number, func});
+      }
+
+      // implicit unlock
    }
 
-   _trans_table[i].transition = transition;
-   _trans_table[i].func = func;
-   _trans_table[i].sequence_number = sequence_number;
-
-   for (i = 0;; i++)
-      if (trans_name[i].name[0] == 0 || trans_name[i].transition == transition)
-         break;
-
-   sprintf(str, "Transition %s", trans_name[i].name);
+   sprintf(str, "Transition %s", cm_transition_name(transition).c_str());
 
    /* unlock database */
    db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE | MODE_DELETE, TRUE);
@@ -3675,7 +3674,7 @@ INT cm_register_transition(INT transition, INT(*func)(INT, char *), INT sequence
 }
 
 INT cm_deregister_transition(INT transition) {
-   INT status, i;
+   INT status;
    HNDLE hDB, hKey, hKeyTrans;
    char str[256];
 
@@ -3687,25 +3686,22 @@ INT cm_deregister_transition(INT transition) {
 
    cm_get_experiment_database(&hDB, &hKey);
 
-   /* remove existing transition request */
-   for (i = 0; i < MAX_TRANSITIONS; i++)
-      if (_trans_table[i].transition == transition)
-         break;
+   {
+      std::lock_guard<std::mutex> guard(_trans_table_mutex);
 
-   if (i == MAX_TRANSITIONS) {
-      cm_msg(MERROR, "cm_register_transition", "Cannot de-register transition %d registration, request not found", transition);
-      return CM_INVALID_TRANSITION;
+      /* remove existing transition request */
+      for (size_t i = 0; i < _trans_table.size(); i++) {
+         if (_trans_table[i].transition == transition) {
+            _trans_table[i].transition = 0;
+            _trans_table[i].sequence_number = 0;
+            _trans_table[i].func = NULL;
+         }
+      }
+
+      // implicit unlock
    }
-
-   _trans_table[i].transition = 0;
-   _trans_table[i].func = NULL;
-   _trans_table[i].sequence_number = 0;
-
-   for (i = 0;; i++)
-      if (trans_name[i].name[0] == 0 || trans_name[i].transition == transition)
-         break;
-
-   sprintf(str, "Transition %s", trans_name[i].name);
+      
+   sprintf(str, "Transition %s", cm_transition_name(transition).c_str());
 
    /* unlock database */
    db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE | MODE_DELETE, TRUE);
@@ -3732,7 +3728,7 @@ Change the transition sequence for the calling program.
 @return     CM_SUCCESS
 */
 INT cm_set_transition_sequence(INT transition, INT sequence_number) {
-   INT status, i;
+   INT status;
    HNDLE hDB, hKey;
    char str[256];
 
@@ -3742,23 +3738,42 @@ INT cm_set_transition_sequence(INT transition, INT sequence_number) {
       return CM_INVALID_TRANSITION;
    }
 
-   cm_get_experiment_database(&hDB, &hKey);
+   {
+      std::lock_guard<std::mutex> guard(_trans_table_mutex);
 
-   /* Find the transition type from the list */
-   for (i = 0;; i++)
-      if (trans_name[i].name[0] == 0 || trans_name[i].transition == transition)
-         break;
-   sprintf(str, "Transition %s", trans_name[i].name);
-
-   /* Change local sequence number for this transition type */
-   for (i = 0; i < MAX_TRANSITIONS; i++)
-      if (_trans_table[i].transition == transition) {
-         _trans_table[i].sequence_number = sequence_number;
-         break;
+      int count = 0;
+      for (size_t i = 0; i < _trans_table.size(); i++) {
+         if (_trans_table[i].transition == transition) {
+            _trans_table[i].sequence_number = sequence_number;
+            count++;
+         }
       }
+
+      if (count == 0) {
+         cm_msg(MERROR, "cm_set_transition_sequence", "transition %s is not registered", cm_transition_name(transition).c_str());
+         return CM_INVALID_TRANSITION;
+      } else if (count > 1) {
+         cm_msg(MERROR, "cm_set_transition_sequence", "cannot change sequence number, transition %s is registered %d times", cm_transition_name(transition).c_str(), count);
+         return CM_INVALID_TRANSITION;
+      }
+
+      /* Change local sequence number for this transition type */
+
+      for (size_t i = 0; i < _trans_table.size(); i++) {
+         if (_trans_table[i].transition == transition) {
+            _trans_table[i].sequence_number = sequence_number;
+         }
+      }
+
+      // implicit unlock
+   }
+
+   cm_get_experiment_database(&hDB, &hKey);
 
    /* unlock database */
    db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE, TRUE);
+
+   sprintf(str, "Transition %s", cm_transition_name(transition).c_str());
 
    /* set value */
    status = db_set_value(hDB, hKey, str, &sequence_number, sizeof(INT), 1, TID_INT32);
@@ -3827,30 +3842,26 @@ reached.
 @return CM_SUCCESS,    \<error\> Error from ODB access
 */
 INT cm_register_deferred_transition(INT transition, BOOL(*func)(INT, BOOL)) {
-   INT status, i, size;
+   INT status, size;
    char tr_key_name[256];
    HNDLE hDB, hKey;
 
    cm_get_experiment_database(&hDB, &hKey);
 
-   for (i = 0; _deferred_trans_table[i].transition; i++)
+   for (int i = 0; _deferred_trans_table[i].transition; i++)
       if (_deferred_trans_table[i].transition == transition)
          _deferred_trans_table[i].func = (int (*)(int, char *)) func;
 
    /* set new transition mask */
    _deferred_transition_mask |= transition;
 
-   for (i = 0;; i++)
-      if (trans_name[i].name[0] == 0 || trans_name[i].transition == transition)
-         break;
-
-   sprintf(tr_key_name, "Transition %s DEFERRED", trans_name[i].name);
+   sprintf(tr_key_name, "Transition %s DEFERRED", cm_transition_name(transition).c_str());
 
    /* unlock database */
    db_set_mode(hDB, hKey, MODE_READ | MODE_WRITE, TRUE);
 
    /* set value */
-   i = 0;
+   int i = 0;
    status = db_set_value(hDB, hKey, tr_key_name, &i, sizeof(INT), 1, TID_INT32);
    if (status != DB_SUCCESS)
       return status;
@@ -4418,10 +4429,18 @@ static int cm_transition_call_direct(TrClient *tr_client)
    // NB: this code should match same code in rpc_transition_dispatch()
    // NB: only use the first handler, this is how MIDAS always worked
    // NB: we could run all handlers, but we can return the status and error string of only one of them.
-   for (int i = 0; i<MAX_TRANSITIONS; i++) {
-      if (_trans_table[i].transition == tr_client->transition && _trans_table[i].sequence_number == tr_client->sequence_number) {
+
+   _trans_table_mutex.lock();
+   size_t n = _trans_table.size();
+   _trans_table_mutex.unlock();
+
+   for (size_t i = 0; i < n; i++) {
+      _trans_table_mutex.lock();
+      TRANS_TABLE tt = _trans_table[i];
+      _trans_table_mutex.unlock();
+      if (tt.transition == tr_client->transition && tt.sequence_number == tr_client->sequence_number) {
          /* call registered function */
-         if (_trans_table[i].func) {
+         if (tt.func) {
             if (tr_client->debug_flag == 1)
                printf("Calling local transition callback\n");
             if (tr_client->debug_flag == 2)
@@ -4434,7 +4453,7 @@ static int cm_transition_call_direct(TrClient *tr_client)
             char errorstr[TRANSITION_ERROR_STRING_LENGTH];
             errorstr[0] = 0;
             
-            tr_client->status = _trans_table[i].func(tr_client->run_number, errorstr);
+            tr_client->status = tt.func(tr_client->run_number, errorstr);
 
             tr_client->errorstr = errorstr;
             
@@ -4514,7 +4533,6 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
    HNDLE hDB, hRootKey, hSubkey, hKey, hKeylocal, hKeyTrans;
    DWORD seconds;
    char str[256], tr_key_name[256];
-   const char *trname = "unknown";
    KEY key;
    BOOL deferred;
    char xerrstr[TRANSITION_ERROR_STRING_LENGTH];
@@ -4739,13 +4757,9 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
          return tr_finish(hDB, &s, transition, CM_TRANSITION_IN_PROGRESS, errstr);
       }
 
-      for (i = 0; trans_name[i].name[0] != 0; i++)
-         if (trans_name[i].transition == transition) {
-            trname = trans_name[i].name;
-            break;
-         }
+      std::string trname = cm_transition_name(transition);
 
-      sprintf(tr_key_name, "Transition %s DEFERRED", trname);
+      sprintf(tr_key_name, "Transition %s DEFERRED", trname.c_str());
 
       /* search database for clients with deferred transition request */
       for (i = 0, status = 0;; i++) {
@@ -4763,10 +4777,9 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
                db_get_value(hDB, hSubkey, "Name", str, &size, TID_STRING, TRUE);
 
                if (debug_flag == 1)
-                  printf("---- Transition %s deferred by client \"%s\" ----\n", trname, str);
+                  printf("---- Transition %s deferred by client \"%s\" ----\n", trname.c_str(), str);
                if (debug_flag == 2)
-                  cm_msg(MINFO, "cm_transition", "cm_transition: ---- Transition %s deferred by client \"%s\" ----",
-                         trname, str);
+                  cm_msg(MINFO, "cm_transition", "cm_transition: ---- Transition %s deferred by client \"%s\" ----", trname.c_str(), str);
 
                if (debug_flag == 1)
                   printf("Setting /Runinfo/Requested transition\n");
@@ -4782,7 +4795,7 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
                db_set_value(hDB, 0, "/System/Transition/deferred", str, strlen(str) + 1, 1, TID_STRING);
 
                if (errstr)
-                  sprintf(errstr, "Transition %s deferred by client \"%s\"", trname, str);
+                  sprintf(errstr, "Transition %s deferred by client \"%s\"", trname.c_str(), str);
 
                return tr_finish(hDB, &s, transition, CM_DEFERRED_TRANSITION, errstr);
             }
@@ -4897,14 +4910,10 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
       return tr_finish(hDB, &s, transition, status, errstr);
    }
 
-   for (i = 0; trans_name[i].name[0] != 0; i++)
-      if (trans_name[i].transition == transition) {
-         trname = trans_name[i].name;
-         break;
-      }
+   std::string trname = cm_transition_name(transition);
 
    /* check that all transition clients are alive */
-   for (i = 0;;) {
+   for (int i = 0;;) {
       status = db_enum_key(hDB, hRootKey, i, &hSubkey);
       if (status != DB_SUCCESS)
          break;
@@ -4928,11 +4937,11 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
    rpc_client_check();
 
    if (debug_flag == 1)
-      printf("---- Transition %s started ----\n", trname);
+      printf("---- Transition %s started ----\n", trname.c_str());
    if (debug_flag == 2)
-      cm_msg(MINFO, "cm_transition", "cm_transition: ---- Transition %s started ----", trname);
+      cm_msg(MINFO, "cm_transition", "cm_transition: ---- Transition %s started ----", trname.c_str());
 
-   sprintf(tr_key_name, "Transition %s", trname);
+   sprintf(tr_key_name, "Transition %s", trname.c_str());
 
    /* search database for clients which registered for transition */
 
@@ -5006,7 +5015,7 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
                   s.clients.push_back(std::unique_ptr<TrClient>(c));
                   c = NULL;
                } else {
-                  cm_msg(MERROR, "cm_transition", "transition %s: client \"%s\" is registered with sequence number %d more than once", trname, c->client_name.c_str(), c->sequence_number);
+                  cm_msg(MERROR, "cm_transition", "transition %s: client \"%s\" is registered with sequence number %d more than once", trname.c_str(), c->client_name.c_str(), c->sequence_number);
                   delete c;
                   c = NULL;
                }
@@ -5075,7 +5084,7 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
 
          if (status == CM_SUCCESS && transition != TR_STOP)
             if (s.clients[idx]->status != SUCCESS) {
-               cm_msg(MERROR, "cm_transition", "transition %s aborted: client \"%s\" returned status %d", trname,
+               cm_msg(MERROR, "cm_transition", "transition %s aborted: client \"%s\" returned status %d", trname.c_str(),
                       s.clients[idx]->client_name.c_str(), int(s.clients[idx]->status));
                break;
             }
@@ -5111,7 +5120,7 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
          status = db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT32, FALSE);
 
          if (status == DB_SUCCESS && i == 0) {
-            cm_msg(MERROR, "cm_transition", "transition %s aborted: \"/Runinfo/Transition in progress\" was cleared", trname);
+            cm_msg(MERROR, "cm_transition", "transition %s aborted: \"/Runinfo/Transition in progress\" was cleared", trname.c_str());
 
             if (errstr != NULL)
                strlcpy(errstr, "Canceled", errstr_size);
@@ -5144,9 +5153,9 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
    }
 
    if (debug_flag == 1)
-      printf("\n---- Transition %s finished ----\n", trname);
+      printf("\n---- Transition %s finished ----\n", trname.c_str());
    if (debug_flag == 2)
-      cm_msg(MINFO, "cm_transition", "cm_transition: ---- Transition %s finished ----", trname);
+      cm_msg(MINFO, "cm_transition", "cm_transition: ---- Transition %s finished ----", trname.c_str());
 
    /* set new run state in database */
    if (transition == TR_START || transition == TR_RESUME)
@@ -14027,11 +14036,19 @@ static INT rpc_transition_dispatch(INT idx, void *prpc_param[])
       // NB: this code should match same code in cm_transition_call_direct()
       // NB: only use the first handler, this is how MIDAS always worked
       // NB: we could run all handlers, but we can return the status and error string of only one of them.
-      for (int i = 0; i < MAX_TRANSITIONS; i++) {
-         if (_trans_table[i].transition == CINT(0) && _trans_table[i].sequence_number == CINT(4)) {
-            if (_trans_table[i].func) {
+      _trans_table_mutex.lock();
+      size_t n = _trans_table.size();
+      _trans_table_mutex.unlock();
+         
+      for (size_t i = 0; i < n; i++) {
+         _trans_table_mutex.lock();
+         TRANS_TABLE tt = _trans_table[i];
+         _trans_table_mutex.unlock();
+         
+         if (tt.transition == CINT(0) && tt.sequence_number == CINT(4)) {
+            if (tt.func) {
                /* execute callback if defined */
-               return _trans_table[i].func(CINT(1), CSTRING(2));
+               return tt.func(CINT(1), CSTRING(2));
             } else {
                /* store transition in FIFO */
                tr_fifo[trf_wp].transition = CINT(0);
