@@ -17,12 +17,9 @@
 #include <ctype.h>
 #include <assert.h>
 #include <signal.h>
+#include <unistd.h> // sleep()
 
 #include "midas.h"
-
-#ifndef HAVE_STRLCPY
-#include "strlcpy.h"
-#endif
 
 /*------------------------------------------------------------------*/
 
@@ -69,7 +66,8 @@ int main(int argc, char *argv[])
    bool force = false;
    bool multithread = false;
    bool asyncmultithread = false;
-   char host_name[HOST_NAME_LENGTH], exp_name[NAME_LENGTH];
+   std::string host_name;
+   std::string exp_name;
 
    setbuf(stdout, NULL);
    setbuf(stderr, NULL);
@@ -79,7 +77,7 @@ int main(int argc, char *argv[])
 #endif
 
    /* get default from environment */
-   cm_get_environment(host_name, sizeof(host_name), exp_name, sizeof(exp_name));
+   cm_get_environment(&host_name, &exp_name);
 
    /* parse command line parameters */
 
@@ -99,9 +97,9 @@ int main(int argc, char *argv[])
          else if (argv[i][1] == 'd' && i < argc-1)
             debug_flag = strtoul(argv[++i], NULL, 0);
          else if (argv[i][1] == 'e' && i < argc-1)
-            strlcpy(exp_name, argv[++i], sizeof(exp_name));
+            exp_name = argv[++i];
          else if (argv[i][1] == 'h' && i < argc-1)
-            strlcpy(host_name, argv[++i], sizeof(host_name));
+            host_name = argv[++i];
          else
             usage(); // does not return
          }
@@ -115,19 +113,19 @@ int main(int argc, char *argv[])
    /* do not produce a startup message */
    cm_set_msg_print(MT_ERROR, 0, NULL);
 
-   status = cm_connect_experiment1(host_name, exp_name, "mtransition", NULL,
+   status = cm_connect_experiment1(host_name.c_str(), exp_name.c_str(), "mtransition", NULL,
                                    DEFAULT_ODB_SIZE,
                                    DEFAULT_WATCHDOG_TIMEOUT);
    if (status != CM_SUCCESS) {
       fprintf(stderr,"Error: Cannot connect to experiment \'%s\' on host \'%s\', status %d\n",
-              exp_name,
-              host_name,
+              exp_name.c_str(),
+              host_name.c_str(),
               status);
       exit(1);
    }
 
    if (verbose)
-      printf("Connected to experiment \'%s\' on host \'%s\'\n", exp_name, host_name);
+      printf("Connected to experiment \'%s\' on host \'%s\'\n", exp_name.c_str(), host_name.c_str());
 
    HNDLE hDB;
 
@@ -339,6 +337,14 @@ int main(int argc, char *argv[])
          usage(); // does not return
 
       }
+   }
+
+   while (1) {
+      int status = cm_transition_cleanup();
+      if (status == CM_SUCCESS)
+         break;
+      printf("waiting for transition to finish!\n");
+      ::sleep(1);
    }
 
    /* do not produce a shutdown message */
