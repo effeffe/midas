@@ -874,7 +874,7 @@ void gdImageCharUp(gdImagePtr im, gdFontPtr f, int x, int y, char c, int color)
    }
 }
 
-void gdImageString(gdImagePtr im, gdFontPtr f, int x, int y, char *s, int color)
+void gdImageString(gdImagePtr im, gdFontPtr f, int x, int y, const char *s, int color)
 {
    int i;
    int l;
@@ -885,7 +885,7 @@ void gdImageString(gdImagePtr im, gdFontPtr f, int x, int y, char *s, int color)
    }
 }
 
-void gdImageStringUp(gdImagePtr im, gdFontPtr f, int x, int y, char *s, int color)
+void gdImageStringUp(gdImagePtr im, gdFontPtr f, int x, int y, const char *s, int color)
 {
    int i;
    int l;
