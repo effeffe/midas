@@ -1012,9 +1012,10 @@ INT cm_msg(INT message_type, const char *filename, INT line, const char *routine
    //printf("message [%s]\n", message);
 
    /* call user function if set via cm_set_msg_print */
-   if (_message_print != NULL && (message_type & _message_mask_user) != 0) {
+   MessagePrintCallback f = _message_print.load();
+   if (f != NULL && (message_type & _message_mask_user) != 0) {
       if (message_type != MT_LOG) { // do not print MLOG messages
-         _message_print(message.c_str());
+         (*f)(message.c_str());
       }
    }
 
@@ -1073,8 +1074,9 @@ INT cm_msg1(INT message_type, const char *filename, INT line,
    va_end(argptr);
 
    /* call user function if set via cm_set_msg_print */
-   if (_message_print != NULL && (message_type & _message_mask_user) != 0)
-      _message_print(message.c_str());
+   MessagePrintCallback f = _message_print.load();
+   if (f != NULL && (message_type & _message_mask_user) != 0)
+      (*f)(message.c_str());
 
    /* return if system mask is not set */
    if ((message_type & _message_mask_system) == 0) {
