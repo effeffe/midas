@@ -3641,7 +3641,11 @@ INT cm_register_transition(INT transition, INT(*func)(INT, char *), INT sequence
       }
 
       if (!found) {
-         _trans_table.push_back(TRANS_TABLE{transition, sequence_number, func});
+         TRANS_TABLE tt;
+         tt.transition = transition;
+         tt.sequence_number = sequence_number;
+         tt.func = func;
+         _trans_table.push_back(tt);
       }
 
       // implicit unlock
