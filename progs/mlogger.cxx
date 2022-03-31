@@ -4151,13 +4151,50 @@ int maybe_check_disk_level()
    return SUCCESS;
 }
 
+static int get_trans_flag()
+{
+   int status, size, flag;
+
+   size = sizeof(BOOL);
+   flag = FALSE;
+   status = db_get_value(hDB, 0, "/Logger/Async transitions", &flag, &size, TID_BOOL, FALSE);
+
+   if (status == DB_SUCCESS) {
+      cm_msg(MINFO, "get_trans_flag", "ODB \"/Logger/Async transitions\" is obsolete, please delete it");
+   }
+
+   size = sizeof(BOOL);
+   flag = TRUE;
+   status = db_get_value(hDB, 0, "/Logger/Multithread transitions", &flag, &size, TID_BOOL, TRUE);
+
+   if (status == DB_SUCCESS) {
+      cm_msg(MINFO, "get_trans_flag", "ODB \"/Logger/Multithread transitions\" is obsolete, please delete it");
+   }
+
+   size = sizeof(BOOL);
+   flag = FALSE;
+   db_get_value(hDB, 0, "/Logger/Detached transitions", &flag, &size, TID_BOOL, TRUE);
+
+   // NB: we must use multithread or detached (via mtransition) transition
+   // otherwise we deadlock against frontends: they are writing to the SYSTEM
+   // buffer but we (mlogger) are not reading from it. if SYSTEM buffer is full,
+   // clients get stuck waiting for free space and cannot not handle TR_STOP RPC.
+   // if they could handle, it, they would still be stuck in bm_flush_cache()
+   // because we (mlogger) are not reading the SYSTEM buffer and these last
+   // events have nowhere to go. K.O.
+
+   if (flag)
+      return TR_DETACH;
+   else
+      return TR_MTHREAD;
+}
+
 /*---- log_write ---------------------------------------------------*/
 
 int stop_the_run(int restart)
 {
-   int status;
+   int status, flag, size;
    char errstr[256];
-   int size, flag, mflag, trans_flag;
 
    if (restart) {
       size = sizeof(BOOL);
@@ -4172,23 +4209,13 @@ int stop_the_run(int restart)
 
    stop_requested = TRUE;
 
-   size = sizeof(BOOL);
-   flag = FALSE;
-   db_get_value(hDB, 0, "/Logger/Async transitions", &flag, &size, TID_BOOL, TRUE);
-
-   size = sizeof(BOOL);
-   mflag = TRUE;
-   db_get_value(hDB, 0, "/Logger/Multithread transitions", &mflag, &size, TID_BOOL, TRUE);
-
-   if (flag)
-      trans_flag = TR_ASYNC;
-   else if (mflag)
-      trans_flag = TR_MTHREAD;
-   else
-      trans_flag = TR_DETACH;
+   int trans_flag = get_trans_flag();
 
    status = cm_transition(TR_STOP, 0, errstr, sizeof(errstr), trans_flag, verbose);
-   if (status != CM_SUCCESS) {
+   if (status == CM_TRANSITION_IN_PROGRESS) {
+      cm_msg(MERROR, "stop_the_run", "another transition is in progress, will try again later");
+      stop_requested = FALSE;
+   } else if (status != CM_SUCCESS) {
       cm_msg(MERROR, "stop_the_run", "cannot stop the run, cm_transition() status %d, error: %s", status, errstr);
       return status;
    }
@@ -4198,8 +4225,7 @@ int stop_the_run(int restart)
 
 int start_the_run()
 {
-   int status, size, state, run_number;
-   int flag, mflag, trans_flag;
+   int status, size, state, run_number, flag;
    char errstr[256];
 
    start_requested = FALSE;
@@ -4248,20 +4274,7 @@ int start_the_run()
       abort();
    }
     
-   size = sizeof(BOOL);
-   flag = FALSE;
-   db_get_value(hDB, 0, "/Logger/Async transitions", &flag, &size, TID_BOOL, TRUE);
-
-   size = sizeof(BOOL);
-   mflag = TRUE;
-   db_get_value(hDB, 0, "/Logger/Multithread transitions", &mflag, &size, TID_BOOL, TRUE);
-
-   if (flag)
-      trans_flag = TR_ASYNC;
-   else if (mflag)
-      trans_flag = TR_MTHREAD;
-   else
-      trans_flag = TR_DETACH;
+   int trans_flag = get_trans_flag();
 
    cm_msg(MTALK, "start_the_run", "starting new run");
    status = cm_transition(TR_START, run_number + 1, errstr, sizeof(errstr), trans_flag, verbose);
