@@ -55,9 +55,6 @@ static MUTEX_T* request_mutex = NULL;
 static std::mutex gMutex;
 static MVOdb* gOdb = NULL;
 
-// FIXME: what does "referer" do?!?
-//char referer[256];
-
 /*------------------------------------------------------------------*/
 
 #define MAX_GROUPS    32
@@ -1487,17 +1484,17 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
 
          /* display single value */
          if (key->num_values == 1) {
-            char data_str[MAX_ODB_PATH];
             size = sizeof(data);
             status = db_get_data(hDB, hKey, data, &size, key->type);
+            std::string data_str;
             if (status == DB_NO_ACCESS)
-               strcpy(data_str, "<no read access>");
+               data_str = "<no read access>";
             else
-               db_sprintf(data_str, data, key->item_size, 0, key->type);
+               data_str = db_sprintf(data, key->item_size, 0, key->type);
 
             r->rsprintf("<tr><td class=\"ODBkey\">");
             r->rsprintf("<a href=\"?cmd=odb&odb_path=/%s\">/%s/%s</a></td>", path, path, key->name);
-            r->rsprintf("<td class=\"ODBvalue\">%s</td></tr>\n", data_str);
+            r->rsprintf("<td class=\"ODBvalue\">%s</td></tr>\n", data_str.c_str());
          } else {
             /* display first value */
             r->rsprintf("<tr><td rowspan=%d class=\"ODBkey\">", key->num_values);
@@ -1507,13 +1504,12 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
                size = sizeof(data);
                db_get_data(hDB, hKey, data, &size, key->type);
 
-               char data_str[MAX_ODB_PATH];
-               db_sprintf(data_str, data, key->item_size, i, key->type);
+               std::string data_str = db_sprintf(data, key->item_size, i, key->type);
 
                if (i > 0)
                   r->rsprintf("<tr>");
 
-               r->rsprintf("<td class=\"ODBvalue\">[%d] %s</td></tr>\n", i, data_str);
+               r->rsprintf("<td class=\"ODBvalue\">[%d] %s</td></tr>\n", i, data_str.c_str());
             }
          }
       }
@@ -2000,9 +1996,8 @@ void init_elog_odb()
 
 void strencode(Return* r, const char *text)
 {
-   int i;
-
-   for (i = 0; i < (int) strlen(text); i++) {
+   size_t len = strlen(text);
+   for (size_t i = 0; i < len; i++) {
       switch (text[i]) {
       case '\n':
          r->rsprintf("<br>\n");
@@ -2027,48 +2022,41 @@ void strencode(Return* r, const char *text)
 
 /*------------------------------------------------------------------*/
 
-void strencode2(char *b, char *text)
+std::string strencode2(const char *text)
 {
-   int i;
-
-   for (i = 0; i < (int) strlen(text); i++) {
+   std::string b;
+   size_t len = strlen(text);
+   for (size_t i = 0; i < len; i++) {
       switch (text[i]) {
       case '\n':
-         sprintf(b, "<br>\n");
-         b += 6;
+         b += "<br>\n";
          break;
       case '<':
-         sprintf(b, "&lt;");
-         b += 4;
+         b += "&lt;";
          break;
       case '>':
-         sprintf(b, "&gt;");
-         b += 4;
+         b += "&gt;";
          break;
       case '&':
-         sprintf(b, "&amp;");
-         b += 5;
+         b += "&amp;";
          break;
       case '\"':
-         sprintf(b, "&quot;");
-         b += 6;
+         b += "&quot;";
          break;
       default:
-         sprintf(b, "%c", text[i]);
-         b += 1;
+         b += text[i];
          break;
       }
    }
-   *b = 0;
+   return b;
 }
 
 /*------------------------------------------------------------------*/
 
-void strencode3(Return* r, char *text)
+void strencode3(Return* r, const char *text)
 {
-   int i;
-
-   for (i = 0; i < (int) strlen(text); i++) {
+   size_t len = strlen(text);
+   for (size_t i = 0; i < len; i++) {
       switch (text[i]) {
       case '<':
          r->rsprintf("&lt;");
@@ -2090,11 +2078,10 @@ void strencode3(Return* r, char *text)
 
 /*------------------------------------------------------------------*/
 
-void strencode4(Return* r, char *text)
+void strencode4(Return* r, const char *text)
 {
-   int i;
-
-   for (i = 0; i < (int) strlen(text); i++) {
+   size_t len = strlen(text);
+   for (size_t i = 0; i < len; i++) {
       switch (text[i]) {
          case '\n':
             r->rsprintf("<br>\n");
@@ -2127,10 +2114,8 @@ void gen_odb_attachment(Return* r, const char *path, std::string& bout)
    HNDLE hDB, hkeyroot, hkey;
    KEY key;
    INT i, j, size;
-   char data_str[25600], hex_str[25600];
    char data[1024];
    time_t now;
-   char b[1024];
 
    cm_get_experiment_database(&hDB, NULL);
    db_find_key(hDB, 0, path, &hkeyroot);
@@ -2145,10 +2130,8 @@ void gen_odb_attachment(Return* r, const char *path, std::string& bout)
    bout += "<table border=3 cellpadding=1 class=\"dialogTable\">\n";
    char ctimebuf[32];
    ctime_r(&now, ctimebuf);
-   sprintf(b, "<tr><th colspan=2>%s</tr>\n", ctimebuf);
-   bout += b;
-   sprintf(b, "<tr><th colspan=2>%s</tr>\n", path);
-   bout += b;
+   bout += msprintf("<tr><th colspan=2>%s</tr>\n", ctimebuf);
+   bout += msprintf("<tr><th colspan=2>%s</tr>\n", path);
 
    /* enumerate subkeys */
    for (i = 0;; i++) {
@@ -2165,25 +2148,22 @@ void gen_odb_attachment(Return* r, const char *path, std::string& bout)
 
       if (key.type == TID_KEY) {
          /* for keys, don't display data value */
-         sprintf(b, "<tr><td colspan=2>%s</td></tr>\n", key.name);
-         bout += b;
+         bout += msprintf("<tr><td colspan=2>%s</td></tr>\n", key.name);
       } else {
          /* display single value */
          if (key.num_values == 1) {
             size = sizeof(data);
             db_get_data(hDB, hkey, data, &size, key.type);
             //printf("data size %d [%s]\n", size, data);
-            db_sprintf(data_str, data, key.item_size, 0, key.type);
-            assert(strlen(data_str) < sizeof(data_str));
-            db_sprintfh(hex_str, data, key.item_size, 0, key.type);
-            assert(strlen(hex_str) < sizeof(hex_str));
+            std::string data_str = db_sprintf(data, key.item_size, 0, key.type);
+            std::string hex_str = db_sprintfh(data, key.item_size, 0, key.type);
 
-            if (data_str[0] == 0 || equal_ustring(data_str, "<NULL>")) {
-               strcpy(data_str, "(empty)");
-               hex_str[0] = 0;
+            if (data_str.empty() || equal_ustring(data_str.c_str(), "<NULL>")) {
+               data_str = "(empty)";
+               hex_str  = "";
             }
 
-            if (strcmp(data_str, hex_str) != 0 && hex_str[0]) {
+            if (strcmp(data_str.c_str(), hex_str.c_str()) != 0 && hex_str[0]) {
                //sprintf(b, "<tr><td>%s</td><td>%s (%s)</td></tr>\n", key.name, data_str, hex_str);
                bout += "<tr><td>";
                bout += key.name;
@@ -2193,35 +2173,30 @@ void gen_odb_attachment(Return* r, const char *path, std::string& bout)
                bout += hex_str;
                bout += ")</td></tr>\n";
             } else {
-               sprintf(b, "<tr><td>%s</td><td>", key.name);
-               bout += b;
-               strencode2(b, data_str);
-               bout += b;
+               bout += msprintf("<tr><td>%s</td><td>", key.name);
+               bout += strencode2(data_str.c_str());
                bout += "</td></tr>\n";
             }
          } else {
             /* display first value */
-            sprintf(b, "<tr><td rowspan=%d>%s</td>\n", key.num_values, key.name);
-            bout += b;
+            bout += msprintf("<tr><td rowspan=%d>%s</td>\n", key.num_values, key.name);
 
             for (j = 0; j < key.num_values; j++) {
                size = sizeof(data);
                db_get_data_index(hDB, hkey, data, &size, j, key.type);
-               db_sprintf(data_str, data, key.item_size, 0, key.type);
-               assert(strlen(data_str) < sizeof(data_str));
-               db_sprintfh(hex_str, data, key.item_size, 0, key.type);
-               assert(strlen(hex_str) < sizeof(hex_str));
+               std::string data_str = db_sprintf(data, key.item_size, 0, key.type);
+               std::string hex_str = db_sprintfh(data, key.item_size, 0, key.type);
 
-               if (data_str[0] == 0 || equal_ustring(data_str, "<NULL>")) {
-                  strcpy(data_str, "(empty)");
-                  hex_str[0] = 0;
+               if (data_str.empty() || equal_ustring(data_str.c_str(), "<NULL>")) {
+                  data_str = "(empty)";
+                  hex_str  = "";
                }
 
                if (j > 0) {
                   bout += "<tr>";
                }
 
-               if (strcmp(data_str, hex_str) != 0 && hex_str[0]) {
+               if (strcmp(data_str.c_str(), hex_str.c_str()) != 0 && hex_str[0]) {
                   //sprintf(b, "<td>[%d] %s (%s)<br></td></tr>\n", j, data_str, hex_str);
                   bout += "<td>[";
                   bout += toString(j);
@@ -2561,10 +2536,10 @@ BOOL is_editable(char *eq_name, char *var_name)
 void show_eqtable_page(Param* pp, Return* r, int refresh)
 {
    int i, j, k, colspan, size, n_var, i_edit, i_set, line;
-   char str[256], eq_name[32], group[32], name[NAME_LENGTH+32];
+   char eq_name[32], group[32], name[NAME_LENGTH+32];
    char group_name[MAX_GROUPS][32], data[256], style[80];
    HNDLE hDB;
-   char data_str[256], hex_str[256], odb_path[256];
+   char odb_path[256];
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -2617,8 +2592,7 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
    }
 #endif
 
-   sprintf(str, "%s", group);
-   show_header(r, "MIDAS slow control", "", str, i_edit == -1 ? refresh : 0);
+   show_header(r, "MIDAS slow control", "", group, i_edit == -1 ? refresh : 0);
    r->rsprintf("<script type=\"text/javascript\" src=\"midas.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"mhttpd.js\"></script>\n");
    r->rsprintf("<script type=\"text/javascript\" src=\"obsolete.js\"></script>\n");
@@ -2687,9 +2661,9 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
    /*---- display SC ----*/
 
    n_var = 0;
-   sprintf(str, "/Equipment/%s/Settings/Names", eq_name);
+   std::string names_path = msprintf("/Equipment/%s/Settings/Names", eq_name);
    HNDLE hkeyeqnames;
-   db_find_key(hDB, 0, str, &hkeyeqnames);
+   db_find_key(hDB, 0, names_path.c_str(), &hkeyeqnames);
 
    if (hkeyeqnames) {
 
@@ -2711,6 +2685,7 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
       for (int level = 0; ; level++) {
          bool next_level = false;
          for (i = 0; i < key.num_values; i++) {
+            char str[256];
             size = sizeof(str);
             db_get_data_index(hDB, hkeyeqnames, str, &size, i, TID_STRING);
 
@@ -2753,9 +2728,9 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
       r->rsprintf("</tr>\n");
 
       /* count variables */
-      sprintf(str, "/Equipment/%s/Variables", eq_name);
+      std::string vars_path = msprintf("/Equipment/%s/Variables", eq_name);
       HNDLE hkeyvar;
-      db_find_key(hDB, 0, str, &hkeyvar);
+      db_find_key(hDB, 0, vars_path.c_str(), &hkeyvar);
       if (!hkeyvar) {
          r->rsprintf("</table>");
          return;
@@ -2792,16 +2767,17 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
       r->rsprintf("</tr>\n");
 
       /* data for current group */
-      sprintf(str, "/Equipment/%s/Settings/Names", eq_name);
+      std::string names_path = msprintf("/Equipment/%s/Settings/Names", eq_name);
       int num_values = 0;
       HNDLE hkeyset;
-      db_find_key(hDB, 0, str, &hkeyset);
+      db_find_key(hDB, 0, names_path.c_str(), &hkeyset);
       if (hkeyset) {
          KEY key;
          db_get_key(hDB, hkeyset, &key);
          num_values = key.num_values;
       }
       for (int i = 0; i < num_values; i++) {
+         char str[256];
          size = sizeof(str);
          db_get_data_index(hDB, hkeyset, str, &size, i, TID_STRING);
 
@@ -2841,19 +2817,19 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
 
             size = sizeof(data);
             db_get_data_index(hDB, hkey, data, &size, i, varkey.type);
-            db_sprintf(str, data, varkey.item_size, 0, varkey.type);
+            std::string data_str = db_sprintf(data, varkey.item_size, 0, varkey.type);
 
             if (is_editable(eq_name, varkey.name)) {
                if (n_var == i_set) {
                   /* set value */
+                  char str[256];
                   strlcpy(str, pp->getparam("value"), sizeof(str));
                   db_sscanf(str, data, &size, 0, varkey.type);
                   db_set_data_index(hDB, hkey, data, size, i, varkey.type);
 
                   /* redirect (so that 'reload' does not reset value) */
                   r->reset();
-                  sprintf(str, "%s", group);
-                  redirect(r, str);
+                  redirect(r, group);
                   return;
                }
                if (n_var == i_edit) {
@@ -2886,9 +2862,9 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
 
       /* groups from Variables tree */
 
-      sprintf(str, "/Equipment/%s/Variables", eq_name);
+      std::string vars_path = msprintf("/Equipment/%s/Variables", eq_name);
       HNDLE hkeyvar;
-      db_find_key(hDB, 0, str, &hkeyvar);
+      db_find_key(hDB, 0, vars_path.c_str(), &hkeyvar);
 
       if (hkeyvar) {
          for (int i = 0;; i++) {
@@ -2958,21 +2934,22 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
                   if (key.num_values == 1) {
                      size = sizeof(data);
                      db_get_data(hDB, hkey, data, &size, key.type);
-                     db_sprintf(data_str, data, key.item_size, 0, key.type);
-                     db_sprintfh(hex_str, data, key.item_size, 0, key.type);
 
-                     if (data_str[0] == 0 || equal_ustring(data_str, "<NULL>")) {
-                        strcpy(data_str, "(empty)");
-                        hex_str[0] = 0;
+                     std::string data_str = db_sprintf(data, key.item_size, 0, key.type);
+                     std::string hex_str = db_sprintfh(data, key.item_size, 0, key.type);
+
+                     if (data_str.empty() || equal_ustring(data_str.c_str(), "<NULL>")) {
+                        data_str = "(empty)";
+                        hex_str  = "";
                      }
 
-                     if (strcmp(data_str, hex_str) != 0 && hex_str[0])
+                     if (strcmp(data_str.c_str(), hex_str.c_str()) != 0 && hex_str[0])
                         r->rsprintf
                             ("<tr class=\"%s\" ><td colspan=9>%s<td align=center>%s (%s)<br></tr>\n",
-                             style, key.name, data_str, hex_str);
+                             style, key.name, data_str.c_str(), hex_str.c_str());
                      else
                         r->rsprintf("<tr class=\"%s\"><td colspan=9>%s<td align=center>%s<br></tr>\n",
-                                 style, key.name, data_str);
+                                    style, key.name, data_str.c_str());
                      line++;
                   } else {
                      /* display first value */
@@ -2982,21 +2959,21 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
                      for (k = 0; k < key.num_values; k++) {
                         size = sizeof(data);
                         db_get_data_index(hDB, hkey, data, &size, k, key.type);
-                        db_sprintf(data_str, data, key.item_size, 0, key.type);
-                        db_sprintfh(hex_str, data, key.item_size, 0, key.type);
+                        std::string data_str = db_sprintf(data, key.item_size, 0, key.type);
+                        std::string hex_str = db_sprintfh(data, key.item_size, 0, key.type);
 
-                        if (data_str[0] == 0 || equal_ustring(data_str, "<NULL>")) {
-                           strcpy(data_str, "(empty)");
-                           hex_str[0] = 0;
+                        if (data_str.empty() || equal_ustring(data_str.c_str(), "<NULL>")) {
+                           data_str = "(empty)";
+                           hex_str  = "";
                         }
 
                         if (k > 0)
                            r->rsprintf("<tr>");
 
-                        if (strcmp(data_str, hex_str) != 0 && hex_str[0])
-                           r->rsprintf("<td>[%d] %s (%s)<br></tr>\n", k, data_str, hex_str);
+                        if (strcmp(data_str.c_str(), hex_str.c_str()) != 0 && hex_str[0])
+                           r->rsprintf("<td>[%d] %s (%s)<br></tr>\n", k, data_str.c_str(), hex_str.c_str());
                         else
-                           r->rsprintf("<td>[%d] %s<br></tr>\n", k, data_str);
+                           r->rsprintf("<td>[%d] %s<br></tr>\n", k, data_str.c_str());
                         line++;
                      }
                   }
@@ -3004,9 +2981,9 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
             }
          } else {
             /* data for current group */
-            sprintf(str, "/Equipment/%s/Settings/Names %s", eq_name, varkey.name);
+            std::string names_path = msprintf("/Equipment/%s/Settings/Names %s", eq_name, varkey.name);
             HNDLE hkeyset;
-            db_find_key(hDB, 0, str, &hkeyset);
+            db_find_key(hDB, 0, names_path.c_str(), &hkeyset);
             KEY key;
             if (hkeyset)
                db_get_key(hDB, hkeyset, &key);
@@ -3037,11 +3014,12 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
 
                   size = sizeof(data);
                   db_get_data_index(hDB, hkey, data, &size, j, varkey.type);
-                  db_sprintf(str, data, varkey.item_size, 0, varkey.type);
+                  std::string data_str = db_sprintf(data, varkey.item_size, 0, varkey.type);
 
                   if (is_editable(eq_name, varkey.name)) {
                      if (n_var == i_set) {
                         /* set value */
+                        char str[256];
                         strlcpy(str, pp->getparam("value"), sizeof(str));
                         db_sscanf(str, data, &size, 0, varkey.type);
                         db_set_data_index(hDB, hkey, data, size, j, varkey.type);
@@ -3053,7 +3031,7 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
                         return;
                      }
                      if (n_var == i_edit) {
-                        r->rsprintf("<td align=center><input type=text size=10 maxlenth=80 name=value value=\"%s\">\n", str);
+                        r->rsprintf("<td align=center><input type=text size=10 maxlenth=80 name=value value=\"%s\">\n", data_str.c_str());
                         r->rsprintf("<input type=submit size=20 name=cmd value=Set></tr>\n");
                         r->rsprintf("<input type=hidden name=index value=%d>\n", i_edit);
                         r->rsprintf("<input type=hidden name=cmd value=Set>\n");
@@ -3062,12 +3040,12 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
                         sprintf(odb_path, "Equipment/%s/Variables/%s[%d]", eq_name, varkey.name, j);
 
                         r->rsprintf("<td align=cernter>");
-                        r->rsprintf("<a href=\"#\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\', 0);return false;\" >%s</a>", odb_path, str);
+                        r->rsprintf("<a href=\"#\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\', 0);return false;\" >%s</a>", odb_path, data_str.c_str());
                         n_var++;
                      }
 
                   } else
-                     r->rsprintf("<td align=center>%s\n", str);
+                     r->rsprintf("<td align=center>%s\n", data_str.c_str());
                   r->rsprintf("</tr>\n");
                   line++;
                }
@@ -3273,7 +3251,7 @@ char *find_odb_tag(char *p, char *path, char *format, int *edit, char *type, cha
 void show_odb_tag(Param* pp, Return* r, const char *path, const char *keypath1, const char *format, int n_var, int edit, char *type, char *pwd, char *tail)
 {
    int size, index, i_edit, i_set;
-   char str[TEXT_SIZE], data[TEXT_SIZE], options[1000], full_keypath[256], keypath[256], *p;
+   char data[TEXT_SIZE], full_keypath[256], keypath[256], *p;
    HNDLE hDB, hkey;
    KEY key;
 
@@ -3312,10 +3290,11 @@ void show_odb_tag(Param* pp, Return* r, const char *path, const char *keypath1, 
       size = sizeof(data);
       db_get_data_index(hDB, hkey, data, &size, index, key.type);
 
+      std::string data_str;
       if (format && strlen(format)>0)
-         db_sprintff(str, format, data, key.item_size, 0, key.type);
+         data_str = db_sprintff(format, data, key.item_size, 0, key.type);
       else
-         db_sprintf(str, data, key.item_size, 0, key.type);
+         data_str= db_sprintf(data, key.item_size, 0, key.type);
 
       if (equal_ustring(type, "checkbox")) {
 
@@ -3324,45 +3303,46 @@ void show_odb_tag(Param* pp, Return* r, const char *path, const char *keypath1, 
          if (n_var == i_set) {
             /* toggle state */
             if (key.type == TID_BOOL) {
-               if (str[0] == 'y')
-                  strcpy(str, "n");
+               if (data_str[0] == 'y')
+                  data_str = "n";
                else
-                  strcpy(str, "y");
+                  data_str = "y";
             } else {
-               if (atoi(str) > 0)
-                  strcpy(str, "0");
+               if (atoi(data_str.c_str()) > 0)
+                  data_str = "0";
                else
-                  strcpy(str, "1");
+                  data_str = "1";
             }
 
-            db_sscanf(str, data, &size, 0, key.type);
+            db_sscanf(data_str.c_str(), data, &size, 0, key.type);
             db_set_data_index(hDB, hkey, data, size, index, key.type);
          }
 
-         options[0] = 0;
-         if (str[0] == 'y' || atoi(str) > 0)
-            strcat(options, "checked ");
+         std::string options;
+         if (data_str[0] == 'y' || atoi(data_str.c_str()) > 0)
+            options += "checked ";
          if (!edit)
-            strcat(options, "disabled ");
+            options += "disabled ";
          else {
             if (edit == 1) {
-               strlcat(options, "onClick=\"o=document.createElement('input');o.type='hidden';o.name='cbi';o.value='", sizeof(options));
-               sprintf(options+strlen(options), "%d", n_var);
-               strlcat(options, "';document.form1.appendChild(o);", sizeof(options));
-               strlcat(options, "document.form1.submit();\" ", sizeof(options));
+               options += "onClick=\"o=document.createElement('input');o.type='hidden';o.name='cbi';o.value='";
+               options += msprintf("%d", n_var);
+               options += "';document.form1.appendChild(o);";
+               options += "document.form1.submit();\" ";
             }
          }
 
          if (tail[0])
-            strlcat(options, tail, sizeof(options));
+            options += tail;
 
-         r->rsprintf("<input type=\"checkbox\" %s>\n", options);
+         r->rsprintf("<input type=\"checkbox\" %s>\n", options.c_str());
 
       } else { // checkbox
 
          if (edit == 1) {
             if (n_var == i_set) {
                /* set value */
+               char str[256];
                strlcpy(str, pp->getparam("value"), sizeof(str));
                db_sscanf(str, data, &size, 0, key.type);
                db_set_data_index(hDB, hkey, data, size, index, key.type);
@@ -3370,12 +3350,11 @@ void show_odb_tag(Param* pp, Return* r, const char *path, const char *keypath1, 
                /* read back value */
                size = sizeof(data);
                db_get_data_index(hDB, hkey, data, &size, index, key.type);
-               db_sprintf(str, data, key.item_size, 0, key.type);
+               data_str = db_sprintf(data, key.item_size, 0, key.type);
             }
 
             if (n_var == i_edit) {
-               r->rsprintf("<input type=text size=10 maxlength=80 name=value value=\"%s\">\n",
-                        str);
+               r->rsprintf("<input type=text size=10 maxlength=80 name=value value=\"%s\">\n", data_str.c_str());
                r->rsprintf("<input type=submit size=20 name=cmd value=Set>\n");
                r->rsprintf("<input type=hidden name=index value=%d>\n", n_var);
                r->rsprintf("<input type=hidden name=cmd value=Set>\n");
@@ -3392,16 +3371,16 @@ void show_odb_tag(Param* pp, Return* r, const char *path, const char *keypath1, 
                   }
                }
 
-               r->rsputs(str);
+               r->rsputs(data_str.c_str());
                r->rsprintf("</a>");
             }
          } else if (edit == 2) {
             r->rsprintf("<a href=\"#\" onclick=\"ODBEdit('%s')\">\n", full_keypath);
-            r->rsputs(str);
+            r->rsputs(data_str.c_str());
             r->rsprintf("</a>");
          }
            else
-            r->rsputs(str);
+              r->rsputs(data_str.c_str());
       }
    }
 }
@@ -3496,7 +3475,7 @@ int evaluate_src(char *key, char *src, double *fvalue)
    HNDLE hDB, hkeyval;
    KEY vkey;
    int i, n, size, ivalue;
-   char str[256], data[256], value[256];
+   char str[256], data[256];
 
    cm_get_experiment_database(&hDB, NULL);
 
@@ -3521,14 +3500,14 @@ int evaluate_src(char *key, char *src, double *fvalue)
    db_get_key(hDB, hkeyval, &vkey);
    size = sizeof(data);
    db_get_value(hDB, 0, src, data, &size, vkey.type, FALSE);
-   db_sprintf(value, data, size, 0, vkey.type);
-   if (equal_ustring(value, "NAN"))
+   std::string value = db_sprintf(data, size, 0, vkey.type);
+   if (equal_ustring(value.c_str(), "NAN"))
       return 0;
 
    if (vkey.type == TID_BOOL) {
       *fvalue = (value[0] == 'y');
    } else
-      *fvalue = atof(value);
+      *fvalue = atof(value.c_str());
 
    /* evaluate possible operators */
    do {
@@ -3667,7 +3646,7 @@ void show_custom_file(Return* r, const char *name)
 
 void show_custom_gif(Return* rr, const char *name)
 {
-   char str[256], data[256], value[256], src[256];
+   char str[256], data[256], src[256];
    int i, index, length, status, size, width, height, bgcol, fgcol, bdcol, r, g, b, x, y;
    HNDLE hDB, hkeygif, hkeyroot, hkey, hkeyval;
    double fvalue, ratio;
@@ -3750,22 +3729,24 @@ void show_custom_gif(Return* rr, const char *name)
          size = sizeof(data);
          status = db_get_value(hDB, 0, label.src, data, &size, vkey.type, FALSE);
 
+         std::string value;
+
          if (label.format[0]) {
             if (vkey.type == TID_FLOAT)
-               sprintf(value, label.format, *(((float *) data)));
+               value = msprintf(label.format, *(((float *) data)));
             else if (vkey.type == TID_DOUBLE)
-               sprintf(value, label.format, *(((double *) data)));
+               value = msprintf(label.format, *(((double *) data)));
             else if (vkey.type == TID_INT)
-               sprintf(value, label.format, *(((INT *) data)));
+               value = msprintf(label.format, *(((INT *) data)));
             else if (vkey.type == TID_BOOL) {
                if (strstr(label.format, "%c"))
-                  sprintf(value, label.format, *(((INT *) data)) ? 'y' : 'n');
+                  value = msprintf(label.format, *(((INT *) data)) ? 'y' : 'n');
                else
-                  sprintf(value, label.format, *(((INT *) data)));
+                  value = msprintf(label.format, *(((INT *) data)));
             } else
-               db_sprintf(value, data, size, 0, vkey.type);
+               value = db_sprintf(data, size, 0, vkey.type);
          } else
-            db_sprintf(value, data, size, 0, vkey.type);
+            value = db_sprintf(data, size, 0, vkey.type);
 
          sscanf(label.fgcolor, "%02x%02x%02x", &r, &g, &b);
          fgcol = gdImageColorAllocate(im, r, g, b);
@@ -3787,7 +3768,7 @@ void show_custom_gif(Return* rr, const char *name)
          else
             pfont = gdFontMediumBold;
 
-         width = strlen(value) * pfont->w + 5 + 5;
+         width = value.length() * pfont->w + 5 + 5;
          height = pfont->h + 2 + 2;
 
          if (label.align == 0) {
@@ -3796,21 +3777,21 @@ void show_custom_gif(Return* rr, const char *name)
                                    label.y + height, bgcol);
             gdImageRectangle(im, label.x, label.y, label.x + width, label.y + height,
                              fgcol);
-            gdImageString(im, pfont, label.x + 5, label.y + 2, value, fgcol);
+            gdImageString(im, pfont, label.x + 5, label.y + 2, value.c_str(), fgcol);
          } else if (label.align == 1) {
             /* center */
             gdImageFilledRectangle(im, label.x - width / 2, label.y, label.x + width / 2,
                                    label.y + height, bgcol);
             gdImageRectangle(im, label.x - width / 2, label.y, label.x + width / 2,
                              label.y + height, fgcol);
-            gdImageString(im, pfont, label.x + 5 - width / 2, label.y + 2, value, fgcol);
+            gdImageString(im, pfont, label.x + 5 - width / 2, label.y + 2, value.c_str(), fgcol);
          } else {
             /* right */
             gdImageFilledRectangle(im, label.x - width, label.y, label.x,
                                    label.y + height, bgcol);
             gdImageRectangle(im, label.x - width, label.y, label.x, label.y + height,
                              fgcol);
-            gdImageString(im, pfont, label.x - width + 5, label.y + 2, value, fgcol);
+            gdImageString(im, pfont, label.x - width + 5, label.y + 2, value.c_str(), fgcol);
          }
       }
    }
@@ -3848,11 +3829,11 @@ void show_custom_gif(Return* rr, const char *name)
          db_get_key(hDB, hkeyval, &vkey);
          size = sizeof(data);
          status = db_get_value(hDB, 0, bar.src, data, &size, vkey.type, FALSE);
-         db_sprintf(value, data, size, 0, vkey.type);
-         if (equal_ustring(value, "NAN"))
+         std::string value = db_sprintf(data, size, 0, vkey.type);
+         if (equal_ustring(value.c_str(), "NAN"))
             continue;
 
-         fvalue = atof(value);
+         fvalue = atof(value.c_str());
 
          sscanf(bar.fgcolor, "%02x%02x%02x", &r, &g, &b);
          fgcol = gdImageColorAllocate(im, r, g, b);
@@ -4364,7 +4345,6 @@ void do_jrpc(Param* p, Return* r)
 void output_key(Param* p, Return* r, HNDLE hkey, int index, const char *format)
 {
    int size, i;
-   char str[TEXT_SIZE];
    HNDLE hDB, hsubkey;
    KEY key;
    char data[TEXT_SIZE];
@@ -4391,11 +4371,12 @@ void output_key(Param* p, Return* r, HNDLE hkey, int index, const char *format)
                   else
                      r->rsprintf("%s[%d]:", key.name, i);
                }
+               std::string data_str;
                if (format && format[0])
-                  db_sprintff(str, format, data, key.item_size, i, key.type);
+                  data_str = db_sprintff(format, data, key.item_size, i, key.type);
                else
-                  db_sprintf(str, data, key.item_size, i, key.type);
-               r->rsputs(str);
+                  data_str = db_sprintf(data, key.item_size, i, key.type);
+               r->rsputs(data_str.c_str());
                if (i<key.num_values-1)
                   r->rsputs("\n");
             }
@@ -4405,11 +4386,12 @@ void output_key(Param* p, Return* r, HNDLE hkey, int index, const char *format)
             if (index >= key.num_values)
                r->rsputs("<DB_OUT_OF_RANGE>");
             else {
+               std::string data_str;
                if (p->isparam("format"))
-                  db_sprintff(str, p->getparam("format"), data, key.item_size, index, key.type);
+                  data_str = db_sprintff(p->getparam("format"), data, key.item_size, index, key.type);
                else
-                  db_sprintf(str, data, key.item_size, index, key.type);
-               r->rsputs(str);
+                  data_str = db_sprintf(data, key.item_size, index, key.type);
+               r->rsputs(data_str.c_str());
             }
          }
          r->rsputs("\n");
@@ -5468,9 +5450,8 @@ void show_custom_page(Param* pp, Return* r, const char *cookie_cpwd)
       ctext = (char*)malloc(size);
       status = db_get_data(hDB, hkey, ctext, &size, TID_STRING);
       if (status != DB_SUCCESS) {
-         char errtext[256];
-         sprintf(errtext, "show_custom_page: Error: db_get_data() for \"%s\" status %d", xpath.c_str(), status); // FIXME: overflows "errtext"
-         show_error_404(r, errtext);
+         std::string errtext = msprintf("show_custom_page: Error: db_get_data() for \"%s\" status %d", xpath.c_str(), status);
+         show_error_404(r, errtext.c_str());
          free(ctext);
          return;
       }
@@ -5482,9 +5463,8 @@ void show_custom_page(Param* pp, Return* r, const char *cookie_cpwd)
          std::string full_filename = add_custom_path(ctext);
          fh = open(full_filename.c_str(), O_RDONLY | O_BINARY);
          if (fh < 0) {
-            char str[256];
-            sprintf(str, "show_custom_page: Cannot open file \"%s\", errno %d (%s)", full_filename.c_str(), errno, strerror(errno)); // FIXME: overflows "str"
-            show_error_404(r, str);
+            std::string str = msprintf("show_custom_page: Cannot open file \"%s\", errno %d (%s)", full_filename.c_str(), errno, strerror(errno));
+            show_error_404(r, str.c_str());
             free(ctext);
             return;
          }
@@ -5575,9 +5555,8 @@ void show_custom_page(Param* pp, Return* r, const char *cookie_cpwd)
             if (key.item_size <= (int)sizeof(data)) {
                size = sizeof(data);
                db_get_data_index(hDB, hkey, data, &size, index, key.type);
-               char str[256];
-               db_sprintf(str, data, size, 0, key.type); // FIXME: overflows "str"
-               if (atoi(str) == 0)
+               std::string data_str = db_sprintf(data, size, 0, key.type);
+               if (atoi(data_str.c_str()) == 0)
                   db_sscanf("1", data, &size, 0, key.type);
                else
                   db_sscanf("0", data, &size, 0, key.type);
@@ -5624,9 +5603,8 @@ void show_custom_page(Param* pp, Return* r, const char *cookie_cpwd)
       free(ctext);
       ctext = NULL;
    } else {
-      char str[256];
-      sprintf(str, "Invalid custom page: Page \"%s\" not found in ODB", path.c_str()); // FIXME: overflows "str"
-      show_error_404(r, str);
+      std::string str = msprintf("Invalid custom page: Page \"%s\" not found in ODB", path.c_str());
+      show_error_404(r, str.c_str());
       return;
    }
 }
@@ -6981,7 +6959,7 @@ void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
          odb_path += key.name;
 
          /* resolve links */
-         std::string link_ref;
+         std::string enc_link_ref;
          char link_name[MAX_ODB_PATH];
          link_name[0] = 0;
          status = DB_SUCCESS;
@@ -6995,8 +6973,8 @@ void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
                db_get_key(hDB, hkey, &key);
 
             //sprintf(link_ref, "?cmd=Set&odb_path=%s", full_path);
-            link_ref = "?cmd=Set&odb_path=";
-            link_ref += enc_full_path;
+            enc_link_ref = "?cmd=Set&odb_path=";
+            enc_link_ref += enc_full_path;
 
             if (status == DB_SUCCESS && link_name[0] == 0) {
                // fake the case when an empty link somehow resolves
@@ -7004,33 +6982,33 @@ void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
             }
          }
 
-         std::string ref;
+         std::string enc_ref;
 
          if (link_name[0]) {
             if (enc_root_path.back() == '/' && link_name[0] == '/') {
                //sprintf(ref, "?cmd=Set&odb_path=%s%s", root_path, link_name+1);
-               ref = "";
-               ref += "?cmd=Set&odb_path=";
-               ref += enc_root_path;
-               ref += urlEncode(link_name + 1);
+               enc_ref = "";
+               enc_ref += "?cmd=Set&odb_path=";
+               enc_ref += enc_root_path;
+               enc_ref += urlEncode(link_name + 1);
             } else {
                //sprintf(ref, "?cmd=Set&odb_path=%s%s", root_path, link_name);
-               ref = "";
-               ref += "?cmd=Set&odb_path=";
-               ref += enc_root_path;
-               ref += urlEncode(link_name);
+               enc_ref = "";
+               enc_ref += "?cmd=Set&odb_path=";
+               enc_ref += enc_root_path;
+               enc_ref += urlEncode(link_name);
             }
          } else {
             //sprintf(ref, "?cmd=Set&odb_path=%s", full_path);
-            ref = "";
-            ref += "?cmd=Set&odb_path=";
-            ref += enc_full_path;
+            enc_ref = "";
+            enc_ref += "?cmd=Set&odb_path=";
+            enc_ref += enc_full_path;
          }
 
          if (status != DB_SUCCESS) {
             if (scan == 1) {
                r->rsprintf("<tr><td class=\"yellowLight\">");
-               r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td><b><div style=\"color:red\">&lt;cannot resolve link&gt;</div></b></tr>\n", keyname.c_str(), link_ref.c_str(), link_name[0]?link_name:"(empty)");
+               r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td><b><div style=\"color:red\">&lt;cannot resolve link&gt;</div></b></tr>\n", keyname.c_str(), enc_link_ref.c_str(), link_name[0]?link_name:"(empty)");
             }
          } else {
 
@@ -7038,7 +7016,7 @@ void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
                /* for keys, don't display data value */
                r->rsprintf("<tr><td colspan=%d class=\"ODBdirectory\"><a href=\"?cmd=odb&odb_path=%s\">&#x25B6 %s</a>\n", colspan, enc_full_path.c_str(), keyname.c_str());
                if (link_name[0])
-                  r->rsprintf("<i>&rarr; <a href=\"?cmd=odb&odb_path=%s\">%s</a></i>", link_ref.c_str(), link_name);
+                  r->rsprintf("<i>&rarr; <a href=\"?cmd=odb&odb_path=%s\">%s</a></i>", enc_link_ref.c_str(), link_name);
                r->rsprintf("</tr>\n");
             } else if(key.type != TID_KEY && scan == 1) {
 
@@ -7050,95 +7028,93 @@ void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
                /* display single value */
                if (key.num_values == 1 || link_index != -1) {
                   char data[TEXT_SIZE];
-                  char data_str[TEXT_SIZE];
                   size = sizeof(data);
                   db_get_data(hDB, hkey, data, &size, key.type);
+
+                  std::string data_str;
+
                   if (link_index != -1)
-                     db_sprintf(data_str, data, key.item_size, link_index, key.type);
+                     data_str = db_sprintf(data, key.item_size, link_index, key.type);
                   else
-                     db_sprintf(data_str, data, key.item_size, 0, key.type);
-                  assert(strlen(data_str) < sizeof(data_str));
+                     data_str = db_sprintf(data, key.item_size, 0, key.type);
 
                   if (key.type == TID_STRING) {
-                     if (strlen(data_str) >= MAX_STRING_LENGTH-1) {
-                        strlcat(data_str, "...(truncated)", sizeof(data_str));
+                     if (size == sizeof(data)) {
+                        data_str += "...(truncated)";
                      }
                   }
 
-                  char hex_str[256];
+                  std::string hex_str;
 
                   if (key.type != TID_STRING) {
                      if (link_index != -1)
-                        db_sprintfh(hex_str, data, key.item_size, link_index, key.type);
+                        hex_str = db_sprintfh(data, key.item_size, link_index, key.type);
                      else
-                        db_sprintfh(hex_str, data, key.item_size, 0, key.type);
-                     assert(strlen(hex_str) < sizeof(hex_str));
-                  } else {
-                     hex_str[0] = 0;
+                        hex_str = db_sprintfh(data, key.item_size, 0, key.type);
                   }
 
-                  if (data_str[0] == 0 || equal_ustring(data_str, "<NULL>")) {
-                     strcpy(data_str, "(empty)");
-                     hex_str[0] = 0;
+                  if (data_str.empty() || equal_ustring(data_str.c_str(), "<NULL>")) {
+                     data_str = "(empty)";
+                     hex_str  = "";
                   }
 
                   r->rsprintf("<tr>\n");
-                  if (strcmp(data_str, hex_str) != 0 && hex_str[0]) {
+                  if (strcmp(data_str.c_str(), hex_str.c_str()) != 0 && hex_str[0]) {
                      if (link_name[0]) {
                         r->rsprintf("<td class=\"ODBkey\">\n");
                         r->rsprintf("%s <i>&rarr; ", keyname.c_str());
-                        r->rsprintf("<a href=\"%s\">%s</a></i>\n", link_ref.c_str(), link_name);
+                        r->rsprintf("<a href=\"%s\">%s</a></i>\n", enc_link_ref.c_str(), link_name);
                         r->rsprintf("<td class=\"%s\">\n", style);
                         if (!write_access)
-                           r->rsprintf("%s (%s)", data_str, hex_str);
+                           r->rsprintf("%s (%s)", data_str.c_str(), hex_str.c_str());
                         else {
-                           r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref.c_str(), odb_path.c_str());
-                           r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">%s (%s)</a>\n", odb_path.c_str(), data_str, hex_str);
+                           r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", enc_ref.c_str(), odb_path.c_str());
+                           r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">%s (%s)</a>\n", odb_path.c_str(), data_str.c_str(), hex_str.c_str());
                         }
                      } else {
                         r->rsprintf("<td class=\"ODBkey\">\n");
                         r->rsprintf("%s<td class=\"%s\">", keyname.c_str(), style);
                         if (!write_access)
-                           r->rsprintf("%s (%s)", data_str, hex_str);
+                           r->rsprintf("%s (%s)", data_str.c_str(), hex_str.c_str());
                         else {
-                           r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref.c_str(), odb_path.c_str());
-                           r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">%s (%s)</a>\n", odb_path.c_str(), data_str, hex_str);
+                           r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", enc_ref.c_str(), odb_path.c_str());
+                           r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">%s (%s)</a>\n", odb_path.c_str(), data_str.c_str(), hex_str.c_str());
                         }
                      }
                   } else {
-                     if (strchr(data_str, '\n')) {
+                     if (strchr(data_str.c_str(), '\n')) {
                         if (link_name[0]) {
                            r->rsprintf("<td class=\"ODBkey\">");
-                           r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"ODBvalue\">", keyname.c_str(), link_ref.c_str(), link_name);
+                           r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"ODBvalue\">", keyname.c_str(), enc_link_ref.c_str(), link_name);
                         } else
                            r->rsprintf("<td class=\"ODBkey\">%s<td class=\"%s\">", keyname.c_str(), style);
                         r->rsprintf("\n<pre>");
-                        strencode3(r, data_str);
+                        strencode3(r, data_str.c_str());
                         r->rsprintf("</pre>");
-                        if (strlen(data) > strlen(data_str))
+                        if (strlen(data) > data_str.length())
                            r->rsprintf("<i>... (%d bytes total)<p>\n", (int)strlen(data));
 
-                        r->rsprintf("<a href=\"%s\">Edit</a>\n", ref.c_str());
+                        r->rsprintf("<a href=\"%s\">Edit</a>\n", enc_ref.c_str());
                      } else {
                         if (link_name[0]) {
                            r->rsprintf("<td class=\"ODBkey\">\n");
-                           r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"%s\">", keyname.c_str(), link_ref.c_str(), link_name, style);
+                           r->rsprintf("%s <i>&rarr; <a href=\"%s\">%s</a></i><td class=\"%s\">", keyname.c_str(), enc_link_ref.c_str(), link_name, style);
                            if (!write_access)
-                              strencode(r, data_str);
+                              strencode(r, data_str.c_str());
                            else {
-                              r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref.c_str(), odb_path.c_str());
+                              r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", enc_ref.c_str(), odb_path.c_str());
                               r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">", odb_path.c_str());
-                              strencode(r, data_str);
+                              strencode(r, data_str.c_str());
                               r->rsprintf("</a>\n");
                            }
                         } else {
                            r->rsprintf("<td class=\"ODBkey\">%s<td class=\"%s\">", keyname.c_str(), style);
                            if (!write_access) {
-                              strencode(r, data_str);
+                              strencode(r, data_str.c_str());
                            } else {
-                              r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref.c_str(), odb_path.c_str());
+                              r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", enc_ref.c_str(), odb_path.c_str());
                               r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">", odb_path.c_str());
-                              strencode(r, data_str);
+                              strencode(r, data_str.c_str());
                               r->rsprintf("</a>\n");
                            }
                         }
@@ -7192,49 +7168,45 @@ void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
                   else {
                      /* display first value */
                      if (link_name[0])
-                        r->rsprintf("<tr><td class=\"ODBkey\" rowspan=%d>%s<br><i>&rarr; <a href=\"%s\">%s</a></i>\n", key.num_values, keyname.c_str(), link_ref.c_str(), link_name);
+                        r->rsprintf("<tr><td class=\"ODBkey\" rowspan=%d>%s<br><i>&rarr; <a href=\"%s\">%s</a></i>\n", key.num_values, keyname.c_str(), enc_link_ref.c_str(), link_name);
                      else
                         r->rsprintf("<tr><td class=\"ODBkey\" rowspan=%d>%s\n", key.num_values, keyname.c_str());
 
                      for (int j = 0; j < key.num_values; j++) {
-                        char data[TEXT_SIZE];
-                        char data_str[TEXT_SIZE];
-                        char hex_str[256];
-
                         if (line % 2 == 0)
                            strlcpy(style, "ODBtableEven", sizeof(style));
                         else
                            strlcpy(style, "ODBtableOdd", sizeof(style));
 
+                        char data[TEXT_SIZE];
                         size = sizeof(data);
                         db_get_data_index(hDB, hkey, data, &size, j, key.type);
-                        db_sprintf(data_str, data, key.item_size, 0, key.type);
-                        assert(strlen(data_str) < sizeof(data_str));
+                        std::string data_str = db_sprintf(data, key.item_size, 0, key.type);
 
+                        std::string hex_str;
                         if (key.type == TID_STRING || key.type == TID_LINK) {
-                           hex_str[0] = 0;
+                           hex_str = "";
                         } else {
-                           db_sprintfh(hex_str, data, key.item_size, 0, key.type);
-                           assert(strlen(hex_str) < sizeof(hex_str));
+                           hex_str = db_sprintfh(data, key.item_size, 0, key.type);
                         }
 
                         if (key.type == TID_STRING) {
-                           if (strlen(data_str) >= MAX_STRING_LENGTH-1) {
-                              strlcat(data_str, "...(truncated)", sizeof(data_str));
+                           if (size == sizeof(data)) {
+                              data_str += "...(truncated)";
                            }
                         }
 
-                        if (data_str[0] == 0 || equal_ustring(data_str, "<NULL>")) {
-                           strcpy(data_str, "(empty)");
-                           hex_str[0] = 0;
+                        if (data_str.empty() || equal_ustring(data_str.c_str(), "<NULL>")) {
+                           data_str = "(empty)";
+                           hex_str  = "";
                         }
 
                         //sprintf(ref, "?cmd=Set&odb_path=%s&index=%d", full_path, j);
-                        ref = "";
-                        ref += "?cmd=Set&odb_path=";
-                        ref += enc_full_path;
-                        ref += "&index=";
-                        ref += toString(j);
+                        enc_ref = "";
+                        enc_ref += "?cmd=Set&odb_path=";
+                        enc_ref += enc_full_path;
+                        enc_ref += "&index=";
+                        enc_ref += toString(j);
 
                         std::string tmpstr;
                         //sprintf(str, "%s[%d]", odb_path, j);
@@ -7248,15 +7220,15 @@ void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
 
                         r->rsprintf("<td class=\"%s\">[%d]&nbsp;", style, j);
                         if (!write_access)
-                           r->rsprintf("<a href=\"%s\">", ref.c_str());
+                           r->rsprintf("<a href=\"%s\">", enc_ref.c_str());
                         else {
-                           r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", ref.c_str(), tmpstr.c_str());
+                           r->rsprintf("<a href=\"%s\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\');return false;\" ", enc_ref.c_str(), tmpstr.c_str());
                            r->rsprintf("onFocus=\"ODBInlineEdit(this.parentNode,\'%s\');\">", tmpstr.c_str());
                         }
-                        if (strcmp(data_str, hex_str) != 0 && hex_str[0])
-                           r->rsprintf("%s (%s)</a>\n", data_str, hex_str);
+                        if (strcmp(data_str.c_str(), hex_str.c_str()) != 0 && hex_str[0])
+                           r->rsprintf("%s (%s)</a>\n", data_str.c_str(), hex_str.c_str());
                         else
-                           r->rsprintf("%s</a>\n", data_str);
+                           r->rsprintf("%s</a>\n", data_str.c_str());
 
                         if (j == 0) {
                            /* extended key information */
@@ -7424,7 +7396,6 @@ void show_set_page(Param* pp, Return* r,
    int status, size;
    HNDLE hDB, hkey;
    KEY key;
-   char data_str[TEXT_SIZE], str[256];
    char data[TEXT_SIZE];
 
    std::string odb_path = pp->getparam("odb_path");
@@ -7459,39 +7430,38 @@ void show_set_page(Param* pp, Return* r,
 
       r->rsprintf("<input type=hidden name=odb_path value=\"%s\">\n", odb_path.c_str());
 
-      strlcpy(data_str, rpc_tid_name(key.type), sizeof(data_str));
+      std::string data_str1 = rpc_tid_name(key.type);
+      std::string str1;
       if (key.num_values > 1) {
-         sprintf(str, "[%d]", key.num_values);
-         strlcat(data_str, str, sizeof(data_str));
-
-         sprintf(str, "%s[%d]", odb_path.c_str(), index);
+         data_str1 += msprintf("[%d]", key.num_values);
+         str1 = msprintf("%s[%d]", odb_path.c_str(), index);
       } else
-         strlcpy(str, odb_path.c_str(), sizeof(str));
+         str1 = odb_path.c_str();
 
-      r->rsprintf("<tr><th colspan=2>Set new value - type = %s</tr>\n", data_str);
-      r->rsprintf("<tr><td>%s<td>\n", str);
+      r->rsprintf("<tr><th colspan=2>Set new value - type = %s</tr>\n", data_str1.c_str());
+      r->rsprintf("<tr><td>%s<td>\n", str1.c_str());
 
       /* set current value as default */
       size = sizeof(data);
       db_get_link_data(hDB, hkey, data, &size, key.type);
-      db_sprintf(data_str, data, key.item_size, index, key.type);
+      std::string data_str = db_sprintf(data, key.item_size, index, key.type);
 
-      if (equal_ustring(data_str, "<NULL>"))
-         data_str[0] = 0;
+      if (equal_ustring(data_str.c_str(), "<NULL>"))
+         data_str = "";
 
-      if (strchr(data_str, '\n') != NULL) {
+      if (strchr(data_str.c_str(), '\n') != NULL) {
          r->rsprintf("<textarea rows=20 cols=80 name=\"text\">\n");
          strencode3(r, data);
          r->rsprintf("</textarea>\n");
       } else {
          size = 20;
-         if ((int) strlen(data_str) > size)
-            size = strlen(data_str) + 3;
+         if ((int) data_str.length() > size)
+            size = data_str.length() + 3;
          if (size > 80)
             size = 80;
 
          r->rsprintf("<input type=\"text\" size=%d maxlength=256 name=\"value\" value=\"", size);
-         strencode(r, data_str);
+         strencode(r, data_str.c_str());
          r->rsprintf("\">\n");
       }
 
@@ -11477,10 +11447,9 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
          time_t now = time(NULL);
          localtime_r(&now, &tms);
 
-         char file_name[256];
-         sprintf(file_name, "%02d%02d%02d_%02d%02d%02d_%s.gif",
+         std::string file_name = msprintf("%02d%02d%02d_%02d%02d%02d_%s.gif",
                   tms.tm_year % 100, tms.tm_mon + 1, tms.tm_mday,
-                  tms.tm_hour, tms.tm_min, tms.tm_sec, hpanel); // FIXME: overflows file_name
+                  tms.tm_hour, tms.tm_min, tms.tm_sec, hpanel);
          std::string fname = dir + file_name;
 
          /* save attachment */
@@ -11506,17 +11475,16 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
          return;
 
       } else {
-         char str[MAX_STRING_LENGTH];
          /*---- use internal ELOG ----*/
-         sprintf(str, "\\HS\\%s.gif", hpanel); // FIXME: overflows str
+         std::string str = msprintf("\\HS\\%s.gif", hpanel);
          if (p->getparam("hscale") && *p->getparam("hscale"))
-            sprintf(str + strlen(str), "?scale=%s", p->getparam("hscale"));
+            str += msprintf("?scale=%s", p->getparam("hscale"));
          if (p->getparam("htime") && *p->getparam("htime")) {
-            if (strchr(str, '?'))
-               strlcat(str, "&", sizeof(str));
+            if (strchr(str.c_str(), '?'))
+               str += "&";
             else
-               strlcat(str, "?", sizeof(str));
-            sprintf(str + strlen(str), "time=%s", p->getparam("htime"));
+               str += "?";
+            str += msprintf("time=%s", p->getparam("htime"));
          }
          //if (p->getparam("hoffset") && *p->getparam("hoffset")) {
          //   if (strchr(str, '?'))
@@ -11526,21 +11494,21 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
          //   sprintf(str + strlen(str), "offset=%s", p->getparam("hoffset"));
          //}
          if (p->getparam("hwidth") && *p->getparam("hwidth")) {
-            if (strchr(str, '?'))
-               strlcat(str, "&", sizeof(str));
+            if (strchr(str.c_str(), '?'))
+               str += "&";
             else
-               strlcat(str, "?", sizeof(str));
-            sprintf(str + strlen(str), "width=%s", p->getparam("hwidth"));
+               str += "?";
+            str += msprintf("width=%s", p->getparam("hwidth"));
          }
          if (p->getparam("hindex") && *p->getparam("hindex")) {
-            if (strchr(str, '?'))
-               strlcat(str, "&", sizeof(str));
+            if (strchr(str.c_str(), '?'))
+               str += "&";
             else
-               strlcat(str, "?", sizeof(str));
-            sprintf(str + strlen(str), "index=%s", p->getparam("hindex"));
+               str += "?";
+            str += msprintf("index=%s", p->getparam("hindex"));
          }
 
-         show_elog_new(r, hpanel, NULL, FALSE, str, "../../EL/");
+         show_elog_new(r, hpanel, NULL, FALSE, str.c_str(), "../../EL/");
          return;
       }
    }
@@ -11673,7 +11641,6 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
       /* if no scale and offset given, get it from default */
       if (hpanel[0] && !equal_ustring(hpanel, "All") && hgroup[0]) {
          std::string path;
-         //sprintf(str, "/History/Display/%s/%s/Timescale", hgroup, hpanel); // FIXME: overflows str
          path += "/History/Display/";
          path += hgroup;
          path += "/";
@@ -11898,7 +11865,6 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
       db_get_value_string(hDB, 0, "/History/Display Settings/Width Group", 0, &strwidth, TRUE);
 
       std::string path;
-      //sprintf(str, "/History/Display/%s", hgroup); // FIXME: overflows str
       path += "/History/Display/";
       path += hgroup;
       db_find_key(hDB, 0, path.c_str(), &hkey);
@@ -11955,7 +11921,6 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
       r->rsprintf("<tr><td>\n");
 
       std::string path;
-      //sprintf(str, "/History/Display/%s/%s/Buttons", hgroup, hpanel); // FIXME: overflow str
       path += "/History/Display/";
       path += hgroup;
       path += "/";
@@ -12039,7 +12004,6 @@ void show_hist_page(MVOdb* odb, Param* p, Return* r, const char *dec_path, char 
 
       if (!(pindex && *pindex)) {
          std::string path;
-         //sprintf(str, "/History/Display/%s/%s/Variables", hgroup, hpanel); // FIXME: overflows str
          path += "/History/Display/";
          path += hgroup;
          path += "/";
@@ -12216,584 +12180,6 @@ void send_icon(Return* r, const char *icon)
    r->rsprintf("Content-Length: %d\r\n\r\n", length);
 
    r->rmemcpy(picon, length);
-}
-
-/*------------------------------------------------------------------*/
-
-#define XNAME_LENGTH 256
-
-static PMXML_NODE pnseq;
-
-/*------------------------------------------------------------------*/
-
-int strbreak(char *str, char list[][XNAME_LENGTH], int size, const char *brk, BOOL ignore_quotes)
-/* break comma-separated list into char array, stripping leading
- and trailing blanks */
-{
-   int i, j;
-   char *p;
-
-   memset(list, 0, size * XNAME_LENGTH);
-   p = str;
-   if (!p || !*p)
-      return 0;
-
-   while (*p == ' ')
-      p++;
-
-   for (i = 0; *p && i < size; i++) {
-      if (*p == '"' && !ignore_quotes) {
-         p++;
-         j = 0;
-         memset(list[i], 0, XNAME_LENGTH);
-         do {
-            /* convert two '"' to one */
-            if (*p == '"' && *(p + 1) == '"') {
-               list[i][j++] = '"';
-               p += 2;
-            } else if (*p == '"') {
-               break;
-            } else
-               list[i][j++] = *p++;
-
-         } while (j < XNAME_LENGTH - 1);
-         list[i][j] = 0;
-
-         /* skip second '"' */
-         p++;
-
-         /* skip blanks and break character */
-         while (*p == ' ')
-            p++;
-         if (*p && strchr(brk, *p))
-            p++;
-         while (*p == ' ')
-            p++;
-
-      } else {
-         strlcpy(list[i], p, XNAME_LENGTH);
-
-         for (j = 0; j < (int) strlen(list[i]); j++)
-            if (strchr(brk, list[i][j])) {
-               list[i][j] = 0;
-               break;
-            }
-
-         p += strlen(list[i]);
-         while (*p == ' ')
-            p++;
-         if (*p && strchr(brk, *p))
-            p++;
-         while (*p == ' ')
-            p++;
-
-         while (list[i][strlen(list[i]) - 1] == ' ')
-            list[i][strlen(list[i]) - 1] = 0;
-      }
-
-      if (!*p)
-         break;
-   }
-
-   if (i == size)
-      return size;
-
-   return i + 1;
-}
-
-/*------------------------------------------------------------------*/
-
-void strsubst(char *string, int size, const char *pattern, const char *subst)
-/* subsitute "pattern" with "subst" in "string" */
-{
-   char *tail, *p;
-   int s;
-
-   p = string;
-   for (p = stristr(p, pattern); p != NULL; p = stristr(p, pattern)) {
-
-      if (strlen(pattern) == strlen(subst)) {
-         memcpy(p, subst, strlen(subst));
-      } else if (strlen(pattern) > strlen(subst)) {
-         memcpy(p, subst, strlen(subst));
-         memmove(p + strlen(subst), p + strlen(pattern), strlen(p + strlen(pattern)) + 1);
-      } else {
-         tail = (char *) malloc(strlen(p) - strlen(pattern) + 1);
-         strcpy(tail, p + strlen(pattern));
-         s = size - (p - string);
-         strlcpy(p, subst, s);
-         strlcat(p, tail, s);
-         free(tail);
-         tail = NULL;
-      }
-
-      p += strlen(subst);
-   }
-}
-
-/*------------------------------------------------------------------*/
-
-BOOL msl_parse(const char *filename, char *error, int error_size, int *error_line)
-{
-   char str[256], *buf, *pl, *pe;
-   char list[100][XNAME_LENGTH], list2[100][XNAME_LENGTH], **lines;
-   int i, j, n, size, n_lines, endl, line, fhin, nest, incl, library;
-   FILE *fout = NULL;
-   char* msl_include, *include_error;
-   int include_error_size;
-   BOOL include_status;
-
-   fhin = open(filename, O_RDONLY | O_TEXT);
-
-   if (fhin < 0) {
-      sprintf(error, "Cannot read sequencer file \"%s\", errno %d (%s)", filename, errno, strerror(errno)); // FIXME: overflows "error"
-      return FALSE;
-   }
-
-   if (strchr(filename, '.')) {
-      strlcpy(str, filename, sizeof(str));
-      *strchr(str, '.') = 0;
-      strlcat(str, ".xml", sizeof(str));
-      fout = fopen(str, "wt");
-
-      if (fout == NULL) {
-         sprintf(error, "Cannot write to sequencer XML file \"%s\", errno %d (%s)", str, errno, strerror(errno)); // FIXME: overflows "error"
-         return FALSE;
-      }
-   }
-
-   if (fhin > 0 && fout) {
-      size = (int)lseek(fhin, 0, SEEK_END);
-      lseek(fhin, 0, SEEK_SET);
-      buf = (char *)malloc(size+1);
-      size = (int)read(fhin, buf, size);
-      buf[size] = 0;
-      close(fhin);
-
-      /* look for any includes */
-      lines = (char **)malloc(sizeof(char *));
-      incl = 0;
-      pl = buf;
-      library = FALSE;
-      for (n_lines=0 ; *pl ; n_lines++) {
-         lines = (char **)realloc(lines, sizeof(char *)*n_lines+1);
-         lines[n_lines] = pl;
-         if (strchr(pl, '\n')) {
-            pe = strchr(pl, '\n');
-            *pe = 0;
-            if (*(pe-1) == '\r') {
-               *(pe-1) = 0;
-            }
-            pe++;
-         } else
-            pe = pl+strlen(pl);
-         strlcpy(str, pl, sizeof(str));
-         pl = pe;
-         strbreak(str, list, 100, ", ", FALSE);
-         if (equal_ustring(list[0], "include")) {
-            if (!incl) {
-               fprintf(fout, "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n");
-               fprintf(fout, "<!DOCTYPE RunSequence [\n");
-               incl = 1;
-            }
-
-            //use filename as enity reference, not full path
-            char *reference = strrchr(list[1], '/');
-            if(reference)
-               reference++;
-            else
-               reference = list[1];
-
-            fprintf(fout, "  <!ENTITY %s SYSTEM \"%s.xml\">\n", reference, list[1]);
-            //recurse
-            size = strlen(list[1]) + 1 + 4;
-            msl_include = (char*)malloc(size);
-            strlcpy(msl_include, list[1], size);
-            strlcat(msl_include, ".msl", size);
-
-            strlcpy(error, "Including file ", error_size);
-            strlcat(error, msl_include, error_size);
-            strlcat(error, ", ", error_size);
-            include_error = error + strlen(error);
-            include_error_size = error_size - strlen(error);
-
-            include_status = msl_parse(msl_include, include_error, include_error_size, error_line);
-               free(msl_include);
-
-            if(!include_status){
-               //report the errror on CALL line instead of the one in included file
-               *error_line = n_lines+1;
-               return FALSE;
-            }
-         }
-         if (equal_ustring(list[0], "library")) {
-            fprintf(fout, "<Library name=\"%s\">\n", list[1]);
-            library = TRUE;
-         }
-      }
-      if (incl)
-         fprintf(fout, "]>\n");
-      else if (!library)
-         fprintf(fout, "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n");
-
-      /* parse rest of file */
-      if (!library)
-         fprintf(fout, "<RunSequence xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"\">\n");
-      for (line=0 ; line<n_lines ; line++) {
-         n = strbreak(lines[line], list, 100, ", ", FALSE);
-
-         /* remove any comment */
-         for (i=0 ; i<n ; i++) {
-            if (list[i][0] == '#') {
-               for (j=i ; j<n ; j++)
-                  list[j][0] = 0;
-               break;
-            }
-         }
-
-         if (equal_ustring(list[0], "library")) {
-
-         } else if (equal_ustring(list[0], "include")) {
-            //use filename as enity reference, not full path
-            char *reference = strrchr(list[1], '/');
-            if(reference)
-               reference++;
-            else
-               reference = list[1];
-
-            fprintf(fout, "&%s;\n", reference);
-
-         } else if (equal_ustring(list[0], "call")) {
-            fprintf(fout, "<Call l=\"%d\" name=\"%s\">", line+1, list[1]);
-            for (i=2 ; i < 100 && list[i][0] ; i++) {
-               if (i > 2)
-                  fprintf(fout, ",");
-               fprintf(fout, "%s", list[i]);
-            }
-            fprintf(fout, "</Call>\n");
-
-         } else if (equal_ustring(list[0], "cat")) {
-            fprintf(fout, "<Cat l=\"%d\" name=\"%s\">", line+1, list[1]);
-            for (i=2 ; i < 100 && list[i][0] ; i++) {
-               if (i > 2)
-                  fprintf(fout, ",");
-               fprintf(fout, "\"%s\"", list[i]);
-            }
-            fprintf(fout, "</Cat>\n");
-
-         } else if (equal_ustring(list[0], "comment")) {
-            fprintf(fout, "<Comment l=\"%d\">%s</Comment>\n", line+1, list[1]);
-
-         } else if (equal_ustring(list[0], "goto")) {
-            fprintf(fout, "<Goto l=\"%d\" sline=\"%s\" />\n", line+1, list[1]);
-
-         } else if (equal_ustring(list[0], "if")) {
-            fprintf(fout, "<If l=\"%d\" condition=\"", line+1);
-            for (i=1 ; i<100 && list[i][0] && stricmp(list[i], "THEN") != 0 ; i++)
-               fprintf(fout, "%s", list[i]);
-            fprintf(fout, "\">\n");
-
-         } else if (equal_ustring(list[0], "else")) {
-            fprintf(fout, "<Else />\n");
-
-         } else if (equal_ustring(list[0], "endif")) {
-            fprintf(fout, "</If>\n");
-
-         } else if (equal_ustring(list[0], "loop")) {
-            /* find end of loop */
-            for (i=line,nest=0 ; i<n_lines ; i++) {
-               strbreak(lines[i], list2, 100, ", ", FALSE);
-               if (equal_ustring(list2[0], "loop"))
-                  nest++;
-               if (equal_ustring(list2[0], "endloop")) {
-                  nest--;
-                  if (nest == 0)
-                     break;
-               }
-            }
-            if (i<n_lines)
-               endl = i+1;
-            else
-               endl = line+1;
-            if (list[2][0] == 0)
-               fprintf(fout, "<Loop l=\"%d\" le=\"%d\" n=\"%s\">\n", line+1, endl, list[1]);
-            else if (list[3][0] == 0){
-               fprintf(fout, "<Loop l=\"%d\" le=\"%d\" var=\"%s\" n=\"%s\">\n", line+1, endl, list[1], list[2]);
-            } else {
-               fprintf(fout, "<Loop l=\"%d\" le=\"%d\" var=\"%s\" values=\"", line+1, endl, list[1]);
-               for (i=2 ; i < 100 && list[i][0] ; i++) {
-                  if (i > 2)
-                     fprintf(fout, ",");
-                  fprintf(fout, "%s", list[i]);
-               }
-               fprintf(fout, "\">\n");
-            }
-         } else if (equal_ustring(list[0], "endloop")) {
-            fprintf(fout, "</Loop>\n");
-
-         } else if (equal_ustring(list[0], "message")) {
-            fprintf(fout, "<Message l=\"%d\"%s>%s</Message>\n", line+1,
-                    list[2][0] == '1'? " wait=\"1\"" : "", list[1]);
-
-         } else if (equal_ustring(list[0], "odbinc")) {
-            if (list[2][0] == 0)
-               strlcpy(list[2], "1", 2);
-            fprintf(fout, "<ODBInc l=\"%d\" path=\"%s\">%s</ODBInc>\n", line+1, list[1], list[2]);
-
-         } else if (equal_ustring(list[0], "odbset")) {
-            if (list[3][0])
-               fprintf(fout, "<ODBSet l=\"%d\" notify=\"%s\" path=\"%s\">%s</ODBSet>\n", line+1, list[3], list[1], list[2]);
-            else
-               fprintf(fout, "<ODBSet l=\"%d\" path=\"%s\">%s</ODBSet>\n", line+1, list[1], list[2]);
-
-         } else if (equal_ustring(list[0], "odbload")) {
-            if (list[2][0])
-               fprintf(fout, "<ODBLoad l=\"%d\" path=\"%s\">%s</ODBLoad>\n", line+1, list[2], list[1]);
-            else
-               fprintf(fout, "<ODBLoad l=\"%d\">%s</ODBLoad>\n", line+1, list[1]);
-
-         } else if (equal_ustring(list[0], "odbget")) {
-            fprintf(fout, "<ODBGet l=\"%d\" path=\"%s\">%s</ODBGet>\n", line+1, list[1], list[2]);
-
-         } else if (equal_ustring(list[0], "odbsubdir")) {
-            if (list[2][0])
-               fprintf(fout, "<ODBSubdir l=\"%d\" notify=\"%s\" path=\"%s\">\n", line+1, list[2], list[1]);
-            else
-               fprintf(fout, "<ODBSubdir l=\"%d\" path=\"%s\">\n", line+1, list[1]);
-         } else if (equal_ustring(list[0], "endodbsubdir")) {
-            fprintf(fout, "</ODBSubdir>\n");
-
-         } else if (equal_ustring(list[0], "param")) {
-            if (list[2][0] == 0)
-               fprintf(fout, "<Param l=\"%d\" name=\"%s\" />\n", line+1, list[1]);
-            else if (!list[3][0] && equal_ustring(list[2], "bool")) {
-               fprintf(fout, "<Param l=\"%d\" name=\"%s\" type=\"bool\" />\n", line+1, list[1]);
-            } else if (!list[3][0]) {
-               fprintf(fout, "<Param l=\"%d\" name=\"%s\" comment=\"%s\" />\n", line+1, list[1], list[2]);
-            } else {
-               fprintf(fout, "<Param l=\"%d\" name=\"%s\" comment=\"%s\" options=\"", line+1, list[1], list[2]);
-               for (i=3 ; i < 100 && list[i][0] ; i++) {
-                  if (i > 3)
-                     fprintf(fout, ",");
-                  fprintf(fout, "%s", list[i]);
-               }
-               fprintf(fout, "\" />\n");
-            }
-
-         } else if (equal_ustring(list[0], "rundescription")) {
-            fprintf(fout, "<RunDescription l=\"%d\">%s</RunDescription>\n", line+1, list[1]);
-
-         } else if (equal_ustring(list[0], "script")) {
-            if (list[2][0] == 0)
-               fprintf(fout, "<Script l=\"%d\">%s</Script>\n", line+1, list[1]);
-            else {
-               fprintf(fout, "<Script l=\"%d\" params=\"", line+1);
-               for (i=2 ; i < 100 && list[i][0] ; i++) {
-                  if (i > 2)
-                     fprintf(fout, ",");
-                  fprintf(fout, "%s", list[i]);
-               }
-               fprintf(fout, "\">%s</Script>\n", list[1]);
-            }
-
-         } else if (equal_ustring(list[0], "set")) {
-            fprintf(fout, "<Set l=\"%d\" name=\"%s\">%s</Set>\n", line+1, list[1], list[2]);
-
-         } else if (equal_ustring(list[0], "subroutine")) {
-            fprintf(fout, "\n<Subroutine l=\"%d\" name=\"%s\">\n", line+1, list[1]);
-         } else if (equal_ustring(list[0], "endsubroutine")) {
-            fprintf(fout, "</Subroutine>\n");
-
-         } else if (equal_ustring(list[0], "transition")) {
-            fprintf(fout, "<Transition l=\"%d\">%s</Transition>\n", line+1, list[1]);
-
-         } else if (equal_ustring(list[0], "wait")) {
-            if (!list[2][0])
-               fprintf(fout, "<Wait l=\"%d\" for=\"seconds\">%s</Wait>\n", line+1, list[1]);
-            else if (!list[3][0])
-               fprintf(fout, "<Wait l=\"%d\" for=\"%s\">%s</Wait>\n", line+1, list[1], list[2]);
-            else {
-               fprintf(fout, "<Wait l=\"%d\" for=\"%s\" path=\"%s\" op=\"%s\">%s</Wait>\n",
-                       line+1, list[1], list[2], list[3], list[4]);
-            }
-
-         } else if (list[0][0] == 0 || list[0][0] == '#'){
-            /* skip empty or outcommented lines */
-         } else {
-            sprintf(error, "Invalid command \"%s\"", list[0]);
-            *error_line = line + 1;
-            return FALSE;
-         }
-      }
-
-      free(lines);
-      free(buf);
-      if (library)
-         fprintf(fout, "\n</Library>\n");
-      else
-         fprintf(fout, "</RunSequence>\n");
-      fclose(fout);
-   } else {
-      // WE NEVER COME HERE
-      abort();
-      return FALSE;
-   }
-
-   return TRUE;
-}
-
-void seq_start_page(Param* p, Return* r)
-{
-   int line, i, n, no, size, last_line, status, maxlength;
-   HNDLE hDB, hkey, hsubkey, hkeycomm, hkeyc;
-   KEY key;
-   char data[1000], str[256], name[32];
-   char data_str[256], comment[1000], list[100][XNAME_LENGTH];
-   MXML_NODE *pn;
-
-   cm_get_experiment_database(&hDB, NULL);
-
-   show_header(r, "Start sequence", "GET", "", 0);
-
-   r->rsprintf("<table class=\"dialogTable\">");  //main table
-
-   r->rsprintf("<tr><th colspan=2 class=\"subStatusTitle\" style=\"border:2px solid #FFFFFF\">Start script</th>\n");
-
-   if (!pnseq) {
-      r->rsprintf("<tr><td colspan=2 align=\"center\" class=\"redLight\"><b>Error in XML script</b></td></tr>\n");
-      r->rsprintf("</table>\n");
-      r->rsprintf("</div>\n"); // closing for <div id="mmain">
-      r->rsprintf("</form>\n");
-      r->rsprintf("</body></html>\r\n");
-      return;
-   }
-
-   /* run parameters from ODB */
-   db_find_key(hDB, 0, "/Experiment/Edit on sequence", &hkey);
-   db_find_key(hDB, 0, "/Experiment/Parameter Comments", &hkeycomm);
-   n = 0;
-   if (hkey) {
-      for (line = 0 ;; line++) {
-         db_enum_link(hDB, hkey, line, &hsubkey);
-
-         if (!hsubkey)
-            break;
-
-         db_get_link(hDB, hsubkey, &key);
-         strlcpy(str, key.name, sizeof(str));
-
-         if (equal_ustring(str, "Edit run number"))
-            continue;
-
-         db_enum_key(hDB, hkey, line, &hsubkey);
-         db_get_key(hDB, hsubkey, &key);
-
-         size = sizeof(data);
-         status = db_get_data(hDB, hsubkey, data, &size, key.type);
-         if (status != DB_SUCCESS)
-            continue;
-
-         for (i = 0; i < key.num_values; i++) {
-            if (key.num_values > 1)
-               r->rsprintf("<tr><td>%s [%d]", str, i);
-            else
-               r->rsprintf("<tr><td>%s", str);
-
-            if (i == 0 && hkeycomm) {
-               /* look for comment */
-               if (db_find_key(hDB, hkeycomm, key.name, &hkeyc) == DB_SUCCESS) {
-                  size = sizeof(comment);
-                  if (db_get_data(hDB, hkeyc, comment, &size, TID_STRING) == DB_SUCCESS)
-                     r->rsprintf("<br>%s\n", comment);
-               }
-            }
-
-            db_sprintf(data_str, data, key.item_size, i, key.type);
-
-            maxlength = 80;
-            if (key.type == TID_STRING)
-               maxlength = key.item_size;
-
-            if (key.type == TID_BOOL) {
-               if (((DWORD*)data)[i]) {
-                  r->rsprintf("<td><input type=checkbox checked name=x%d value=1></td></tr>\n", n++);
-               } else {
-                  r->rsprintf("<td><input type=checkbox name=x%d value=1></td></tr>\n", n++);
-               }
-            } else {
-               r->rsprintf("<td><input type=text size=%d maxlength=%d name=x%d value=\"%s\"></tr>\n",
-                        (maxlength<80)?maxlength:80, maxlength-1, n++, data_str);
-            }
-         }
-      }
-   }
-
-   /* parameters from script */
-   pn = mxml_find_node(pnseq, "RunSequence");
-   if (pn) {
-      last_line = mxml_get_line_number_end(pn);
-
-      for (line=1 ; line<last_line ; line++){
-         pn = mxml_get_node_at_line(pnseq, line);
-         if (!pn)
-            continue;
-
-         if (equal_ustring(mxml_get_name(pn), "Param")) {
-            strlcpy(name, mxml_get_attribute(pn, "name"), sizeof(name));
-
-            r->rsprintf("<tr><td>%s", name);
-            if (mxml_get_attribute(pn, "comment")) {
-               r->rsprintf("<br>%s\n", mxml_get_attribute(pn, "comment"));
-            }
-
-            size = sizeof(data_str);
-            sprintf(str, "/Sequencer/Variables/%s", name);
-            data_str[0] = 0;
-            db_get_value(hDB, 0, str, data_str, &size, TID_STRING, FALSE);
-
-            if (mxml_get_attribute(pn, "options")) {
-               strlcpy(data, mxml_get_attribute(pn, "options"), sizeof(data));
-               no = strbreak(mxml_get_attribute(pn, "options"), list, 100, ",", FALSE);
-               r->rsprintf("<td><select name=x%d>\n", n++);
-               for (i=0 ; i<no ; i++) {
-                  if (stricmp(list[i], data_str)==0) {
-                     r->rsprintf("<option selected>%s</option>\n", list[i]);
-                  } else {
-                     r->rsprintf("<option>%s</option>\n", list[i]);
-                  }
-               }
-               r->rsprintf("</select></td></tr>\n");
-               //printf("opt param [%s] option [%s] [%s]\n", name, list[0], data_str);
-            } else if (mxml_get_attribute(pn, "type") && equal_ustring(mxml_get_attribute(pn, "type"), "bool")) {
-               if (data_str[0] == '1') {
-                  r->rsprintf("<td><input type=checkbox checked name=x%d value=1></tr>\n", n++);
-                  //printf("bool param [%s] value true\n", name);
-               } else {
-                  r->rsprintf("<td><input type=checkbox name=x%d value=1></tr>\n", n++);
-                  //printf("bool param [%s] value false\n", name);
-               }
-            } else {
-               r->rsprintf("<td><input type=text name=x%d value=\"%s\"></tr>\n", n++, data_str);
-               //printf("string param [%s] value [%s]\n", name, data_str);
-            }
-         }
-
-      }
-   }
-
-   r->rsprintf("<tr><td align=center colspan=2>\n");
-   r->rsprintf("<input type=submit name=cmd value=\"Start Script\">\n");
-   r->rsprintf("<input type=hidden name=params value=1>\n");
-   r->rsprintf("<input type=submit name=cmd value=\"Cancel Script\">\n");
-   r->rsprintf("</tr>\n");
-   r->rsprintf("</table>\n");
-
-   if (p->isparam("redir"))
-      r->rsprintf("<input type=hidden name=\"redir\" value=\"%s\">\n", p->getparam("redir"));
-
-   r->rsprintf("</div>\n"); // closing for <div id="mmain">
-   r->rsprintf("</form>\n");
-   r->rsprintf("</body></html>\r\n");
 }
 
 /*------------------------------------------------------------------*/
@@ -13003,10 +12389,9 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
    /*---- script command --------------------------------------------*/
 
    if (p->getparam("script") && *p->getparam("script")) {
-      char str[256];
 
-      sprintf(str, "%s?script=%s", dec_path, p->getparam("script")); // FIXME: overflows str[]
-      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str))
+      std::string str = msprintf("%s?script=%s", dec_path, p->getparam("script"));
+      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str.c_str()))
          return;
 
       std::string path;
@@ -13030,10 +12415,9 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
    /*---- customscript command --------------------------------------*/
 
    if (p->getparam("customscript") && *p->getparam("customscript")) {
-      char str[256];
 
-      sprintf(str, "%s?customscript=%s", dec_path, p->getparam("customscript")); // FIXME: overflows str[]
-      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str))
+      std::string str = msprintf("%s?customscript=%s", dec_path, p->getparam("customscript"));
+      if (!check_web_password(r, hDB, dec_path, c->cookie_wpwd.c_str(), str.c_str()))
          return;
 
       std::string path;
@@ -13049,7 +12433,7 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       if (p->isparam("redir"))
          redirect2(r, p->getparam("redir"));
       else
-         redirect2(r, str);
+         redirect2(r, str.c_str());
 
       return;
    }
