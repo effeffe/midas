@@ -2395,7 +2395,7 @@ static MJsonNode* js_hs_read_arraybuffer(const MJsonNode* params)
       return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
    }
 
-   unsigned num_var = events_array->size();
+   size_t num_var = events_array->size();
 
    if (tags_array->size() != num_var) {
       return mjsonrpc_make_error(-32602, "Invalid params", "Arrays events and tags should have the same length");
@@ -2412,7 +2412,7 @@ static MJsonNode* js_hs_read_arraybuffer(const MJsonNode* params)
    MidasHistoryBufferInterface** buf = new MidasHistoryBufferInterface*[num_var];
    int* hs_status = new int[num_var];
 
-   for (unsigned i=0; i<num_var; i++) {
+   for (size_t i=0; i<num_var; i++) {
       //event_name[i] = (*events_array)[i]->GetString().c_str();
       //tag_name[i] = (*tags_array)[i]->GetString().c_str();
       event_names[i] = (*events_array)[i]->GetString();
@@ -2424,9 +2424,9 @@ static MJsonNode* js_hs_read_arraybuffer(const MJsonNode* params)
    }
 
    if (/* DISABLES CODE */ (0)) {
-      printf("time %f %f, num_vars %d:\n", start_time, end_time, num_var);
-      for (unsigned i=0; i<num_var; i++) {
-         printf("%d: [%s] [%s] [%d]\n", i, event_names[i].c_str(), tag_names[i].c_str(), var_index[i]);
+      printf("time %f %f, num_vars %d:\n", start_time, end_time, int(num_var));
+      for (size_t i=0; i<num_var; i++) {
+         printf("%d: [%s] [%s] [%d]\n", int(i), event_names[i].c_str(), tag_names[i].c_str(), var_index[i]);
       }
    }
 
@@ -2446,9 +2446,50 @@ static MJsonNode* js_hs_read_arraybuffer(const MJsonNode* params)
       num_values += jbuf[i]->fValues.size();
    }
 
+   // NB: beware of 32-bit integer overflow. all values are now 64-bit size_t, overflow should not happen.
    size_t p0_size = sizeof(double)*(2+2*num_var+2*num_values);
+
+   size_t size_limit = 100*1024*1024;
+
+   if (p0_size > size_limit) {
+      cm_msg(MERROR, "js_hs_read_binned_arraybuffer", "Refusing to return %d bytes. limit is %d bytes\n", int(p0_size), int(size_limit));
+
+      for (size_t i=0; i<num_var; i++) {
+         delete jbuf[i];
+         jbuf[i] = NULL;
+         buf[i] = NULL;
+      }
+      
+      delete[] event_name;
+      delete[] tag_name;
+      delete[] var_index;
+      delete[] buf;
+      delete[] jbuf;
+      delete[] hs_status;
+      
+      return mjsonrpc_make_error(-32603, "Internal error", "Refuse to return too much data");
+   }
+
    double* p0 = (double*)malloc(p0_size);
-   assert(p0);
+
+   if (p0 == NULL) {
+      cm_msg(MERROR, "js_hs_read_binned_arraybuffer", "Cannot allocate return buffer %d bytes\n", int(p0_size));
+      
+      for (size_t i=0; i<num_var; i++) {
+         delete jbuf[i];
+         jbuf[i] = NULL;
+         buf[i] = NULL;
+      }
+      
+      delete[] event_name;
+      delete[] tag_name;
+      delete[] var_index;
+      delete[] buf;
+      delete[] jbuf;
+      delete[] hs_status;
+      
+      return mjsonrpc_make_error(-32603, "Internal error", "Cannot allocate buffer, too much data");
+   }
 
    double *pptr = p0;
    
@@ -2471,17 +2512,17 @@ static MJsonNode* js_hs_read_arraybuffer(const MJsonNode* params)
    *pptr++ = status;
    *pptr++ = num_var;
 
-   for (unsigned i=0; i<num_var; i++) {
+   for (size_t i=0; i<num_var; i++) {
       *pptr++ = hs_status[i];
    }
 
-   for (unsigned i=0; i<num_var; i++) {
+   for (size_t i=0; i<num_var; i++) {
       *pptr++ = jbuf[i]->fValues.size();
    }
 
-   for (unsigned i=0; i<num_var; i++) {
+   for (size_t i=0; i<num_var; i++) {
       size_t nv = jbuf[i]->fValues.size();
-      for (unsigned j=0; j<nv; j++) {
+      for (size_t j=0; j<nv; j++) {
          *pptr++ = jbuf[i]->fTimes[j];
          *pptr++ = jbuf[i]->fValues[j];
       }
@@ -2528,11 +2569,13 @@ static MJsonNode* js_hs_read_binned_arraybuffer(const MJsonNode* params)
    std::string channel = mjsonrpc_get_param(params, "channel", NULL)->GetString();
    double start_time = mjsonrpc_get_param(params, "start_time", &error)->GetDouble(); if (error) return error;
    double end_time = mjsonrpc_get_param(params, "end_time", &error)->GetDouble(); if (error) return error;
-   int num_bins = mjsonrpc_get_param(params, "num_bins", &error)->GetInt(); if (error) return error;
+   int inum_bins = mjsonrpc_get_param(params, "num_bins", &error)->GetInt(); if (error) return error;
 
-   if (num_bins < 1) {
+   if (inum_bins < 1) {
       return mjsonrpc_make_error(-32602, "Invalid params", "Value of num_bins should be 1 or more");
    }
+
+   size_t num_bins = inum_bins;
 
    const MJsonNodeVector* events_array = mjsonrpc_get_param_array(params, "events", NULL);
    const MJsonNodeVector* tags_array = mjsonrpc_get_param_array(params, "tags", NULL);
@@ -2545,7 +2588,7 @@ static MJsonNode* js_hs_read_binned_arraybuffer(const MJsonNode* params)
       return mjsonrpc_make_result("status", MJsonNode::MakeInt(status));
    }
 
-   unsigned num_var = events_array->size();
+   size_t num_var = events_array->size();
 
    if (num_var < 1) {
       return mjsonrpc_make_error(-32602, "Invalid params", "Array of events should have 1 or more elements");
@@ -2594,24 +2637,85 @@ static MJsonNode* js_hs_read_binned_arraybuffer(const MJsonNode* params)
    }
 
    if (/* DISABLES CODE */ (0)) {
-      printf("time %f %f, num_vars %d:\n", start_time, end_time, num_var);
-      for (unsigned i=0; i<num_var; i++) {
-         printf("%d: [%s] [%s] [%d]\n", i, event_names[i].c_str(), tag_names[i].c_str(), var_index[i]);
+      printf("time %f %f, num_vars %d:\n", start_time, end_time, int(num_var));
+      for (size_t i=0; i<num_var; i++) {
+         printf("%d: [%s] [%s] [%d]\n", int(i), event_names[i].c_str(), tag_names[i].c_str(), var_index[i]);
       }
    }
 
    const char** event_name = new const char*[num_var];
    const char** tag_name = new const char*[num_var];
-   for (unsigned i=0; i<num_var; i++) {
+   for (size_t i=0; i<num_var; i++) {
       event_name[i] = event_names[i].c_str();
       tag_name[i] = tag_names[i].c_str();
    }
 
    int status = mh->hs_read_binned(start_time, end_time, num_bins, num_var, event_name, tag_name, var_index, num_entries, count_bins, mean_bins, rms_bins, min_bins, max_bins, last_time, last_value, hs_status);
 
+   // NB: beware of 32-bit integer overflow: all variables are now 64-bit size_t, overflow should not happen
    size_t p0_size = sizeof(double)*(5+4*num_var+5*num_var*num_bins);
+
+   size_t size_limit = 100*1024*1024;
+
+   if (p0_size > size_limit) {
+      cm_msg(MERROR, "js_hs_read_binned_arraybuffer", "Refusing to return %d bytes. limit is %d bytes\n", int(p0_size), int(size_limit));
+
+      for (size_t i=0; i<num_var; i++) {
+         delete count_bins[i];
+         delete mean_bins[i];
+         delete rms_bins[i];
+         delete min_bins[i];
+         delete max_bins[i];
+      }
+
+      delete[] count_bins;
+      delete[] mean_bins;
+      delete[] rms_bins;
+      delete[] min_bins;
+      delete[] max_bins;
+      
+      delete[] event_name;
+      delete[] tag_name;
+      delete[] var_index;
+      
+      delete[] num_entries;
+      delete[] last_time;
+      delete[] last_value;
+      delete[] hs_status;
+
+      return mjsonrpc_make_error(-32603, "Internal error", "Refuse to return too much data");
+   }
+
    double* p0 = (double*)malloc(p0_size);
-   assert(p0);
+
+   if (p0 == NULL) {
+      cm_msg(MERROR, "js_hs_read_binned_arraybuffer", "Cannot allocate return buffer %d bytes\n", int(p0_size));
+
+      for (size_t i=0; i<num_var; i++) {
+         delete count_bins[i];
+         delete mean_bins[i];
+         delete rms_bins[i];
+         delete min_bins[i];
+         delete max_bins[i];
+      }
+
+      delete[] count_bins;
+      delete[] mean_bins;
+      delete[] rms_bins;
+      delete[] min_bins;
+      delete[] max_bins;
+      
+      delete[] event_name;
+      delete[] tag_name;
+      delete[] var_index;
+      
+      delete[] num_entries;
+      delete[] last_time;
+      delete[] last_value;
+      delete[] hs_status;
+
+      return mjsonrpc_make_error(-32603, "Internal error", "Cannot allocate buffer, too much data");
+   }
 
    double *pptr = p0;
    
@@ -2666,8 +2770,8 @@ static MJsonNode* js_hs_read_binned_arraybuffer(const MJsonNode* params)
       *pptr++ = last_value[i];
    }
 
-   for (unsigned i=0; i<num_var; i++) {
-      for (int j=0; j<num_bins; j++) {
+   for (size_t i=0; i<num_var; i++) {
+      for (size_t j=0; j<num_bins; j++) {
          *pptr++ = count_bins[i][j];
          *pptr++ = mean_bins[i][j];
          *pptr++ = rms_bins[i][j];
