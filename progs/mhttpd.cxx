@@ -15784,13 +15784,19 @@ static int mongoose_init(MVOdb* odb, bool no_passwords, bool no_hostlist, const 
 
    mg_mgr_init(&s_mgr, NULL);
 
+   bool listen_failed = false;
+
    if (enable_localhost_port) {
       char str[256];
       sprintf(str, "localhost:%d", localhost_port);
-      mongoose_listen(str, 0);
+      int status = mongoose_listen(str, 0);
+      if (status != SUCCESS)
+         listen_failed = true;
       if (enable_ipv6) {
          sprintf(str, "[::1]:%d", localhost_port);
-         mongoose_listen(str, 0);
+         status = mongoose_listen(str, 0);
+         if (status != SUCCESS)
+            listen_failed = true;
       }
    }
 
@@ -15803,10 +15809,14 @@ static int mongoose_init(MVOdb* odb, bool no_passwords, bool no_hostlist, const 
          flags |= FLAG_HOSTLIST;
       if (enable_ipv6) {
          sprintf(str, "[::]:%d", insecure_port);
-         mongoose_listen(str, flags);
+         int status = mongoose_listen(str, flags);
+         if (status != SUCCESS)
+            listen_failed = true;
       } else {
          sprintf(str, "%d", insecure_port);
-         mongoose_listen(str, flags);
+         int status = mongoose_listen(str, flags);
+         if (status != SUCCESS)
+            listen_failed = true;
       }
    }
 
@@ -15820,11 +15830,20 @@ static int mongoose_init(MVOdb* odb, bool no_passwords, bool no_hostlist, const 
       flags |= FLAG_HTTPS;
       if (enable_ipv6) {
          sprintf(str, "[::]:%d", https_port);
-         mongoose_listen(str, flags);
+         int status = mongoose_listen(str, flags);
+         if (status != SUCCESS)
+            listen_failed = true;
       } else {
          sprintf(str, "%d", https_port);
-         mongoose_listen(str, flags);
+         int status = mongoose_listen(str, flags);
+         if (status != SUCCESS)
+            listen_failed = true;
       }
+   }
+
+   if (listen_failed) {
+      cm_msg(MERROR, "mongoose_init", "Failed to listen on a TCP port enabled in ODB /WebServer");
+      return SS_SOCKET_ERROR;
    }
 
    return SUCCESS;
