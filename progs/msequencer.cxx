@@ -747,6 +747,10 @@ msl_parse(HNDLE hDB, MVOdb *odb, int level, const char *path, const char *filena
             fprintf(fout, "</Loop>\n");
             xml += "</Loop>\n";
 
+         } else if (equal_ustring(list[0], "break")) {
+            fprintf(fout, "<Break l=\"%d\"></Break>\n", line + 1);
+            xml += "<Break "+ qtoString(level, line + 1) +"></Break>\n";
+
          } else if (equal_ustring(list[0], "message")) {
             fprintf(fout, "<Message l=\"%d\" lvl=\"%d\"%s>%s</Message>\n", line + 1, level, list[2][0] == '1' ? " wait=\"1\"" : "",
                     list[1]);
@@ -760,7 +764,7 @@ msl_parse(HNDLE hDB, MVOdb *odb, int level, const char *path, const char *filena
          } else if (equal_ustring(list[0], "odbinc")) {
             if (list[2][0] == 0)
                strlcpy(list[2], "1", 2);
-            fprintf(fout, "<ODBInc \"%d\" lvl=\"%d\" path=\"%s\">%s</ODBInc>\n", line + 1, level, list[1], list[2]);
+            fprintf(fout, "<ODBInc l=\"%d\" lvl=\"%d\" path=\"%s\">%s</ODBInc>\n", line + 1, level, list[1], list[2]);
             xml += "<ODBInc " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBInc>\n";
 
          } else if (equal_ustring(list[0], "odbcreate")) {
@@ -2027,6 +2031,22 @@ void sequencer() {
       }
 
       seq.current_line_number++;
+   }
+
+   /*---- Break ----*/
+   else if (equal_ustring(mxml_get_name(pn), "Break")) {
+      // goto next loop end
+      for (i = 0; i < SEQ_NEST_LEVEL_LOOP; i++)
+         if (seq.loop_start_line[i] == 0)
+            break;
+      if (i == 0) {
+         seq_error(seq, "\"Break\" outside any loop");
+         return;
+      }
+
+      // force end of loop in next check
+      seq.current_line_number = seq.loop_end_line[i-1];
+      seq.loop_counter[i-1] = seq.loop_n[i-1];
    }
 
    /*---- If ----*/
