@@ -1783,8 +1783,9 @@ INT db_open_database(const char *xdatabase_name, INT database_size, HNDLE * hDB,
    /* restrict name length */
    strlcpy(database_name, xdatabase_name, NAME_LENGTH);
 
-   if (database_size < 0 || database_size > 10E7) {
-      cm_msg(MERROR, "db_open_database", "invalid database size");
+   int odb_size_limit = 100*1000*1000;
+   if (database_size < 0 || database_size > odb_size_limit) {
+      cm_msg(MERROR, "db_open_database", "invalid database size: %d bytes. ODB size limit is %d bytes", database_size, odb_size_limit);
       return DB_INVALID_PARAM;
    }
 
