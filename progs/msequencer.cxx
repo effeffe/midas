@@ -761,6 +761,15 @@ msl_parse(HNDLE hDB, MVOdb *odb, int level, const char *path, const char *filena
             xml += list[1];
             xml += "</Message>\n";
 
+         } else if (equal_ustring(list[0], "msg")) {
+            if (list[2][0]) {
+               fprintf(fout, "<Msg l=\"%d\" lvl=\"%d\" type=\"%s\">%s</Msg>\n", line + 1, level, list[2], list[1]);
+               xml += "<Msg " + qtoString(level, line + 1) + " type=\""+list[2]+"\">" + list[1] + "</Msg>\n";
+            } else {
+               fprintf(fout, "<Msg l=\"%d\" lvl=\"%d\">%s</Msg>\n", line + 1, level, list[1]);
+               xml += "<Msg " + qtoString(level, line + 1) + ">" + list[1] + "</Msg>\n";
+            }
+
          } else if (equal_ustring(list[0], "odbinc")) {
             if (list[2][0] == 0)
                strlcpy(list[2], "1", 2);
@@ -2191,7 +2200,7 @@ void sequencer() {
       if (strchr(mxml_get_value(pn), '$')) // evaluate message string if $ present
          strlcpy(value, eval_var(seq, mxml_get_value(pn)).c_str(), sizeof(value));
       else
-         strlcpy(value, mxml_get_value(pn), sizeof(value)); // treast message as sting
+         strlcpy(value, mxml_get_value(pn), sizeof(value)); // treat message as string
       const char *wait_attr = mxml_get_attribute(pn, "wait");
       bool wait = false;
       if (wait_attr)
@@ -2225,6 +2234,30 @@ void sequencer() {
             seq.message_wait = false;
          }
       }
+
+      seq.current_line_number = mxml_get_line_number_end(pn) + 1;
+   }
+
+   /*---- Msg ----*/
+   else if (equal_ustring(mxml_get_name(pn), "Msg")) {
+      if (strchr(mxml_get_value(pn), '$')) // evaluate message string if $ present
+         strlcpy(value, eval_var(seq, mxml_get_value(pn)).c_str(), sizeof(value));
+      else
+         strlcpy(value, mxml_get_value(pn), sizeof(value)); // treat message as string
+      std::string type = "INFO";
+      if (mxml_get_attribute(pn, "type"))
+         type = std::string(mxml_get_attribute(pn, "type"));
+
+      if (type == "ERROR")
+         cm_msg(MERROR, "sequencer", "%s", value);
+      else if (type == "DEBUG")
+         cm_msg(MDEBUG, "sequencer", "%s", value);
+      else if (type == "LOG")
+         cm_msg(MLOG, "sequencer", "%s", value);
+      else if (type == "TALK")
+         cm_msg(MTALK, "sequencer", "%s", value);
+      else
+         cm_msg(MINFO, "sequencer", "%s", value);
 
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
