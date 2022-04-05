@@ -10412,7 +10412,13 @@ INT db_save_json(HNDLE hDB, HNDLE hKey, const char *filename)
    }
    
    std::string path = db_get_path(hDB, hKey);
-   
+
+   bool emptySubdir = false;
+   HNDLE hSubKey;
+   status = db_enum_link(hDB, hKey, 0, &hSubKey);
+   if (status == DB_NO_MORE_SUBKEYS)
+      emptySubdir = true;
+
    char* buffer = NULL;
    int buffer_size = 0;
    int buffer_end = 0;
@@ -10437,8 +10443,12 @@ INT db_save_json(HNDLE hDB, HNDLE hKey, const char *filename)
    json_write(&buffer, &buffer_size, &buffer_end, 1, "/ODB path", 1);
    json_write(&buffer, &buffer_size, &buffer_end, 0, " : ", 0);
    json_write(&buffer, &buffer_size, &buffer_end, 0, path.c_str(), 1);
-   json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
-   
+
+   if (emptySubdir)
+      json_write(&buffer, &buffer_size, &buffer_end, 0, "", 0);
+   else
+      json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
+
    //status = db_save_json_key_obsolete(hDB, hKey, -1, &buffer, &buffer_size, &buffer_end, 1, 0, 1);
    status = json_write_bare_subdir(hDB, hKey, &buffer, &buffer_size, &buffer_end, JS_LEVEL_1, JSFLAG_SAVE_KEYS|JSFLAG_RECURSE, 0);
    
