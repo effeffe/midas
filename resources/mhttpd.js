@@ -975,8 +975,11 @@ function mhttpd_add_menu_items(html, custom, current_page, path, level) {
          html += "</div>";
       } else if (typeof custom[b] === "string") { // skip any items that don't have type of string, since can't be valid links
          cc = "mmenuitem";
-         if (current_page.search(custom[b + "/name"]) !== -1 ||
-             current_page.search(custom[b + "/name"].toLowerCase()) !== -1)
+         let mitem = custom[b + "/name"];
+         if (mitem.slice(-1) === '&')
+            mitem = mitem.slice(0, -1);
+         if (current_page.search(mitem) !== -1 ||
+             current_page.search(mitem.toLowerCase()) !== -1)
             cc += " mmenuitemsel";
          let ln = "";
          for (let i=0 ; i<level ; i++)
