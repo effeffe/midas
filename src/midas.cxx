@@ -5880,13 +5880,17 @@ event id and trigger mask
 @return TRUE      if event matches request
 */
 INT bm_match_event(short int event_id, short int trigger_mask, const EVENT_HEADER *pevent) {
-   if ((pevent->event_id & 0xF000) == EVENTID_FRAG1 || (pevent->event_id & 0xF000) == EVENTID_FRAG)
-      /* fragmented event */
-      return ((event_id == EVENTID_ALL || event_id == (pevent->event_id & 0x0FFF))
-              && (trigger_mask == TRIGGER_ALL || (trigger_mask & pevent->trigger_mask)));
+   // NB: cast everything to unsigned 16 bit to avoid bitwise comparison failure
+   // because of mismatch in sign-extension between signed 16-bit event_id and
+   // unsigned 16-bit constants. K.O.
 
-   return ((event_id == EVENTID_ALL || event_id == pevent->event_id)
-           && (trigger_mask == TRIGGER_ALL || (trigger_mask & pevent->trigger_mask)));
+   if (((uint16_t(pevent->event_id) & uint16_t(0xF000)) == uint16_t(EVENTID_FRAG1)) || ((uint16_t(pevent->event_id) & uint16_t(0xF000)) == uint16_t(EVENTID_FRAG)))
+      /* fragmented event */
+      return (((uint16_t(event_id) == uint16_t(EVENTID_ALL)) || (uint16_t(event_id) == (uint16_t(pevent->event_id) & uint16_t(0x0FFF))))
+              && ((uint16_t(trigger_mask) == uint16_t(TRIGGER_ALL)) || ((uint16_t(trigger_mask) & uint16_t(pevent->trigger_mask)))));
+
+   return (((uint16_t(event_id) == uint16_t(EVENTID_ALL)) || (uint16_t(event_id) == uint16_t(pevent->event_id)))
+           && ((uint16_t(trigger_mask) == uint16_t(TRIGGER_ALL)) || ((uint16_t(trigger_mask) & uint16_t(pevent->trigger_mask)))));
 }
 
 #ifdef LOCAL_ROUTINES
@@ -8639,7 +8643,7 @@ static void bm_dispatch_event(int buffer_handle, EVENT_HEADER *pevent) {
       if (_request_list[i].buffer_handle == buffer_handle &&
           bm_match_event(_request_list[i].event_id, _request_list[i].trigger_mask, pevent)) {
          /* if event is fragmented, call defragmenter */
-         if ((pevent->event_id & 0xF000) == EVENTID_FRAG1 || (pevent->event_id & 0xF000) == EVENTID_FRAG)
+         if (((uint16_t(pevent->event_id) & uint16_t(0xF000)) == uint16_t(EVENTID_FRAG1)) || ((uint16_t(pevent->event_id) & uint16_t(0xF000)) == uint16_t(EVENTID_FRAG)))
             bm_defragment_event(buffer_handle, i, pevent, (void *) (pevent + 1), _request_list[i].dispatcher);
          else
             _request_list[i].dispatcher(buffer_handle, i, pevent, (void *) (pevent + 1));
@@ -11092,7 +11096,7 @@ static void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
 {
    INT i;
 
-   if ((pevent->event_id & 0xF000) == EVENTID_FRAG1) {
+   if ((uint16_t(pevent->event_id) & uint16_t(0xF000)) == uint16_t(EVENTID_FRAG1)) {
       /*---- start new event ----*/
 
       //printf("First Frag detected : Ser#:%d ID=0x%x \n", pevent->serial_number, pevent->event_id);
