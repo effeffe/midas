@@ -556,6 +556,18 @@ function mhttpd_unhide(id) {
    }
 }
 
+function mhttpd_enable(id) {
+   let e = document.getElementById(id);
+   if (e)
+      e.disabled = false;
+}
+
+function mhttpd_disable(id) {
+   let e = document.getElementById(id);
+   if (e)
+      e.disabled = true;
+}
+
 function mhttpd_init_overlay(overlay) {
    mhttpd_hide_overlay(overlay);
 

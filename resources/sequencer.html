@@ -22,9 +22,10 @@
          <td>
             <button class="mbutton" id='seq_load_script' onclick='load_script()'>Load Script</button>
             <button class="mbutton" id='seq_start_script' onclick='start_script()'>Start Script</button>
+            <button class="mbutton" id='seq_debug_script' onclick='debug_script()'>Debug Script</button>
             <button class="mbutton" id='seq_edit_script' onclick='edit_script()'>Edit Script</button>
-            <button class="mbutton" id='seq_stop_after_current_run' onclick='seq_set_stop_after_run(true)'>Stop after
-               current run
+            <button class="mbutton" id='seq_stop_after_current_run' onclick='seq_set_stop_after_run(true)'>
+               Stop after current run
             </button>
             <button class="mbutton" id='seq_cancel_stop_after_current_run' onclick='seq_set_stop_after_run(false)'>
                Cancel 'Stop after current run'
@@ -32,6 +33,7 @@
             <button class="mbutton" id='seq_stop_immediately' onclick='stop_immediately()'>Stop immediately</button>
             <button class="mbutton" id='seq_pause' onclick='pause()'>Pause</button>
             <button class="mbutton" id='seq_resume' onclick='seq_resume()'>Resume</button>
+            <button class="mbutton" id='seq_stepover' onclick='seq_stepover()'>Step Over</button>
          </td>
       </tr>
       <tr id="msg_seq_not_running">
@@ -56,6 +58,14 @@
       <tr id="msg_error_tr">
          <td align="center" class="redLight" style="padding: 4px;">Error: <span id="msg_error">seq.error</span></td>
       </tr>
+
+      <tr id="seq_vars">
+         <td>
+            <table class="mtable" width="100%" id="seq_vars_table">
+            </table>
+         </td>
+      </tr>
+
       <tr id="msg_progress">
          <td>
             <table class="mtable" width="100%">
@@ -365,9 +375,23 @@
    function start_script() {
       mjsonrpc_call('cm_exist', '{"name": "sequencer"}').then(function (rpc) {
          if (rpc.result.status === 1) {
-            ;
-            //window.location.href = '?cmd=Start+Script';
-            //window.location.pathname = 'start_script.html';
+            seq_set_debug(false);
+            mhttpd_goto_page("start_script");
+            // DOES NOT RETURN
+         } else {
+            dlgAlert('Sequencer is not running, please start it');
+         }
+      }).catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
+
+      return false;
+   }
+
+   function debug_script() {
+      mjsonrpc_call('cm_exist', '{"name": "sequencer"}').then(function (rpc) {
+         if (rpc.result.status === 1) {
+            seq_set_debug(true);
             mhttpd_goto_page("start_script");
             // DOES NOT RETURN
          } else {
@@ -382,6 +406,16 @@
 
    function seq_set_paused(paused) {
       mjsonrpc_db_paste(["/sequencer/state/paused"], [paused]).then(function (rpc) {
+         update();
+      }).catch(function (error) {
+         document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
+         dlgShow('dlgError');
+         //mjsonrpc_error_alert(error);
+      });
+   }
+
+   function seq_set_debug(debug) {
+      mjsonrpc_db_paste(["/sequencer/state/debug"], [debug]).then(function (rpc) {
          update();
       }).catch(function (error) {
          document.getElementById("dlgErrorText").innerHTML = mjsonrpc_decode_error(error);
@@ -423,13 +457,17 @@
    function seq_pause(flag) {
       if (flag) {
          seq_set_paused(true);
-         //window.location.href='?cmd=SPause';
+         seq_set_debug(true);
       }
    }
 
    function seq_resume() {
+      seq_set_debug(false);
       seq_set_paused(false);
-      //window.location.href='?cmd=SResume';
+   }
+
+   function seq_stepover() {
+      seq_set_paused(false);
    }
 
    function pause() {
@@ -472,23 +510,23 @@
 
    var slast_line = 0;
 
-   function seq_refresh(seq) {
-      var scurrent_line = seq['scurrent line number'];
-      var ssubroutine_call_line = seq['ssubroutine call line'];
-      var serror_line = seq['serror line'];
-      var message = seq.message;
-      var message_wait = seq['message wait'];
-      var wait_value = seq['wait value'];
-      var wait_odb = seq['wait odb'];
-      var wait_limit = seq['wait limit'];
-      var wait_type = seq['wait type'];
-      var loop_n = seq['loop n'];
-      var loop_counter = seq['loop counter'];
-      var sloop_start_line = seq['sloop start line'];
-      var sloop_end_line = seq['sloop end line'];
-      var finished = seq.finished;
-      var paused = seq.paused;
-      var start_time = seq['start time'];
+   function seq_refresh(seq, seq_vars) {
+      let scurrent_line = seq['scurrent line number'];
+      let ssubroutine_call_line = seq['ssubroutine call line'];
+      let serror_line = seq['serror line'];
+      let message = seq.message;
+      let message_wait = seq['message wait'];
+      let wait_value = seq['wait value'];
+      let wait_odb = seq['wait odb'];
+      let wait_limit = seq['wait limit'];
+      let wait_type = seq['wait type'];
+      let loop_n = seq['loop n'];
+      let loop_counter = seq['loop counter'];
+      let sloop_start_line = seq['sloop start line'];
+      let sloop_end_line = seq['sloop end line'];
+      let finished = seq.finished;
+      let paused = seq.paused;
+      let start_time = seq['start time'];
 
       if (seq.error) {
          set_if_changed("msg_error", seq.error);
@@ -507,8 +545,10 @@
          mhttpd_unhide("seq_load_script");
          mhttpd_hide("seq_edit_script");
          mhttpd_hide("seq_start_script");
+         mhttpd_hide("seq_debug_script");
          mhttpd_hide("seq_pause");
          mhttpd_hide("seq_resume");
+         mhttpd_hide("seq_stepover");
          mhttpd_hide("seq_stop_immediately");
          mhttpd_hide("seq_stop_after_current_run");
          mhttpd_hide("seq_cancel_stop_after_current_run");
@@ -520,21 +560,26 @@
          mhttpd_hide("seq_load_script");
          mhttpd_hide("seq_edit_script");
          mhttpd_hide("seq_start_script");
+         mhttpd_hide("seq_debug_script");
          mhttpd_unhide("seq_pause");
          mhttpd_unhide("seq_resume");
+         mhttpd_unhide("seq_stepover");
          mhttpd_unhide("seq_stop_immediately");
          mhttpd_unhide("seq_stop_after_current_run");
          mhttpd_unhide("seq_cancel_stop_after_current_run");
       } else {
          mhttpd_hide("msg_noscriptloaded");
+         mhttpd_hide("seq_vars");
          mhttpd_hide("msg_progress");
          mhttpd_unhide("msg_sequence");
          mhttpd_hide("msg_messages");
          mhttpd_unhide("seq_load_script");
          mhttpd_unhide("seq_edit_script");
          mhttpd_unhide("seq_start_script");
+         mhttpd_unhide("seq_debug_script");
          mhttpd_hide("seq_pause");
          mhttpd_hide("seq_resume");
+         mhttpd_hide("seq_stepover");
          mhttpd_hide("seq_stop_immediately");
          mhttpd_hide("seq_stop_after_current_run");
          mhttpd_hide("seq_cancel_stop_after_current_run");
@@ -549,13 +594,19 @@
          mhttpd_hide("seq_cancel_stop_after_current_run");
       }
 
-      if (seq.paused) {
+      if (seq.running && seq.paused) {
          mhttpd_unhide("msg_seq_paused");
          mhttpd_unhide("seq_resume");
+         mhttpd_unhide("seq_stepover");
+         mhttpd_enable("seq_stepover");
          mhttpd_hide("seq_pause");
       } else {
          mhttpd_hide("msg_seq_paused");
          mhttpd_hide("seq_resume");
+         if (seq.debug)
+            mhttpd_disable("seq_stepover");
+         else
+            mhttpd_hide("seq_stepover");
       }
 
       if (seq.finished) {
@@ -564,13 +615,38 @@
          mhttpd_hide("msg_seq_finished");
       }
 
+      if (seq.running && (seq.paused || seq.debug)) {
+         // show variables
+         mhttpd_unhide("seq_vars");
+
+         let table = document.getElementById('seq_vars_table');
+         let s =
+            '<tr>\n' +
+            '  <th class="mtableheader" colspan="2">Variables</th>\n' +
+            '</tr>\n';
+
+         for (let v in seq_vars) {
+            if (v.indexOf('/') >= 0) // skip <key>/last_written and <key>/name
+               continue;
+            s +=
+               '<tr>\n' +
+               '  <td width="10%">' + v + '&nbsp;&nbsp;</td>\n' +
+               '  <td>&nbsp;&nbsp;' + seq_vars[v] + '</td>\n' +
+               '</tr>\n';
+         }
+
+         if (table.innerHTML !== s)
+            table.innerHTML = s;
+      } else
+         mhttpd_hide("seq_vars");
+
       let show_lines = 15; // number of lines to show
 
       let show_upper_arrow = false;
       let show_lower_arrow = false;
 
-      for (var sl = 1; ; sl++) {
-         sline = document.getElementById('sline' + sl);
+      for (let sl = 1; ; sl++) {
+         let sline = document.getElementById('sline' + sl);
          if (sline == null) {
             slast_line = sl - 1;
             break;
@@ -820,7 +896,7 @@
    function callback(rpc) {
       //document.getElementById('updateStatus').innerHTML = "RWP_";
 
-      if (rpc[0].result.status[0] != 1) {
+      if (rpc[0].result.status[0] !== 1) {
          //console.log("ODB read /Sequencer status " + rpc[0].result.status[0] + ", already here: " + update_stop);
          if (update_stop) {
             // already here!
@@ -835,11 +911,9 @@
          return;
       }
 
-      var seq_state = rpc[0].result.data[0];
-      var seq_script = rpc[0].result.data[1];
-
-      //console.log("rpc1: " + JSON.stringify(rpc[1].result));
-      //console.log("rpc2: " + JSON.stringify(rpc[2].result));
+      let seq_state = rpc[0].result.data[0];
+      let seq_script = rpc[0].result.data[1];
+      let seq_vars = rpc[0].result.data[2];
 
       if (seq_script && seq_script.lines) {
          seq_show_script(seq_script.lines);
@@ -849,17 +923,18 @@
       }
 
       if (seq_state) {
-         seq_refresh(seq_state);
+         seq_refresh(seq_state, seq_vars);
       }
 
       if (rpc[1] && rpc[1].result && rpc[1].result.status) {
-         if (rpc[1].result.status == 1) {
+         if (rpc[1].result.status === 1) {
             mhttpd_hide("msg_seq_not_running");
          } else {
             mhttpd_unhide("msg_seq_not_running");
             mhttpd_hide("seq_load_script");
             mhttpd_hide("seq_new_script");
             mhttpd_hide("seq_start_script");
+            mhttpd_hide("seq_debug_script");
             mhttpd_hide("seq_edit_script");
          }
       }
@@ -875,7 +950,7 @@
    function update() {
       //document.getElementById('updateStatus').innerHTML = "R___";
       //console.log("update!");
-      var paths = ["/Sequencer/State", "/Sequencer/Script"];
+      var paths = ["/Sequencer/State", "/Sequencer/Script", "/Sequencer/Variables"];
       var req = [
          mjsonrpc_make_request("db_get_values", {"paths": paths}),
          mjsonrpc_make_request("cm_exist", {"name": "sequencer"}),
