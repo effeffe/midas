@@ -1342,9 +1342,13 @@ void sequencer() {
       seq.scurrent_line_number = atoi(mxml_get_attribute(pn, "l"));
 
    // out-comment following lines for debug output
-   midas::odb o("/Sequencer/Script/Lines");
-   std::string s = o[seq.scurrent_line_number-1];
-   printf("%3d: %s\n", seq.scurrent_line_number, s.c_str());
+#if 0
+   if (seq.scurrent_line_number >= 0) {
+      midas::odb o("/Sequencer/Script/Lines");
+      std::string s = o[seq.scurrent_line_number - 1];
+      printf("%3d: %s\n", seq.scurrent_line_number, s.c_str());
+   }
+#endif
 
    if (equal_ustring(mxml_get_name(pn), "PI") || equal_ustring(mxml_get_name(pn), "RunSequence") ||
        equal_ustring(mxml_get_name(pn), "Comment")) {
