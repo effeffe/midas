@@ -5,11 +5,11 @@
 #
 
 message(STATUS "MIDAS: cmake version: " ${CMAKE_VERSION})
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.10)
 
 project(midas
-        DESCRIPTION "MIDAS Data Acquisition System"
-        HOMEPAGE_URL "https://midas.triumf.ca")
+        DESCRIPTION "MIDAS Data Acquisition System")
+#        HOMEPAGE_URL "https://midas.triumf.ca")
 
 #
 # specify default build type if none is defined with ccmake
