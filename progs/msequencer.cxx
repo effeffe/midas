@@ -1380,6 +1380,12 @@ void sequencer() {
             strlcat(odbpath, "/", sizeof(odbpath));
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
 
+         if (strchr(odbpath, '$')) {
+            std::string s(odbpath);
+            s = eval_var(seq, s);
+            strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+         }
+
          int notify = TRUE;
          if (seq.subdir_not_notify)
             notify = FALSE;
@@ -1438,6 +1444,12 @@ void sequencer() {
             strlcat(odbpath, "/", sizeof(odbpath));
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
 
+         if (strchr(odbpath, '$')) {
+            std::string s(odbpath);
+            s = eval_var(seq, s);
+            strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+         }
+
          //load at that key, if exists
          status = db_find_key(hDB, 0, odbpath, &hKey);
          if (status != DB_SUCCESS) {
@@ -1495,6 +1507,12 @@ void sequencer() {
          if (strlen(odbpath) > 0 && odbpath[strlen(odbpath) - 1] != '/')
             strlcat(odbpath, "/", sizeof(odbpath));
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
+
+         if (strchr(odbpath, '$')) {
+            std::string s(odbpath);
+            s = eval_var(seq, s);
+            strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+         }
 
          // find key or subdirectory to save
          status = db_find_key(hDB, 0, odbpath, &hKey);
