@@ -764,7 +764,7 @@ void HsFileSchema::print(bool print_tags) const
 //#warning !!!HAVE_MYSQL!!!
 
 //#include <my_global.h> // my_global.h removed MySQL 8.0, MariaDB 10.2. K.O.
-#include <mysql/mysql.h>
+#include <mysql.h>
 
 class Mysql: public SqlBase
 {

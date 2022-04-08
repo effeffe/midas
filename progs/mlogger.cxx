@@ -43,12 +43,12 @@
 
 #ifdef HAVE_MYSQL
 #ifdef OS_UNIX
-#include <mysql/mysql.h>
-#include <mysql/mysqld_error.h>
+#include <mysql.h>
+#include <mysqld_error.h>
 #endif
 #ifdef OS_WINNT
-#include <mysql/mysql.h>
-#include <mysql/mysqld_error.h>
+#include <mysql.h>
+#include <mysqld_error.h>
 int errno;                      // under NT, "ignore libcd" is required, so errno has to be defined here
 #endif
 void create_runlog_sql_tree();
