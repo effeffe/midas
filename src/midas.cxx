@@ -5209,9 +5209,10 @@ INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size,
    cm_get_experiment_database(&hDB, NULL);
 
    bool deferred = (transition & TR_DEFERRED) > 0;
+   INT trans_raw = (transition & ~TR_DEFERRED);
 
    /* check for valid transition */
-   if (transition != TR_START && transition != TR_STOP && transition != TR_PAUSE && transition != TR_RESUME && transition != TR_STARTABORT) {
+   if (trans_raw != TR_START && trans_raw != TR_STOP && trans_raw != TR_PAUSE && trans_raw != TR_RESUME && trans_raw != TR_STARTABORT) {
       cm_msg(MERROR, "cm_transition", "Invalid transition request \"%d\"", transition);
       if (errstr) {
          strlcpy(errstr, "Invalid transition request", errstr_size);
