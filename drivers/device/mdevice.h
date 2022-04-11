@@ -107,7 +107,7 @@ public:
          mOdbSettings["Names Input"][chn_index] = name;
 
          std::vector<float> inp = mOdbVars["Input"];
-         if (inp.size() < chn_index+1) {
+         if ((int)inp.size() < chn_index+1) {
             inp.resize(chn_index+1);
             mOdbVars["Input"] = inp;
          }
@@ -128,7 +128,7 @@ public:
          mOdbSettings["Names Output"][chn_index] = name;
 
          std::vector<float> outp = mOdbVars["Output"];
-         if (outp.size() < chn_index+1) {
+         if ((int)outp.size() < chn_index+1) {
             outp.resize(chn_index+1);
             mOdbVars["Output"] = outp;
          }
