@@ -9,6 +9,8 @@
    Created S. Ritt 11.04.2022
 */
 
+#include <history.h>
+
 //---- generic class ------------------------------------------------
 
 class mdevice {
@@ -17,6 +19,7 @@ public:
 
    EQUIPMENT *mEq;
    std::string mDevName;
+   std::vector<std::string> mName;
    midas::odb mOdbDev;
    midas::odb mOdbSettings;
    midas::odb mOdbVars;
@@ -105,6 +108,7 @@ public:
          if (chn_index == 0)
             mOdbSettings["Names Input"] = std::string(31, '\0');
          mOdbSettings["Names Input"][chn_index] = name;
+         mName.push_back(name);
 
          std::vector<float> inp = mOdbVars["Input"];
          if ((int)inp.size() < chn_index+1) {
@@ -126,6 +130,7 @@ public:
          if (chn_index == 0)
             mOdbSettings["Names Output"] = std::string(31, '\0');
          mOdbSettings["Names Output"][chn_index] = name;
+         mName.push_back(name);
 
          std::vector<float> outp = mOdbVars["Output"];
          if ((int)outp.size() < chn_index+1) {
@@ -143,6 +148,7 @@ public:
          if (chn_index == 0)
             mOdbSettings["Names"] = std::string(31, '\0');
          mOdbSettings["Names"][chn_index] = name;
+         mName.push_back(name);
       }
 
       mEq->driver[mDevIndex].channels++;
@@ -168,6 +174,18 @@ public:
       mOdbDev[name][i] = p;
    }
 
+   void define_panel(std::string panelName, int i1, int i2 = -1)
+   {
+      std::vector<std::string> vars;
+
+      if (i2 == -1)
+         vars.push_back(mEq->name + std::string(":") + mName[i1]);
+      else
+         for (int i=i1 ; i<=i2 ; i++)
+            vars.push_back(mEq->name + std::string(":") + mName[i]);
+
+      hs_define_panel(mEq->name, panelName.c_str(), vars);
+   }
 };
 
 //---- MSCB class ---------------------------------------------------
