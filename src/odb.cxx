@@ -10120,17 +10120,6 @@ INT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int* buf
    return DB_SUCCESS;
 }
 
-#define JS_LEVEL_0        0
-#define JS_LEVEL_1        1
-#define JS_MUST_BE_SUBDIR 1
-#define JSFLAG_SAVE_KEYS         (1<<1)
-#define JSFLAG_FOLLOW_LINKS      (1<<2)
-#define JSFLAG_RECURSE           (1<<3)
-#define JSFLAG_LOWERCASE         (1<<4)
-#define JSFLAG_OMIT_NAMES        (1<<5)
-#define JSFLAG_OMIT_LAST_WRITTEN (1<<6)
-#define JSFLAG_OMIT_OLD          (1<<7)
-
 static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int level, int must_be_subdir, int flags, time_t timestamp);
 
 static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int level, int flags, time_t timestamp)
@@ -10391,7 +10380,7 @@ be saved (hkey equal zero) or only a sub-tree.
 @param filename Filename of .json file.
 @return DB_SUCCESS, DB_FILE_ERROR
 */
-INT db_save_json(HNDLE hDB, HNDLE hKey, const char *filename)
+INT db_save_json(HNDLE hDB, HNDLE hKey, const char *filename, int flags)
 {
    INT status;
    
@@ -10451,7 +10440,7 @@ INT db_save_json(HNDLE hDB, HNDLE hKey, const char *filename)
       json_write(&buffer, &buffer_size, &buffer_end, 0, ",\n", 0);
 
    //status = db_save_json_key_obsolete(hDB, hKey, -1, &buffer, &buffer_size, &buffer_end, 1, 0, 1);
-   status = json_write_bare_subdir(hDB, hKey, &buffer, &buffer_size, &buffer_end, JS_LEVEL_1, JSFLAG_SAVE_KEYS|JSFLAG_RECURSE, 0);
+   status = json_write_bare_subdir(hDB, hKey, &buffer, &buffer_size, &buffer_end, JS_LEVEL_1, flags, 0);
    
    json_write(&buffer, &buffer_size, &buffer_end, 0, "\n}\n", 0);
 

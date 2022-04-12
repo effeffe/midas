@@ -126,6 +126,7 @@ void print_help(char *command)
       printf("  -s                      as a #define'd string\n");
       printf("  -x                      as an XML file, or use file.xml\n");
       printf("  -j                      as a JSON file, or use file.json\n");
+      printf("  -z                      as value-only JSON file\n");
       printf("set <key> <value>       - set the value of a key\n");
       printf("set <key>[i] <value>    - set the value of index i\n");
       printf("set <key>[*] <value>    - set the value of all indices of a key\n");
@@ -1975,6 +1976,8 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
                db_save_xml(hDB, hKey, param[2]);
             else if (param[1][1] == 'j')
                db_save_json(hDB, hKey, param[2]);
+            else if (param[1][1] == 'z')
+               db_save_json(hDB, hKey, param[2], JSFLAG_RECURSE | JSFLAG_OMIT_LAST_WRITTEN);
          } else
             db_save(hDB, hKey, param[1], FALSE);
       }
