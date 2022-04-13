@@ -14,9 +14,7 @@
 #include <cstdio>
 #include <cstring>
 #include <history.h>
-#include "mscb.h"
 #include "midas.h"
-#include "odbxx.h"
 #include "mfe.h"
 
 /*-- Globals -------------------------------------------------------*/
@@ -43,8 +41,24 @@ void set_max_event_size(int size)
    max_event_size = size;
 }
 
+void set_event_buffer_size(int size)
+{
+   event_buffer_size = size;
+}
+
+/*------------------------------------------------------------------*/
+
+INT (*p_poll_event)(INT,INT,BOOL) = NULL;
+
+void install_poll_event(INT (*f)(INT,INT,BOOL))
+{
+   p_poll_event = f;
+}
+
 INT poll_event(__attribute__((unused)) INT source, __attribute__((unused)) INT count, __attribute__((unused))BOOL test)
 {
+   if (p_poll_event)
+      return p_poll_event(source, count, test);
    return 1;
 }
 
