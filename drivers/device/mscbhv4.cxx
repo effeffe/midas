@@ -70,13 +70,13 @@ INT mscbhv4_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
    // create MSCBHV4 settings record
    size = sizeof(info->settings.mscb_device);
    info->settings.mscb_device[0] = 0;
-   status = db_get_value(hDB, hkey, "Device", &info->settings.mscb_device, &size, TID_STRING, TRUE);
+   status = db_get_value(hDB, hkey, "MSCB Device", &info->settings.mscb_device, &size, TID_STRING, TRUE);
    if (status != DB_SUCCESS)
       return FE_ERR_ODB;
 
    size = sizeof(info->settings.pwd);
    info->settings.pwd[0] = 0;
-   status = db_get_value(hDB, hkey, "Pwd", &info->settings.pwd, &size, TID_STRING, TRUE);
+   status = db_get_value(hDB, hkey, "MSCB Pwd", &info->settings.pwd, &size, TID_STRING, TRUE);
    if (status != DB_SUCCESS)
       return FE_ERR_ODB;
 
@@ -299,21 +299,21 @@ INT mscbhv4(INT cmd, ...)
          info = va_arg(argptr, MSCBHV4_INFO *);
          channel = va_arg(argptr, INT);
          pvalue = va_arg(argptr, float *);
-         *pvalue = 0.1f;
+         *pvalue = 0.01f;
          break;
 
       case CMD_GET_THRESHOLD_CURRENT:
          info = va_arg(argptr, MSCBHV4_INFO *);
          channel = va_arg(argptr, INT);
          pvalue = va_arg(argptr, float *);
-         *pvalue = 1;
+         *pvalue = 0.05f;
          break;
 
       case CMD_GET_THRESHOLD_ZERO:
          info = va_arg(argptr, MSCBHV4_INFO *);
          channel = va_arg(argptr, INT);
          pvalue = va_arg(argptr, float *);
-         *pvalue = 20;
+         *pvalue = 15;
          break;
 
       case CMD_GET_STATUS:
