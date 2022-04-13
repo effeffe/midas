@@ -1523,7 +1523,7 @@ void sequencer() {
             return;
          } else {
             if (strstr(value, ".json") || strstr(value, ".JSON") || strstr(value, ".js") || strstr(value, ".JS"))
-               status = db_save_json(hDB, hKey, value, JSFLAG_RECURSE | JSFLAG_OMIT_LAST_WRITTEN);
+               status = db_save_json(hDB, hKey, value, JSFLAG_RECURSE | JSFLAG_OMIT_LAST_WRITTEN | JSFLAG_FOLLOW_LINKS);
             else if  (strstr(value, ".xml") || strstr(value, ".XML"))
                status = db_save_xml(hDB, hKey, value);
             else

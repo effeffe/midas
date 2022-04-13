@@ -1977,7 +1977,8 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
             else if (param[1][1] == 'j')
                db_save_json(hDB, hKey, param[2]);
             else if (param[1][1] == 'z')
-               db_save_json(hDB, hKey, param[2], JSFLAG_RECURSE | JSFLAG_OMIT_LAST_WRITTEN);
+               db_save_json(hDB, hKey, param[2],
+                            JSFLAG_RECURSE | JSFLAG_OMIT_LAST_WRITTEN | JSFLAG_FOLLOW_LINKS);
          } else
             db_save(hDB, hKey, param[1], FALSE);
       }
