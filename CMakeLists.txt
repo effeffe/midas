@@ -215,6 +215,7 @@ endif (USE_OPENSSL)
 #
 # Optional libcurl support for mlogger
 #
+option(NO_CURL "Disable CURL support" FALSE)
 if (NO_CURL)
    message(STATUS "MIDAS: libcurl mlogger support is disabled via NO_CURL")
 else (NO_CURL)
@@ -235,6 +236,7 @@ endif (NO_CURL)
 #
 # Optional MBEDTLS SSL support for mhttpd
 #
+option(NO_MBEDTLS "Disable MBEDTLS support" FALSE)
 if (NO_MBEDTLS)
    message(STATUS "MIDAS: MBEDTLS https support is disabled via NO_MBEDTLS")
 else (NO_MBEDTLS)
@@ -250,6 +252,7 @@ endif (NO_MBEDTLS)
 #
 # Check for MYSQL library for mlogger and for the history
 #
+option(NO_MYSQL "Disable MYSQL support" FALSE)
 if (NO_MYSQL)
    message(STATUS "MIDAS: MySQL support is disabled via NO_MYSQL")
 else (NO_MYSQL)
@@ -282,6 +285,7 @@ endif (NO_MYSQL)
 #
 # Check for ODBC for history support
 #
+option(NO_ODBC "Disable ODBC support" FALSE)
 if (NO_ODBC)
    message(STATUS "MIDAS: ODBC support is disabled via NO_ODBC")
 else (NO_ODBC)
@@ -297,6 +301,7 @@ endif (NO_ODBC)
 #
 # Check for SQLITE for history support
 #
+option(NO_SQLITE "Disable SQLITE support" FALSE)
 if (NO_SQLITE)
    message(STATUS "MIDAS: SQLITE support is disabled via NO_SQLITE")
 else (NO_SQLITE)
@@ -318,6 +323,7 @@ list(APPEND XDEFINES -DHAVE_FTPLIB)
 #
 # Optional nvidia gpu support, HAVE_NVIDIA is a count of CPUs
 #
+option(NO_NVIDIA "Disable NVIDIA support" FALSE)
 if (NOT NO_NVIDIA)
    set(NO_NVIDIA 0 CACHE PATH "")
 endif()
@@ -341,7 +347,7 @@ endif(NO_NVIDIA)
 #
 # Optional lm-sensors support (used msysmon)
 #
-
+option(NO_SENSORS "Disable LM_SENSORS support" FALSE)
 if (NO_SENSORS)
   message(STATUS "MIDAS (msysmon): LM_SENSORS disabled")
 else()
@@ -357,7 +363,7 @@ endif(NO_SENSORS)
 #
 # Option OpenCV support (used in mlogger for rstp cameras)
 #
-
+option(NO_OPENCV "Disable OPENCV support" FALSE)
 if (NOT NO_OPENCV)
    set(NO_OPENCV 0 CACHE PATH "")
 endif()
