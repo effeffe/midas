@@ -46,22 +46,50 @@ function mie_to_string(tid, jvalue, format) {
    if (tid === TID_FLOAT || tid === TID_DOUBLE) {
       if (jvalue === "NaN")
          return jvalue;
-      if (format && format.indexOf("e") !== -1) {
-         let p = parseInt(format.substr(format.indexOf("e") + 1));
-         return jvalue.toExponential(p);
+
+      if (format && format.indexOf("%") !== -1) {
+         // new format
+         let i = format.indexOf('%');
+         let s1 = format.substring(0, format.indexOf('%'));
+         let s2, s3;
+         let p = parseInt(format[i+2]);
+         if (format[i+1] == "e")
+            s2 = jvalue.toExponential(p);
+         if (format[i+1] == "p")
+            s2 = jvalue.toPrecision(p);
+         if (format[i+1] == "f")
+            s2 = jvalue.toFixed(p);
+         if (format[i+1] == "t")
+            s2 = jvalue.toLocaleString();
+         if (format[i+1] == "%")
+            s1 += '%';
+
+         i += 2;
+         while (format[i] >= '0' && format[i] <= '9')
+            i++;
+         s3 = format.substring(i);
+         return s1+s2+s3;
+
+      } else {
+
+         // old format
+         if (format && format.indexOf("e") !== -1) {
+            let p = parseInt(format.substr(format.indexOf("e") + 1));
+            return jvalue.toExponential(p);
+         }
+         if (format && format.indexOf("p") !== -1) {
+            let p = parseInt(format.substr(format.indexOf("p") + 1));
+            return jvalue.toPrecision(p);
+         }
+         if (format && format.indexOf("f") !== -1) {
+            let p = parseInt(format.substr(format.indexOf("f") + 1));
+            return jvalue.toFixed(p);
+         }
+         if (format && format.indexOf("t") !== -1) {
+            return jvalue.toLocaleString();
+         }
+         return jvalue;
       }
-      if (format && format.indexOf("p") !== -1) {
-         let p = parseInt(format.substr(format.indexOf("p") + 1));
-         return jvalue.toPrecision(p);
-      }
-      if (format && format.indexOf("f") !== -1) {
-         let p = parseInt(format.substr(format.indexOf("f") + 1));
-         return jvalue.toFixed(p);
-      }
-      if (format && format.indexOf("t") !== -1) {
-         return jvalue.toLocaleString();
-      }
-      return jvalue;
    }
 
    let t = typeof jvalue;
@@ -71,40 +99,70 @@ function mie_to_string(tid, jvalue, format) {
    }
 
    if (tid === TID_DWORD || tid === TID_INT || tid === TID_WORD || tid === TID_SHORT || tid === TID_BYTE) {
-      if (format === undefined)
-         format = "d";
-      let str = "";
-      for (i = 0; i < format.length; i++) {
-         if (format[i] === "d") {
-            if (str.length > 0)
-               str += " / " + parseInt(jvalue);
-            else
-               str = parseInt(jvalue);
-         }
-         if (format[i] === "x") {
-            let hex = parseInt(jvalue).toString(16);
-            if (str.length > 0)
-               str += " / 0x" + hex;
-            else
-               str = "0x" + hex;
-         }
-         if (format[i] === "b") {
-            let bin = parseInt(jvalue).toString(2);
-            if (str.length > 0)
-               str += " / " + bin + "b";
-            else
-               str = bin + "b";
-         }
-         if (format[i] === "t") {
-            let loc = parseInt(jvalue).toLocaleString();
-            if (str.length > 0)
-               str += " / " + loc;
-            else
-               str = loc;
-         }
-      }
 
-      return str;
+      if (format && format.indexOf("%") !== -1) {
+         // new format
+         if (format === undefined)
+            format = "%d";
+         let str = "";
+         for (i = 0; i < format.length; i++) {
+            if (format[i] === '%') {
+               i++;
+
+               if (format[i] === 'd')
+                  str += parseInt(jvalue);
+               if (format[i] === 'x')
+                  str += "0x" + parseInt(jvalue).toString(16);
+               if (format[i] === 'b')
+                  str += parseInt(jvalue).toString(2) + "b";
+               if (format[i] === 't')
+                  str += parseInt(jvalue).toLocaleString();
+               if (format[i] === '%')
+                  str += '%';
+            } else
+               str += format[i];
+         }
+
+         return str;
+
+      } else {
+
+         //old format
+         if (format === undefined)
+            format = "d";
+         let str = "";
+         for (i = 0; i < format.length; i++) {
+            if (format[i] === "d") {
+               if (str.length > 0)
+                  str += " / " + parseInt(jvalue);
+               else
+                  str = parseInt(jvalue);
+            }
+            if (format[i] === "x") {
+               let hex = parseInt(jvalue).toString(16);
+               if (str.length > 0)
+                  str += " / 0x" + hex;
+               else
+                  str = "0x" + hex;
+            }
+            if (format[i] === "b") {
+               let bin = parseInt(jvalue).toString(2);
+               if (str.length > 0)
+                  str += " / " + bin + "b";
+               else
+                  str = bin + "b";
+            }
+            if (format[i] === "t") {
+               let loc = parseInt(jvalue).toLocaleString();
+               if (str.length > 0)
+                  str += " / " + loc;
+               else
+                  str = loc;
+            }
+         }
+
+         return str;
+      }
    }
 
    if (t === 'string') {
