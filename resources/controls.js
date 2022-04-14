@@ -574,8 +574,14 @@ function dlgShow(dlg, modal) {
    // put dialog on top of all other dialogs
    let dlgs = document.getElementsByClassName("dlgFrame");
    for (let i = 0; i < dlgs.length; i++)
-      dlgs[i].style.zIndex = "10";
-   d.style.zIndex = "11";
+      dlgs[i].style.zIndex = "30"; // on top of blackout (20)
+   d.style.zIndex = "31";
+
+   // move dialog right-down if on top of previous one
+   if (dlgs.length > 1) {
+      d.style.left = (parseInt(dlgs[dlgs.length - 2].style.left) + 30).toString() + "px";
+      d.style.top = (parseInt(dlgs[dlgs.length - 2].style.top) + 30).toString() + "px";
+   }
 
    // enable scrolling if dialog bog goes beyond screen
    d.oldScroll = window.getComputedStyle(document.body).overflow;
@@ -591,7 +597,7 @@ function dlgShow(dlg, modal) {
       }
 
       b.style.display = "block";
-      d.style.zIndex = "21"; // on top of dlgBlackout (20)
+      d.dlgBlackout = b;
    }
 
    d.dlgMouseDown = function (e) {
@@ -618,8 +624,8 @@ function dlgShow(dlg, modal) {
          if (e.target === this || d.contains(e.target)) {
             let dlgs = document.getElementsByClassName("dlgFrame");
             for (let i = 0; i < dlgs.length; i++)
-               dlgs[i].style.zIndex = "10";
-            d.style.zIndex = d.modal ? "21" : "11";
+               dlgs[i].style.zIndex = "30";
+            d.style.zIndex = "31";
          }
       }
    };
@@ -674,8 +680,8 @@ function dlgShow(dlg, modal) {
          if (e.target === this || d.contains(e.target)) {
             let dlgs = document.getElementsByClassName("dlgFrame");
             for (let i = 0; i < dlgs.length; i++)
-               dlgs[i].style.zIndex = "10";
-            d.style.zIndex = "11";
+               dlgs[i].style.zIndex = "30";
+            d.style.zIndex = "31";
          }
       }
    };
@@ -784,7 +790,7 @@ function dlgMessageDestroy(b) {
 function dlgMessage(title, string, modal, error, callback, param) {
    let d = document.createElement("div");
    d.className = "dlgFrame";
-   d.style.zIndex = modal ? "21" : "20";
+   d.style.zIndex = modal ? "31" : "30";
    d.callback = callback;
    d.callbackParam = param;
    d.shouldDestroy = true;
@@ -815,7 +821,7 @@ function dlgAlert(s, callback) {
 function dlgConfirm(string, confirmCallback, param) {
    let d = document.createElement("div");
    d.className = "dlgFrame";
-   d.style.zIndex = "21";
+   d.style.zIndex = "31";
    d.callback = confirmCallback;
    d.callbackParam = param;
    d.shouldDestroy = true;
@@ -839,7 +845,7 @@ function dlgConfirm(string, confirmCallback, param) {
 function dlgQuery(string, value, queryCallback, param) {
    let d = document.createElement("div");
    d.className = "dlgFrame";
-   d.style.zIndex = "21";
+   d.style.zIndex = "31";
    d.callback = queryCallback;
    d.callbackParam = param;
    d.shouldDestroy = true;
@@ -870,7 +876,7 @@ function dlgWait(time, string, func, param) {
 
    let d = document.createElement("div");
    d.className = "dlgFrame";
-   d.style.zIndex = "21";
+   d.style.zIndex = "31";
    d.shouldDestroy = true;
 
    <!-- wait dialog -->
