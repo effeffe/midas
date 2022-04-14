@@ -9,6 +9,7 @@
    Created S. Ritt 11.04.2022
 */
 
+#include <cmath>
 #include <history.h>
 
 //---- generic class ------------------------------------------------
@@ -26,6 +27,9 @@ public:
    int mDevIndex;
    int mNchannels;
    int mNblocks;
+   double mThreshold;
+   double mFactor;
+   double mOffset;
 
 public:
    mdevice(std::string eq_name, std::string dev_name,
@@ -81,14 +85,17 @@ public:
       mEq->driver[mDevIndex].channels = 0;
       mNchannels = 0;
       mNblocks = 0;
+      mThreshold = 0;
+      mFactor = 1;
+      mOffset = 0;
 
       mOdbDev.connect("/Equipment/" + eq_name + "/Settings/Devices/" + dev_name);
       mOdbSettings.connect("/Equipment/" + eq_name + "/Settings");
       mOdbVars.connect("/Equipment/" + eq_name + "/Variables");
    }
 
-   void define_var(std::string name = "", double threshold = 0,
-                   double factor = 1, double offset = 0)
+   void define_var(std::string name = "", double threshold = std::nan(""),
+                   double factor = std::nan(""), double offset = std::nan(""))
    {
       int chn_index = 0;
 
@@ -99,8 +106,14 @@ public:
             if (mEq->driver[i].flags & DF_INPUT)
                chn_index += mEq->driver[i].channels;
 
-         mOdbSettings["Update Threshold"][chn_index] = (float) threshold;
+         if (std::isnan(threshold))
+            threshold = mThreshold;
+         if (std::isnan(factor))
+            factor = mFactor;
+         if (std::isnan(offset))
+            offset = mOffset;
 
+         mOdbSettings["Update Threshold"][chn_index] = (float) threshold;
          mOdbSettings["Input Factor"][chn_index] = (float) factor;
          mOdbSettings["Input Offset"][chn_index] = (float) offset;
 
@@ -186,6 +199,26 @@ public:
 
       hs_define_panel(mEq->name, panelName.c_str(), vars);
    }
+
+   void define_panel(std::string panelName, std::vector<std::string> vars)
+   {
+      for (std::size_t i=0 ; i<vars.size() ; i++)
+         if (vars[i].find(":") == std::string::npos)
+            vars[i] = std::string(mEq->name) + ":" + vars[i];
+      hs_define_panel(mEq->name, panelName.c_str(), vars);
+   }
+
+   void set_threshold(double threshold)
+   {
+      mThreshold = threshold;
+   }
+
+   void set_factor_offset(double factor, double offset)
+   {
+      mFactor = factor;
+      mOffset = offset;
+   }
+
 };
 
 //---- MSCB class ---------------------------------------------------
@@ -234,8 +267,8 @@ public:
    }
 
    void define_var(int address, unsigned char var_index,
-                   std::string name = "", double threshold = 0,
-                   double factor = 1, double offset = 0) {
+                   std::string name = "", double threshold = std::nan(""),
+                   double factor = std::nan(""), double offset = std::nan("")) {
       mdevice::define_var(name, threshold, factor, offset);
 
       // put info into device subtreee
