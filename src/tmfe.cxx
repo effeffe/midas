@@ -1577,6 +1577,26 @@ TMFeEquipment::~TMFeEquipment() // dtor
    EqStopPollThread();
 
    // free data and poison pointers
+   if (fOdbEq) {
+      delete fOdbEq;
+      fOdbEq = NULL;
+   }
+   if (fOdbEqCommon) {
+      delete fOdbEqCommon;
+      fOdbEqCommon = NULL;
+   }
+   if (fOdbEqSettings) {
+      delete fOdbEqSettings;
+      fOdbEqSettings = NULL;
+   }
+   if (fOdbEqVariables) {
+      delete fOdbEqVariables;
+      fOdbEqVariables = NULL;
+   }
+   if (fOdbEqStatistics) {
+      delete fOdbEqStatistics;
+      fOdbEqStatistics = NULL;
+   }
    fMfe = NULL;
    fFe  = NULL;
    fEqEventBuffer = NULL;
