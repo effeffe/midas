@@ -11351,8 +11351,12 @@ void RPC_SERVER_ACCEPTION::close()
    event_sock = 0;
 
    /* free TCP cache */
-   M_FREE(net_buffer);
-   net_buffer = NULL;
+   if (net_buffer) {
+      //printf("free net_buffer %p+%d\n", net_buffer, net_buffer_size);
+      free(net_buffer);
+      net_buffer = NULL;
+      net_buffer_size = 0;
+   }
 
    /* mark this entry as invalid */
    clear();
@@ -12603,8 +12607,7 @@ static void rpc_client_shutdown()
    for (unsigned i = 0; i < _server_acceptions.size(); i++) {
       if (_server_acceptions[i] && _server_acceptions[i]->recv_sock) {
          send(_server_acceptions[i]->recv_sock, "EXIT", 5, 0);
-         closesocket(_server_acceptions[i]->recv_sock);
-         _server_acceptions[i]->recv_sock = 0;
+         _server_acceptions[i]->close();
       }
    }
 }
@@ -14087,7 +14090,8 @@ static int recv_net_command_realloc(INT idx, char **pbuf, int *pbufsize, INT *re
       else
          sa->net_buffer_size = NET_BUFFER_SIZE;
 
-      sa->net_buffer = (char *) M_MALLOC(sa->net_buffer_size);
+      sa->net_buffer = (char *) malloc(sa->net_buffer_size);
+      //printf("sa %p idx %d, net_buffer %p+%d\n", sa, idx, sa->net_buffer, sa->net_buffer_size);
       sa->write_ptr = 0;
       sa->read_ptr = 0;
       sa->misalign = 0;
