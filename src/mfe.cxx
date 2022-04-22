@@ -1248,16 +1248,8 @@ static int receive_trigger_event(EQUIPMENT *eq) {
    int index, status;
    EVENT_HEADER *prb = NULL, *pevent;
    void *p;
-
-#if 0
-   int nbytes;
-   static int count = 0;
-   if (((count++) % 100) == 0) {
-      rb_get_buffer_level(rbh, &nbytes);
-      if (nbytes != 0)
-         printf("mfe: ring buffer contains %d bytes\n", nbytes);
-   }
-#endif
+   static unsigned int last_event = 0;
+   static unsigned int last_error = 0;
 
    // search all ring buffers for next event
    DWORD serial = eq->events_collected;
@@ -1270,9 +1262,19 @@ static int receive_trigger_event(EQUIPMENT *eq) {
          break;
    }
 
-   if (get_event_rbh(index) == 0)
+   if (get_event_rbh(index) == 0) {
+      if (serial > 0 && last_event > 0 && ss_millitime() > last_event + 5000) {
+         if (ss_time() - last_error > 30) {
+            last_error = ss_time();
+            cm_msg(MERROR, "receive_trigger_event",
+                   "Event collector: waiting for event serial %d since %1.1lf seconds",
+                   serial, (ss_millitime() - last_event) / 1000.0);
+         }
+      }
       return 0;
+   }
 
+   last_event = ss_millitime();
    pevent = prb;
 
    /* send event */
@@ -2602,7 +2604,10 @@ int main(int argc, char *argv[])
    }
 
    /* register transition callbacks */
-   if (cm_register_transition(TR_START, tr_start, 500) != CM_SUCCESS || cm_register_transition(TR_STOP, tr_stop, 500) != CM_SUCCESS || cm_register_transition(TR_PAUSE, tr_pause, 500) != CM_SUCCESS || cm_register_transition(TR_RESUME, tr_resume, 500) != CM_SUCCESS) {
+   if (cm_register_transition(TR_START, tr_start, 500) != CM_SUCCESS ||
+       cm_register_transition(TR_STOP, tr_stop, 500) != CM_SUCCESS ||
+       cm_register_transition(TR_PAUSE, tr_pause, 500) != CM_SUCCESS ||
+       cm_register_transition(TR_RESUME, tr_resume, 500) != CM_SUCCESS) {
       printf("Failed to start local RPC server");
       cm_disconnect_experiment();
 

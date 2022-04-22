@@ -1699,6 +1699,19 @@ Data conversion flags */
 #define cSTRING          (  ((char *)       prpc_param[--n_param]))
 #define cARRAY           (  ((void *)       prpc_param[--n_param]))
 
+/**
+flags for db_json_save() */
+#define JS_LEVEL_0        0
+#define JS_LEVEL_1        1
+#define JS_MUST_BE_SUBDIR 1
+#define JSFLAG_SAVE_KEYS         (1<<1)
+#define JSFLAG_FOLLOW_LINKS      (1<<2)
+#define JSFLAG_RECURSE           (1<<3)
+#define JSFLAG_LOWERCASE         (1<<4)
+#define JSFLAG_OMIT_NAMES        (1<<5)
+#define JSFLAG_OMIT_LAST_WRITTEN (1<<6)
+#define JSFLAG_OMIT_OLD          (1<<7)
+
 /*---- Function declarations ---------------------------------------*/
 
 /* make functions under WinNT dll exportable */
@@ -1926,7 +1939,7 @@ Data conversion flags */
    INT EXPRT db_save_xml(HNDLE hDB, HNDLE hKey, const char *file_name);
    INT EXPRT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size);
 
-   INT EXPRT db_save_json(HNDLE hDB, HNDLE hKey, const char *file_name);
+   INT EXPRT db_save_json(HNDLE hDB, HNDLE hKey, const char *file_name, int flags=JSFLAG_SAVE_KEYS|JSFLAG_RECURSE);
    INT EXPRT db_load_json(HNDLE hdb, HNDLE key_handle, const char *filename);
 
    /* db_copy_json() is obsolete, use db_copy_json_save, _values and _ls instead */

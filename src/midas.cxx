@@ -198,10 +198,6 @@ static std::mutex gBuffersMutex; // protects gBuffers vector itself, but not it'
 static std::vector<BUFFER*> gBuffers;
 
 static INT _msg_buffer = 0;
-#if 0
-static INT _msg_rb = 0;
-static MUTEX_T *_msg_mutex = NULL;
-#endif
 static EVENT_HANDLER *_msg_dispatch = NULL;
 
 static REQUEST_LIST *_request_list;
@@ -453,19 +449,6 @@ std::string cm_get_error(INT code)
 
 /********************************************************************/
 int cm_msg_early_init(void) {
-#if 0
-   int status;
-
-   if (!_msg_rb) {
-      status = rb_create(100 * 1024, 1024, &_msg_rb);
-      assert(status == SUCCESS);
-   }
-
-   if (!_msg_mutex) {
-      status = ss_mutex_create(&_msg_mutex, FALSE);
-      assert(status == SS_SUCCESS || status == SS_CREATED);
-   }
-#endif
 
    return CM_SUCCESS;
 }
@@ -705,28 +688,6 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
                  "cm_msg_log: Message \"%s\" not written to midas.log because open(%s) failed with errno %d (%s)\n",
                  message, filename.c_str(), errno, strerror(errno));
       } else {
-         //int semaphore;
-
-         //cm_get_experiment_semaphore(NULL, NULL, NULL, &semaphore);
-
-         //if (semaphore == -1) {
-         //   fprintf(stderr,
-         //           "cm_msg_log: Message \"%s\" not written to midas.log (%s) because the message semaphore is not initialized yet.\n",
-         //           message, filename.c_str());
-         //   return CM_SUCCESS;
-         //}
-
-         //status = ss_semaphore_wait_for(semaphore, 5 * 1000);
-         //if (status != SS_SUCCESS) {
-         //   fprintf(stderr,
-         //           "cm_msg_log: Something is wrong with our semaphore, ss_semaphore_wait_for() returned %d, aborting.\n",
-         //           status);
-         //   //abort(); // DOES NOT RETURN
-         //   // NOT REACHED
-         //   fprintf(stderr,
-         //           "cm_msg_log: Cannot abort - this will lock you out of odb. From this point, MIDAS will not work correctly. Please read the discussion at https://midas.triumf.ca/elog/Midas/945\n");
-         //   return status;
-         //}
 
          struct timeval tv;
          struct tm tms;
@@ -761,8 +722,6 @@ INT cm_msg_log(INT message_type, const char *facility, const char *message) {
          }
 
          close(fh);
-
-         //status = ss_semaphore_release(semaphore);
       }
    }
 
@@ -889,11 +848,6 @@ INT cm_msg_flush_buffer() {
 
    //printf("cm_msg_flush_buffer!\n");
 
-#if 0
-   if (!_msg_rb)
-      return CM_SUCCESS;
-#endif
-
    for (i = 0; i < 100; i++) {
       msg_buffer_entry e;
       {
@@ -912,65 +866,6 @@ INT cm_msg_flush_buffer() {
       int status = cm_msg_send_event(e.ts, e.message_type, e.message.c_str());
       if (status != CM_SUCCESS)
          return status;
-
-#if 0
-      int status;
-      int ts;
-      int message_type;
-      char message[1024];
-      int n_bytes;
-      char *rp;
-      void *vp;
-      int len;
-
-      status = rb_get_buffer_level(_msg_rb, &n_bytes);
-
-      if (status != SUCCESS || n_bytes <= 0)
-         break;
-
-      // lock
-      status = ss_mutex_wait_for(_msg_mutex, 0);
-      assert(status == SS_SUCCESS);
-
-      status = rb_get_rp(_msg_rb, &vp, 0);
-      rp = (char *) vp;
-      if (status != SUCCESS || rp == NULL) {
-         // unlock
-         ss_mutex_release(_msg_mutex);
-         return SS_NO_MEMORY;
-      }
-
-      assert(rp);
-      assert(rp[0] == 'M');
-      assert(rp[1] == 'S');
-      assert(rp[2] == 'G');
-      assert(rp[3] == '_');
-      rp += 4;
-
-      ts = *(int *) rp;
-      rp += sizeof(int);
-
-      message_type = *(int *) rp;
-      rp += sizeof(int);
-
-      len = *(int *) rp;
-      rp += sizeof(int);
-
-      strlcpy(message, rp, sizeof(message));
-
-      rb_increment_rp(_msg_rb, 4 + 3 * sizeof(int) + len);
-
-      // unlock
-      ss_mutex_release(_msg_mutex);
-
-      /* log message */
-      cm_msg_log(message_type, "midas", message);
-
-      /* send message to SYSMSG */
-      status = cm_msg_send_event(ts, message_type, message);
-      if (status != CM_SUCCESS)
-         return status;
-#endif
    }
 
    return CM_SUCCESS;
@@ -1547,7 +1442,7 @@ static INT _watchdog_timeout = DEFAULT_WATCHDOG_TIMEOUT;
 INT _semaphore_alarm = -1;
 INT _semaphore_elog = -1;
 INT _semaphore_history = -1;
-INT _semaphore_msg = -1;
+//INT _semaphore_msg = -1;
 
 /**dox***************************************************************/
 /** @addtogroup cmfunctionc
@@ -3038,19 +2933,6 @@ INT cm_disconnect_experiment(void) {
    /* last flush before we delete the message ring buffer */
    cm_msg_flush_buffer();
 
-#if 0
-   /* delete the message ring buffer and semaphore */
-   if (_msg_mutex)
-      ss_mutex_delete(_msg_mutex);
-   _msg_mutex = 0;
-   if (_msg_rb)
-      rb_delete(_msg_rb);
-   _msg_rb = 0;
-#endif
-
-   //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after deleting message ring buffer");
-   //cm_msg_flush_buffer();
-
    //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg after disconnect is completed");
    //cm_msg_flush_buffer();
 
@@ -3107,7 +2989,7 @@ INT cm_set_experiment_semaphore(INT semaphore_alarm, INT semaphore_elog, INT sem
    _semaphore_alarm = semaphore_alarm;
    _semaphore_elog = semaphore_elog;
    _semaphore_history = semaphore_history;
-   _semaphore_msg = semaphore_msg;
+   //_semaphore_msg = semaphore_msg;
 
    return CM_SUCCESS;
 }
@@ -3185,8 +3067,10 @@ INT cm_get_experiment_semaphore(INT *semaphore_alarm, INT *semaphore_elog, INT *
       *semaphore_elog = _semaphore_elog;
    if (semaphore_history)
       *semaphore_history = _semaphore_history;
+   //if (semaphore_msg)
+   //   *semaphore_msg = _semaphore_msg;
    if (semaphore_msg)
-      *semaphore_msg = _semaphore_msg;
+      *semaphore_msg = -1;
 
    return CM_SUCCESS;
 }
@@ -5325,9 +5209,10 @@ INT cm_transition(INT transition, INT run_number, char *errstr, INT errstr_size,
    cm_get_experiment_database(&hDB, NULL);
 
    bool deferred = (transition & TR_DEFERRED) > 0;
+   INT trans_raw = (transition & ~TR_DEFERRED);
 
    /* check for valid transition */
-   if (transition != TR_START && transition != TR_STOP && transition != TR_PAUSE && transition != TR_RESUME && transition != TR_STARTABORT) {
+   if (trans_raw != TR_START && trans_raw != TR_STOP && trans_raw != TR_PAUSE && trans_raw != TR_RESUME && trans_raw != TR_STARTABORT) {
       cm_msg(MERROR, "cm_transition", "Invalid transition request \"%d\"", transition);
       if (errstr) {
          strlcpy(errstr, "Invalid transition request", errstr_size);
@@ -5996,13 +5881,17 @@ event id and trigger mask
 @return TRUE      if event matches request
 */
 INT bm_match_event(short int event_id, short int trigger_mask, const EVENT_HEADER *pevent) {
-   if ((pevent->event_id & 0xF000) == EVENTID_FRAG1 || (pevent->event_id & 0xF000) == EVENTID_FRAG)
-      /* fragmented event */
-      return ((event_id == EVENTID_ALL || event_id == (pevent->event_id & 0x0FFF))
-              && (trigger_mask == TRIGGER_ALL || (trigger_mask & pevent->trigger_mask)));
+   // NB: cast everything to unsigned 16 bit to avoid bitwise comparison failure
+   // because of mismatch in sign-extension between signed 16-bit event_id and
+   // unsigned 16-bit constants. K.O.
 
-   return ((event_id == EVENTID_ALL || event_id == pevent->event_id)
-           && (trigger_mask == TRIGGER_ALL || (trigger_mask & pevent->trigger_mask)));
+   if (((uint16_t(pevent->event_id) & uint16_t(0xF000)) == uint16_t(EVENTID_FRAG1)) || ((uint16_t(pevent->event_id) & uint16_t(0xF000)) == uint16_t(EVENTID_FRAG)))
+      /* fragmented event */
+      return (((uint16_t(event_id) == uint16_t(EVENTID_ALL)) || (uint16_t(event_id) == (uint16_t(pevent->event_id) & uint16_t(0x0FFF))))
+              && ((uint16_t(trigger_mask) == uint16_t(TRIGGER_ALL)) || ((uint16_t(trigger_mask) & uint16_t(pevent->trigger_mask)))));
+
+   return (((uint16_t(event_id) == uint16_t(EVENTID_ALL)) || (uint16_t(event_id) == uint16_t(pevent->event_id)))
+           && ((uint16_t(trigger_mask) == uint16_t(TRIGGER_ALL)) || ((uint16_t(trigger_mask) & uint16_t(pevent->trigger_mask)))));
 }
 
 #ifdef LOCAL_ROUTINES
@@ -8755,7 +8644,7 @@ static void bm_dispatch_event(int buffer_handle, EVENT_HEADER *pevent) {
       if (_request_list[i].buffer_handle == buffer_handle &&
           bm_match_event(_request_list[i].event_id, _request_list[i].trigger_mask, pevent)) {
          /* if event is fragmented, call defragmenter */
-         if ((pevent->event_id & 0xF000) == EVENTID_FRAG1 || (pevent->event_id & 0xF000) == EVENTID_FRAG)
+         if (((uint16_t(pevent->event_id) & uint16_t(0xF000)) == uint16_t(EVENTID_FRAG1)) || ((uint16_t(pevent->event_id) & uint16_t(0xF000)) == uint16_t(EVENTID_FRAG)))
             bm_defragment_event(buffer_handle, i, pevent, (void *) (pevent + 1), _request_list[i].dispatcher);
          else
             _request_list[i].dispatcher(buffer_handle, i, pevent, (void *) (pevent + 1));
@@ -11208,7 +11097,7 @@ static void bm_defragment_event(HNDLE buffer_handle, HNDLE request_id,
 {
    INT i;
 
-   if ((pevent->event_id & 0xF000) == EVENTID_FRAG1) {
+   if ((uint16_t(pevent->event_id) & uint16_t(0xF000)) == uint16_t(EVENTID_FRAG1)) {
       /*---- start new event ----*/
 
       //printf("First Frag detected : Ser#:%d ID=0x%x \n", pevent->serial_number, pevent->event_id);
@@ -15914,16 +15803,6 @@ INT rpc_server_receive_rpc(int idx, RPC_SERVER_ACCEPTION* sa)
          rpc_deregister_functions();
 
          cm_set_experiment_database(0, 0);
-
-#if 0
-         if (_msg_mutex)
-            ss_mutex_delete(_msg_mutex);
-         _msg_mutex = 0;
-
-         if (_msg_rb)
-            rb_delete(_msg_rb);
-         _msg_rb = 0;
-#endif
       }
    }
 
@@ -16078,16 +15957,6 @@ INT rpc_server_receive_event(int idx, RPC_SERVER_ACCEPTION* sa, int timeout_msec
          rpc_deregister_functions();
 
          cm_set_experiment_database(0, 0);
-
-#if 0
-         if (_msg_mutex)
-            ss_mutex_delete(_msg_mutex);
-         _msg_mutex = 0;
-
-         if (_msg_rb)
-            rb_delete(_msg_rb);
-         _msg_rb = 0;
-#endif
       }
    }
 

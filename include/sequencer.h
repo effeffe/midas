@@ -16,6 +16,7 @@ typedef struct {
    BOOL  running;
    BOOL  finished;
    BOOL  paused;
+   BOOL  debug;
    int   current_line_number;
    int   scurrent_line_number;
    BOOL  stop_after_run;
@@ -60,6 +61,7 @@ typedef struct {
 "Running = BOOL : n",\
 "Finished = BOOL : y",\
 "Paused = BOOL : n",\
+"Debug = BOOL : n",\
 "Current line number = INT : 0",\
 "SCurrent line number = INT : 0",\
 "Stop after run = BOOL : n",\

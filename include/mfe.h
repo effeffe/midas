@@ -12,7 +12,7 @@
 
 #include "midas.h"
 
-// following items must be provided to mfe.c by the user frontend
+// following items must be provided to mfe.cxx by the user frontend
 
 extern const char *frontend_name;
 extern const char *frontend_file_name;
@@ -32,6 +32,15 @@ extern INT pause_run(INT run_number, char *error);
 extern INT resume_run(INT run_number, char *error);
 extern INT poll_event(INT source, INT count, BOOL test);
 extern INT interrupt_configure(INT cmd, INT source, POINTER_T adr);
+
+// following items are defined in mfed.cxx to simplify frontend syntax
+extern void set_max_event_size(int size);
+extern void install_frontend_loop(INT (*f)());
+extern void install_frontend_exit(INT (*f)());
+extern void install_begin_of_run(INT (*f)());
+extern void install_end_of_run(INT (*f)());
+extern void install_pause_run(INT (*f)());
+extern void install_resume_run(INT (*f)());
 
 // following items are available inside mfe.c to be used by the user frontend
 // look inside mfe.c to find out what they do.

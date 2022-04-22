@@ -1514,11 +1514,13 @@ TMFeResult TMFrontend::FeAddEquipment(TMFeEquipment* eq)
          continue;
       if (fFeEquipments[i] == eq) {
          fprintf(stderr, "TMFE::AddEquipment: Fatal error: Equipment \"%s\" is already registered, bye...\n", fFeEquipments[i]->fEqName.c_str());
+         fMfe->Disconnect();
          exit(1);
          //return TMFeErrorMessage(msprintf("TMFE::AddEquipment: Equipment \"%s\" is already registered", fFeEquipments[i]->fEqName.c_str()));
       }
       if (fFeEquipments[i]->fEqName == eq->fEqName) {
          fprintf(stderr, "TMFE::AddEquipment: Fatal error: Duplicate equipment name \"%s\", bye...\n", eq->fEqName.c_str());
+         fMfe->Disconnect();
          exit(1);
          //return TMFeErrorMessage(std::string("TMFE::AddEquipment: Duplicate equipment name \"") + eq->fEqName + "\"");
       }
@@ -2274,12 +2276,14 @@ TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
 
    if (r.error_flag) {
       fprintf(stderr, "Fatal error: arguments handler error: %s, bye.\n", r.error_message.c_str());
+      fMfe->Disconnect();
       exit(1);
    }
 
    if (help) {
       FeUsage(args[0].c_str());
       HandleUsage();
+      fMfe->Disconnect();
       exit(1);
    }
 
@@ -2287,6 +2291,7 @@ TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
 
    if (r.error_flag) {
       fprintf(stderr, "Fatal error: cannot connect to MIDAS, error: %s, bye.\n", r.error_message.c_str());
+      fMfe->Disconnect();
       exit(1);
    }
 
@@ -2294,6 +2299,7 @@ TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
 
    if (r.error_flag) {
       fprintf(stderr, "Fatal error: frontend init error: %s, bye.\n", r.error_message.c_str());
+      fMfe->Disconnect();
       exit(1);
    }
 
@@ -2311,6 +2317,7 @@ TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
 
    if (r.error_flag) {
       fprintf(stderr, "Cannot initialize equipments, error message: %s, bye.\n", r.error_message.c_str());
+      fMfe->Disconnect();
       exit(1);
    }
 
@@ -2318,12 +2325,14 @@ TMFeResult TMFrontend::FeInit(const std::vector<std::string> &args)
 
    if (r.error_flag) {
       fprintf(stderr, "Fatal error: frontend post-init error: %s, bye.\n", r.error_message.c_str());
+      fMfe->Disconnect();
       exit(1);
    }
 
    if (fMfe->fStateRunning) {
       if (fFeIfRunningCallExit) {
          fprintf(stderr, "Fatal error: Cannot start frontend, run is in progress!\n");
+         fMfe->Disconnect();
          exit(1);
       } else if (fFeIfRunningCallBeginRun) {
          char errstr[TRANSITION_ERROR_STRING_LENGTH];
@@ -2357,6 +2366,7 @@ int TMFrontend::FeMain(const std::vector<std::string> &args)
 
    if (r.error_flag) {
       fprintf(stderr, "Fatal error: frontend init error: %s, bye.\n", r.error_message.c_str());
+      fMfe->Disconnect();
       exit(1);
    }
 

@@ -23,25 +23,9 @@ const char *frontend_name = "Sample Frontend";
 /* The frontend file name, don't change it */
 const char *frontend_file_name = __FILE__;
 
-/* frontend_loop is called periodically if this variable is TRUE    */
-BOOL frontend_call_loop = FALSE;
-
-/* a frontend status page is displayed with this frequency in ms */
-INT display_period = 3000;
-
-/* maximum event size produced by this frontend */
-INT max_event_size = 1024 * 1024;
-
-/* maximum event size for fragmented events (EQ_FRAGMENTED) */
-INT max_event_size_frag = 32 * 1024 * 1024;
-
-/* buffer size to hold events */
-INT event_buffer_size = 4 * max_event_size;
-
 /*-- Function declarations -----------------------------------------*/
 
 INT trigger_thread(void *param);
-INT read_scaler_event(char *pevent, INT off);
 
 /*-- Equipment list ------------------------------------------------*/
 
@@ -68,31 +52,6 @@ EQUIPMENT equipment[] = {
    {""}
 };
 
-/********************************************************************\
-              Callback routines for system transitions
-
-  These routines are called whenever a system transition like start/
-  stop of a run occurs. The routines are called on the following
-  occations:
-
-  frontend_init:  When the frontend program is started. This routine
-                  should initialize the hardware.
-
-  frontend_exit:  When the frontend program is shut down. Can be used
-                  to releas any locked resources like memory, commu-
-                  nications ports etc.
-
-  begin_of_run:   When a new run is started. Clear scalers, open
-                  rungates, etc.
-
-  end_of_run:     Called on a request to stop a run. Can send
-                  end-of-run event and close run gates.
-
-  pause_run:      When a run is paused. Should disable trigger events.
-
-  resume_run:     When a run is resumed. Should enable trigger events.
-\********************************************************************/
-
 /*-- Frontend Init -------------------------------------------------*/
 
 INT frontend_init()
@@ -107,74 +66,6 @@ INT frontend_init()
       ss_thread_create(trigger_thread, (void*)(PTYPE)i);
    }
    
-   return SUCCESS;
-}
-
-/*-- Frontend Exit -------------------------------------------------*/
-
-INT frontend_exit()
-{
-   return SUCCESS;
-}
-
-/*-- Begin of Run --------------------------------------------------*/
-
-INT begin_of_run(INT run_number, char *error)
-{
-   return SUCCESS;
-}
-
-/*-- End of Run ----------------------------------------------------*/
-
-INT end_of_run(INT run_number, char *error)
-{
-   return SUCCESS;
-}
-
-/*-- Pause Run -----------------------------------------------------*/
-
-INT pause_run(INT run_number, char *error)
-{
-   return SUCCESS;
-}
-
-/*-- Resuem Run ----------------------------------------------------*/
-
-INT resume_run(INT run_number, char *error)
-{
-   return SUCCESS;
-}
-
-/*-- Frontend Loop -------------------------------------------------*/
-
-INT frontend_loop()
-{
-   /* if frontend_call_loop is true, this routine gets called when
-      the frontend is idle or once between every event */
-   return SUCCESS;
-}
-
-/*------------------------------------------------------------------*/
-
-/********************************************************************\
-
-  Readout routines for different events
-
-\********************************************************************/
-
-/*-- Trigger event routines ----------------------------------------*/
-
-INT poll_event(INT source, INT count, BOOL test)
-/* Polling is not used in this example */
-{
-   return 0;
-}
-
-/*-- Interrupt configuration ---------------------------------------*/
-
-INT interrupt_configure(INT cmd, INT source, POINTER_T adr)
-/* Interrupts are not used in this example */
-{
    return SUCCESS;
 }
 

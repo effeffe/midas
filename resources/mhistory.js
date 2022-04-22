@@ -13,6 +13,14 @@ LN10 = 2.302585094;
 LOG2 = 0.301029996;
 LOG5 = 0.698970005;
 
+function log_hs_read(str, a, b)
+{
+   let da = new Date(a*1000);
+   let db = new Date(b*1000);
+   // out-comment following line to log all history requests
+   // console.log(str + ":" + da + " to " + db);
+}
+
 function profile(flag) {
    if (flag === true || flag === undefined) {
       console.log("");
@@ -772,6 +780,7 @@ MhistoryGraph.prototype.loadInitialData = function () {
 
    this.pendingUpdates++;
    this.parentDiv.style.cursor = "progress";
+   log_hs_read("Initial read", Math.floor(this.tMinRequested), Math.floor(this.lastTimeStamp));
    mjsonrpc_call("hs_read_arraybuffer",
       {
          "start_time": Math.floor(this.tMinRequested),
@@ -827,6 +836,7 @@ MhistoryGraph.prototype.loadOldData = function () {
 
       this.pendingUpdates++;
       this.parentDiv.style.cursor = "progress";
+      log_hs_read("loadOldData", Math.floor(this.tMinRequested), Math.floor(oldTMinRequested));
       mjsonrpc_call("hs_read_arraybuffer",
          {
             "start_time": Math.floor(this.tMinRequested),
@@ -1017,6 +1027,7 @@ MhistoryGraph.prototype.update = function () {
 
    let t = Math.floor(new Date() / 1000);
 
+   log_hs_read("update", Math.floor(this.lastTimeStamp), Math.floor(t));
    mjsonrpc_call("hs_read_arraybuffer",
       {
          "start_time": Math.floor(this.lastTimeStamp),

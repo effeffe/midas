@@ -43,7 +43,7 @@ typedef struct {
 
 /*---- device driver routines --------------------------------------*/
 
-INT addr_changed(HNDLE, HNDLE, void *arg)
+void addr_changed(HNDLE, HNDLE, void *arg)
 {
    INT i, status;
    MSCB_INFO_VAR var_info;
@@ -71,13 +71,11 @@ INT addr_changed(HNDLE, HNDLE, void *arg)
          info->mscbdev_settings.var_size[i] = 0;
          cm_msg(MERROR, "addr_changed", "Cannot read from address %d at submaster %s", 
             info->mscbdev_settings.mscb_address[i], info->mscbdev_settings.mscb_device);
-         return FE_ERR_HW;
+         return;
       }
    }
    if (info->num_channels > 20)
       printf("\n");
-
-   return FE_SUCCESS;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -142,14 +140,14 @@ INT mscbdev_init(HNDLE hkey, MSCBDEV_INFO **pinfo, INT channels, func_t *)
    db_find_key(hDB, hkey, "MSCB Address", &hsubkey);
    size = sizeof(INT) * channels;
    db_set_data(hDB, hsubkey, info->mscbdev_settings.mscb_address, size, channels, TID_INT);
-   db_open_record(hDB, hsubkey, info->mscbdev_settings.mscb_address, size, MODE_READ, (void (*)(INT,INT,void*))addr_changed, info);
+   db_open_record(hDB, hsubkey, info->mscbdev_settings.mscb_address, size, MODE_READ, addr_changed, info);
 
    size = sizeof(BYTE) * channels;
    db_get_value(hDB, hkey, "MSCB Index", info->mscbdev_settings.mscb_index, &size, TID_BYTE, TRUE);
    db_find_key(hDB, hkey, "MSCB Index", &hsubkey);
    size = sizeof(BYTE) * channels;
    db_set_data(hDB, hsubkey, info->mscbdev_settings.mscb_index, size, channels, TID_BYTE);
-   db_open_record(hDB, hsubkey, info->mscbdev_settings.mscb_index, size, MODE_READ, (void (*)(INT,INT,void*))addr_changed, info);
+   db_open_record(hDB, hsubkey, info->mscbdev_settings.mscb_index, size, MODE_READ, addr_changed, info);
 
    // execute periodic tasks since mscb_init can take a while
    cm_periodic_tasks();
@@ -177,7 +175,9 @@ INT mscbdev_init(HNDLE hkey, MSCBDEV_INFO **pinfo, INT channels, func_t *)
       return FE_ERR_ODB;
 
    /* read initial variable sizes */
-   return addr_changed(0, 0, info);
+   addr_changed(0, 0, info);
+
+   return FE_SUCCESS;
 }
 
 /*----------------------------------------------------------------------------*/

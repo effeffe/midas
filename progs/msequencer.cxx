@@ -464,6 +464,11 @@ msl_parse(HNDLE hDB, MVOdb *odb, int level, const char *path, const char *filena
    int include_error_size;
    BOOL include_status;
 
+   if (level > 10) {
+      sprintf(error, "Include nesting of 10 exceeded in file \"%s\"", filename);
+      return FALSE;
+   }
+
    int fhin = open(filename, O_RDONLY | O_TEXT);
    if (fhin < 0) {
       sprintf(error, "Cannot open \"%s\", errno %d (%s)", filename, errno, strerror(errno));
@@ -474,483 +479,414 @@ msl_parse(HNDLE hDB, MVOdb *odb, int level, const char *path, const char *filena
       sprintf(error, "Cannot write to \"%s\", fopen() errno %d (%s)", xml_filename, errno, strerror(errno));
       return FALSE;
    }
-   if (fhin > 0 && fout) {
-      size = (int) lseek(fhin, 0, SEEK_END);
-      lseek(fhin, 0, SEEK_SET);
-      buf = (char *) malloc(size + 1);
-      size = (int) read(fhin, buf, size);
-      buf[size] = 0;
-      close(fhin);
 
-      /* look for any includes */
-      lines = (char **) malloc(sizeof(char *));
-      incl = 0;
-      pl = buf;
-      library = FALSE;
-      for (n_lines = 0; *pl; n_lines++) {
-         lines = (char **) realloc(lines, sizeof(char *) * (n_lines + 1));
-         lines[n_lines] = pl;
-         if (strchr(pl, '\n')) {
-            pe = strchr(pl, '\n');
-            *pe = 0;
-            if (*(pe - 1) == '\r') {
-               *(pe - 1) = 0;
-            }
-            pe++;
-         } else
-            pe = pl + strlen(pl);
-         strlcpy(str, pl, sizeof(str));
-         pl = pe;
-         strbreak(str, list, 100, ", ", FALSE);
-         if (equal_ustring(list[0], "include")) {
-            if (!incl) {
-               fprintf(fout, "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n");
-               fprintf(fout, "<!DOCTYPE RunSequence [\n");
-               xml += "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n";
-               xml += "<!DOCTYPE RunSequence [\n";
-               incl = 1;
-            }
+   size = (int) lseek(fhin, 0, SEEK_END);
+   lseek(fhin, 0, SEEK_SET);
+   buf = (char *) malloc(size + 1);
+   size = (int) read(fhin, buf, size);
+   buf[size] = 0;
+   close(fhin);
 
-            // if a path is given, use filename as entity reference
-            char *reference = strrchr(list[1], '/');
-            if (reference)
-               reference++;
-            else
-               reference = list[1];
-
-            char p[256];
-            if (strrchr(list[1], '/')) {
-               strlcpy(p, list[1], sizeof(p));
-            } else {
-               strlcpy(p, path, sizeof(p));
-               if (strlen(p) > 0 && p[strlen(p)-1] != '/')
-                  strlcat(p, "/", sizeof(p));
-               strlcat(p, list[1], sizeof(p));
-            }
-
-            fprintf(fout, "  <!ENTITY %s SYSTEM \"%s.xml\">\n", reference, list[1]);
-            xml += "  <!ENTITY ";
-            xml += reference;
-            xml += " SYSTEM \"";
-            xml += p;
-            xml += ".xml\">\n";
-
-            // recurse
-            size = strlen(p) + 1 + 4;
-            msl_include = (char *) malloc(size);
-            xml_include = (char *) malloc(size);
-            strlcpy(msl_include, p, size);
-            strlcpy(xml_include, p, size);
-            strlcat(msl_include, ".msl", size);
-            strlcat(xml_include, ".xml", size);
-
-            include_error = error + strlen(error);
-            include_error_size = error_size - strlen(error);
-
-            include_status = msl_parse(hDB, odb, level+1, seq.path, msl_include, xml_include, include_error, include_error_size,
-                                       error_line);
-            free(msl_include);
-            free(xml_include);
-
-            if (!include_status) {
-               // report the errror on CALL line instead of the one in included file
-               *error_line = n_lines + 1;
-               return FALSE;
-            }
+   /* look for any includes */
+   lines = (char **) malloc(sizeof(char *));
+   incl = 0;
+   pl = buf;
+   library = FALSE;
+   for (n_lines = 0; *pl; n_lines++) {
+      lines = (char **) realloc(lines, sizeof(char *) * (n_lines + 1));
+      lines[n_lines] = pl;
+      if (strchr(pl, '\n')) {
+         pe = strchr(pl, '\n');
+         *pe = 0;
+         if (*(pe - 1) == '\r') {
+            *(pe - 1) = 0;
          }
-         if (equal_ustring(list[0], "library")) {
-            fprintf(fout, "<Library name=\"%s\">\n", list[1]);
-            xml += "<Library name=\"";
-            xml += list[1];
-            xml += "\">\n";
-            library = TRUE;
-         }
-      }
-      if (incl) {
-         fprintf(fout, "]>\n");
-         xml += "]>\n";
-      } else if (!library) {
-         fprintf(fout, "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n");
-         xml += "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n";
-      }
-
-      /* parse rest of file */
-      if (!library) {
-         fprintf(fout,
-                 "<RunSequence xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"\">\n");
-         xml += "<RunSequence xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"\">\n";
-      }
-
-      std::vector<std::string> slines;
-      for (line = 0; line < n_lines; line++) {
-         slines.push_back(lines[line]);
-      }
-
-      odb->WSA("Sequencer/Script/Lines", slines, 0);
-
-      /* clear all variables */
-      midas::odb::delete_key("/Sequencer/Variables");
-      midas::odb::delete_key("/Sequencer/Param");
-
-      for (line = 0; line < n_lines; line++) {
-         char *p = lines[line];
-         while (*p == ' ')
-            p++;
-         strlcpy(list[0], p, sizeof(list[0]));
-         if (strchr(list[0], ' '))
-            *strchr(list[0], ' ') = 0;
-         p += strlen(list[0]);
-         n = strbreak(p + 1, &list[1], 99, ",", FALSE) + 1;
-
-         /* remove any comment */
-         for (i = 0; i < n; i++) {
-            if (list[i][0] == '#') {
-               for (j = i; j < n; j++)
-                  list[j][0] = 0;
-               break;
-            }
+         pe++;
+      } else
+         pe = pl + strlen(pl);
+      strlcpy(str, pl, sizeof(str));
+      pl = pe;
+      strbreak(str, list, 100, ", ", FALSE);
+      if (equal_ustring(list[0], "include")) {
+         if (!incl) {
+            xml += "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n";
+            xml += "<!DOCTYPE RunSequence [\n";
+            incl = 1;
          }
 
-         /* check for variable assignment */
-         char eq[1024];
-         strlcpy(eq, lines[line], sizeof(eq));
-         if (strchr(eq, '#'))
-            *strchr(eq, '#') = 0;
-         for (i = 0, n = 0; i < (int)strlen(eq); i++)
-            if (eq[i] == '=' && (i > 0 && eq[i-1] != '!'))
-               n++;
-         if (n == 1 && eq[0] != '=') {
-            // equation found
-            strlcpy(list[0], "SET", sizeof(list[0]));
-            p = eq;
-            while (*p == ' ')
-               p++;
-            strlcpy(list[1], p, sizeof(list[1]));
-            *strchr(list[1], '=') = 0;
-            if (strchr(list[1], ' '))
-               *strchr(list[1], ' ') = 0;
-            p = strchr(eq, '=')+1;
-            while (*p == ' ')
-               p++;
-            strlcpy(list[2], p, sizeof(list[2]));
-            while (strlen(list[2]) > 0 && list[2][strlen(list[2])-1] == ' ')
-               list[2][strlen(list[2])-1] = 0;
-         }
+         // if a path is given, use filename as entity reference
+         char *reference = strrchr(list[1], '/');
+         if (reference)
+            reference++;
+         else
+            reference = list[1];
 
-         if (equal_ustring(list[0], "library")) {
-
-         } else if (equal_ustring(list[0], "include")) {
-            // if a path is given, use filename as entity reference
-            char *reference = strrchr(list[1], '/');
-            if (reference)
-               reference++;
-            else
-               reference = list[1];
-
-            fprintf(fout, "&%s;\n", reference);
-            xml += "&";
-            xml += reference;
-            xml += ";\n";
-
-         } else if (equal_ustring(list[0], "call")) {
-            fprintf(fout, "<Call l=\"%d\" lvl=\"%d\" name=\"%s\">", line + 1, level, list[1]);
-            xml += "<Call " + qtoString(level, line + 1) + " name=" + q(list[1]) + ">";
-            for (i = 2; i < 100 && list[i][0]; i++) {
-               if (i > 2) {
-                  fprintf(fout, ",");
-                  xml += ",";
-               }
-               fprintf(fout, "%s", list[i]);
-               xml += list[i];
-            }
-            fprintf(fout, "</Call>\n");
-            xml += "</Call>\n";
-
-         } else if (equal_ustring(list[0], "cat")) {
-            fprintf(fout, "<Cat l=\"%d\" lvl=\"%d\" name=\"%s\">", line + 1, level, list[1]);
-            xml += "<Cat " + qtoString(level, line + 1) + " name=" + q(list[1]) + ">";
-            for (i = 2; i < 100 && list[i][0]; i++) {
-               if (i > 2) {
-                  fprintf(fout, ",");
-                  xml += ",";
-               }
-               fprintf(fout, "\"%s\"", list[i]);
-               xml += q(list[i]);
-            }
-            fprintf(fout, "</Cat>\n");
-            xml += "</Cat>\n";
-
-         } else if (equal_ustring(list[0], "comment")) {
-            fprintf(fout, "<Comment l=\"%d\" lvl=\"%d\">%s</Comment>\n", line + 1, level, list[1]);
-            xml += "<Comment " + qtoString(level, line + 1) + ">" + list[1] + "</Comment>\n";
-
-         } else if (equal_ustring(list[0], "goto")) {
-            fprintf(fout, "<Goto l=\"%d\" lvl=\"%d\" sline=\"%s\" />\n", line + 1, level, list[1]);
-            xml += "<Goto " + qtoString(level, line + 1) + " sline=" + q(list[1]) + " />\n";
-
-         } else if (equal_ustring(list[0], "if")) {
-            fprintf(fout, "<If l=\"%d\" lvl=\"%d\" condition=\"", line + 1, level);
-            xml += "<If " + qtoString(level, line + 1) + " condition=\"";
-            for (i = 1; i < 100 && list[i][0] && stricmp(list[i], "THEN") != 0; i++) {
-               fprintf(fout, "%s", list[i]);
-               xml += list[i];
-            }
-            fprintf(fout, "\">\n");
-            xml += "\">\n";
-
-         } else if (equal_ustring(list[0], "else")) {
-            fprintf(fout, "<Else />\n");
-            xml += "<Else />\n";
-
-         } else if (equal_ustring(list[0], "endif")) {
-            fprintf(fout, "</If>\n");
-            xml += "</If>\n";
-
-         } else if (equal_ustring(list[0], "loop")) {
-            /* find end of loop */
-            for (i = line, nest = 0; i < n_lines; i++) {
-               strbreak(lines[i], list2, 100, ", ", FALSE);
-               if (equal_ustring(list2[0], "loop"))
-                  nest++;
-               if (equal_ustring(list2[0], "endloop")) {
-                  nest--;
-                  if (nest == 0)
-                     break;
-               }
-            }
-            if (i < n_lines)
-               endl = i + 1;
-            else
-               endl = line + 1;
-            if (list[2][0] == 0) {
-               fprintf(fout, "<Loop l=\"%d\" lvl=\"%d\" le=\"%d\" n=\"%s\">\n", line + 1, level, endl, list[1]);
-               xml += "<Loop " + qtoString(level, line + 1) + " le=" + qtoString(0, endl) + " n=" + q(list[1]) + ">\n";
-            } else if (list[3][0] == 0) {
-               fprintf(fout, "<Loop l=\"%d\" lvl=\"%d\" le=\"%d\" var=\"%s\" n=\"%s\">\n", line + 1, level, endl, list[1], list[2]);
-               xml += "<Loop " + qtoString(level, line + 1) + " le=" + qtoString(0, endl) + " var=" + q(list[1]) + " n=" +
-                      q(list[2]) + ">\n";
-            } else {
-               fprintf(fout, "<Loop l=\"%d\" lvl=\"%d\" le=\"%d\" var=\"%s\" values=\"", line + 1, level, endl, list[1]);
-               xml += "<Loop " + qtoString(level, line + 1) + " le=" + qtoString(0, endl) + " var=" + q(list[1]) + " values=\"";
-               for (i = 2; i < 100 && list[i][0]; i++) {
-                  if (i > 2) {
-                     fprintf(fout, ",");
-                     xml += ",";
-                  }
-                  fprintf(fout, "%s", list[i]);
-                  xml += list[i];
-               }
-               fprintf(fout, "\">\n");
-               xml += "\">\n";
-            }
-         } else if (equal_ustring(list[0], "endloop")) {
-            fprintf(fout, "</Loop>\n");
-            xml += "</Loop>\n";
-
-         } else if (equal_ustring(list[0], "message")) {
-            fprintf(fout, "<Message l=\"%d\" lvl=\"%d\"%s>%s</Message>\n", line + 1, level, list[2][0] == '1' ? " wait=\"1\"" : "",
-                    list[1]);
-            xml += "<Message " + qtoString(level, line + 1);
-            if (list[2][0] == '1')
-               xml += " wait=\"1\"";
-            xml += ">";
-            xml += list[1];
-            xml += "</Message>\n";
-
-         } else if (equal_ustring(list[0], "odbinc")) {
-            if (list[2][0] == 0)
-               strlcpy(list[2], "1", 2);
-            fprintf(fout, "<ODBInc \"%d\" lvl=\"%d\" path=\"%s\">%s</ODBInc>\n", line + 1, level, list[1], list[2]);
-            xml += "<ODBInc " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBInc>\n";
-
-         } else if (equal_ustring(list[0], "odbcreate")) {
-            if (list[3][0]) {
-               fprintf(fout, "<ODBCreate l=\"%d\" lvl=\"%d\" size=\"%s\" path=\"%s\" type=\"%s\"></ODBCreate>\n", line + 1,
-                       level, list[3], list[1], list[2]);
-               xml += "<ODBCreate " + qtoString(level, line + 1) + " size=" + q(list[3]) + " path=" + q(list[1]) + " type=" +
-                      q(list[2]) + "></ODBCreate>\n";
-            } else {
-               fprintf(fout, "<ODBCreate l=\"%d\" lvl=\"%d\" path=\"%s\" type=\"%s\"></ODBCreate>\n", line + 1, level, list[1], list[2]);
-               xml += "<ODBCreate " + qtoString(level, line + 1) + " path=" + q(list[1]) + " type=" + q(list[1]) +
-                      "></ODBCreate>\n";
-            }
-
-         } else if (equal_ustring(list[0], "odbdelete")) {
-            fprintf(fout, "<ODBDelete l=\"%d\" lvl=\"%d\">%s</ODBDelete>\n", line + 1, level, list[1]);
-            xml += "<ODBDelete " + qtoString(level, line + 1) + ">" + list[1] + "</ODBDelete>\n";
-
-         } else if (equal_ustring(list[0], "odbset")) {
-            if (list[3][0]) {
-               fprintf(fout, "<ODBSet l=\"%d\" lvl=\"%d\" notify=\"%s\" path=\"%s\">%s</ODBSet>\n", line + 1, level, list[3], list[1],
-                       list[2]);
-               xml += "<ODBSet " + qtoString(level, line + 1) + " notify=" + q(list[3]) + " path=" + q(list[1]) + ">" +
-                      list[2] + "</ODBSet>\n";
-            } else {
-               fprintf(fout, "<ODBSet l=\"%d\" lvl=\"%d\" path=\"%s\">%s</ODBSet>\n", line + 1, level, list[1], list[2]);
-               xml += "<ODBSet " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBSet>\n";
-            }
-
-         } else if (equal_ustring(list[0], "odbload")) {
-            if (list[2][0]) {
-               fprintf(fout, "<ODBLoad l=\"%d\" lvl=\"%d\" path=\"%s\">%s</ODBLoad>\n", line + 1, level, list[2], list[1]);
-               xml += "<ODBLoad " + qtoString(level, line + 1) + " path=" + q(list[2]) + ">" + list[1] + "</ODBLoad>\n";
-            } else {
-               fprintf(fout, "<ODBLoad l=\"%d\" lvl=\"%d\">%s</ODBLoad>\n", line + 1, level, list[1]);
-               xml += "<ODBLoad " + qtoString(level, line + 1) + ">" + list[1] + "</ODBLoad>\n";
-            }
-
-         } else if (equal_ustring(list[0], "odbget")) {
-            fprintf(fout, "<ODBGet l=\"%d\" lvl=\"%d\" path=\"%s\">%s</ODBGet>\n", line + 1, level, list[1], list[2]);
-            xml += "<ODBGet " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBGet>\n";
-
-         } else if (equal_ustring(list[0], "odbsave")) {
-            fprintf(fout, "<ODBSave l=\"%d\" lvl=\"%d\" path=\"%s\">%s</ODBSave>\n", line + 1, level, list[1], list[2]);
-            xml += "<ODBSave " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBSave>\n";
-
-         } else if (equal_ustring(list[0], "odbsubdir")) {
-            if (list[2][0]) {
-               fprintf(fout, "<ODBSubdir l=\"%d\" lvl=\"%d\" notify=\"%s\" path=\"%s\">\n", line + 1, level, list[2], list[1]);
-               xml += "<ODBSubdir " + qtoString(level, line + 1) + " notify=" + q(list[2]) + " path=" + q(list[1]) + ">\n";
-            } else {
-               fprintf(fout, "<ODBSubdir l=\"%d\" lvl=\"%d\" path=\"%s\">\n", line + 1, level, list[1]);
-               xml += "<ODBSubdir " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">\n";
-            }
-         } else if (equal_ustring(list[0], "endodbsubdir")) {
-            fprintf(fout, "</ODBSubdir>\n");
-            xml += "</ODBSubdir>\n";
-
-         } else if (equal_ustring(list[0], "param")) {
-            if (list[2][0] == 0) {
-               fprintf(fout, "<Param l=\"%d\" lvl=\"%d\" name=\"%s\" />\n", line + 1, level, list[1]);
-               xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " />\n";
-               std::string v;
-               odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
-               odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
-            } else if (!list[3][0] && equal_ustring(list[2], "bool")) {
-               fprintf(fout, "<Param l=\"%d\" lvl=\"%d\" name=\"%s\" type=\"bool\" />\n", line + 1, level, list[1]);
-               xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " type=\"bool\" />\n";
-               bool v = false;
-               odb->RB((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
-               std::string s;
-               odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &s, true);
-            } else if (!list[3][0]) {
-               fprintf(fout, "<Param l=\"%d\" lvl=\"%d\" name=\"%s\" comment=\"%s\" />\n", line + 1, level, list[1], list[2]);
-               xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " comment=" + q(list[2]) + " />\n";
-               std::string v;
-               odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
-               odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
-               odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
-            } else {
-               fprintf(fout, "<Param l=\"%d\" lvl=\"%d\" name=\"%s\" comment=\"%s\" options=\"", line + 1, level, list[1], list[2]);
-               xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " comment=" + q(list[2]) +
-                      " options=\"";
-               std::string v;
-               odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
-               odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
-               odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
-               std::vector<std::string> options;
-               for (i = 3; i < 100 && list[i][0]; i++) {
-                  if (i > 3) {
-                     fprintf(fout, ",");
-                     xml += ",";
-                  }
-                  fprintf(fout, "%s", list[i]);
-                  xml += list[i];
-                  options.push_back(list[i]);
-               }
-               fprintf(fout, "\" />\n");
-               xml += "\" />\n";
-               odb->WSA((std::string("Sequencer/Param/Options/") + list[1]).c_str(), options, 0);
-            }
-
-         } else if (equal_ustring(list[0], "rundescription")) {
-            fprintf(fout, "<RunDescription l=\"%d\" lvl=\"%d\">%s</RunDescription>\n", line + 1, level, list[1]);
-            xml += "<RunDescription " + qtoString(level, line + 1) + ">" + list[1] + "</RunDescription>\n";
-
-         } else if (equal_ustring(list[0], "script")) {
-            if (list[2][0] == 0) {
-               fprintf(fout, "<Script l=\"%d\" lvl=\"%d\">%s</Script>\n", line + 1, level, list[1]);
-               xml += "<Script " + qtoString(level, line + 1) + ">" + list[1] + "</Script>\n";
-            } else {
-               fprintf(fout, "<Script l=\"%d\" lvl=\"%d\" params=\"", line + 1, level);
-               xml += "<Script " + qtoString(level, line + 1) + " params=\"";
-               for (i = 2; i < 100 && list[i][0]; i++) {
-                  if (i > 2) {
-                     fprintf(fout, ",");
-                     xml += ",";
-                  }
-                  fprintf(fout, "%s", list[i]);
-                  xml += list[i];
-               }
-               fprintf(fout, "\">%s</Script>\n", list[1]);
-               xml += "\">";
-               xml += list[1];
-               xml += "</Script>\n";
-            }
-
-         } else if (equal_ustring(list[0], "set")) {
-            fprintf(fout, "<Set l=\"%d\" lvl=\"%d\" name=\"%s\">%s</Set>\n", line + 1, level, list[1], list[2]);
-            xml += "<Set " + qtoString(level, line + 1) + " name=" + q(list[1]) + ">" + list[2] + "</Set>\n";
-
-         } else if (equal_ustring(list[0], "subroutine")) {
-            fprintf(fout, "\n<Subroutine l=\"%d\" lvl=\"%d\" name=\"%s\">\n", line + 1, level, list[1]);
-            xml += "\n<Subroutine " + qtoString(level, line + 1) + " name=" + q(list[1]) + ">\n";
-
-         } else if (equal_ustring(list[0], "endsubroutine")) {
-            fprintf(fout, "</Subroutine>\n");
-            xml += "</Subroutine>\n";
-
-         } else if (equal_ustring(list[0], "transition")) {
-            fprintf(fout, "<Transition l=\"%d\" lvl=\"%d\">%s</Transition>\n", line + 1, level, list[1]);
-            xml += "<Transition " + qtoString(level, line + 1) + ">" + list[1] + "</Transition>\n";
-
-         } else if (equal_ustring(list[0], "wait")) {
-            if (!list[2][0]) {
-               fprintf(fout, "<Wait l=\"%d\" lvl=\"%d\" for=\"seconds\">%s</Wait>\n", line + 1, level, list[1]);
-               xml += "<Wait " + qtoString(level, line + 1) + " for=\"seconds\">" + list[1] + "</Wait>\n";
-            } else if (!list[3][0]) {
-               fprintf(fout, "<Wait l=\"%d\" lvl=\"%d\" for=\"%s\">%s</Wait>\n", line + 1, level, list[1], list[2]);
-               xml += "<Wait " + qtoString(level, line + 1) + " for=" + q(list[1]) + ">" + list[2] + "</Wait>\n";
-            } else {
-               fprintf(fout, "<Wait l=\"%d\" lvl=\"%d\" for=\"%s\" path=\"%s\" op=\"%s\">%s</Wait>\n", line + 1, level, list[1], list[2],
-                       list[3], list[4]);
-               xml += "<Wait " + qtoString(level, line + 1) + " for=" + q(list[1]) + " path=" + q(list[2]) + " op=" +
-                      q(list[3]) + ">" + list[4] + "</Wait>\n";
-            }
-
-         } else if (list[0][0] == 0 || list[0][0] == '#') {
-            /* skip empty or outcommented lines */
+         char p[256];
+         if (strrchr(list[1], '/')) {
+            strlcpy(p, list[1], sizeof(p));
          } else {
-            sprintf(error, "Invalid command \"%s\"", list[0]);
-            *error_line = line + 1;
+            strlcpy(p, path, sizeof(p));
+            if (strlen(p) > 0 && p[strlen(p)-1] != '/')
+               strlcat(p, "/", sizeof(p));
+            strlcat(p, list[1], sizeof(p));
+         }
+
+         xml += "  <!ENTITY ";
+         xml += reference;
+         xml += " SYSTEM \"";
+         xml += p;
+         xml += ".xml\">\n";
+
+         // recurse
+         size = strlen(p) + 1 + 4;
+         msl_include = (char *) malloc(size);
+         xml_include = (char *) malloc(size);
+         strlcpy(msl_include, p, size);
+         strlcpy(xml_include, p, size);
+         strlcat(msl_include, ".msl", size);
+         strlcat(xml_include, ".xml", size);
+
+         include_error = error + strlen(error);
+         include_error_size = error_size - strlen(error);
+
+         include_status = msl_parse(hDB, odb, level+1, seq.path, msl_include, xml_include, include_error, include_error_size,
+                                    error_line);
+         free(msl_include);
+         free(xml_include);
+
+         if (!include_status) {
+            // report the error on CALL line instead of the one in included file
+            *error_line = n_lines + 1;
             return FALSE;
          }
       }
-
-      free(lines);
-      free(buf);
-      if (library) {
-         fprintf(fout, "\n</Library>\n");
-         xml += "\n</Library>\n";
-      } else {
-         fprintf(fout, "</RunSequence>\n");
-         xml += "</RunSequence>\n";
+      if (equal_ustring(list[0], "library")) {
+         xml += "<Library name=\"";
+         xml += list[1];
+         xml += "\">\n";
+         library = TRUE;
       }
-      fclose(fout);
-
-      odb->WS("Sequencer/Script/XML", xml.c_str());
-
-      std::string tmpxml = std::string(xml_filename) + ".odb";
-      FILE *fp = fopen(tmpxml.c_str(), "w");
-      if (fp) {
-         fprintf(fp, "%s", xml.c_str());
-         fclose(fp);
-      }
-
-   } else {
-      sprintf(error, "File error on \"%s\"", filename);
-      return FALSE;
    }
+   if (incl) {
+      xml += "]>\n";
+   } else if (!library) {
+      xml += "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n";
+   }
+
+   /* parse rest of file */
+   if (!library) {
+      xml += "<RunSequence xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"\">\n";
+   }
+
+   std::vector<std::string> slines;
+   for (line = 0; line < n_lines; line++) {
+      slines.push_back(lines[line]);
+   }
+
+   odb->WSA("Sequencer/Script/Lines", slines, 0);
+
+   /* clear all variables */
+   midas::odb::delete_key("/Sequencer/Variables");
+   midas::odb::delete_key("/Sequencer/Param");
+
+   for (line = 0; line < n_lines; line++) {
+      char *p = lines[line];
+      while (*p == ' ')
+         p++;
+      strlcpy(list[0], p, sizeof(list[0]));
+      if (strchr(list[0], ' '))
+         *strchr(list[0], ' ') = 0;
+      p += strlen(list[0]);
+      n = strbreak(p + 1, &list[1], 99, ",", FALSE) + 1;
+
+      /* remove any comment */
+      for (i = 0; i < n; i++) {
+         if (list[i][0] == '#') {
+            for (j = i; j < n; j++)
+               list[j][0] = 0;
+            break;
+         }
+      }
+
+      /* check for variable assignment */
+      char eq[1024];
+      strlcpy(eq, lines[line], sizeof(eq));
+      if (strchr(eq, '#'))
+         *strchr(eq, '#') = 0;
+      for (i = 0, n = 0; i < (int)strlen(eq); i++)
+         if (eq[i] == '=' && (i > 0 && eq[i-1] != '!'))
+            n++;
+      if (n == 1 && eq[0] != '=') {
+         // equation found
+         strlcpy(list[0], "SET", sizeof(list[0]));
+         p = eq;
+         while (*p == ' ')
+            p++;
+         strlcpy(list[1], p, sizeof(list[1]));
+         *strchr(list[1], '=') = 0;
+         if (strchr(list[1], ' '))
+            *strchr(list[1], ' ') = 0;
+         p = strchr(eq, '=')+1;
+         while (*p == ' ')
+            p++;
+         strlcpy(list[2], p, sizeof(list[2]));
+         while (strlen(list[2]) > 0 && list[2][strlen(list[2])-1] == ' ')
+            list[2][strlen(list[2])-1] = 0;
+      }
+
+      if (equal_ustring(list[0], "library")) {
+
+      } else if (equal_ustring(list[0], "include")) {
+         // if a path is given, use filename as entity reference
+         char *reference = strrchr(list[1], '/');
+         if (reference)
+            reference++;
+         else
+            reference = list[1];
+
+         xml += "&";
+         xml += reference;
+         xml += ";\n";
+
+      } else if (equal_ustring(list[0], "call")) {
+         xml += "<Call " + qtoString(level, line + 1) + " name=" + q(list[1]) + ">";
+         for (i = 2; i < 100 && list[i][0]; i++) {
+            if (i > 2) {
+               xml += ",";
+            }
+            xml += list[i];
+         }
+         xml += "</Call>\n";
+
+      } else if (equal_ustring(list[0], "cat")) {
+         xml += "<Cat " + qtoString(level, line + 1) + " name=" + q(list[1]) + ">";
+         for (i = 2; i < 100 && list[i][0]; i++) {
+            if (i > 2) {
+               xml += ",";
+            }
+            xml += q(list[i]);
+         }
+         xml += "</Cat>\n";
+
+      } else if (equal_ustring(list[0], "comment")) {
+         xml += "<Comment " + qtoString(level, line + 1) + ">" + list[1] + "</Comment>\n";
+
+      } else if (equal_ustring(list[0], "goto")) {
+         xml += "<Goto " + qtoString(level, line + 1) + " sline=" + q(list[1]) + " />\n";
+
+      } else if (equal_ustring(list[0], "if")) {
+         xml += "<If " + qtoString(level, line + 1) + " condition=\"";
+         for (i = 1; i < 100 && list[i][0] && stricmp(list[i], "THEN") != 0; i++) {
+            xml += list[i];
+         }
+         xml += "\">\n";
+
+      } else if (equal_ustring(list[0], "else")) {
+         xml += "<Else />\n";
+
+      } else if (equal_ustring(list[0], "endif")) {
+         xml += "</If>\n";
+
+      } else if (equal_ustring(list[0], "loop")) {
+         /* find end of loop */
+         for (i = line, nest = 0; i < n_lines; i++) {
+            strbreak(lines[i], list2, 100, ", ", FALSE);
+            if (equal_ustring(list2[0], "loop"))
+               nest++;
+            if (equal_ustring(list2[0], "endloop")) {
+               nest--;
+               if (nest == 0)
+                  break;
+            }
+         }
+         if (i < n_lines)
+            endl = i + 1;
+         else
+            endl = line + 1;
+         if (list[2][0] == 0) {
+            xml += "<Loop " + qtoString(level, line + 1) + " le=\"" + std::to_string(endl) + "\" n=" + q(list[1]) + ">\n";
+         } else if (list[3][0] == 0) {
+            xml += "<Loop " + qtoString(level, line + 1) + " le=\"" + std::to_string(endl) + "\" var=" + q(list[1]) + " n=" +
+                   q(list[2]) + ">\n";
+         } else {
+            xml += "<Loop " + qtoString(level, line + 1) + " le=\"" + std::to_string(endl) + "\" var=" + q(list[1]) + " values=\"";
+            for (i = 2; i < 100 && list[i][0]; i++) {
+               if (i > 2) {
+                  xml += ",";
+               }
+               xml += list[i];
+            }
+            xml += "\">\n";
+         }
+      } else if (equal_ustring(list[0], "endloop")) {
+         xml += "</Loop>\n";
+
+      } else if (equal_ustring(list[0], "break")) {
+         xml += "<Break "+ qtoString(level, line + 1) +"></Break>\n";
+
+      } else if (equal_ustring(list[0], "message")) {
+         xml += "<Message " + qtoString(level, line + 1);
+         if (list[2][0] == '1')
+            xml += " wait=\"1\"";
+         xml += ">";
+         xml += list[1];
+         xml += "</Message>\n";
+
+      } else if (equal_ustring(list[0], "msg")) {
+         if (list[2][0]) {
+            xml += "<Msg " + qtoString(level, line + 1) + " type=\""+list[2]+"\">" + list[1] + "</Msg>\n";
+         } else {
+            xml += "<Msg " + qtoString(level, line + 1) + ">" + list[1] + "</Msg>\n";
+         }
+
+      } else if (equal_ustring(list[0], "odbinc")) {
+         if (list[2][0] == 0)
+            strlcpy(list[2], "1", 2);
+         xml += "<ODBInc " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBInc>\n";
+
+      } else if (equal_ustring(list[0], "odbcreate")) {
+         if (list[3][0]) {
+            xml += "<ODBCreate " + qtoString(level, line + 1) + " size=" + q(list[3]) + " path=" + q(list[1]) + " type=" +
+                   q(list[2]) + "></ODBCreate>\n";
+         } else {
+            xml += "<ODBCreate " + qtoString(level, line + 1) + " path=" + q(list[1]) + " type=" + q(list[1]) +
+                   "></ODBCreate>\n";
+         }
+
+      } else if (equal_ustring(list[0], "odbdelete")) {
+         xml += "<ODBDelete " + qtoString(level, line + 1) + ">" + list[1] + "</ODBDelete>\n";
+
+      } else if (equal_ustring(list[0], "odbset")) {
+         if (list[3][0]) {
+            xml += "<ODBSet " + qtoString(level, line + 1) + " notify=" + q(list[3]) + " path=" + q(list[1]) + ">" +
+                   list[2] + "</ODBSet>\n";
+         } else {
+            xml += "<ODBSet " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBSet>\n";
+         }
+
+      } else if (equal_ustring(list[0], "odbload")) {
+         if (list[2][0]) {
+            xml += "<ODBLoad " + qtoString(level, line + 1) + " path=" + q(list[2]) + ">" + list[1] + "</ODBLoad>\n";
+         } else {
+            xml += "<ODBLoad " + qtoString(level, line + 1) + ">" + list[1] + "</ODBLoad>\n";
+         }
+
+      } else if (equal_ustring(list[0], "odbget")) {
+         xml += "<ODBGet " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBGet>\n";
+
+      } else if (equal_ustring(list[0], "odbsave")) {
+         xml += "<ODBSave " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">" + list[2] + "</ODBSave>\n";
+
+      } else if (equal_ustring(list[0], "odbsubdir")) {
+         if (list[2][0]) {
+            xml += "<ODBSubdir " + qtoString(level, line + 1) + " notify=" + q(list[2]) + " path=" + q(list[1]) + ">\n";
+         } else {
+            xml += "<ODBSubdir " + qtoString(level, line + 1) + " path=" + q(list[1]) + ">\n";
+         }
+      } else if (equal_ustring(list[0], "endodbsubdir")) {
+         xml += "</ODBSubdir>\n";
+
+      } else if (equal_ustring(list[0], "param")) {
+         if (list[2][0] == 0) {
+            xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " />\n";
+            std::string v;
+            odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+            odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
+         } else if (!list[3][0] && equal_ustring(list[2], "bool")) {
+            xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " type=\"bool\" />\n";
+            bool v = false;
+            odb->RB((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+            std::string s;
+            odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &s, true);
+         } else if (!list[3][0]) {
+            xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " comment=" + q(list[2]) + " />\n";
+            std::string v;
+            odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+            odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
+            odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
+         } else {
+            xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " comment=" + q(list[2]) +
+                   " options=\"";
+            std::string v;
+            odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+            odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
+            odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
+            std::vector<std::string> options;
+            for (i = 3; i < 100 && list[i][0]; i++) {
+               if (i > 3) {
+                  xml += ",";
+               }
+               xml += list[i];
+               options.push_back(list[i]);
+            }
+            xml += "\" />\n";
+            odb->WSA((std::string("Sequencer/Param/Options/") + list[1]).c_str(), options, 0);
+         }
+
+      } else if (equal_ustring(list[0], "rundescription")) {
+         xml += "<RunDescription " + qtoString(level, line + 1) + ">" + list[1] + "</RunDescription>\n";
+
+      } else if (equal_ustring(list[0], "script")) {
+         if (list[2][0] == 0) {
+            xml += "<Script " + qtoString(level, line + 1) + ">" + list[1] + "</Script>\n";
+         } else {
+            xml += "<Script " + qtoString(level, line + 1) + " params=\"";
+            for (i = 2; i < 100 && list[i][0]; i++) {
+               if (i > 2) {
+                  xml += ",";
+               }
+               xml += list[i];
+            }
+            xml += "\">";
+            xml += list[1];
+            xml += "</Script>\n";
+         }
+
+      } else if (equal_ustring(list[0], "set")) {
+         xml += "<Set " + qtoString(level, line + 1) + " name=" + q(list[1]) + ">" + list[2] + "</Set>\n";
+
+      } else if (equal_ustring(list[0], "subroutine")) {
+         xml += "\n<Subroutine " + qtoString(level, line + 1) + " name=" + q(list[1]) + ">\n";
+
+      } else if (equal_ustring(list[0], "endsubroutine")) {
+         xml += "</Subroutine>\n";
+
+      } else if (equal_ustring(list[0], "transition")) {
+         xml += "<Transition " + qtoString(level, line + 1) + ">" + list[1] + "</Transition>\n";
+
+      } else if (equal_ustring(list[0], "wait")) {
+         if (!list[2][0]) {
+            xml += "<Wait " + qtoString(level, line + 1) + " for=\"seconds\">" + list[1] + "</Wait>\n";
+         } else if (!list[3][0]) {
+            xml += "<Wait " + qtoString(level, line + 1) + " for=" + q(list[1]) + ">" + list[2] + "</Wait>\n";
+         } else {
+            xml += "<Wait " + qtoString(level, line + 1) + " for=" + q(list[1]) + " path=" + q(list[2]) + " op=" +
+                   q(list[3]) + ">" + list[4] + "</Wait>\n";
+         }
+
+      } else if (list[0][0] == 0 || list[0][0] == '#') {
+         /* skip empty or out-commented lines */
+      } else {
+         sprintf(error, "Invalid command \"%s\"", list[0]);
+         *error_line = line + 1;
+         return FALSE;
+      }
+   }
+
+   free(lines);
+   free(buf);
+   if (library) {
+      xml += "\n</Library>\n";
+   } else {
+      xml += "</RunSequence>\n";
+   }
+
+   // write XML to .xml file
+   fprintf(fout, "%s", xml.c_str());
+   fclose(fout);
+
+   // put XML into the ODB
+   odb->WS("Sequencer/Script/XML", xml.c_str());
 
    return TRUE;
 }
@@ -1055,6 +991,8 @@ static void seq_start() {
    seq.running = TRUE;
    seq.current_line_number = 1;
    seq.scurrent_line_number = 1;
+   if (seq.debug)
+      seq.paused = TRUE;
    seq_write(seq);
 }
 
@@ -1264,6 +1202,7 @@ void sequencer() {
    HNDLE hDB, hKey, hKeySeq;
    KEY key;
    double d;
+   BOOL skip_step = FALSE;
 
    if (!seq.running || seq.paused) {
       ss_sleep(10);
@@ -1283,10 +1222,10 @@ void sequencer() {
    if (!hKeySeq)
       return;
 
-   // NB seq.last_msg is not used anywhere.
-   //cm_msg_retrieve(1, str, sizeof(str));
-   //str[19] = 0;
-   //strcpy(seq.last_msg, str+11);
+   // Retrieve last midas message and put it into seq structure (later sent to ODB via db_set_record()
+   cm_msg_retrieve(1, str, sizeof(str));
+   str[19] = 0;
+   strcpy(seq.last_msg, str+11);
 
    pr = mxml_find_node(pnseq, "RunSequence");
    if (!pr) {
@@ -1403,14 +1342,19 @@ void sequencer() {
       seq.scurrent_line_number = atoi(mxml_get_attribute(pn, "l"));
 
    // out-comment following lines for debug output
-//   midas::odb o("/Sequencer/Script/Lines");
-//   std::string s = o[seq.scurrent_line_number-1];
-//   printf("%3d: %s\n", seq.scurrent_line_number, s.c_str());
+#if 0
+   if (seq.scurrent_line_number >= 0) {
+      midas::odb o("/Sequencer/Script/Lines");
+      std::string s = o[seq.scurrent_line_number - 1];
+      printf("%3d: %s\n", seq.scurrent_line_number, s.c_str());
+   }
+#endif
 
    if (equal_ustring(mxml_get_name(pn), "PI") || equal_ustring(mxml_get_name(pn), "RunSequence") ||
        equal_ustring(mxml_get_name(pn), "Comment")) {
       // just skip
       seq.current_line_number++;
+      skip_step = TRUE;
    }
 
    /*---- ODBSubdir ----*/
@@ -1435,6 +1379,12 @@ void sequencer() {
          if (strlen(odbpath) > 0 && odbpath[strlen(odbpath) - 1] != '/')
             strlcat(odbpath, "/", sizeof(odbpath));
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
+
+         if (strchr(odbpath, '$')) {
+            std::string s(odbpath);
+            s = eval_var(seq, s);
+            strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+         }
 
          int notify = TRUE;
          if (seq.subdir_not_notify)
@@ -1494,6 +1444,12 @@ void sequencer() {
             strlcat(odbpath, "/", sizeof(odbpath));
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
 
+         if (strchr(odbpath, '$')) {
+            std::string s(odbpath);
+            s = eval_var(seq, s);
+            strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+         }
+
          //load at that key, if exists
          status = db_find_key(hDB, 0, odbpath, &hKey);
          if (status != DB_SUCCESS) {
@@ -1552,6 +1508,12 @@ void sequencer() {
             strlcat(odbpath, "/", sizeof(odbpath));
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
 
+         if (strchr(odbpath, '$')) {
+            std::string s(odbpath);
+            s = eval_var(seq, s);
+            strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+         }
+
          // find key or subdirectory to save
          status = db_find_key(hDB, 0, odbpath, &hKey);
          if (status != DB_SUCCESS) {
@@ -1561,7 +1523,7 @@ void sequencer() {
             return;
          } else {
             if (strstr(value, ".json") || strstr(value, ".JSON") || strstr(value, ".js") || strstr(value, ".JS"))
-               status = db_save_json(hDB, hKey, value);
+               status = db_save_json(hDB, hKey, value, JSFLAG_RECURSE | JSFLAG_OMIT_LAST_WRITTEN | JSFLAG_FOLLOW_LINKS);
             else if  (strstr(value, ".xml") || strstr(value, ".XML"))
                status = db_save_xml(hDB, hKey, value);
             else
@@ -2029,6 +1991,22 @@ void sequencer() {
       seq.current_line_number++;
    }
 
+   /*---- Break ----*/
+   else if (equal_ustring(mxml_get_name(pn), "Break")) {
+      // goto next loop end
+      for (i = 0; i < SEQ_NEST_LEVEL_LOOP; i++)
+         if (seq.loop_start_line[i] == 0)
+            break;
+      if (i == 0) {
+         seq_error(seq, "\"Break\" outside any loop");
+         return;
+      }
+
+      // force end of loop in next check
+      seq.current_line_number = seq.loop_end_line[i-1];
+      seq.loop_counter[i-1] = seq.loop_n[i-1];
+   }
+
    /*---- If ----*/
    else if (equal_ustring(mxml_get_name(pn), "If")) {
 
@@ -2171,7 +2149,7 @@ void sequencer() {
       if (strchr(mxml_get_value(pn), '$')) // evaluate message string if $ present
          strlcpy(value, eval_var(seq, mxml_get_value(pn)).c_str(), sizeof(value));
       else
-         strlcpy(value, mxml_get_value(pn), sizeof(value)); // treast message as sting
+         strlcpy(value, mxml_get_value(pn), sizeof(value)); // treat message as string
       const char *wait_attr = mxml_get_attribute(pn, "wait");
       bool wait = false;
       if (wait_attr)
@@ -2205,6 +2183,30 @@ void sequencer() {
             seq.message_wait = false;
          }
       }
+
+      seq.current_line_number = mxml_get_line_number_end(pn) + 1;
+   }
+
+   /*---- Msg ----*/
+   else if (equal_ustring(mxml_get_name(pn), "Msg")) {
+      if (strchr(mxml_get_value(pn), '$')) // evaluate message string if $ present
+         strlcpy(value, eval_var(seq, mxml_get_value(pn)).c_str(), sizeof(value));
+      else
+         strlcpy(value, mxml_get_value(pn), sizeof(value)); // treat message as string
+      std::string type = "INFO";
+      if (mxml_get_attribute(pn, "type"))
+         type = std::string(mxml_get_attribute(pn, "type"));
+
+      if (type == "ERROR")
+         cm_msg(MERROR, "sequencer", "%s", value);
+      else if (type == "DEBUG")
+         cm_msg(MDEBUG, "sequencer", "%s", value);
+      else if (type == "LOG")
+         cm_msg(MLOG, "sequencer", "%s", value);
+      else if (type == "TALK")
+         cm_msg(MTALK, "sequencer", "%s", value);
+      else
+         cm_msg(MINFO, "sequencer", "%s", value);
 
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
@@ -2294,8 +2296,13 @@ void sequencer() {
    seq.running = seq1.running;
    seq.finished = seq1.finished;
    seq.paused = seq1.paused;
+   seq.debug = seq1.debug;
    seq.stop_after_run = seq1.stop_after_run;
    strlcpy(seq.message, seq1.message, sizeof(seq.message));
+
+   // in debugging mode, pause after each step
+   if (seq.debug && !skip_step)
+      seq.paused = TRUE;
 
    /* update current line number */
    db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);

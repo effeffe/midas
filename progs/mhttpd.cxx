@@ -2536,7 +2536,7 @@ BOOL is_editable(char *eq_name, char *var_name)
 void show_eqtable_page(Param* pp, Return* r, int refresh)
 {
    int i, j, k, colspan, size, n_var, i_edit, i_set, line;
-   char eq_name[32], group[32], name[NAME_LENGTH+32];
+   char eq_name[32], group[32];
    char group_name[MAX_GROUPS][32], data[256], style[80];
    HNDLE hDB;
    char odb_path[256];
@@ -2685,11 +2685,11 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
       for (int level = 0; ; level++) {
          bool next_level = false;
          for (i = 0; i < key.num_values; i++) {
-            char str[256];
-            size = sizeof(str);
-            db_get_data_index(hDB, hkeyeqnames, str, &size, i, TID_STRING);
+            char name_str[256];
+            size = sizeof(name_str);
+            db_get_data_index(hDB, hkeyeqnames, name_str, &size, i, TID_STRING);
 
-            char *s = strchr(str, '%');
+            char *s = strchr(name_str, '%');
             for (int k=0; s && k<level; k++)
                s = strchr(s+1, '%');
 
@@ -2698,14 +2698,14 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
                if (strchr(s+1, '%'))
                    next_level = true;
 
-               //printf("try group [%s] name [%s], level %d, %d\n", str, s+1, level, next_level);
+               //printf("try group [%s] name [%s], level %d, %d\n", name_str, s+1, level, next_level);
 
                for (j = 0; j < MAX_GROUPS; j++) {
-                  if (equal_ustring(group_name[j], str) || group_name[j][0] == 0)
+                  if (equal_ustring(group_name[j], name_str) || group_name[j][0] == 0)
                      break;
                }
                if (group_name[j][0] == 0)
-                  strlcpy(group_name[j], str, sizeof(group_name[0]));
+                  strlcpy(group_name[j], name_str, sizeof(group_name[0]));
             }
          }
 
@@ -2769,21 +2769,22 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
       /* data for current group */
       std::string names_path = msprintf("/Equipment/%s/Settings/Names", eq_name);
       int num_values = 0;
-      HNDLE hkeyset;
-      db_find_key(hDB, 0, names_path.c_str(), &hkeyset);
-      if (hkeyset) {
-         KEY key;
-         db_get_key(hDB, hkeyset, &key);
-         num_values = key.num_values;
+      HNDLE hnames_key;
+      db_find_key(hDB, 0, names_path.c_str(), &hnames_key);
+      if (hnames_key) {
+         KEY names_key;
+         db_get_key(hDB, hnames_key, &names_key);
+         num_values = names_key.num_values;
       }
       for (int i = 0; i < num_values; i++) {
-         char str[256];
-         size = sizeof(str);
-         db_get_data_index(hDB, hkeyset, str, &size, i, TID_STRING);
+         char names_str[256];
+         size = sizeof(names_str);
+         db_get_data_index(hDB, hnames_key, names_str, &size, i, TID_STRING);
 
-         strlcpy(name, str, sizeof(name));
+         char name[NAME_LENGTH+32];
+         strlcpy(name, names_str, sizeof(name));
 
-         //printf("group [%s], name [%s], str [%s]\n", group, name, str);
+         //printf("group [%s], name [%s], str [%s]\n", group, name, names_str);
 
          if (!equal_ustring(group, "All")) {
             // check if name starts with the name of the group we want to display
@@ -2834,18 +2835,18 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
                }
                if (n_var == i_edit) {
                   r->rsprintf("<td align=center>");
-                  r->rsprintf("<input type=text size=10 maxlenth=80 name=value value=\"%s\">\n", str);
+                  r->rsprintf("<input type=text size=10 maxlenth=80 name=value value=\"%s\">\n", data_str.c_str());
                   r->rsprintf("<input type=submit size=20 name=cmd value=Set>\n");
                   r->rsprintf("<input type=hidden name=index value=%d>\n", i_edit);
                   n_var++;
                } else {
                   sprintf(odb_path, "Equipment/%s/Variables/%s[%d]", eq_name, varkey.name, i);
                   r->rsprintf("<td align=center>");
-                  r->rsprintf("<a href=\"#\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\', 0);return false;\" >%s</a>", odb_path, str);
+                  r->rsprintf("<a href=\"#\" onClick=\"ODBInlineEdit(this.parentNode,\'%s\', 0);return false;\" >%s</a>", odb_path, data_str.c_str());
                   n_var++;
                }
             } else
-               r->rsprintf("<td align=center>%s", str);
+               r->rsprintf("<td align=center>%s", data_str.c_str());
          }
 
          r->rsprintf("</tr>\n");
@@ -2999,6 +3000,7 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
                   else
                      strlcpy(style, "ODBtableOdd", sizeof(style));
 
+                  char name[NAME_LENGTH+32];
                   if (hkeyset && j<key.num_values) {
                      size = sizeof(name);
                      db_get_data_index(hDB, hkeyset, name, &size, j, TID_STRING);
