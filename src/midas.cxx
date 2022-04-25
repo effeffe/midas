@@ -14342,7 +14342,7 @@ static int recv_event_server_realloc(INT idx, RPC_SERVER_ACCEPTION* psa, char **
    //printf("recv_event_server: idx %d, bh %d, event header: id %d, mask %d, serial %d, data_size %d, event_size %d, total_size %d\n", idx, *pbh, pevent->event_id, pevent->trigger_mask, pevent->serial_number, pevent->data_size, event_size, total_size);
 
 
-   int bufsize = sizeof(INT) + event_size;
+   int bufsize = sizeof(INT) + total_size;
 
    // Second, check that output buffer is big enough
 
