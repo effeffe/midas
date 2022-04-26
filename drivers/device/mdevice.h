@@ -187,7 +187,7 @@ public:
       mOdbDev[name][i] = p;
    }
 
-   void define_panel(std::string panelName, int i1, int i2 = -1)
+   void define_history_panel(std::string panelName, int i1, int i2 = -1)
    {
       std::vector<std::string> vars;
 
@@ -200,7 +200,7 @@ public:
       hs_define_panel(mEq->name, panelName.c_str(), vars);
    }
 
-   void define_panel(std::string panelName, std::vector<std::string> vars)
+   void define_history_panel(std::string panelName, std::vector<std::string> vars)
    {
       for (std::size_t i=0 ; i<vars.size() ; i++)
          if (vars[i].find(":") == std::string::npos)
