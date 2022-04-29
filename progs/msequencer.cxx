@@ -1485,11 +1485,11 @@ void sequencer() {
          //absolute path
          strlcpy(value, mxml_get_value(pn), sizeof(value));
 
-      } else if (mxml_get_value(pn)[0] == '$') {
+      } else if (mxml_get_value(pn)[0] == '%') {
          //path relative to the one set in /Sequencer/Path
          strlcpy(value, seq.path, sizeof(value));
          strlcat(value, mxml_get_value(pn), sizeof(value));
-         *strchr(value, '$') = '/';
+         *strchr(value, '%') = '/';
 
       } else {
          //relative path to msl file
@@ -1499,6 +1499,12 @@ void sequencer() {
          if (fullpath)
             *(++fullpath) = '\0';
          strlcat(value, mxml_get_value(pn), sizeof(value));
+      }
+
+      if (strchr(value, '$')) {
+         std::string s(value);
+         s = eval_var(seq, s);
+         strlcpy(value, s.c_str(), sizeof(value));
       }
 
       // if path attribute is given
@@ -2460,6 +2466,14 @@ int main(int argc, const char *argv[]) {
    } else if (status != CM_SUCCESS) {
       std::string s = cm_get_error(status);
       puts(s.c_str());
+      return 1;
+   }
+
+   /* check if sequencer already running */
+   status = cm_exist("Sequencer", FALSE);
+   if (status == CM_SUCCESS) {
+      printf("Sequencer runs already.\n");
+      cm_disconnect_experiment();
       return 1;
    }
 
