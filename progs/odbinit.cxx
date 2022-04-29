@@ -80,7 +80,7 @@ static void usage()
    printf("usage: odbinit [options...]\n");
    printf("options:\n");
    printf("  [-e Experiment] --- specify experiment name\n");
-   printf("  [-s size] --- specify new size of ODB in bytes, default is %d (optional units: B,kB,MB)\n", DEFAULT_ODB_SIZE);
+   printf("  [-s size] --- specify new size of ODB in bytes, default is %d (optional units: B, kB, MB, kiB, MiB)\n", DEFAULT_ODB_SIZE);
    printf("  [--env] --- create new env.sh and env.csh files in the current directory\n");
    printf("  [--exptab] --- create new exptab file in the current directory\n");
    printf("  [--cleanup] --- cleanup (preserve) old (existing) ODB files\n");
