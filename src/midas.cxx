@@ -6938,6 +6938,27 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
 
 /********************************************************************/
 /**
+If buffer is already open, return it's handle
+@param buffer_name buffer name
+@return BM_SUCCESS, BM_NOT_FOUND
+*/
+INT bm_get_buffer_handle(const char* buffer_name, INT *buffer_handle)
+{
+   gBuffersMutex.lock();
+   for (size_t i = 0; i < gBuffers.size(); i++) {
+      BUFFER* pbuf = gBuffers[i];
+      if (pbuf && pbuf->attached && equal_ustring(pbuf->buffer_name, buffer_name)) {
+         *buffer_handle = i + 1;
+         gBuffersMutex.unlock();
+         return BM_SUCCESS;
+      }
+   }
+   gBuffersMutex.unlock();
+   return BM_NOT_FOUND;
+}
+
+/********************************************************************/
+/**
 Closes an event buffer previously opened with bm_open_buffer().
 @param buffer_handle buffer handle
 @return BM_SUCCESS, BM_INVALID_HANDLE

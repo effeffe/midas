@@ -1818,6 +1818,7 @@ flags for db_json_save() */
 
    /*---- buffer manager ----*/
    INT EXPRT bm_open_buffer(const char *buffer_name, INT buffer_size, INT * buffer_handle);
+   INT EXPRT bm_get_buffer_handle(const char *buffer_name, INT * buffer_handle);
    INT EXPRT bm_close_buffer(INT buffer_handle);
    INT EXPRT bm_close_all_buffers(void);
    INT EXPRT bm_init_buffer_counters(INT buffer_handle);
