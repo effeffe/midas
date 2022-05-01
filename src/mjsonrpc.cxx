@@ -1461,6 +1461,45 @@ static MJsonNode* js_db_reorder(const MJsonNode* params)
    return mjsonrpc_make_result("status", sresult);
 }
 
+static MJsonNode* js_db_sor(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("Show ODB open records starting from given ODB path");
+      doc->P("path?", MJSON_STRING, "ODB path");
+      doc->R("sor", MJSON_JSON, "return value of db_sor()");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   std::string path = mjsonrpc_get_param(params, "path", NULL)->GetString(); if (error) return error;
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   MJsonNode* sor = db_sor(hDB, path.c_str());
+
+   return mjsonrpc_make_result("sor", sor);
+}
+
+static MJsonNode* js_db_scl(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("Show ODB clients");
+      doc->R("scl", MJSON_JSON, "return value of db_scl()");
+      return doc;
+   }
+
+   HNDLE hDB;
+   cm_get_experiment_database(&hDB, NULL);
+
+   MJsonNode* scl = db_scl(hDB);
+
+   return mjsonrpc_make_result("scl", scl);
+}
+
 /////////////////////////////////////////////////////////////////////////////////
 //
 // cm_msg code goes here
@@ -3986,6 +4025,8 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("db_resize", js_db_resize);
    mjsonrpc_add_handler("db_resize_string", js_db_resize_string);
    mjsonrpc_add_handler("db_rename", js_db_rename);
+   mjsonrpc_add_handler("db_scl",    js_db_scl);
+   mjsonrpc_add_handler("db_sor",    js_db_sor);
    mjsonrpc_add_handler("db_link",   js_db_link);
    mjsonrpc_add_handler("db_reorder", js_db_reorder);
    mjsonrpc_add_handler("db_key",    js_db_key);

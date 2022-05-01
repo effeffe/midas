@@ -6845,7 +6845,10 @@ void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
       r->rsprintf("<input type=button value=Create onclick=\"dlgShow('dlgCreate')\">\n");
       r->rsprintf("<input type=button value=Link   onclick=\"dlgShow('dlgLink')\">\n");
       r->rsprintf("<input type=button value=Delete onclick=\"dlgShow('dlgDelete')\">\n");
-      r->rsprintf("<input type=button value=\"Create Elog from this page\" onclick=\"self.location=\'?cmd=Create Elog from this page&odb_path=%s\';\"></td></tr>\n", urlEncode(odbpath).c_str());
+      r->rsprintf("<input type=button value=\"Create Elog from this page\" onclick=\"self.location=\'?cmd=Create Elog from this page&odb_path=%s\';\">\n", urlEncode(odbpath).c_str());
+      r->rsprintf("<input type=button value=\"Show open records\" onclick=\"self.location=\'?cmd=odb_sor&odb_path=%s\';\">\n", urlEncode(odbpath).c_str());
+      r->rsprintf("<input type=button value=\"Show ODB clients\" onclick=\"self.location=\'?cmd=odb_scl\';\">\n");
+      r->rsprintf("</td></tr>\n");
    }
 
    /*---- Build the Delete dialog------------------------------------*/
@@ -10656,8 +10659,6 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
 
    /* get display event name */
 
-   printf("AAA!\n");
-
    MidasHistoryInterface* mh = get_history();
    if (mh == NULL) {
       r->rsprintf(str, "History is not configured\n");
@@ -12563,6 +12564,13 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       return;
    }
 
+   /*---- history editord -------------------------------------------*/
+
+   if (equal_ustring(command, "hs_edit")) {
+      send_resource(r, "hs_edit.html");
+      return;
+   }
+
    /*---- history command -------------------------------------------*/
 
    if (equal_ustring(command, "oldhistory")) {
@@ -12968,6 +12976,20 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       Lock(t);
       show_odb_page(p, r, odb_path.c_str(), write_access);
       Unlock(t);
+      return;
+   }
+
+   /*---- ODB show open records --------------------------------------*/
+
+   if (equal_ustring(command, "odb_sor")) {
+      send_resource(r, "odb_sor.html");
+      return;
+   }
+
+   /*---- ODB show clients -------------------------------------------*/
+
+   if (equal_ustring(command, "odb_scl")) {
+      send_resource(r, "odb_scl.html");
       return;
    }
 

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html class="mcss" lang="en">
+<head>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css">
+   <link id="favicon" rel="shortcut icon" type="image/png" href="favicon.png" />
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <script src="controls.js"></script>
+   <title>ODB clients</title>
+</head>
+
+<body class="mcss" onload="mhttpd_init('ODB')">
+
+<!-- header and side navigation will be filled in mhttpd_start -->
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+
+   <table width="95%" class="mtable" id="sclTable">
+      <tr>
+         <td colspan=6 class="mtableheader">ODB clients</td>
+      </tr>
+      <tr class="mtabletitle">
+         <th>Name</th>
+         <th>Host</th>
+         <th>Slot</th>
+         <th>PID</th>
+         <th>Timeout</th>
+         <th>Active</th>
+      </tr>
+   </table>
+
+   <div id="updateStatus" align="left">
+      updateStatus
+   </div>
+</div>
+
+<script>
+   var update_timer_id;
+
+   function set_if_changed(e, v) {
+      if (e) {
+         if (e.innerHTML !== v) {
+            //console.log("set_if_changed: " + e + " from " + e.innerHTML + " to " + v);
+            e.innerHTML = v;
+         }
+      }
+   }
+
+   function hide_if_changed(e) {
+      if (e) {
+         if (e.style.display !== "none") {
+            //console.log("set_if_changed: " + e + " from " + e.innerHTML + " to " + v);
+            e.style.display = "none";
+         }
+      }
+   }
+
+   function show_if_changed(e) {
+      if (e) {
+         if (e.style.display !== "") {
+            //console.log("set_if_changed: " + e + " from " + e.innerHTML + " to " + v);
+            e.style.display = "";
+         }
+      }
+   }
+
+  function create_client(name) {
+      var table = document.getElementById("sclTable");
+
+      if (!table)
+         return; // just in case
+
+      //console.log("Creating: " + name + " table: " + table);
+
+      var tr = document.createElement("tr");
+      tr.id = "client " + name;
+      tr.className = "mtable";
+
+      var td;
+      var input;
+
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = "name";
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = "hostname";
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = "slot";
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = "pid";
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = "timeout";
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+      td.align = "center";
+      td.innerHTML = "last_activity";
+      tr.appendChild(td);
+
+      table.appendChild(tr);
+
+      return tr;
+   }
+
+   var client_names = {};
+
+   function callback(rpc) {
+      //document.getElementById('updateStatus').innerHTML = "RWP_";
+
+      //console.log("SCL: " + JSON.stringify(rpc));
+
+      var scl = rpc.result.scl;
+
+      // hide table row of clients that are no longer present
+      for (var c in client_names) {
+         client_names[c] = true;
+      }
+
+      if (scl && scl.clients) {
+         for (var i = 0; i < scl.clients.length; i++) {
+            var c = scl.clients[i];
+            var e = document.getElementById("client " + c.name);
+            if (!e) e = create_client(c.name);
+
+            if (!e) continue;
+
+            //console.log(c.name + " | " + c.name + " | " + e);
+
+            set_if_changed(e.childNodes[0], "<a href='?cmd=odb&odb_path=System/Clients/" + c.pid + "'>" + c.name + "</a>");
+            if (c.host) {
+               set_if_changed(e.childNodes[1], c.host);
+            }
+            set_if_changed(e.childNodes[2], c.slot);
+            set_if_changed(e.childNodes[3], c.pid);
+            set_if_changed(e.childNodes[4], c.watchdog_timeout_millisec);
+            set_if_changed(e.childNodes[5], c.last_activity_millisec);
+
+            show_if_changed(e);
+            client_names[c.name] = false;
+         } // loop over all clients
+      }
+
+      // hide table row of clients that are no longer present
+      for (var name in client_names) {
+         if (client_names[name]) {
+            var e = document.getElementById("client " + name);
+            hide_if_changed(e);
+         }
+      }
+
+      // handled now by mhttpd_refresh
+      document.getElementById('updateStatus').innerHTML = "";
+   }
+
+   function update() {
+      //document.getElementById('updateStatus').innerHTML = "R___";
+      mjsonrpc_call("db_scl").then(function (rpc) {
+         callback(rpc);
+      }).catch(function (error) {
+         //mjsonrpc_error_alert(error);
+         document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
+      });
+      //document.getElementById('updateStatus').innerHTML = "RW__";
+   }
+
+   function update_periodic() {
+      clearTimeout(update_timer_id);
+      var update_period = 1000;
+      update();
+      update_timer_id = setTimeout('update_periodic()', update_period);
+   }
+
+   update_periodic();
+</script>
+</body>
+</html>
