@@ -2973,7 +2973,7 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
                                       int hs_status[])
 {
    if (fDebug)
-      printf("hs_read_buffer: %d variables\n", num_var);
+      printf("hs_read_buffer: %d variables, start time %s, end time %s\n", num_var, TimeToString(start_time).c_str(), TimeToString(end_time).c_str());
 
    for (int i=0; i<num_var; i++) {
       int status = read_schema(&fSchema, event_name[i], start_time);
