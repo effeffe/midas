@@ -95,6 +95,8 @@ function mjsonrpc_send_request(req)
    /// @param[in] req request object or an array of request objects (object or array of objects)
    /// @returns new Promise
 
+   //console.log("mjsonrpc_send_request!");
+
    return new Promise(function(resolve, reject) {
       var xhr = new XMLHttpRequest();
       //xhr.responseType = 'json'; // this does not work: behaviour is not defined if RPC returns unparsable JSON
@@ -130,9 +132,16 @@ function mjsonrpc_send_request(req)
                return;
             } else if (contentType == "application/json") {
                var rpc_response = null;
+               var xhr_response = xhr.response;
+
+               // if xhr.responseType is "arraybuffer", we need to convert it back to text
+               // before we can parse it as json. K.O.
+               if (xhr.responseType == "arraybuffer") {
+                  xhr_response = new TextDecoder("utf-8").decode(xhr.response);
+               }
 
                try {
-                  rpc_response = JSON.parse(xhr.response);
+                  rpc_response = JSON.parse(xhr_response);
                   if (!rpc_response) {
                      throw "JSON parser returned null";
                   }
