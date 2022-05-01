@@ -13956,10 +13956,47 @@ MJsonNode* db_scl(HNDLE hDB)
 #endif
 }
 
-MJsonNode* db_sor(HNDLE hDB, const char* path)
+MJsonNode* db_sor(HNDLE hDB, const char* root_path)
 {
-   printf("db_sor(%s)\n", path);
+   //printf("db_sor(%s)\n", root_path);
+   assert(root_path != NULL);
+   size_t root_path_len = strlen(root_path);
+#ifdef LOCAL_ROUTINES
+   MJsonNode* sor = MJsonNode::MakeArray();
+
+   /* lock database */
+   db_lock_database(hDB);
+
+   DATABASE *pdb = &_database[hDB - 1];
+   DATABASE_HEADER *pheader = pdb->database_header;
+
+   /* list clients */
+   for (int i = 0; i < pheader->max_client_index; i++) {
+      DATABASE_CLIENT *pclient = &pheader->client[i];
+      if (pclient->pid) {
+         for (int j = 0; j < pclient->max_index; j++) {
+            std::string path = db_get_path_locked(pheader, pclient->open_record[j].handle);
+            if (path.length() < root_path_len)
+               continue;
+            if (strncmp(root_path, path.c_str(), root_path_len) != 0)
+               continue;
+            MJsonNode* c = MJsonNode::MakeObject();
+            c->AddToObject("name", MJsonNode::MakeString(pclient->name));
+            //c->AddToObject("handle", MJsonNode::MakeNumber(pclient->open_record[j].handle));
+            c->AddToObject("access_mode", MJsonNode::MakeNumber(pclient->open_record[j].access_mode));
+            c->AddToObject("flags", MJsonNode::MakeNumber(pclient->open_record[j].flags));
+            c->AddToObject("path", MJsonNode::MakeString(path.c_str()));
+            sor->AddToArray(c);
+         }
+      }
+   }
+
+   db_unlock_database(hDB);
+
+   return sor;
+#else
    return MJsonNode::MakeNull();
+#endif
 }
 
 /** @} *//* end of odbfunctionc */

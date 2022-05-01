@@ -354,6 +354,8 @@ void MJSO::Add(const char* name, int mjson_type, const char* description)
       p->AddToObject("type", MJsonNode::MakeString("null"));
    else if (mjson_type == MJSON_ARRAYBUFFER)
       p->AddToObject("type", MJsonNode::MakeString("arraybuffer"));
+   else if (mjson_type == MJSON_JSON)
+      p->AddToObject("type", MJsonNode::MakeString("json"));
    else if (mjson_type == 0)
       ;
    else
