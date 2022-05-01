@@ -627,7 +627,7 @@ INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
    return status;
 }
 
-INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKeyRoot, int index, const void *json_node)
+INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKeyRoot, int index, const MJsonNode *node)
 {
    int status;
    char path[MAX_ODB_PATH];
@@ -640,8 +640,6 @@ INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKeyRoot, int index, const void *j
    status = db_get_path(hDB, hKeyRoot, path, sizeof(path));
    if (status != DB_SUCCESS)
       return status;
-
-   const MJsonNode* node = (const MJsonNode*)json_node;
 
    int tid = key.type;
    int string_length = 0;

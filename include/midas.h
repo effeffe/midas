@@ -247,6 +247,8 @@ typedef INT MUTEX_T;
 #include <string>
 typedef std::vector<std::string> STRING_LIST;
 
+class MJsonNode; // forward declaration from mjson.h
+
 /*------------------------------------------------------------------*/
 
 /* Definition of implementation specific constants */
@@ -1957,7 +1959,10 @@ flags for db_json_save() */
    INT EXPRT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int *buffer_size, int *buffer_end);
 
    INT EXPRT db_paste_json(HNDLE hDB, HNDLE hKey, const char *buffer);
-   INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKey, int index, const /* MJsonNode */ void *json_node);
+   INT EXPRT db_paste_json_node(HNDLE hDB, HNDLE hKey, int index, const MJsonNode* json_node);
+
+   MJsonNode* EXPRT db_sor(HNDLE hDB, const char* path); // show open records
+   MJsonNode* EXPRT db_scl(HNDLE hDB); // show clients
 
    INT EXPRT db_sprintf(char *string, const void *data, INT data_size, INT index, DWORD type);
    INT EXPRT db_sprintff(char *string, const char *format, const void *data, INT data_size, INT index, DWORD type);

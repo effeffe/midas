@@ -39,6 +39,8 @@ The Online Database file
 #include <signal.h>
 #include <math.h>
 
+#include "mjson.h"
+
 #define CHECK_OPEN_RECORD 1
 
 /*------------------------------------------------------------------*/
@@ -13902,6 +13904,62 @@ INT EXPRT db_resize_string(HNDLE hdb, HNDLE hKeyRoot, const char *key_name, int 
       free(new_data);
    
    return status;
+}
+
+MJsonNode* db_scl(HNDLE hDB)
+{
+#ifdef LOCAL_ROUTINES
+   MJsonNode* scl = MJsonNode::MakeObject();
+   MJsonNode* clients = MJsonNode::MakeArray();
+
+   scl->AddToObject("now", MJsonNode::MakeNumber(ss_time_sec()));
+   scl->AddToObject("clients", clients);
+
+   /* lock database */
+   db_lock_database(hDB);
+
+   DATABASE *pdb = &_database[hDB - 1];
+   DATABASE_HEADER *pheader = pdb->database_header;
+
+   DWORD now = ss_millitime();
+
+   /* list clients */
+   for (int i = 0; i < pheader->max_client_index; i++) {
+      DATABASE_CLIENT *pclient = &pheader->client[i];
+      if (pclient->pid) {
+         MJsonNode* c = MJsonNode::MakeObject();
+         c->AddToObject("slot", MJsonNode::MakeNumber(i));
+         c->AddToObject("pid", MJsonNode::MakeNumber(pclient->pid));
+         c->AddToObject("name", MJsonNode::MakeString(pclient->name));
+         std::string path = msprintf("/System/Clients/%d/Host", pclient->pid);
+         const KEY* pkey = db_find_pkey_locked(pheader, NULL, path.c_str(), NULL, NULL);
+         if (pkey) {
+            int host_size = pkey->total_size;
+            char* host = (char*)malloc(host_size);
+            assert(host != NULL);
+            db_get_data_locked(pheader, pkey, 0, host, &host_size, TID_STRING, NULL);
+            c->AddToObject("host", MJsonNode::MakeString(host));
+            free(host);
+         }
+         c->AddToObject("watchdog_timeout_millisec", MJsonNode::MakeNumber(pclient->watchdog_timeout));
+         // "now" and "last_activity" is millisecond time wrapped around at 32 bits, must do unsigned 32-bit math here, not in javascript
+         c->AddToObject("last_activity_millisec", MJsonNode::MakeNumber(now - pclient->last_activity));
+         clients->AddToArray(c);
+      }
+   }
+
+   db_unlock_database(hDB);
+
+   return scl;
+#else
+   return MJsonNode::MakeNull();
+#endif
+}
+
+MJsonNode* db_sor(HNDLE hDB, const char* path)
+{
+   printf("db_sor(%s)\n", path);
+   return MJsonNode::MakeNull();
 }
 
 /** @} *//* end of odbfunctionc */
