@@ -3387,6 +3387,93 @@ static MJsonNode* js_cm_transition(const MJsonNode* params)
 
 /////////////////////////////////////////////////////////////////////////////////
 //
+// Event buffer code goes here
+//
+/////////////////////////////////////////////////////////////////////////////////
+
+static MJsonNode* js_bm_receive_event(const MJsonNode* params)
+{
+   if (!params) {
+      MJSO* doc = MJSO::I();
+      doc->D("read event buffers");
+      doc->P("buffer_name", MJSON_STRING, "name of event buffer");
+      doc->P("timeout_millisec?", MJSON_NUMBER, "how long to wait for an event");
+      //doc->P("run_number?", MJSON_INT, "New run number, value 0 means /runinfo/run_number + 1, default is 0");
+      //doc->P("async_flag?", MJSON_INT, "Transition type. Default is multithreaded transition TR_MTHREAD");
+      //doc->P("debug_flag?", MJSON_INT, "See cm_transition(), value 1: trace to stdout, value 2: trace to midas.log");
+      doc->R("binary data", MJSON_ARRAYBUFFER, "binary event data");
+      doc->R("status", MJSON_INT, "return status of bm_open_buffer(), bm_request_event(), bm_set_cache_size(), bm_receive_alloc()");
+      return doc;
+   }
+
+   MJsonNode* error = NULL;
+
+   std::string buffer_name  = mjsonrpc_get_param(params, "buffer_name", &error)->GetString(); if (error) return error;
+   int timeout_millisec = mjsonrpc_get_param(params, "timeout_millisec", NULL)->GetInt();
+   //int run_number = mjsonrpc_get_param(params, "run_number", NULL)->GetInt();
+   //int async_flag = mjsonrpc_get_param(params, "async_flag", NULL)->GetInt();
+   //int debug_flag = mjsonrpc_get_param(params, "debug_flag", NULL)->GetInt();
+
+   int status;
+
+   HNDLE buffer_handle = 0;
+
+   status = bm_get_buffer_handle(buffer_name.c_str(), &buffer_handle);
+
+   if (status != BM_SUCCESS) {
+      // if buffer not already open, we need to open it,
+      // but we must hold a lock in case multiple RPC handler threads
+      // try to open it at the same time. K.O.
+      static std::mutex gMutex;
+      std::lock_guard<std::mutex> lock_guard(gMutex); // lock the mutex
+
+      // we have the lock. now we check if some other thread
+      // opened the buffer while we were waiting for the lock. K.O.
+      status = bm_get_buffer_handle(buffer_name.c_str(), &buffer_handle);
+
+      if (status != BM_SUCCESS) {
+         status = bm_open_buffer(buffer_name.c_str(), 0, &buffer_handle);
+         if (status != BM_SUCCESS) {
+            MJsonNode* result = MJsonNode::MakeObject();
+            result->AddToObject("status", MJsonNode::MakeInt(status));
+            return mjsonrpc_make_result(result);
+         }
+         status = bm_set_cache_size(buffer_handle, 0, 0);
+         if (status != BM_SUCCESS) {
+            MJsonNode* result = MJsonNode::MakeObject();
+            result->AddToObject("status", MJsonNode::MakeInt(status));
+            return mjsonrpc_make_result(result);
+         }
+         int request_id = 0;
+         status = bm_request_event(buffer_handle, EVENTID_ALL, TRIGGER_ALL, GET_NONBLOCKING, &request_id, NULL);
+         if (status != BM_SUCCESS) {
+            MJsonNode* result = MJsonNode::MakeObject();
+            result->AddToObject("status", MJsonNode::MakeInt(status));
+            return mjsonrpc_make_result(result);
+         }
+      }
+   }
+
+   if (timeout_millisec == 0)
+      timeout_millisec = BM_NO_WAIT;
+
+   EVENT_HEADER* pevent = NULL;
+
+   status = bm_receive_event_alloc(buffer_handle, &pevent, timeout_millisec);
+
+   if (status != BM_SUCCESS) {
+      MJsonNode* result = MJsonNode::MakeObject();
+      result->AddToObject("status", MJsonNode::MakeInt(status));
+      return mjsonrpc_make_result(result);
+   }
+
+   size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
+   //size_t total_size = ALIGN8(event_size);
+   return MJsonNode::MakeArrayBuffer((char*)pevent, event_size);
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+//
 // ss_system code goes here
 //
 /////////////////////////////////////////////////////////////////////////////////
@@ -4015,6 +4102,7 @@ void mjsonrpc_init()
    mjsonrpc_add_handler("cm_msg1",           js_cm_msg1);
    mjsonrpc_add_handler("cm_shutdown",   js_cm_shutdown,   true);
    mjsonrpc_add_handler("cm_transition", js_cm_transition, true);
+   mjsonrpc_add_handler("bm_receive_event", js_bm_receive_event, true);
    // interface to odb functions
    mjsonrpc_add_handler("db_copy",     js_db_copy);
    mjsonrpc_add_handler("db_paste",    js_db_paste);

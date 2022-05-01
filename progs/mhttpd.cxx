@@ -13034,6 +13034,18 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       }
    }
 
+   /*---- event dump ------------------------------------------------*/
+
+   if (equal_ustring(command, "event_dump")) {
+      send_resource(r, "event_dump.html");
+      return;
+   }
+
+   if (equal_ustring(command, "mdump")) {
+      send_resource(r, "event_dump.html");
+      return;
+   }
+
    /*---- custom page -----------------------------------------------*/
 
    if (equal_ustring(command, "custom")) {
