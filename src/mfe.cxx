@@ -1263,7 +1263,8 @@ static int receive_trigger_event(EQUIPMENT *eq) {
    }
 
    if (get_event_rbh(index) == 0) {
-      if (serial > 0 && last_event > 0 && ss_millitime() > last_event + 5000) {
+      if (serial > 0 && last_event > 0 && ss_millitime() > last_event + 5000 &&
+          prb != NULL && prb->serial_number > serial) {
          if (ss_time() - last_error > 30) {
             last_error = ss_time();
             cm_msg(MERROR, "receive_trigger_event",
