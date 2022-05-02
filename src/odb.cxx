@@ -1092,6 +1092,7 @@ static const KEY* db_resolve_link_locked(const DATABASE_HEADER* pheader, const K
    }
 }
 
+/*
 static void db_print_pkey(const DATABASE_HEADER * pheader, const KEY* pkey, int recurse = 0, const char *path = NULL, HNDLE parenthkeylist = 0)
 {
    HNDLE hkey = db_pkey_to_hkey(pheader, pkey);
@@ -1126,6 +1127,7 @@ static void db_print_hkey(const DATABASE_HEADER * pheader, HNDLE hkey, int recur
 
    db_print_pkey(pheader, pkey, recurse, path, parenthkeylist);
 }
+*/
 
 static bool db_validate_and_repair_key_wlocked(DATABASE_HEADER * pheader, int recurse, const char *path, HNDLE parenthkeylist, HNDLE hkey, KEY * pkey, db_err_msg **msg)
 {
