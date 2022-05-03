@@ -83,7 +83,8 @@ INT mscbhv4_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
    info->settings.address = (int*)calloc(sizeof(INT), channels/4);
    assert(info->settings.address);
 
-   size = channels / 4 * sizeof(INT);
+   int n_nodes = ((channels-1) / 4 + 1);
+   size = n_nodes * sizeof(INT);
    status = db_get_value(hDB, hkey, "MSCB Address", info->settings.address, &size, TID_INT, FALSE);
    if (status != DB_SUCCESS)
       return FE_ERR_ODB;
@@ -98,7 +99,7 @@ INT mscbhv4_init(HNDLE hkey, void **pinfo, INT channels, INT(*bd) (INT cmd, ...)
    }
 
    // check nodes
-   for (int i=0 ; i<channels / 4 ; i++) {
+   for (int i=0 ; i<n_nodes ; i++) {
       status = mscb_info(info->fd, info->settings.address[i], &node_info);
       if (status != MSCB_SUCCESS) {
          cm_msg(MERROR, "mscbhv4_init",
