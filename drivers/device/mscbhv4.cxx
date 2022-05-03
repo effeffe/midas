@@ -205,12 +205,32 @@ INT mscbhv4_exit(MSCBHV4_INFO * info)
 
 INT mscbhv4_set(MSCBHV4_INFO * info, INT channel, float value)
 {
-   mscb_write(info->fd, info->settings.address[channel/4], 0, &value, 4);
+   int fc = channel / 4 * 4; // first channel of module
+   int mc = channel % 4;     // channel in module
 
-   // set demand value of all four channels, since unit only has one demand
-   int fc = channel / 4 * 4;
-   for (int i=fc ; i<fc+4 ; i++)
-      info->node_vars[i].u_demand = value;
+   if (value == 0) {
+      // turn channel off
+      unsigned char flag = 0;
+      mscb_write(info->fd, info->settings.address[channel/4], 3+mc, &flag, 1);
+      info->node_vars[channel].u_demand = 0;
+      info->node_vars[fc].on[mc] = 0;
+   } else {
+
+      mscb_write(info->fd, info->settings.address[channel / 4], 0, &value, 4);
+
+      // set demand value of all four channels, since unit only has one demand
+      for (int i = fc; i < fc + 4; i++)
+         if (info->node_vars[i].u_demand != 0)
+            info->node_vars[i].u_demand = value;
+
+      if (info->node_vars[fc].on[mc] == 0) {
+         // turn channel on
+         unsigned char flag = 1;
+         mscb_write(info->fd, info->settings.address[channel/4], 3+mc, &flag, 1);
+         info->node_vars[fc].on[mc] = 1;
+      }
+   }
+
    return FE_SUCCESS;
 }
 
@@ -218,17 +238,24 @@ INT mscbhv4_set(MSCBHV4_INFO * info, INT channel, float value)
 
 INT mscbhv4_get(MSCBHV4_INFO * info, INT channel, float *pvalue)
 {
+   int fc = channel / 4 * 4; // first channel of module
+
    // check if value was previously read by mscbhvr_read_all()
    if (info->node_vars[channel].cached) {
-      int i = channel / 4 * 4;
-      *pvalue = info->node_vars[i].u_meas;
+      if (info->node_vars[fc].on[channel % 4] == 0)
+         *pvalue = 0;
+      else
+         *pvalue = info->node_vars[fc].u_meas;
       info->node_vars[channel].cached = 0;
       return FE_SUCCESS;
    }
 
    int status = mscbhv4_read_all(info, channel);
-   int i = channel / 4 * 4;
-   *pvalue = info->node_vars[i].u_meas;
+
+   if (info->node_vars[fc].on[channel % 4] == 0)
+      *pvalue = 0;
+   else
+      *pvalue = info->node_vars[fc].u_meas;
    return status;
 }
 
@@ -280,7 +307,11 @@ INT mscbhv4(INT cmd, ...)
          channel = va_arg(argptr, INT);
          pvalue = va_arg(argptr, float *);
          i = channel / 4 * 4;
-         *pvalue = info->node_vars[i].u_demand;
+
+         if (info->node_vars[i].on[channel % 4] == 0)
+            *pvalue = 0;
+         else
+            *pvalue = info->node_vars[i].u_demand;
          break;
 
       case CMD_GET_CURRENT:
