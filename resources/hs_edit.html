@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html class="mcss" lang="en">
+<head>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css">
+   <link id="favicon" rel="shortcut icon" type="image/png" href="favicon.png" />
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <script src="controls.js"></script>
+   <title>History</title>
+</head>
+
+<body class="mcss" onload="mhttpd_init('History')">
+
+<!-- header and side navigation will be filled in mhttpd_start -->
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+
+  <table class="mtable">
+    <tr>
+      <th colspan=10 class="mtableheader">History Panel "<span id=group>group</span>" / "<span id=panel>panel</span>"</th>
+    </tr>
+    <tr>
+      <td colspan=10>
+        <input type=button class=mbutton value="Save" onclick="save_panel()">
+        <input type=button class=mbutton value="Cancel" onclick="window.location=g_redir">
+        <input type=button class=mbutton value="Edit in ODB" onclick="window.location.search='?cmd=odb&odb_path='+g_odb_path">
+        <input type=button class=mbutton value="Clear history cache" onclick="document.form1.hcmd.value='Clear history cache';document.form1.submit()">
+        <input type=button class=mbutton value="Delete panel" onclick="delete_panel()">
+      </td>
+    </tr>
+    <tr>
+      <td colspan=10>
+        <input type=checkbox  name=sort_vars value=1 onclick="this.form.submit();">Sort variable names&nbsp;&nbsp;
+        <input type=checkbox  name=old_vars value=1 onclick="this.form.submit();">Show deleted and renamed variables
+    </td></tr>
+    <tr>
+      <td colspan=4 style='text-align:right'>Time scale (in units 'm', 'h', 'd'):</td>
+      <td colspan=2><input type=text size=12 name=timescale value=timescale id=text_timescale></td>
+      <td colspan=4></td>
+    </tr>
+    <tr>
+      <td colspan=4 style='text-align:right'>Minimum (set to '-inf' for autoscale):</td>
+      <td colspan=2><input type=text size=12 name=minimum value=minimum id=text_minimum></td><td colspan=4></td>
+    </tr>
+    <tr>
+      <td colspan=4 style='text-align:right'>Maximum (set to 'inf' for autoscale):</td>
+      <td colspan=2><input type=text size=12 name=maximum value=maximum id=text_maximum></td>
+      <td colspan=4></td>
+    </tr>
+    <tr>
+      <td colspan=10><input type=checkbox name=zero_ylow  id=cb_zero_ylow>Zero Y axis
+        &nbsp;&nbsp;<input type=checkbox name=log_axis    id=cb_log_axis>Logarithmic Y axis
+        &nbsp;&nbsp;<input type=checkbox name=run_markers id=cb_show_run_markers>Show run markers
+        &nbsp;&nbsp;<input type=checkbox name=show_values id=cb_show_values>Show values of variables
+        &nbsp;&nbsp;<input type=checkbox name=show_fill   id=cb_show_fill>Show graph fill
+      </td>
+    </tr>
+    <tr>
+      <td colspan=10 style='text-align:left'>Use the "order" to reorder or delete history plots. Change order values and press "refresh", use 0 or -1 to delete a plot</td>
+    </tr>
+    <tr>
+      <td colspan=10 style='text-align:left'>Use the "formula" to transform history data to physics values</td>
+    </tr>
+    <tr>
+      <td colspan=10 style='text-align:left'>Use the "offset" and "factor" to position the individual graphics on the history plot</td>
+    </tr>
+    <tr>
+      <td colspan=10 style='text-align:left'>displayed_value = offset + factor*(formula(history_value) - voffset)</td>
+    </tr>
+    <tr>
+      <td colspan=10 style='text-align:left'>"formula" format is "3*x+4" or "10*sin(x)". all javascript math functions can be used</td>
+    </tr>
+    <tr>
+      <table class=mtable id="eventTable">
+        <tr>
+          <th>Col<th>Event<th>Variable<th>Formula<th>Colour<th>Label<th>Order<th>Factor<th>Offset<th>VOffset
+        </tr>
+        <tr>
+          <td style="background-color:#00AAFF">&nbsp;
+          <td>
+            <select name="event0" size=1 onChange="document.form1.submit()">
+              <option value="/empty">&lt;empty&gt;
+              <option  value="Periodic/PRDC">Periodic/PRDC
+              <option  value="RpcExample/SLOW">RpcExample/SLOW
+              <option  value="Run transitions">Run transitions
+              <option  value="Scalers">Scalers
+              <option  value="System">System
+              <option  value="test/data">test/data
+              <option  value="test_slow/data">test_slow/data
+              <option selected value="tmfe_example/data">tmfe_example/data
+              <option  value="tmfe_example_everything/data">tmfe_example_everything/data
+              <option  value="tmfe_example_mt/data">tmfe_example_mt/data
+            </select>
+          </td>
+          <td>
+            <select name="var0">
+              <option selected value="data">data
+            </select>
+          </td>
+          <td><input type=text size=15 maxlength=256 name="form0" value=></td>
+          <td><input type=text size=8 maxlength=10 name="col0" value=#00AAFF></td>
+          <td><input type=text size=8 maxlength=32 name="lab0" value=""></td>
+          <td><input type=text size=3 maxlength=32 name="ord0" value="10"></td>
+          <td><input type=text size=6 maxlength=32 name="factor0" value="1.000000"></td>
+          <td><input type=text size=6 maxlength=32 name="offset0" value="0.000000"></td>
+          <td><input type=text size=6 maxlength=32 name="voffset0" value="0.000000"></td>
+        </tr>
+        <tr>
+          <td style="background-color:#FF9000">&nbsp;
+          <td>
+            <select name="event1" size=1 onChange="document.form1.submit()">
+              <option value="/empty">&lt;empty&gt;
+              <option  value="Periodic/PRDC">Periodic/PRDC
+              <option  value="RpcExample/SLOW">RpcExample/SLOW
+              <option  value="Run transitions">Run transitions
+              <option  value="Scalers">Scalers
+              <option  value="System">System
+              <option  value="test/data">test/data
+              <option  value="test_slow/data">test_slow/data
+              <option  value="tmfe_example/data">tmfe_example/data
+              <option  value="tmfe_example_everything/data">tmfe_example_everything/data
+              <option selected value="tmfe_example_mt/data">tmfe_example_mt/data
+            </select>
+          </td>
+          <td>
+            <select name="var1">
+              <option selected value="data">data
+            </select>
+          </td>
+          <td><input type=text size=15 maxlength=256 name="form1" value=></td>
+          <td><input type=text size=8 maxlength=10 name="col1" value=#FF9000></td>
+          <td><input type=text size=8 maxlength=32 name="lab1" value=""></td>
+          <td><input type=text size=3 maxlength=32 name="ord1" value="20"></td>
+          <td><input type=text size=6 maxlength=32 name="factor1" value="1.000000"></td>
+          <td><input type=text size=6 maxlength=32 name="offset1" value="0.000000"></td>
+          <td><input type=text size=6 maxlength=32 name="voffset1" value="0.000000"></td>
+        </tr>
+        <tr>
+          <td style="background-color:#FF00A0">&nbsp;
+          <td>
+            <select name="event2" size=1 onChange="document.form1.submit()">
+              <option value="/empty">&lt;empty&gt;
+              <option  value="Periodic/PRDC">Periodic/PRDC
+              <option  value="RpcExample/SLOW">RpcExample/SLOW
+              <option  value="Run transitions">Run transitions
+              <option  value="Scalers">Scalers
+              <option  value="System">System
+              <option  value="test/data">test/data
+              <option selected value="test_slow/data">test_slow/data
+              <option  value="tmfe_example/data">tmfe_example/data
+              <option  value="tmfe_example_everything/data">tmfe_example_everything/data
+              <option  value="tmfe_example_mt/data">tmfe_example_mt/data
+            </select>
+          </td>
+          <td>
+            <select name="var2">
+              <option selected value="data">data
+            </select>
+          </td>
+          <td><input type=text size=15 maxlength=256 name="form2" value=></td>
+          <td><input type=text size=8 maxlength=10 name="col2" value=#FF00A0></td>
+          <td><input type=text size=8 maxlength=32 name="lab2" value=""></td>
+          <td><input type=text size=3 maxlength=32 name="ord2" value="30"></td>
+          <td><input type=text size=6 maxlength=32 name="factor2" value="1.000000"></td>
+          <td><input type=text size=6 maxlength=32 name="offset2" value="0.000000"></td>
+          <td><input type=text size=6 maxlength=32 name="voffset2" value="0.000000"></td>
+        </tr>
+      </table>
+    </tr>
+  </table>
+</div>
+<script>
+  load_data();
+
+  var g_group;
+  var g_panel;
+  var g_redir;
+  var g_odb_path;
+
+  function load_data()
+  {
+      g_group = mhttpd_getParameterByName("group");
+      g_panel = mhttpd_getParameterByName("panel");
+      g_redir = mhttpd_getParameterByName("redir");
+
+      set_id_text("group", g_group);
+      set_id_text("panel", g_panel);
+
+      document.title = "History " + g_group + "/" + g_panel + " editor";
+
+      g_odb_path = "/History/Display/" + g_group + "/" + g_panel;
+
+      console.log("odb_path: " + g_odb_path);
+
+      mjsonrpc_call("db_get_values", {"paths": [g_odb_path]}).then(function(rpc) {
+          load_data1(rpc);
+      }).catch(function(error) {
+          mjsonrpc_error_alert(error);
+      });
+  }
+
+  function load_data1(rpc)
+  {
+      console.log(rpc);
+
+      if (!rpc.result || !rpc.result.data || rpc.result.data.length < 1) {
+          throw "rpc response has no result or result.data or result.data is too short";
+      }
+
+      var config = rpc.result.data[0];
+
+      console.log(config);
+
+      set_cb("cb_zero_ylow",        config, "zero ylow");
+      set_cb("cb_log_axis",         config, "log axis");
+      set_cb("cb_show_run_markers", config, "show run markers");
+      set_cb("cb_show_values",      config, "show values");
+      set_cb("cb_show_fill",        config, "show fill");
+
+      set_value("text_timescale", config, "timescale");
+      set_value("text_minimum", config, "minimum");
+      set_value("text_maximum", config, "maximum");
+
+      var num = 0;
+      num = Math.max(num, config.variables.length);
+      num = Math.max(num, config.label.length);
+      num = Math.max(num, config.colour.length);
+      num = Math.max(num, config.formula.length);
+      num = Math.max(num, config.factor.length);
+      num = Math.max(num, config.offset.length);
+      num = Math.max(num, config.voffset.length);
+      num = Math.max(num, config["show raw value"].length);
+
+      console.log("num: " + num);
+
+      for (var i=0; i<num; i++) {
+          var v = config.variables[i].split(":");
+          var event_name = v[0];
+          var var_name = v[1];
+          
+          var tr = add_to_table(i);
+          set_e_text(tr.childNodes[0], config.colour[i]);
+          set_e_text(tr.childNodes[1], event_name);
+          set_e_text(tr.childNodes[2], var_name);
+          set_ec_value(tr.childNodes[3], config.formula[i]);
+          set_ec_value(tr.childNodes[4], config.colour[i]);
+          set_ec_value(tr.childNodes[5], config.label[i]);
+      }
+  }
+
+  function add_to_table(index) {
+      var table = document.getElementById("eventTable");
+
+      if (!table) throw "cannot find HTML id eventTable";
+
+      var tr = document.createElement("tr");
+      tr.id = "event " + index;
+
+      var td;
+
+      td = document.createElement("td");
+      td.align = "left";
+      td.innerHTML = "colour";
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+      td.align = "left";
+      td.innerHTML = "event";
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+      td.align = "left";
+      td.innerHTML = "variable";
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+      ii = document.createElement("input");
+      ii.type  = "text";
+      ii.align = "left";
+      ii.value = "formula";
+      ii.size  = 15;
+      td.appendChild(ii);
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+      ii = document.createElement("input");
+      ii.type  = "text";
+      ii.align = "left";
+      ii.value = "colour";
+      ii.size  = 8;
+      td.appendChild(ii);
+      tr.appendChild(td);
+
+      td = document.createElement("td");
+      ii = document.createElement("input");
+      ii.type  = "text";
+      ii.align = "left";
+      ii.value = "label";
+      ii.size  = 8;
+      td.appendChild(ii);
+      tr.appendChild(td);
+
+      table.appendChild(tr);
+
+      return tr;
+  }
+
+  function save_panel()
+  {
+      throw "save_panel() not implemented!";
+  }
+
+  function delete_panel()
+  {
+      throw "delete_panel() not implemented!";
+  }
+
+  function set_cb(id, config, name)
+  {
+      var e = document.getElementById(id);
+      if (!e) throw "cannot find HTML id " + id;
+      if (name in config) {
+          e.checked = config[name];
+      } else {
+          e.checked = false;
+          //throw "odb has no \"" + name + "\"";
+      }
+  }
+  
+  function set_value(id, config, name)
+  {
+      var e = document.getElementById(id);
+      if (!e) throw "cannot find HTML id " + id;
+      if (name in config) {
+          e.value = config[name];
+      } else {
+          e.value = "";
+          //throw "odb has no \"" + name + "\"";
+      }
+  }
+
+  function set_e_value(e, value)
+  {
+      e.value = value;
+  }
+
+  function set_ec_value(e, value)
+  {
+      e = e.childNodes[0];
+      if (!e) throw "no children";
+      e.value = value;
+  }
+
+  function set_id_text(id, text)
+  {
+      var e = document.getElementById(id);
+      if (!e) throw "cannot find HTML id " + id;
+      set_e_text(e, text);
+  }
+
+  function set_e_text(e, text)
+  {
+      e.innerHTML = text;
+  }
+</script>
+</body>
+</html>
+
