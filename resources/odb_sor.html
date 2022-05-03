@@ -62,7 +62,7 @@
       }
    }
 
-  function create_path(path) {
+   function create_path(path) {
       var table = document.getElementById("sorTable");
 
       if (!table)
@@ -109,7 +109,7 @@
          for (var i = 0; i < sor.length; i++) {
              var s = sor[i];
              if (paths[s.path]) {
-                paths[s.path] += " " + s.name;
+                paths[s.path] += ", " + s.name;
              } else {
                 paths[s.path] = s.name;
              }
