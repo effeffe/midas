@@ -16,7 +16,7 @@ help:
 	@echo "   make cclean    --- remove everything build by make cmake"
 	@echo ""
 	@echo "   options that can be added to \"make cmake\":"
-	@echo "      NO_LOCAL_ROUTINES=1 NO_CURL=1 NO_SENSORS=1"
+	@echo "      NO_LOCAL_ROUTINES=1 NO_CURL=1 NO_SENSORS=1 NO_OPENCV=1"
 	@echo "      NO_ROOT=1 NO_ODBC=1 NO_SQLITE=1 NO_MYSQL=1 NO_SSL=1 NO_MBEDTLS=1"
 	@echo "      NO_EXPORT_COMPILE_COMMANDS=1"
 	@echo ""
@@ -120,6 +120,10 @@ endif
 
 ifdef NO_MYSQL
 CMAKEFLAGS+= -DNO_MYSQL=1
+endif
+
+ifdef NO_OPENCV
+CMAKEFLAGS+= -DNO_OPENCV=1
 endif
 
 ifdef NO_SSL
