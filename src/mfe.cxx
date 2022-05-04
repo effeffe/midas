@@ -1294,8 +1294,6 @@ static int receive_trigger_event(EQUIPMENT *eq) {
    last_event_time = ss_millitime();
    pevent = prb;
 
-   printf("%d\n", pevent->serial_number);
-
    /* send event */
    if (pevent->data_size) {
       if (eq->buffer_handle) {
