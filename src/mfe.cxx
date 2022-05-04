@@ -491,6 +491,16 @@ static INT register_equipment(void) {
          return 0;
       }
 
+      /* check for consistent common settings */
+      if ((eq_info->read_on & RO_STOPPED) &&
+          (eq_info->eq_type == EQ_POLLED ||
+           eq_info->eq_type == EQ_INTERRUPT ||
+           eq_info->eq_type == EQ_MULTITHREAD ||
+           eq_info->eq_type == EQ_USER)) {
+         cm_msg(MERROR, "register_equipment", "Events \"%s\" cannot be read when run is stopped (RO_STOPPED flag)", equipment[idx].name);
+         return 0;
+      }
+
       /*---- Create variables record ---------------------------------*/
 
       sprintf(str, "/Equipment/%s/Variables", equipment[idx].name);
@@ -1253,6 +1263,8 @@ static int receive_trigger_event(EQUIPMENT *eq) {
    unsigned int last_serial = 0;
 
    unsigned int serial = eq->events_collected;
+   if (serial == 0)
+      last_serial = 0; // BOR
 
    // search all ring buffers for next event
    status = 0;
@@ -1260,13 +1272,15 @@ static int receive_trigger_event(EQUIPMENT *eq) {
       status = rb_get_rp(get_event_rbh(index), &p, 10);
       prb = (EVENT_HEADER *) p;
       if (status == DB_SUCCESS)
-         last_serial = prb->serial_number;
+         if (prb->serial_number > last_serial)
+            last_serial = prb->serial_number;
       if (status == DB_SUCCESS && prb->serial_number == serial)
          break;
    }
 
    if (get_event_rbh(index) == 0) {
-      if (last_serial > serial && last_event_time > 0 && ss_millitime() > last_event_time + 5000) {
+      if (serial > 0 && last_serial > serial &&
+          last_event_time > 0 && ss_millitime() > last_event_time + 5000) {
          if (ss_time() - last_error > 30) {
             last_error = ss_time();
             cm_msg(MERROR, "receive_trigger_event",
@@ -1279,6 +1293,8 @@ static int receive_trigger_event(EQUIPMENT *eq) {
 
    last_event_time = ss_millitime();
    pevent = prb;
+
+   printf("%d\n", pevent->serial_number);
 
    /* send event */
    if (pevent->data_size) {
