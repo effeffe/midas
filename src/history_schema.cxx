@@ -2738,8 +2738,12 @@ int SchemaHistoryBase::hs_write_event(const char* event_name, time_t timestamp, 
    if (s->n_bytes == 0) { // compute expected data size
       // NB: history data does not have any padding!
       for (unsigned i=0; i<s->variables.size(); i++) {
-         if (s->variables[i].inactive)
-            continue;
+         // NB: inactive is only used by SQL history,
+         // inactive columns are not written to database,
+         // but they are still present in the data and should
+         // be counted in the expected data size. K.O.
+         //if (s->variables[i].inactive)
+         //continue;
          s->n_bytes += s->variables[i].n_bytes;
       }
    }
@@ -3972,6 +3976,9 @@ int SqlHistoryBase::update_schema1(HsSqlSchema* s, const time_t timestamp, const
          int count = 0;
 
          for (unsigned j=0; j<s->variables.size(); j++) {
+            // NB: inactive columns will be reactivated or recreated by the if(count==0) branch. K.O.
+            if (s->variables[j].inactive)
+               continue;
             if (tagname == s->variables[j].name) {
                if (s->sql->TypesCompatible(tagtype, s->column_types[j].c_str())) {
                   if (count == 0) {
@@ -4706,6 +4713,7 @@ int MysqlHistory::read_column_names(HsSchemaVector *sv, const char* table_name, 
                s->variables[j].inactive = true;
             } else {
                s->variables[j].name = tag_name;
+               s->variables[j].inactive = false;
             }
             s->variables[j].type = tid;
             s->variables[j].n_data = 1;
