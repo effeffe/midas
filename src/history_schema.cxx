@@ -310,6 +310,18 @@ void DoctorSqlColumnType(std::string* col_type, const char* index_type)
       return;
    }
 
+   // MYSQL 8.0.23
+
+   if (*col_type == "int" && strcmp(index_type, "integer")==0) {
+      *col_type = index_type;
+      return;
+   }
+
+   if (*col_type == "int unsigned" && strcmp(index_type, "integer unsigned")==0) {
+      *col_type = index_type;
+      return;
+   }
+
    cm_msg(MERROR, "SqlHistory", "Cannot use this SQL database, incompatible column names: created column type [%s] is reported with column type [%s]", index_type, col_type->c_str());
    cm_msg_flush_buffer();
    abort();
@@ -1063,7 +1075,7 @@ int Mysql::ListColumns(const char* table_name, std::vector<std::string> *plist)
 
    std::string cmd;
    cmd += "SHOW COLUMNS FROM ";
-   cmd += table_name;
+   cmd += QuoteId(table_name);
    cmd += ";";
 
    status = Prepare(table_name, cmd.c_str());
@@ -3967,6 +3979,10 @@ int SqlHistoryBase::update_schema1(HsSqlSchema* s, const time_t timestamp, const
                      offset += rpc_tid_size(tagtype);
                   }
                   count++;
+                  if (count > 1) {
+                     cm_msg(MERROR, "SqlHistory::update_schema", "Duplicate SQL column \'%s\' type \'%s\' in table \"%s\" with MIDAS type \'%s\' history event \"%s\" tag \"%s\"", s->column_names[j].c_str(), s->column_types[j].c_str(), s->table_name.c_str(), rpc_tid_name(tagtype), s->event_name.c_str(), tagname.c_str());
+                     cm_msg_flush_buffer();
+                  }
                } else {
                   // column with incompatible type, mark it as unused
                   schema_ok = false;
@@ -4010,6 +4026,10 @@ int SqlHistoryBase::update_schema1(HsSqlSchema* s, const time_t timestamp, const
                         }
                         count++;
                         found_column = true;
+                        if (count > 1) {
+                           cm_msg(MERROR, "SqlHistory::update_schema", "Duplicate SQL column \'%s\' type \'%s\' in table \"%s\" for history event \"%s\" tag \"%s\"", s->column_names[j].c_str(), s->column_types[j].c_str(), s->table_name.c_str(), s->event_name.c_str(), tagname.c_str());
+                           cm_msg_flush_buffer();
+                        }
                      }
                   }
                }
@@ -4074,8 +4094,8 @@ int SqlHistoryBase::update_schema1(HsSqlSchema* s, const time_t timestamp, const
          if (count > 1) {
             // schema has duplicate tags
             schema_ok = false;
-            if (fDebug)
-               printf("Duplicate tags!\n");
+            cm_msg(MERROR, "SqlHistory::update_schema", "Duplicate tags or SQL columns for history event \"%s\" tag \"%s\"", s->event_name.c_str(), tagname.c_str());
+            cm_msg_flush_buffer();
          }
       }
    }
