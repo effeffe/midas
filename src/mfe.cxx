@@ -1248,34 +1248,36 @@ static int receive_trigger_event(EQUIPMENT *eq) {
    int index, status;
    EVENT_HEADER *prb = NULL, *pevent;
    void *p;
-   static unsigned int last_event = 0;
+   static unsigned int last_event_time = 0;
    static unsigned int last_error = 0;
+   unsigned int last_serial;
+
+   unsigned int serial = eq->events_collected;
 
    // search all ring buffers for next event
-   DWORD serial = eq->events_collected;
-
    status = 0;
    for (index = 0; get_event_rbh(index); index++) {
       status = rb_get_rp(get_event_rbh(index), &p, 10);
       prb = (EVENT_HEADER *) p;
+      if (status == DB_SUCCESS)
+         last_serial = prb->serial_number;
       if (status == DB_SUCCESS && prb->serial_number == serial)
          break;
    }
 
    if (get_event_rbh(index) == 0) {
-      if (serial > 0 && last_event > 0 && ss_millitime() > last_event + 5000 &&
-          prb != NULL && prb->serial_number > serial) {
+      if (last_serial > serial && last_event_time > 0 && ss_millitime() > last_event_time + 5000) {
          if (ss_time() - last_error > 30) {
             last_error = ss_time();
             cm_msg(MERROR, "receive_trigger_event",
-                   "Event collector: waiting for event serial %d since %1.1lf seconds",
-                   serial, (ss_millitime() - last_event) / 1000.0);
+                   "Event collector: waiting for event serial %d since %1.1lf seconds, received already serial %d",
+                   serial, (ss_millitime() - last_event_time) / 1000.0, last_serial);
          }
       }
       return 0;
    }
 
-   last_event = ss_millitime();
+   last_event_time = ss_millitime();
    pevent = prb;
 
    /* send event */
