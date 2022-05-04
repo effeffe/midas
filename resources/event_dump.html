@@ -19,7 +19,20 @@
           font-family: verdana, tahoma, sans-serif;
       }
 
+      .bheader {
+          width: 100%;
+          border-spacing: 0;
+          font-family: verdana, tahoma, sans-serif;
+      }
+
       table.eheader td {
+          border: 2px solid white;
+          padding: 5px;
+      }
+
+      table.bheader td {
+          background-color: #8BBDFF;
+          color: white;
           border: 2px solid white;
           padding: 5px;
       }
@@ -38,6 +51,15 @@
    <table class="mtable">
       <tr>
          <td class="mtableheader">Event Selection</td>
+      </tr>
+      <tr>
+         <td>
+            <button class="mbutton" onclick="next()">Next</button>
+            <button class="mbutton" onclick="previous()">Previous</button>
+            <button class="mbutton" id="runbutton" onclick="run()">Run</button>
+            &nbsp;&nbsp;&nbsp;<input type="checkbox" id="recent" onclick="recent()">
+            <label for="recent">Show only recent events</label>
+         </td>
       </tr>
       <tr>
          <td>
@@ -66,11 +88,43 @@
 </div>
 
 <script>
+
+   // Globals ------------------
    let update_timer_id;
+   let run_flag = false;
+   let recent_events = false;
+
+   function next() {
+      update();
+   }
+
+   function previous() {
+      dlgAlert("Not yet implemented");
+   }
+
+   function run() {
+      if (run_flag) {
+         run_flag = false;
+         document.getElementById("runbutton").innerHTML = "Run";
+      } else {
+         run_flag = true;
+         document.getElementById("runbutton").innerHTML = "Pause";
+         update_periodic();
+      }
+   }
+
+   function recent() {
+      recent_events = !recent_events;
+      dlgAlert("Not yet implemented");
+   }
 
    function set_if_changed(e, v) {
       if (e.innerHTML !== v)
          e.innerHTML = v;
+   }
+
+   function align8(x) {
+      return ((x+7) & ~7);
    }
 
    function callback(rpc) {
@@ -85,15 +139,18 @@
          return;
       }
 
-      let data = new Uint32Array(rpc);
+      let data32 = new Uint32Array(rpc);
+      let data16 = new Uint16Array(rpc);
+      let data8  = new Uint8Array(rpc);
       let d = "";
 
       // decode event header
-      let event_id = data[0] & 0xFFFF;
-      let trigger_mask = data[0] >> 16;
-      let serial_number = data[1];
-      let time_stamp = new Date(data[2]*1000);
-      let data_size = data[3];
+      let event_id = data16[0];
+      let trigger_mask = data16[1];
+      let serial_number = data32[1];
+      let time_stamp = new Date(data32[2]*1000);
+      let data_size = data32[3];
+      let header_size = 16; // bytes
 
       d += "Event #" + serial_number;
       set_if_changed(document.getElementById("event_header"), d);
@@ -112,46 +169,99 @@
       d += "</table>";
 
       // decode banks
-      let bank_total_size = data[4];
-      let bank_flags   = data[5];
+      let bank_total_size = data32[4];
+      let bank_flags   = data32[5];
       let banks_16bit  = (bank_flags === 0x01);
       let banks_32bit  = (bank_flags === 0x11);
       let banks_32bita = (bank_flags === 0x31);
 
-      let i = 6;
+      let i32 = 6;
+      let i8 = i32*4;
+      let i16 = i32*2;
+      let n8 = 0;
+      let n16 = 0;
+      let n32 = 0;
+
       do {
+         let bank_name;
+         let bank_type;
+         let bank_size;
+
+         bank_name = String.fromCharCode(data8[i8], data8[i8 + 1], data8[i8 + 2], data8[i8 + 3]);
          if (banks_16bit) {
-            let bank_name = String.fromCharCode((data[i] >>  0) & 0xFF, (data[i] >>  8) & 0xFF,
-                                           (data[i] >> 16) & 0xFF, (data[i] >> 24) & 0xff);
-            i++;
-            let bank_size = data[i] >> 16;
-            let bank_type = data[i] & 0xFFFF;
-            i++;
-
-            d += "<table class='eheader'>";
-            d += "<tr>";
-            d += "<td>Bank: <b>" + bank_name + "</b></td>"
-            d += "<td>Size&nbsp;[Bytes]: " + bank_size + "&nbsp;/&nbsp;0x" + bank_size.toString(16) + "</td>"
-            d += "<td>Type: " + bank_type + "</td>"
-            d += "</table>";
-
-            i += (Math.floor((bank_size-1) / 4)+1);
+            bank_type = data16[i16 + 2];
+            bank_size = data16[i16 + 3];
+            i8 += 8;
+         } else if (banks_32bit) {
+            bank_type = data32[i32 + 1];
+            bank_size = data32[i32 + 2];
+            i8 += 12;
          }
+         if (bank_type >= tid_name.length)
+            bank_type = 0;
 
-      } while (i*4 < bank_total_size + 6);
+         d += "<table class='bheader'>";
+         d += "<tr>";
+         d += "<td>Bank: <b>" + bank_name + "</b></td>"
+         d += "<td>Size&nbsp;[Bytes]: " + bank_size + "&nbsp;/&nbsp;0x" + bank_size.toString(16) + "</td>"
+         d += "<td>Type: " + tid_name[bank_type] + "</td>"
+         d += "</table>";
 
-      for (let i=0; i<data.length; i++) {
-         if (i<10)
-            d += "&nbsp;";
-         if (i<100)
-            d += "&nbsp;";
-         d += i;
-         d += "&nbsp;";
-         d += "0x" + ("000000000" + data[i].toString(16)).slice(-8);
-         d += "&nbsp;";
-         d += data[i];
-         d += "<br />";
-      }
+         d += "<table class='dumphex'>";
+         i32 = i8/4;
+         i16 = i8/2;
+         n8 = 0;
+         n16 = 0;
+         n32 = 0;
+
+         do {
+            d += "<tr>";
+
+            // address part
+            d += "<td style='border-right: 2px solid #808080;padding-left: 10px;padding-right: 10px;'>";
+            if (banks_16bit)
+               d += "0x" + n8.toString(16).padStart(4, "0");
+            else
+               d += "0x" + n8.toString(16).padStart(8, "0");
+            d += "</td>";
+
+            // hex part
+            d += "<td style='border-right: 1px solid #808080;padding-left: 10px;padding-right: 10px;'>";
+            for (let j = 0; j < 16 && n8 < bank_size ; j++, n8++,i8++) {
+               d += "0x" + data8[i8].toString(16).padStart(2, "0") + " ";
+            }
+            d += "</td>";
+
+            // data specific part
+            d += "<td style='padding-left: 10px;padding-right: 10px;'>"
+            if (bank_type === TID_UINT32) {
+               for (let j = 0; j < 4 && n32*4 < bank_size ; j++, n32++,i32++) {
+                  d += "0x" + data32[i32].toString(16).padStart(8, "0") + " ";
+               }
+            }
+            d += "</td></tr>";
+
+         } while (n8 < bank_size);
+
+         d += "</table>";
+
+         if (banks_32bit)
+            i8 = align8(i8)+4;
+         else
+            i8 = align8(i8);
+         i32 = i8/4;
+         i16 = i8/2;
+
+      } while (i8 < bank_total_size + 6);
+
+      // for (var i=0; i<data32.length; i++) {
+      //    d += ("   " + i*4).slice(-3);
+      //    d += " ";
+      //    d += "0x" + ("000000000" + data32[i].toString(16)).slice(-8);
+      //    d += " ";
+      //    d += data32[i];
+      //    d += "<br />\n";
+      // }
 
       set_if_changed(document.getElementById("dump"), d);
    }
@@ -166,9 +276,9 @@
 
    function update_periodic() {
       clearTimeout(update_timer_id);
-      var update_period = 1000;
       update();
-      update_timer_id = setTimeout('update_periodic()', update_period);
+      if (run_flag)
+         update_timer_id = setTimeout('update_periodic()', 1000);
    }
 
    update_periodic();

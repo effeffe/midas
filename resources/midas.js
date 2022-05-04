@@ -10,46 +10,80 @@
 
 // MIDAS type definitions from midas.h
 
-var TID_BYTE  = 1;
-var TID_SBYTE = 2;
-var TID_CHAR  = 3;
-var TID_WORD  = 4;
-var TID_SHORT = 5;
-var TID_DWORD = 6;
-var TID_INT   = 7;
-var TID_BOOL  = 8;
-var TID_FLOAT = 9;
-var TID_DOUBLE   = 10;
-var TID_BITFIELD = 11;
-var TID_STRING   = 12;
-var TID_ARRAY    = 13;
-var TID_STRUCT   = 14;
-var TID_KEY      = 15;
-var TID_LINK     = 16;
+const tid_name = [
+   "NULL",
+   "UINT8",
+   "INT8",
+   "CHAR",
+   "UINT16",
+   "INT16",
+   "UINT32",
+   "INT32",
+   "BOOL",
+   "FLOAT",
+   "DOUBLE",
+   "BITFIELD",
+   "STRING",
+   "ARRAY",
+   "STRUCT",
+   "KEY",
+   "LINK",
+   "INT64",
+   "UINT64"
+];
 
-var AT_INTERNAL  = 1;
-var AT_PROGRAM   = 2;
-var AT_EVALUATED = 3;
-var AT_PERIODIC  = 4;
+const TID_BYTE     =  1;
+const TID_UINT8    =  1;
+const TID_SBYTE    =  2;
+const TID_INT8     =  2;
+const TID_CHAR     =  3;
+const TID_WORD     =  4;
+const TID_UINT16   =  4;
+const TID_SHORT    =  5;
+const TID_INT16    =  5;
+const TID_DWORD    =  6;
+const TID_UINT32   =  6;
+const TID_INT      =  7;
+const TID_INT32    =  7;
+const TID_BOOL     =  8;
+const TID_FLOAT    =  9;
+const TID_FLOAT32  =  9;
+const TID_DOUBLE   = 10;
+const TID_FLOAT64  = 10;
+const TID_BITFIELD = 11;
+const TID_STRING   = 12;
+const TID_ARRAY    = 13;
+const TID_STRUCT   = 14;
+const TID_KEY      = 15;
+const TID_LINK     = 16;
+const TID_INT64    = 17;
+const TID_UINT64   = 18;
+const TID_QWORD    = 18;
+const TID_LAST     = 19;
 
-var MT_ERROR =  (1<<0);
-var MT_INFO  =  (1<<1);
-var MT_DEBUG =  (1<<2);
-var MT_USER  =  (1<<3);
-var MT_LOG   =  (1<<4);
-var MT_TALK  =  (1<<5);
-var MT_CALL  =  (1<<6);
+const AT_INTERNAL  = 1;
+const AT_PROGRAM   = 2;
+const AT_EVALUATED = 3;
+const AT_PERIODIC  = 4;
 
-var STATE_STOPPED = 1;      /**< MIDAS run stopped                  */
-var STATE_PAUSED  = 2;      /**< MIDAS run paused                   */
-var STATE_RUNNING = 3;      /**< MIDAS run running                  */
+const MT_ERROR =  (1<<0);
+const MT_INFO  =  (1<<1);
+const MT_DEBUG =  (1<<2);
+const MT_USER  =  (1<<3);
+const MT_LOG   =  (1<<4);
+const MT_TALK  =  (1<<5);
+const MT_CALL  =  (1<<6);
 
-var TR_START      =    1;   /**< Start transition  */
-var TR_STOP       =    2;   /**< Stop transition  */
-var TR_PAUSE      =    4;   /**< Pause transition */
-var TR_RESUME     =    8;   /**< Resume transition  */
-var TR_STARTABORT =   16;   /**< Start aborted transition  */
-var TR_DEFERRED   = 4096;
+const STATE_STOPPED = 1;      /**< MIDAS run stopped                  */
+const STATE_PAUSED  = 2;      /**< MIDAS run paused                   */
+const STATE_RUNNING = 3;      /**< MIDAS run running                  */
+
+const TR_START      =    1;   /**< Start transition  */
+const TR_STOP       =    2;   /**< Stop transition  */
+const TR_PAUSE      =    4;   /**< Pause transition */
+const TR_RESUME     =    8;   /**< Resume transition  */
+const TR_STARTABORT =   16;   /**< Start aborted transition  */
+const TR_DEFERRED   = 4096;
 
 /// \defgroup mjsonrpc_js JSON-RPC Javascript library (mjsonrpc_xxx)
 
