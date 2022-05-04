@@ -1250,7 +1250,7 @@ static int receive_trigger_event(EQUIPMENT *eq) {
    void *p;
    static unsigned int last_event_time = 0;
    static unsigned int last_error = 0;
-   unsigned int last_serial;
+   unsigned int last_serial = 0;
 
    unsigned int serial = eq->events_collected;
 
