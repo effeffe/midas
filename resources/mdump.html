@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html class="mcss" lang="en">
+<head>
+   <meta charset="UTF-8">
+   <link rel="stylesheet" href="midas.css">
+   <link id="favicon" rel="shortcut icon" type="image/png" href="favicon.png" />
+   <script src="midas.js"></script>
+   <script src="mhttpd.js"></script>
+   <title>event dump</title>
+</head>
+
+<body class="mcss" onload="mhttpd_init('mdump')">
+
+<!-- header and side navigation will be filled in mhttpd_start -->
+<div id="mheader"></div>
+<div id="msidenav"></div>
+
+<div id="mmain">
+
+   <table width="95%" class="mtable">
+      <tr>
+         <td colspan=6 class="mtableheader">Event dump</td>
+      </tr>
+      <tr class="mtabletitle">
+         <th>Hex dump: <span id="message">message</span></th>
+      </tr>
+   </table>
+
+   <div>
+     <pre id=textarea>
+       no data
+     </pre>
+   </div>
+
+   <div id="updateStatus" align="left">
+      updateStatus
+   </div>
+</div>
+
+<script>
+   var update_timer_id;
+
+   function set_if_changed(e, v) {
+      if (e) {
+         if (e.innerHTML !== v) {
+            //console.log("set_if_changed: " + e + " from " + e.innerHTML + " to " + v);
+            e.innerHTML = v;
+         }
+      }
+   }
+
+   function hide_if_changed(e) {
+      if (e) {
+         if (e.style.display !== "none") {
+            //console.log("set_if_changed: " + e + " from " + e.innerHTML + " to " + v);
+            e.style.display = "none";
+         }
+      }
+   }
+
+   function show_if_changed(e) {
+      if (e) {
+         if (e.style.display !== "") {
+            //console.log("set_if_changed: " + e + " from " + e.innerHTML + " to " + v);
+            e.style.display = "";
+         }
+      }
+   }
+
+   function callback(rpc) {
+      //document.getElementById('updateStatus').innerHTML = "RWP_";
+
+      //console.log("mdump: " + JSON.stringify(rpc));
+
+      if (rpc.result) {
+         var status = rpc.result.status;
+         //console.log("status: " + status);
+         var e = document.getElementById("message");
+         if (status == 209) {
+            set_if_changed(e, "waiting for new event...");
+         } else {
+            set_if_changed(e, "no data, status " + status);
+         }
+         document.getElementById('updateStatus').innerHTML = "";
+         return;
+      }
+
+      var data = new Uint32Array(rpc);
+
+      //console.log(data);
+
+      var hexdump = "";
+
+      for (var i=0; i<data.length; i++) {
+         hexdump += ("   " + i).slice(-3);
+         hexdump += " ";
+         hexdump += "0x" + ("000000000" + data[i].toString(16)).slice(-8);
+         hexdump += " ";
+         hexdump += data[i];
+         hexdump += "\n";
+      }
+
+      var e = document.getElementById("textarea");
+      set_if_changed(e, hexdump);
+
+      var e = document.getElementById("message");
+      set_if_changed(e, "new event!");
+
+      // handled now by mhttpd_refresh
+      document.getElementById('updateStatus').innerHTML = "";
+   }
+
+   function update() {
+      //document.getElementById('updateStatus').innerHTML = "R___";
+      mjsonrpc_call("bm_receive_event", {"buffer_name":"SYSTEM"}, "arraybuffer").then(function (rpc) {
+         callback(rpc);
+      }).catch(function (error) {
+         //mjsonrpc_error_alert(error);
+         document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
+      });
+      //document.getElementById('updateStatus').innerHTML = "RW__";
+   }
+
+   function update_periodic() {
+      clearTimeout(update_timer_id);
+      var update_period = 1000;
+      update();
+      update_timer_id = setTimeout('update_periodic()', update_period);
+   }
+
+   update_periodic();
+</script>
+</body>
+</html>

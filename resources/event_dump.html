@@ -6,10 +6,28 @@
    <link id="favicon" rel="shortcut icon" type="image/png" href="favicon.png" />
    <script src="midas.js"></script>
    <script src="mhttpd.js"></script>
-   <title>event dump</title>
+   <script src="controls.js"></script>
+   <title>Event Dump</title>
+   <style>
+      .dump {
+          font-family: monospace;
+      }
+
+      .eheader {
+          width: 100%;
+          border-spacing: 0;
+          font-family: verdana, tahoma, sans-serif;
+      }
+
+      table.eheader td {
+          border: 2px solid white;
+          padding: 5px;
+      }
+
+   </style>
 </head>
 
-<body class="mcss" onload="mhttpd_init('mdump')">
+<body class="mcss" onload="mhttpd_init('Event Dump'); update_periodic()">
 
 <!-- header and side navigation will be filled in mhttpd_start -->
 <div id="mheader"></div>
@@ -17,108 +35,133 @@
 
 <div id="mmain">
 
-   <table width="95%" class="mtable">
+   <table class="mtable">
       <tr>
-         <td colspan=6 class="mtableheader">Event dump</td>
+         <td class="mtableheader">Event Selection</td>
       </tr>
-      <tr class="mtabletitle">
-         <th>Hex dump: <span id="message">message</span></th>
+      <tr>
+         <td>
+            &nbsp;Buffer:
+            <select id="buffer_name">
+               <option>SYSTEM</option>
+               <option>SYSMSG</option>
+            </select>
+            &nbsp;&nbsp;&nbsp;
+            Event ID:
+            <input type="text" id="event_id" size="5"></input>
+            &nbsp;&nbsp;&nbsp;
+            Trigger mask:
+            <input type="text" id="trigger_mask" size="5"></input>
+            &nbsp;
+         </td>
+      </tr>
+      <tr>
+         <td class="mtableheader" id="event_header">Event dump</td>
+      </tr>
+      <tr>
+         <td class="dump" id="dump"></td>
       </tr>
    </table>
 
-   <div>
-     <pre id=textarea>
-       no data
-     </pre>
-   </div>
-
-   <div id="updateStatus" align="left">
-      updateStatus
-   </div>
 </div>
 
 <script>
-   var update_timer_id;
+   let update_timer_id;
 
    function set_if_changed(e, v) {
-      if (e) {
-         if (e.innerHTML !== v) {
-            //console.log("set_if_changed: " + e + " from " + e.innerHTML + " to " + v);
-            e.innerHTML = v;
-         }
-      }
-   }
-
-   function hide_if_changed(e) {
-      if (e) {
-         if (e.style.display !== "none") {
-            //console.log("set_if_changed: " + e + " from " + e.innerHTML + " to " + v);
-            e.style.display = "none";
-         }
-      }
-   }
-
-   function show_if_changed(e) {
-      if (e) {
-         if (e.style.display !== "") {
-            //console.log("set_if_changed: " + e + " from " + e.innerHTML + " to " + v);
-            e.style.display = "";
-         }
-      }
+      if (e.innerHTML !== v)
+         e.innerHTML = v;
    }
 
    function callback(rpc) {
-      //document.getElementById('updateStatus').innerHTML = "RWP_";
-
-      //console.log("mdump: " + JSON.stringify(rpc));
-
       if (rpc.result) {
-         var status = rpc.result.status;
-         //console.log("status: " + status);
-         var e = document.getElementById("message");
-         if (status == 209) {
-            set_if_changed(e, "waiting for new event...");
+         let status = rpc.result.status;
+         let e = document.getElementById("dump");
+         if (status === 209) {
+            set_if_changed(e, "Waiting for events...");
          } else {
-            set_if_changed(e, "no data, status " + status);
+            set_if_changed(e, "No data, status = " + status);
          }
-         document.getElementById('updateStatus').innerHTML = "";
          return;
       }
 
-      var data = new Uint32Array(rpc);
+      let data = new Uint32Array(rpc);
+      let d = "";
 
-      //console.log(data);
+      // decode event header
+      let event_id = data[0] & 0xFFFF;
+      let trigger_mask = data[0] >> 16;
+      let serial_number = data[1];
+      let time_stamp = new Date(data[2]*1000);
+      let data_size = data[3];
 
-      var hexdump = "";
+      d += "Event #" + serial_number;
+      set_if_changed(document.getElementById("event_header"), d);
 
-      for (var i=0; i<data.length; i++) {
-         hexdump += ("   " + i).slice(-3);
-         hexdump += " ";
-         hexdump += "0x" + ("000000000" + data[i].toString(16)).slice(-8);
-         hexdump += " ";
-         hexdump += data[i];
-         hexdump += "\n";
+      d = "";
+      d += "<table class='eheader'>";
+      d += "<tr>";
+      d += "<td>Event&nbsp;ID: " + event_id + "</td>"
+      d += "<td>Trigger&nbsp;Mask: " + trigger_mask + "&nbsp;/&nbsp;0x" + trigger_mask.toString(16) + "</td>"
+      d += "</tr><tr>";
+      d += "<td>Serial&nbsp;Number: " + serial_number + "</td>"
+      d += "<td>Size&nbsp;[Bytes]: " + data_size + "&nbsp;/&nbsp;0x" + data_size.toString(16) + "</td>"
+      d += "</tr><tr>";
+      d += "<td colspan='2'>Time&nbsp;stamp: " + time_stamp.toLocaleString() + "</td>"
+      d += "</tr>";
+      d += "</table>";
+
+      // decode banks
+      let bank_total_size = data[4];
+      let bank_flags   = data[5];
+      let banks_16bit  = (bank_flags === 0x01);
+      let banks_32bit  = (bank_flags === 0x11);
+      let banks_32bita = (bank_flags === 0x31);
+
+      let i = 6;
+      do {
+         if (banks_16bit) {
+            let bank_name = String.fromCharCode((data[i] >>  0) & 0xFF, (data[i] >>  8) & 0xFF,
+                                           (data[i] >> 16) & 0xFF, (data[i] >> 24) & 0xff);
+            i++;
+            let bank_size = data[i] >> 16;
+            let bank_type = data[i] & 0xFFFF;
+            i++;
+
+            d += "<table class='eheader'>";
+            d += "<tr>";
+            d += "<td>Bank: <b>" + bank_name + "</b></td>"
+            d += "<td>Size&nbsp;[Bytes]: " + bank_size + "&nbsp;/&nbsp;0x" + bank_size.toString(16) + "</td>"
+            d += "<td>Type: " + bank_type + "</td>"
+            d += "</table>";
+
+            i += (Math.floor((bank_size-1) / 4)+1);
+         }
+
+      } while (i*4 < bank_total_size + 6);
+
+      for (let i=0; i<data.length; i++) {
+         if (i<10)
+            d += "&nbsp;";
+         if (i<100)
+            d += "&nbsp;";
+         d += i;
+         d += "&nbsp;";
+         d += "0x" + ("000000000" + data[i].toString(16)).slice(-8);
+         d += "&nbsp;";
+         d += data[i];
+         d += "<br />";
       }
 
-      var e = document.getElementById("textarea");
-      set_if_changed(e, hexdump);
-
-      var e = document.getElementById("message");
-      set_if_changed(e, "new event!");
-
-      // handled now by mhttpd_refresh
-      document.getElementById('updateStatus').innerHTML = "";
+      set_if_changed(document.getElementById("dump"), d);
    }
 
    function update() {
-      //document.getElementById('updateStatus').innerHTML = "R___";
       mjsonrpc_call("bm_receive_event", {"buffer_name":"SYSTEM"}, "arraybuffer").then(function (rpc) {
          callback(rpc);
       }).catch(function (error) {
-         //mjsonrpc_error_alert(error);
-         document.getElementById('updateStatus').innerHTML = "RWE: RPC or JS error: " + mjsonrpc_decode_error(error);
+         mjsonrpc_error_alert(error);
       });
-      //document.getElementById('updateStatus').innerHTML = "RW__";
    }
 
    function update_periodic() {
