@@ -79,11 +79,12 @@
             <select id="buffer_name">
             </select>
             &nbsp;&nbsp;&nbsp;
-            Event ID:
-            <input type="text" id="event_id" size="5"></input>
+            <label for="event_id">Event ID:</label>
+            <select id="event_id">
+            </select>
             &nbsp;&nbsp;&nbsp;
             Trigger mask:
-            <input type="text" id="trigger_mask" size="5"></input>
+            <input type="text" id="trigger_mask" size="5" value="0"></input>
             &nbsp;
          </td>
       </tr>
@@ -279,8 +280,9 @@
 
    function event_dump_init() {
       // retrieve buffer names from ODB
-      mjsonrpc_db_ls(["/Experiment/Buffer sizes"]).then(function(rpc) {
+      mjsonrpc_db_ls(["/Experiment/Buffer sizes", "/Equipment"]).then(function(rpc) {
 
+         // populate buffer names
          let a = rpc.result.data[0];
          for (const b in a) {
             if (b.indexOf("/") !== -1)
@@ -289,8 +291,33 @@
             document.getElementById("buffer_name").add(new Option(b));
          }
          document.getElementById("buffer_name").value = "SYSTEM";
-         
-         update_periodic();
+
+         // populate event IDs
+         a = rpc.result.data[1];
+         let eq_odb = [];
+         let eq_name = [];
+         let eq_id = [];
+
+         for (const e in a) {
+            if (e.indexOf("/") !== -1)
+               continue;
+
+            eq_odb.push("/Equipment/" + e + "/Common/Event ID");
+            eq_name.push(e);
+         }
+         mjsonrpc_db_get_values(eq_odb).then(function(rpc) {
+
+            for (let i=0 ; i<rpc.result.data.length ; i++) {
+               eq_id.push(Number(rpc.result.data[i]));
+               document.getElementById("event_id").add(new Option(eq_name[i] + " - " + eq_id[i]));
+            }
+
+            update_periodic();
+
+         }).catch(function(error) {
+            mjsonrpc_error_alert(error);
+         })
+
       }).catch(function(error) {
          mjsonrpc_error_alert(error);
       });
