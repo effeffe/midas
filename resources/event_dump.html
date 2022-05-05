@@ -53,7 +53,7 @@
    </style>
 </head>
 
-<body class="mcss" onload="mhttpd_init('Event Dump'); update_periodic()">
+<body class="mcss" onload="mhttpd_init('Event Dump'); event_dump_init()">
 
 <!-- header and side navigation will be filled in mhttpd_start -->
 <div id="mheader"></div>
@@ -75,10 +75,8 @@
       </tr>
       <tr>
          <td class="select">
-            &nbsp;Buffer:
+            <label for="buffer_name">Buffer:</label>
             <select id="buffer_name">
-               <option>SYSTEM</option>
-               <option>SYSMSG</option>
             </select>
             &nbsp;&nbsp;&nbsp;
             Event ID:
@@ -264,7 +262,8 @@
    }
 
    function update() {
-      mjsonrpc_call("bm_receive_event", {"buffer_name":"SYSTEM"}, "arraybuffer").then(function (rpc) {
+      let buffer_name = document.getElementById("buffer_name").value;
+      mjsonrpc_call("bm_receive_event", {"buffer_name":buffer_name}, "arraybuffer").then(function (rpc) {
          callback(rpc);
       }).catch(function (error) {
          mjsonrpc_error_alert(error);
@@ -278,7 +277,24 @@
          update_timer_id = setTimeout('update_periodic()', 1000);
    }
 
-   update_periodic();
+   function event_dump_init() {
+      // retrieve buffer names from ODB
+      mjsonrpc_db_ls(["/Experiment/Buffer sizes"]).then(function(rpc) {
+
+         let a = rpc.result.data[0];
+         for (const b in a) {
+            if (b.indexOf("/") !== -1)
+               continue;
+
+            document.getElementById("buffer_name").add(new Option(b));
+         }
+         document.getElementById("buffer_name").value = "SYSTEM";
+         
+         update_periodic();
+      }).catch(function(error) {
+         mjsonrpc_error_alert(error);
+      });
+   }
 </script>
 </body>
 </html>
