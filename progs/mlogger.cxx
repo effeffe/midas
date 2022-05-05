@@ -4843,7 +4843,7 @@ INT open_history()
       if (status != DB_SUCCESS)
          break;
 
-      int min_period = 0;
+      int32_t min_period = 0; // in seconds
 
       /* retrieve min period for history logging */
       size = sizeof(min_period);
@@ -5174,7 +5174,9 @@ INT open_history()
                db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history, (void *) (POINTER_T) index);
             }
 
-            status = add_event(&index, now, max_event_id, hist_name, hHistKey, n_var, tag, 0, 0);
+            time_t min_period = 10;
+
+            status = add_event(&index, now, max_event_id, hist_name, hHistKey, n_var, tag, min_period, 0);
             if (status != DB_SUCCESS)
                return status;
 
