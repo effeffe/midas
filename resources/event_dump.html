@@ -121,7 +121,7 @@
       } else {
          run_flag = true;
          document.getElementById("runbutton").innerHTML = "Pause";
-         update_periodic();
+         update();
       }
    }
 
@@ -154,12 +154,13 @@
          } else {
             set_if_changed(e, "No data, status = " + status);
          }
-         return;
+         return false;
       }
 
       let event = bkToObj(rpc);
       lastEvent = event;
       drawEvent(event, false);
+      return true;
    }
 
    function drawEvent(o, expand) {
@@ -250,32 +251,19 @@
 
       d += "</table>"; // overall data table
 
-      // for (let i=0; i<data32.length; i++) {
-      //    d += ("   " + i*4).slice(-3);
-      //    d += " ";
-      //    d += "0x" + ("000000000" + data32[i].toString(16)).slice(-8);
-      //    d += " ";
-      //    d += data32[i];
-      //    d += "<br />\n";
-      // }
-
       set_if_changed(document.getElementById("dump"), d);
    }
 
    function update() {
+      clearTimeout(update_timer_id);
       let buffer_name = document.getElementById("buffer_name").value;
       mjsonrpc_call("bm_receive_event", {"buffer_name":buffer_name}, "arraybuffer").then(function (rpc) {
-         callback(rpc);
+         let success = callback(rpc);
+         if (run_flag || !success)
+            update_timer_id = setTimeout('update()', 1000);
       }).catch(function (error) {
          mjsonrpc_error_alert(error);
       });
-   }
-
-   function update_periodic() {
-      clearTimeout(update_timer_id);
-      update();
-      if (run_flag)
-         update_timer_id = setTimeout('update_periodic()', 1000);
    }
 
    function event_dump_init() {
@@ -312,7 +300,7 @@
                document.getElementById("event_id").add(new Option(eq_name[i] + " - " + eq_id[i]));
             }
 
-            update_periodic();
+            update();
 
          }).catch(function(error) {
             mjsonrpc_error_alert(error);
