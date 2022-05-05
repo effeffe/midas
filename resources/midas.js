@@ -897,6 +897,113 @@ function modbset(path, value)
    }
 }
 
+function bkToObj(array) {
+   /// Midas banks-to-object: Parses a raw midas even received via the new bm_receive_event
+   /// call and converts it into an JS object of with following elements and returns it:
+   ///
+   /// e.event_id       <-- elements of midas event header
+   /// e.trigger_mask   <-/
+   /// e.serial_number  <-/
+   /// e.time_stamp     <-/
+   /// e.data_size      <-/
+   ///
+   /// e.banks_16bit    <-- true if we have 16-bit banks
+   /// e.banks_32bit    <-- true if we have 32-bit banks
+   /// e.banks_32bita   <-- true if we have 64-bit aligned 32-bit banks
+
+
+   /// e.bank[]         <-- array of banks
+   ///   .name          <-- name of bank
+   ///   .type          <-- bank type, one of TID_xxx
+   ///   .size          <-- bank size in bytes
+   ///   .hexdata[]     <-- array of raw (byte) data
+   ///   .array[]       <-- array of converted data (UINT16, UINT32, FLOAT, DOUBLE)
+   ///
+   /// This function is used by the event_dump.html page and can be used in a custom
+   /// page for single event displays.
+
+   let e = {};
+
+   let data8  = new Uint8Array(array);
+   let data16 = new Uint16Array(array);
+   let data32 = new Uint32Array(array);
+
+   // decode event header
+   e.event_id = data16[0];
+   e.trigger_mask = data16[1];
+   e.serial_number = data32[1];
+   e.time_stamp = new Date(data32[2]*1000);
+   e.data_size = data32[3];
+   e.bank = [];
+   let event_header_size = 16; // bytes
+
+   // decode banks size and type
+   e.bank_total_size = data32[4];
+   e.bank_flags   = data32[5];
+   e.banks_16bit  = (e.bank_flags === 0x01);
+   e.banks_32bit  = (e.bank_flags === 0x11);
+   e.banks_32bita = (e.bank_flags === 0x31);
+   let bank_header_size = 8;
+
+   let i8 = event_header_size + bank_header_size;
+
+   // iterate over banks
+   do {
+
+      let b = {};
+      b.name = String.fromCharCode(data8[i8], data8[i8 + 1], data8[i8 + 2], data8[i8 + 3]);
+      if (e.banks_16bit) {
+         b.type = data16[i8/2 + 2];
+         b.size = data16[i8/2 + 3];
+         i8 += 8;
+      } else if (e.banks_32bit) {
+         b.type = data32[i8/4 + 1];
+         b.size = data32[i8/4 + 2];
+         i8 += 12;
+      } else if (e.banks_32bita) {
+         b.type = data32[i8/4 + 1];
+         b.size = data32[i8/4 + 2];
+         i8 += 16;
+      }
+      if (b.type >= tid_name.length)
+         b.type = 0;
+
+      b.data = array.slice(i8, i8+b.size);
+      i8 += b.size;
+
+      if (e.banks_32bit) {
+         let pad = align8(b.size) - b.size;
+         i8 += pad;
+      } else
+         i8 = align8(i8);
+
+      b.hexdata = new Uint8Array(b.data);
+      if (b.type === TID_INT8)
+         b.array = new Int8Array(b.data);
+      else if (b.type === TID_UINT8)
+         b.array = new Uint8Array(b.data);
+      else if (b.type === TID_INT16)
+         b.array = new Int16Array(b.data);
+      else if (b.type === TID_UINT16)
+         b.array = new Uint16Array(b.data);
+      else if (b.type === TID_INT32)
+         b.array = new Int32Array(b.data);
+      else if (b.type === TID_UINT32)
+         b.array = new Uint32Array(b.data);
+      else if (b.type === TID_FLOAT)
+         b.array = new Float32Array(b.data);
+      else if (b.type === TID_DOUBLE)
+         b.array = new Float64Array(b.data);
+      else
+         b.array = "Unknown data type " + b.type;
+
+      e.bank.push(b);
+
+   } while(i8 < e.data_size + event_header_size);
+
+   return e;
+}
+
 /* emacs
  * Local Variables:
  * tab-width: 8

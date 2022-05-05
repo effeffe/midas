@@ -9,32 +9,45 @@
    <script src="controls.js"></script>
    <title>Event Dump</title>
    <style>
-      .dump {
-          font-family: monospace;
-      }
+       .select {
+           padding: 6px;
+           background-color: #E0E0E0;
+       }
 
       .eheader {
           width: 100%;
-          border-spacing: 0;
           font-family: verdana, tahoma, sans-serif;
       }
 
-      .bheader {
-          width: 100%;
-          border-spacing: 0;
-          font-family: verdana, tahoma, sans-serif;
+      table.eheader {
+          border-collapse: collapse;
       }
 
       table.eheader td {
-          border: 2px solid white;
-          padding: 5px;
+          border: 1px solid white;
+          padding: 4px;
       }
 
-      table.bheader td {
+      table.data {
+          border: none;
+          border-collapse: collapse;
+      }
+
+      table.data td {
+          border: 1px solid white;
+      }
+
+      table.data th {
+          font-family: verdana, tahoma, sans-serif;
           background-color: #8BBDFF;
           color: white;
-          border: 2px solid white;
-          padding: 5px;
+          border: 1px solid white;
+          padding: 4px;
+      }
+
+      table.data td {
+          font-family: Courier, monospace;
+          padding: 4px;
       }
 
    </style>
@@ -47,13 +60,12 @@
 <div id="msidenav"></div>
 
 <div id="mmain">
-
-   <table class="mtable">
+   <table class="mtable" style="width: 100%;">
       <tr>
          <td class="mtableheader">Event Selection</td>
       </tr>
       <tr>
-         <td>
+         <td class="select">
             <button class="mbutton" onclick="next()">Next</button>
             <button class="mbutton" onclick="previous()">Previous</button>
             <button class="mbutton" id="runbutton" onclick="run()">Run</button>
@@ -62,7 +74,7 @@
          </td>
       </tr>
       <tr>
-         <td>
+         <td class="select">
             &nbsp;Buffer:
             <select id="buffer_name">
                <option>SYSTEM</option>
@@ -81,7 +93,7 @@
          <td class="mtableheader" id="event_header">Event dump</td>
       </tr>
       <tr>
-         <td class="dump" id="dump"></td>
+         <td id="dump"></td>
       </tr>
    </table>
 
@@ -104,6 +116,7 @@
 
    function run() {
       if (run_flag) {
+         clearTimeout(update_timer_id);
          run_flag = false;
          document.getElementById("runbutton").innerHTML = "Run";
       } else {
@@ -127,6 +140,12 @@
       return ((x+7) & ~7);
    }
 
+   function expand() {
+      drawEvent(lastEvent, true);
+   }
+
+   let lastEvent;
+
    function callback(rpc) {
       if (rpc.result) {
          let status = rpc.result.status;
@@ -139,122 +158,100 @@
          return;
       }
 
-      let data32 = new Uint32Array(rpc);
-      let data16 = new Uint16Array(rpc);
-      let data8  = new Uint8Array(rpc);
+      let event = bkToObj(rpc);
+      lastEvent = event;
+      drawEvent(event, false);
+   }
+
+   function drawEvent(o, expand) {
+      // print event header
+      set_if_changed(document.getElementById("event_header"), "Event #" + o.serial_number);
+
       let d = "";
-
-      // decode event header
-      let event_id = data16[0];
-      let trigger_mask = data16[1];
-      let serial_number = data32[1];
-      let time_stamp = new Date(data32[2]*1000);
-      let data_size = data32[3];
-      let header_size = 16; // bytes
-
-      d += "Event #" + serial_number;
-      set_if_changed(document.getElementById("event_header"), d);
-
-      d = "";
       d += "<table class='eheader'>";
       d += "<tr>";
-      d += "<td>Event&nbsp;ID: " + event_id + "</td>"
-      d += "<td>Trigger&nbsp;Mask: " + trigger_mask + "&nbsp;/&nbsp;0x" + trigger_mask.toString(16) + "</td>"
-      d += "</tr><tr>";
-      d += "<td>Serial&nbsp;Number: " + serial_number + "</td>"
-      d += "<td>Size&nbsp;[Bytes]: " + data_size + "&nbsp;/&nbsp;0x" + data_size.toString(16) + "</td>"
-      d += "</tr><tr>";
-      d += "<td colspan='2'>Time&nbsp;stamp: " + time_stamp.toLocaleString() + "</td>"
+      d += "<td>Event&nbsp;ID: " + o.event_id + "</td>"
+      d += "<td>Trigger&nbsp;Mask: " + o.trigger_mask + "&nbsp;/&nbsp;0x" + o.trigger_mask.toString(16) + "</td>"
+      d += "<td>Serial&nbsp;Number: " + o.serial_number + "</td>"
+      d += "<td>Size&nbsp;[Bytes]: " + o.data_size + "&nbsp;/&nbsp;0x" + o.data_size.toString(16) + "</td>"
+      d += "<td>Time&nbsp;stamp: " + o.time_stamp.toLocaleString() + "</td>"
       d += "</tr>";
       d += "</table>";
 
-      // decode banks
-      let bank_total_size = data32[4];
-      let bank_flags   = data32[5];
-      let banks_16bit  = (bank_flags === 0x01);
-      let banks_32bit  = (bank_flags === 0x11);
-      let banks_32bita = (bank_flags === 0x31);
+      // print banks
+      d += "<table class='data' style='width: 100%'>";
+      for (let index=0 ; index<o.bank.length ; index++) {
 
-      let i32 = 6;
-      let i8 = i32*4;
-      let i16 = i32*2;
-      let n8 = 0;
-      let n16 = 0;
-      let n32 = 0;
+         let b = o.bank[index];
 
-      do {
-         let bank_name;
-         let bank_type;
-         let bank_size;
-
-         bank_name = String.fromCharCode(data8[i8], data8[i8 + 1], data8[i8 + 2], data8[i8 + 3]);
-         if (banks_16bit) {
-            bank_type = data16[i16 + 2];
-            bank_size = data16[i16 + 3];
-            i8 += 8;
-         } else if (banks_32bit) {
-            bank_type = data32[i32 + 1];
-            bank_size = data32[i32 + 2];
-            i8 += 12;
-         }
-         if (bank_type >= tid_name.length)
-            bank_type = 0;
-
-         d += "<table class='bheader'>";
+         // bank header
          d += "<tr>";
-         d += "<td>Bank: <b>" + bank_name + "</b></td>"
-         d += "<td>Size&nbsp;[Bytes]: " + bank_size + "&nbsp;/&nbsp;0x" + bank_size.toString(16) + "</td>"
-         d += "<td>Type: " + tid_name[bank_type] + "</td>"
-         d += "</table>";
+         d += "<th>Bank:&nbsp;<b>" + b.name + "</b></th>"
+         d += "<th>Size&nbsp;[Bytes]:&nbsp;" + b.size + "&nbsp;/&nbsp;0x" + b.size.toString(16) + "</th>"
+         d += "<th>Type:&nbsp;" + tid_name[b.type] + "</th>"
+         d += "</tr>";
 
-         d += "<table class='dumphex'>";
-         i32 = i8/4;
-         i16 = i8/2;
-         n8 = 0;
-         n16 = 0;
-         n32 = 0;
+         let rows = Math.floor((b.size-1)/ 16) + 1;
+         let row;
+         for (row=0 ; row <  rows ; row++) {
+            if (row === 16 && !expand)
+               break;
 
-         do {
             d += "<tr>";
 
             // address part
-            d += "<td style='border-right: 2px solid #808080;padding-left: 10px;padding-right: 10px;'>";
-            if (banks_16bit)
-               d += "0x" + n8.toString(16).padStart(4, "0");
+            d += "<td style='width: 5%'>";
+            if (o.banks_16bit)
+               d += "0x" + (row*16).toString(16).padStart(4, "0");
             else
-               d += "0x" + n8.toString(16).padStart(8, "0");
+               d += "0x" + (row*16).toString(16).padStart(8, "0");
             d += "</td>";
 
             // hex part
-            d += "<td style='border-right: 1px solid #808080;padding-left: 10px;padding-right: 10px;'>";
-            for (let j = 0; j < 16 && n8 < bank_size ; j++, n8++,i8++) {
-               d += "0x" + data8[i8].toString(16).padStart(2, "0") + " ";
-            }
+            d += "<td style='width: 60%'>";
+            for (let i = 0; i < 16 && row*16 + i < b.hexdata.length; i++)
+               d += "0x" + b.hexdata[row*16 + i].toString(16).padStart(2, "0") + " ";
             d += "</td>";
 
             // data specific part
-            d += "<td style='padding-left: 10px;padding-right: 10px;'>"
-            if (bank_type === TID_UINT32) {
-               for (let j = 0; j < 4 && n32*4 < bank_size ; j++, n32++,i32++) {
-                  d += "0x" + data32[i32].toString(16).padStart(8, "0") + " ";
+            d += "<td>";
+            if (b.type === TID_UINT8 || b.type === TID_INT8) {
+               for (let i = 0; i < 16 && row*16 + i < b.hexdata.length; i++) {
+                  let c = b.hexdata[row*16 + i];
+                  d += (c < 32 || c > 128) ? "." : "&#" + c + ";";
                }
+            } else if (b.type === TID_UINT16 || b.type === TID_INT16) {
+               for (let i = 0; i < 8 && row*16 + i*2 < b.size; i++)
+                  d += "0x" + b.array[row*8 + i].toString(16).padStart(4, "0") + " ";
+            } else if (b.type === TID_UINT32 || b.type === TID_INT32) {
+               for (let i = 0; i < 4 && row*16 + i*4 < b.size; i++)
+                  d += "0x" + b.array[row*4 + i].toString(16).padStart(8, "0") + " ";
+            } else if (b.type === TID_FLOAT) {
+               for (let i = 0; i < 4 && row*16 + i*4 < b.size; i++) {
+                  let s = b.array[row*4 + i].toString();
+                  d += parseFloat(s) + " ";
+               }
+            } else if (b.type === TID_DOUBLE) {
+               for (let i = 0; i < 2 && row*16 + i*8 < b.size; i++)
+                  d += b.array[row*2 + i].toString() + " ";
             }
+            d += "</td>";
+
+            d += "</tr>";
+         }
+
+         if (row < rows) {
+            d += "<tr><td colspan='3' style='text-align: center;'>";
+            d += "<a href='#' onclick='expand()'>... more data (";
+            d += rows-row;
+            d += " rows)...</a>";
             d += "</td></tr>";
+         }
+      }
 
-         } while (n8 < bank_size);
+      d += "</table>"; // overall data table
 
-         d += "</table>";
-
-         if (banks_32bit)
-            i8 = align8(i8)+4;
-         else
-            i8 = align8(i8);
-         i32 = i8/4;
-         i16 = i8/2;
-
-      } while (i8 < bank_total_size + 6);
-
-      // for (var i=0; i<data32.length; i++) {
+      // for (let i=0; i<data32.length; i++) {
       //    d += ("   " + i*4).slice(-3);
       //    d += " ";
       //    d += "0x" + ("000000000" + data32[i].toString(16)).slice(-8);
