@@ -157,6 +157,7 @@ const MimetypeTableEntry gMimetypeTable[] = {
 
    { ".XML",   "application/xml"        },
    { ".JS",    "application/javascript" },
+   { ".MJS",   "application/javascript" },
    { ".JSON",  "application/json"       },
    { ".PS",    "application/postscript" },
    { ".EPS",   "application/postscript" },
