@@ -4952,6 +4952,7 @@ protected:
    std::string fPath;
    time_t fPathLastMtime;
    std::vector<std::string> fSortedFiles;
+   std::vector<bool>        fSortedRead;
    time_t fConfMaxFileAge;
    double fConfMaxFileSize;
 
@@ -5065,7 +5066,25 @@ int FileHistory::read_file_list(bool* pchanged)
    }
 #endif
 
+   std::vector<bool> fread;
+   fread.resize(flist.size()); // fill with "false"
+
+   // loop over the old list of files,
+   // for files we already read, loop over new file
+   // list and mark the same file as read. K.O.
+   for (size_t j=0; j<fSortedFiles.size(); j++) {
+      if (fSortedRead[j]) {
+         for (size_t i=0; i<flist.size(); i++) {
+            if (flist[i] == fSortedFiles[j]) {
+               fread[i] = true;
+               break;
+            }
+         }
+      }
+   }
+
    fSortedFiles = flist;
+   fSortedRead  = fread;
 
    if (pchanged)
       *pchanged = true;
@@ -5107,16 +5126,19 @@ int FileHistory::read_schema(HsSchemaVector* sv, const char* event_name, const t
 
    for (unsigned i=0; i<fSortedFiles.size(); i++) {
       std::string file_name = fPath + fSortedFiles[i];
-      bool dupe = false;
-      for (unsigned ss=0; ss<sv->size(); ss++) {
-         HsFileSchema* ssp = (HsFileSchema*)(*sv)[ss];
-         if (file_name == ssp->file_name) {
-            dupe = true;
-            break;
-         }
-      }
-      if (dupe)
+      if (fSortedRead[i])
          continue;
+      //bool dupe = false;
+      //for (unsigned ss=0; ss<sv->size(); ss++) {
+      //   HsFileSchema* ssp = (HsFileSchema*)(*sv)[ss];
+      //   if (file_name == ssp->file_name) {
+      //      dupe = true;
+      //      break;
+      //   }
+      //}
+      //if (dupe)
+      //   continue;
+      fSortedRead[i] = true;
       HsFileSchema* s = read_file_schema(file_name.c_str());
       if (!s)
          continue;
