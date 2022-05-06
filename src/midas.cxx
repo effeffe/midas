@@ -3230,7 +3230,7 @@ Return watchdog information about specific client
 @return   CM_SUCCESS, CM_NO_CLIENT, DB_INVALID_HANDLE
 */
 
-INT cm_get_watchdog_info(HNDLE hDB, char *client_name, DWORD *timeout, DWORD *last) {
+INT cm_get_watchdog_info(HNDLE hDB, const char *client_name, DWORD *timeout, DWORD *last) {
    if (rpc_is_remote())
       return rpc_call(RPC_CM_GET_WATCHDOG_INFO, hDB, client_name, timeout, last);
 
@@ -7267,6 +7267,8 @@ INT cm_shutdown(const char *name, BOOL bUnique) {
    char client_name[NAME_LENGTH], remote_host[HOST_NAME_LENGTH];
    INT port;
    DWORD start_time;
+   DWORD timeout;
+   DWORD last;
 
    cm_get_experiment_database(&hDB, &hKeyClient);
 
@@ -7308,6 +7310,10 @@ INT cm_shutdown(const char *name, BOOL bUnique) {
          size = sizeof(remote_host);
          db_get_value(hDB, hSubkey, "Host", remote_host, &size, TID_STRING, TRUE);
 
+         cm_get_watchdog_info(hDB, name, &timeout, &last);
+         if (timeout == 0)
+            timeout = 5000;
+
          /* client found -> connect to its server port */
          status = rpc_client_connect(remote_host, port, client_name, &hConn);
          if (status != RPC_SUCCESS) {
@@ -7334,7 +7340,7 @@ INT cm_shutdown(const char *name, BOOL bUnique) {
             do {
                ss_sleep(100);
                status = db_find_key(hDB, hKey, key.name, &hKeyTmp);
-            } while (status == DB_SUCCESS && (ss_millitime() - start_time < 5000));
+            } while (status == DB_SUCCESS && (ss_millitime() - start_time < timeout));
 
             if (status == DB_SUCCESS) {
                int client_pid = atoi(key.name);

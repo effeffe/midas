@@ -29,7 +29,7 @@ INT rpc_mode = 1; // 0 for RPC socket, 1 for event socket
 
 #define ODB_UPDATE_TIME      1000       /* 1 seconds for ODB update */
 
-#define DEFAULT_FE_TIMEOUT  60000       /* 60 seconds for watchdog timeout */
+#define DEFAULT_FE_TIMEOUT  10000       /* 10 seconds for watchdog timeout */
 
 #define MAX_N_THREADS          32       /* maximum number of readout threads */
 
@@ -2645,9 +2645,6 @@ int main(int argc, char *argv[])
       cm_set_watchdog_params(FALSE, 0);
 
    cm_start_watchdog_thread();
-
-   /* increase RPC timeout to 2min for logger with exabyte or blocked disk */
-   rpc_set_timeout(RPC_HNDLE_MSERVER, 120000);
 
    /* reqister equipment in ODB */
    if (register_equipment() != SUCCESS) {

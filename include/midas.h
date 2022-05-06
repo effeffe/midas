@@ -1774,7 +1774,7 @@ flags for db_json_save() */
    INT EXPRT cm_check_client(HNDLE hDB, HNDLE hKeyClient);
    INT EXPRT cm_set_watchdog_params(BOOL call_watchdog, DWORD timeout);
    INT EXPRT cm_get_watchdog_params(BOOL * call_watchdog, DWORD * timeout);
-   INT EXPRT cm_get_watchdog_info(HNDLE hDB, char *client_name, DWORD * timeout, DWORD * last);
+   INT EXPRT cm_get_watchdog_info(HNDLE hDB, const char *client_name, DWORD * timeout, DWORD * last);
    INT EXPRT cm_watchdog_thread(void*unused);
    INT EXPRT cm_start_watchdog_thread(void);
    INT EXPRT cm_stop_watchdog_thread(void);
