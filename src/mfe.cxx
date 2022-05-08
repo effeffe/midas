@@ -497,8 +497,7 @@ static INT register_equipment(void) {
            eq_info->eq_type == EQ_INTERRUPT ||
            eq_info->eq_type == EQ_MULTITHREAD ||
            eq_info->eq_type == EQ_USER)) {
-         cm_msg(MERROR, "register_equipment", "Events \"%s\" cannot be read when run is stopped (RO_STOPPED flag)", equipment[idx].name);
-         return 0;
+         cm_msg(MERROR, "register_equipment", "Equipment \"%s\" contains RO_STOPPED or RO_ALWAYS. This can lead to undesired side-effect and should be removed.", equipment[idx].name);
       }
 
       /*---- Create variables record ---------------------------------*/
