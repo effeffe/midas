@@ -2797,21 +2797,23 @@ let options3 = {
 };
 
 let options4 = {
-   timeZone: 'UTC', day: '2-digit',
-   month: 'short', year: '2-digit'
+   timeZone: 'UTC',
+   day: '2-digit', month: 'short', year: '2-digit'
 };
 
 let options5 = {
-   timeZone: 'UTC', hour12: false,
-   hour: '2-digit', minute: '2-digit', second: '2-digit'
+   timeZone: 'UTC',
+   hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
 };
 
 let options6 = {
-   timeZone: 'UTC', hour12: false, hour: '2-digit', minute: '2-digit'
+   timeZone: 'UTC',
+   hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
 let options7 = {
-   timeZone: 'UTC', hour12: false, hour: '2-digit', minute: '2-digit'
+   timeZone: 'UTC',
+   hour12: false, hour: '2-digit', minute: '2-digit'
 };
 
 let options8 = {
@@ -2821,7 +2823,8 @@ let options8 = {
 };
 
 let options9 = {
-   timeZone: 'UTC', day: '2-digit', month: 'short', year: '2-digit'
+   timeZone: 'UTC',
+   day: '2-digit', month: 'short', year: '2-digit'
 };
 
 function timeToLabel(sec, base, forceDate) {
@@ -2835,7 +2838,7 @@ function timeToLabel(sec, base, forceDate) {
       } else if (base < 3600 * 24) {
          return d.toLocaleTimeString('en-GB', options3);
       } else {
-         return d.toLocaleTimeString('en-GB', options4);
+         return d.toLocaleDateString('en-GB', options4);
       }
    }
 
@@ -2848,17 +2851,14 @@ function timeToLabel(sec, base, forceDate) {
    } else if (base < 3600 * 24) {
       return d.toLocaleTimeString('en-GB', options8);
    } else {
-      return d.toLocaleTimeString('en-GB', options9);
+      return d.toLocaleDateString('en-GB', options9);
    }
-
-   return;
 }
 
 MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, major,
                                               text, label, grid, xmin, xmax) {
    const base = [1, 5, 10, 60, 2 * 60, 5 * 60, 10 * 60, 15 * 60, 30 * 60, 3600,
-      3 * 3600, 6 * 3600, 12 * 3600, 24 * 3600, 2 * 24 * 3600, 10 * 24 * 3600,
-      30 * 24 * 3600, 0];
+      3 * 3600, 6 * 3600, 12 * 3600, 24 * 3600];
 
    ctx.textAlign = "left";
    ctx.textBaseline = "top";
@@ -2894,11 +2894,11 @@ MhistoryGraph.prototype.drawTAxis = function (ctx, x1, y1, width, xr, minor, maj
       let maxwidth = ctx.measureText(str).width;
 
       /* increasing label_dx, if labels would overlap */
-      if (maxwidth > 0.8 * label_dx / (xmax - xmin) * width) {
+      if (maxwidth > 0.9 * label_dx / (xmax - xmin) * width) {
          if (base[label_base + 1])
             label_dx = base[++label_base];
          else
-            label_dx += 3600 * 24 * 30;
+            label_dx += 3600 * 24;
 
          if (label_base > major_base + 1) {
             if (base[major_base + 1])
