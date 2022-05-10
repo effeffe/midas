@@ -1381,9 +1381,20 @@ void sequencer() {
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
 
          if (strchr(odbpath, '$')) {
-            std::string s(odbpath);
-            s = eval_var(seq, s);
-            strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+            if (strchr(odbpath, '[')) {
+               // keep $ in index for later evaluation
+               std::string s(odbpath);
+               std::string s1 = s.substr(0, s.find('['));
+               std::string s2 = s.substr(s.find('['));
+               s1 = eval_var(seq, s1);
+               s1 += s2;
+               strlcpy(odbpath, s1.c_str(), sizeof(odbpath));
+            } else {
+               // evaluate variable in path
+               std::string s(odbpath);
+               s = eval_var(seq, s);
+               strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+            }
          }
 
          int notify = TRUE;
