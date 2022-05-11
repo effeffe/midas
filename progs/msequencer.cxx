@@ -2027,6 +2027,21 @@ void sequencer() {
 
    /*---- Break ----*/
    else if (equal_ustring(mxml_get_name(pn), "Break")) {
+
+      // finish current if statement
+      while (seq.if_index > 0 &&
+             seq.current_line_number > seq.if_line[seq.if_index - 1] &&
+             seq.current_line_number < seq.if_endif_line[seq.if_index-1]) {
+         size = sizeof(seq);
+         db_get_record(hDB, hKeySeq, &seq, &size, 0);
+         seq.if_index--;
+         seq.if_line[seq.if_index] = 0;
+         seq.if_else_line[seq.if_index] = 0;
+         seq.if_endif_line[seq.if_index] = 0;
+         seq.current_line_number++;
+         db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
+      }
+
       // goto next loop end
       for (i = 0; i < SEQ_NEST_LEVEL_LOOP; i++)
          if (seq.loop_start_line[i] == 0)
@@ -2119,13 +2134,13 @@ void sequencer() {
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
 
-      /*---- Subroutine ----*/
+   /*---- Subroutine ----*/
    else if (equal_ustring(mxml_get_name(pn), "Subroutine")) {
       // simply skip subroutines
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
 
-      /*---- Param ----*/
+   /*---- Param ----*/
    else if (equal_ustring(mxml_get_name(pn), "Param")) {
       // simply skip parameters
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
