@@ -971,7 +971,7 @@ typedef struct {
  * BUFFER locking rules:
  * locking order: read_cache_mutex -> write_cache_mutex -> buffer_mutex -> buffer semaphore
  * lock read_cache_mutex to access read_cache_xxx, ok to check read_cache_size is not 0
- * lock write_cache_mutex to access write_cache_xxx, ol to check write cache size is not 0
+ * lock write_cache_mutex to access write_cache_xxx, ok to check write_cache_size is not 0
  * lock buffer_mutex to access all other data in BUFFER
  * lock buffer semaphore to access data in shared memory pointed to by buffer_header
  * to avoid deadlocks:
