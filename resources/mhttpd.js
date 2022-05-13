@@ -973,6 +973,24 @@ function mhttpd_init(current_page, interval, callback) {
          // show/hide sidenav according to local storage settings
          mhttpd_show_menu(mhttpdConfig().showMenu);
 
+         // hide all invisible menu items after layout has been finished
+         let mi = document.getElementsByClassName('mmenuitem');
+         for (m of mi) {
+            let p = m.parentElement;
+            if (p.style.visibility === "hidden") {
+               p.style.visibility = "visible";
+               p.style.display = "none";
+            }
+         }
+         mi = document.getElementsByClassName('msubmenuitem');
+         for (m of mi) {
+            let p = m.parentElement;
+            if (p.style.visibility === "hidden") {
+               p.style.visibility = "visible";
+               p.style.display = "none";
+            }
+         }
+
       }).then(function () {
          if (callback !== undefined)
             callback();
