@@ -861,7 +861,7 @@ function mhttpd_init(current_page, interval, callback) {
          let m = document.getElementById("mmain");
          if (m !== undefined) {
             m.style.marginLeft = document.getElementById("msidenav").clientWidth + "px";
-            m.style.opacity = 1;
+            m.style.opacity = "1";
          }
       }
 
@@ -964,7 +964,7 @@ function mhttpd_init(current_page, interval, callback) {
          let m = document.getElementById("mmain");
          if (m !== undefined) {
             m.style.marginLeft = document.getElementById("msidenav").clientWidth + "px";
-            m.style.opacity = 1;
+            m.style.opacity = "1";
          }
 
          // cache navigation buttons in browser local storage
@@ -1028,11 +1028,11 @@ function mhttpd_add_menu_items(html, custom, current_page, path, level) {
          if (expand)
             html += "<div>"; // do not hide submenu if current page is under it
          else
-            html += "<div style='display: none'>";
+            html += "<div style='visibility: hidden'>";
          html = mhttpd_add_menu_items(html, custom[b], current_page, p, level+1);
          html += "</div>";
       } else if (typeof custom[b] === "string") { // skip any items that don't have type of string, since can't be valid links
-         cc = "mmenuitem";
+         let cc = "mmenuitem";
          let mitem = custom[b + "/name"];
          if (mitem.slice(-1) === '&')
             mitem = mitem.slice(0, -1);
@@ -1076,6 +1076,7 @@ function mhttpd_submenu(o) {
          String.fromCharCode(9662) +
          o.firstChild.innerHTML.substring(i+1);
       o.nextElementSibling.style.display = "inline";
+      o.nextElementSibling.style.visibility = "visible";
    } else {
       // collapse
       o.firstChild.innerHTML =
