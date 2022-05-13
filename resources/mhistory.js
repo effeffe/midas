@@ -1972,6 +1972,14 @@ MhistoryGraph.prototype.draw = function () {
             if (t >= this.tMin && t <= this.tMax) {
                let x = this.timeToX(t);
                let v = this.valueToY(this.data[di].value[i]);
+               if (this.data[di].value[i] > 1E100)
+                  console.log(this.data[di].value[i] + " - ", v);
+               if (this.data[di].value[i] < -11E100)
+                  console.log(this.data[di].value[i] + " - ", v);
+               if (v < -100000)
+                  v = -100000;
+               if (v > 100000)
+                  v = 100000;
                if (!Number.isNaN(v) && x >= this.x1-1 && x <= this.x2+1) {
                   this.x[di][n] = x;
                   this.y[di][n] = v;
