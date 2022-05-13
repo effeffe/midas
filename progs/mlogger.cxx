@@ -5174,9 +5174,7 @@ INT open_history()
                db_open_record(hDB, hHistKey, NULL, size, MODE_READ, log_system_history, (void *) (POINTER_T) index);
             }
 
-            time_t min_period = 10;
-
-            status = add_event(&index, now, max_event_id, hist_name, hHistKey, n_var, tag, min_period, 0);
+            status = add_event(&index, now, max_event_id, hist_name, hHistKey, n_var, tag, 0, 0);
             if (status != DB_SUCCESS)
                return status;
 
@@ -5365,8 +5363,6 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
       total_size += size;
    }
 
-   //printf("keys %d, total size %d\n", i, total_size);
-
    if (i != hist_log[index].n_var) {
       close_history();
       status = open_history();
@@ -5385,11 +5381,6 @@ void log_system_history(HNDLE hDB, HNDLE hKey, void *info)
 
    for (unsigned h=0; h<mh.size(); h++)
       mh[h]->hs_write_event(hist_log[index].event_name, hist_log[index].last_log, total_size, hist_log[index].buffer);
-
-   /* simulate odb key update for hot links connected to system history */
-   if (!rpc_is_remote()) {
-      db_notify_clients(hDB, hist_log[index].hKeyVar, -1, FALSE);
-   }
 
    maybe_flush_history(now);
 

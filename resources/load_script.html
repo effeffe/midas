@@ -87,20 +87,22 @@ function click_script() {
    enable_button_by_id("load_button");
 }
 
-function load_script() {
-   var sel = document.getElementById("msg_sel");
-   var selected = sel.value;
-   //console.log("load_script: Selected: " + selected);
+function load_script(script) {
 
-   if (selected.substring(0,1) === "[") {
-      // refuse to load script if the selected a subdirectory
-      return;
+   if (script === undefined) {
+      script = document.getElementById("msg_sel").value;
+      //console.log("load_script: Selected: " + script);
+
+      if (script.substring(0, 1) === "[") {
+         // refuse to load script if the selected a subdirectory
+         return;
+      }
    }
 
    var filename = "";
    if (xsubdir)
       filename = xsubdir + "/";
-   filename += selected;
+   filename += script;
    
    var paths = [];
    var values = [];
@@ -248,6 +250,12 @@ function callback(rpc) {
 }
 
 function update() {
+   if (xscript !== null) {
+      console.log("Load script " + xscript);
+      load_script(xscript);
+      return;
+   }
+
    var paths = [
       "/Sequencer/State/Path",
       "/Sequencer/State/Filename",
@@ -266,6 +274,7 @@ function update() {
 }
 
 xsubdir = mhttpd_getParameterByName("subdir");
+xscript = mhttpd_getParameterByName("scriptname");
 
 update();
 </script>

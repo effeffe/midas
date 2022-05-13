@@ -77,9 +77,6 @@ public:
       strlcpy(mEq->driver[mDevIndex].name, dev_name.c_str(), sizeof(mEq->driver[mDevIndex].name));
       mDevName = dev_name;
       mEq->driver[mDevIndex].pequipment_name = new std::string(eq_name);
-      if (flags & DF_OUTPUT)
-         flags |= DF_PRIO_DEVICE;
-      flags |= DF_MULTITHREAD;
       mEq->driver[mDevIndex].flags = flags;
       mEq->driver[mDevIndex].dd = dd;
       mEq->driver[mDevIndex].channels = 0;

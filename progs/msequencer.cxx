@@ -787,23 +787,40 @@ msl_parse(HNDLE hDB, MVOdb *odb, int level, const char *path, const char *filena
          xml += "</ODBSubdir>\n";
 
       } else if (equal_ustring(list[0], "param")) {
-         if (list[2][0] == 0) {
-            xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " />\n";
-            std::string v;
-            odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
-            odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
-         } else if (!list[3][0] && equal_ustring(list[2], "bool")) {
-            xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " type=\"bool\" />\n";
+         if (list[2][0] == 0 || equal_ustring(list[2], "bool")) { // only name, only name and bool
+            sprintf(error, "Paremeter \"%s\" misses 'comment'", list[1]);
+            *error_line = line + 1;
+            return FALSE;
+
+         } else if (!list[4][0] && equal_ustring(list[3], "bool")) { // name, comment and bool
+            xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " type=\"bool\" " + " comment=" + q(list[2]) + "/>\n";
             bool v = false;
             odb->RB((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
             std::string s;
             odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &s, true);
-         } else if (!list[3][0]) {
+            odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
+         } else if (!list[4][0] && equal_ustring(list[4], "bool")) { // name, comment, default and bool
+            xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " type=\"bool\" default=" + q(list[4]) +"/>\n";
+            bool v = false;
+            odb->RB((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+            std::string s;
+            odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &s, true);
+            odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
+            odb->WS((std::string("Sequencer/Param/Defaults/") + list[1]).c_str(), list[3]);
+
+         } else if (!list[3][0]) { // name and comment
             xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " comment=" + q(list[2]) + " />\n";
             std::string v;
             odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
             odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
             odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
+         } else if (!list[4][0]) { // name, comment and default
+            xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " comment=" + q(list[2]) + " default=" + q(list[3]) + " />\n";
+            std::string v;
+            odb->RS((std::string("Sequencer/Param/Value/") + list[1]).c_str(), &v, true);
+            odb->RS((std::string("Sequencer/Variables/") + list[1]).c_str(), &v, true);
+            odb->WS((std::string("Sequencer/Param/Comment/") + list[1]).c_str(), list[2]);
+            odb->WS((std::string("Sequencer/Param/Defaults/") + list[1]).c_str(), list[3]);
          } else {
             xml += "<Param " + qtoString(level, line + 1) + " name=" + q(list[1]) + " comment=" + q(list[2]) +
                    " options=\"";
@@ -1381,9 +1398,20 @@ void sequencer() {
          strlcat(odbpath, mxml_get_attribute(pn, "path"), sizeof(odbpath));
 
          if (strchr(odbpath, '$')) {
-            std::string s(odbpath);
-            s = eval_var(seq, s);
-            strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+            if (strchr(odbpath, '[')) {
+               // keep $ in index for later evaluation
+               std::string s(odbpath);
+               std::string s1 = s.substr(0, s.find('['));
+               std::string s2 = s.substr(s.find('['));
+               s1 = eval_var(seq, s1);
+               s1 += s2;
+               strlcpy(odbpath, s1.c_str(), sizeof(odbpath));
+            } else {
+               // evaluate variable in path
+               std::string s(odbpath);
+               s = eval_var(seq, s);
+               strlcpy(odbpath, s.c_str(), sizeof(odbpath));
+            }
          }
 
          int notify = TRUE;
@@ -1999,6 +2027,21 @@ void sequencer() {
 
    /*---- Break ----*/
    else if (equal_ustring(mxml_get_name(pn), "Break")) {
+
+      // finish current if statement
+      while (seq.if_index > 0 &&
+             seq.current_line_number > seq.if_line[seq.if_index - 1] &&
+             seq.current_line_number < seq.if_endif_line[seq.if_index-1]) {
+         size = sizeof(seq);
+         db_get_record(hDB, hKeySeq, &seq, &size, 0);
+         seq.if_index--;
+         seq.if_line[seq.if_index] = 0;
+         seq.if_else_line[seq.if_index] = 0;
+         seq.if_endif_line[seq.if_index] = 0;
+         seq.current_line_number++;
+         db_set_record(hDB, hKeySeq, &seq, sizeof(seq), 0);
+      }
+
       // goto next loop end
       for (i = 0; i < SEQ_NEST_LEVEL_LOOP; i++)
          if (seq.loop_start_line[i] == 0)
@@ -2091,13 +2134,13 @@ void sequencer() {
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
 
-      /*---- Subroutine ----*/
+   /*---- Subroutine ----*/
    else if (equal_ustring(mxml_get_name(pn), "Subroutine")) {
       // simply skip subroutines
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;
    }
 
-      /*---- Param ----*/
+   /*---- Param ----*/
    else if (equal_ustring(mxml_get_name(pn), "Param")) {
       // simply skip parameters
       seq.current_line_number = mxml_get_line_number_end(pn) + 1;

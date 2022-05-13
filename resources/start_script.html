@@ -231,6 +231,7 @@ function cancel() {
       var param_values = rpc.result.data[3];
       var param_comment = rpc.result.data[4];
       var param_options = rpc.result.data[5];
+      var param_defaults = rpc.result.data[6];
 
       var table = document.getElementById("seq_table");
 
@@ -307,6 +308,15 @@ function cancel() {
                      }
                   }
                }
+
+               if (param_defaults) {
+                  for (var kk in param_defaults) {
+                     if (kk.toLowerCase() == k.toLowerCase()) {
+                        if (v === "")
+                           v = param_defaults[kk];
+                     }
+                  }
+               }
                
                add_param_entry(table, k, v, c, type_bool, o, "/Sequencer/Variables");
             }
@@ -323,6 +333,7 @@ function cancel() {
          "/Sequencer/Param/Value",
          "/Sequencer/Param/Comment",
          "/Sequencer/Param/Options",
+         "/Sequencer/Param/Defaults",
       ];
       mjsonrpc_call("db_ls", {"paths": paths}).then(function (rpc) {
          callback(rpc);

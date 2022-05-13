@@ -7023,7 +7023,7 @@ void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
                /* for keys, don't display data value */
                r->rsprintf("<tr><td colspan=%d class=\"ODBdirectory\"><a href=\"?cmd=odb&odb_path=%s\">&#x25B6 %s</a>\n", colspan, enc_full_path.c_str(), keyname.c_str());
                if (link_name[0])
-                  r->rsprintf("<i>&rarr; <a href=\"?cmd=odb&odb_path=%s\">%s</a></i>", enc_link_ref.c_str(), link_name);
+                  r->rsprintf("<i>&rarr; <a href=\"%s\">%s</a></i>", enc_link_ref.c_str(), link_name);
                r->rsprintf("</tr>\n");
             } else if(key.type != TID_KEY && scan == 1) {
 
