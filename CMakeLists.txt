@@ -9,7 +9,6 @@ cmake_minimum_required(VERSION 3.10)
 
 project(midas
         DESCRIPTION "MIDAS Data Acquisition System")
-#        HOMEPAGE_URL "https://midas.triumf.ca")
 
 #
 # specify default build type if none is defined with ccmake
@@ -58,25 +57,6 @@ if (${CMAKE_INSTALL_PREFIX} STREQUAL ${PROJECT_SOURCE_DIR})
    set(MIDAS_NO_INSTALL_INCLUDE_FILES true)
 else()
 endif()
-
-# NB: RPATH is not needed as everything is linked statically. K.O.
-## Ensure the C-compat library can load the main library after install
-#set(CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/lib)
-#set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-
-#add_compile_options("-O0")
-#add_compile_options("-O2")
-#add_compile_options("-g")
-##add_compile_options("-std=c++11")
-
-#add_compile_options("-Wnonnull")
-#add_compile_options("-Walloca")
-
-#add_compile_options(-fsanitize=address -fsanitize=leak)
-#add_link_options(-fsanitize=address -fsanitize=leak)
-
-#add_compile_options(-fsanitize=thread)
-#add_link_options(-fsanitize=thread)
 
 #####################################################################
 # Nothing needs to be modified after this line
@@ -507,6 +487,7 @@ set_property(TARGET objlib-c-compat PROPERTY POSITION_INDEPENDENT_CODE 1)
 # static midas library
 add_library(midas STATIC $<TARGET_OBJECTS:objlib>)
 target_compile_features(midas PUBLIC cxx_std_11)
+target_include_directories(midas PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 target_compile_definitions(midas PUBLIC ${XDEFINES})
 target_compile_options(midas PUBLIC ${XFLAGS})
 target_link_libraries(midas ${XLIBS})
@@ -514,6 +495,7 @@ target_link_libraries(midas ${XLIBS})
 # shared midas library
 add_library(midas-shared SHARED $<TARGET_OBJECTS:objlib>)
 target_compile_features(midas-shared PUBLIC cxx_std_11)
+target_include_directories(midas-shared PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 target_compile_definitions(midas-shared PUBLIC ${XDEFINES})
 target_compile_options(midas-shared PUBLIC ${XFLAGS})
 target_link_libraries(midas-shared ${XLIBS})
@@ -521,6 +503,7 @@ target_link_libraries(midas-shared ${XLIBS})
 # shared midas library with C compatible signatures for python
 add_library(midas-c-compat SHARED $<TARGET_OBJECTS:objlib-c-compat>)
 target_compile_features(midas-c-compat PUBLIC cxx_std_11)
+target_include_directories(midas-c-compat PUBLIC $<BUILD_INTERFACE:${BUILD_INC_DIR}>)
 target_link_libraries(midas-c-compat midas)
 
 # library for mfe
