@@ -9045,7 +9045,7 @@ static void bm_convert_event_header(EVENT_HEADER *pevent, int convert_flags) {
    }
 }
 
-static int bm_wait_for_free_space_locked(int buffer_handle, bm_lock_buffer_guard& pbuf_guard, int timeout_msec, int requested_space, bool unlock_write_cache)
+static int bm_wait_for_free_space_locked(bm_lock_buffer_guard& pbuf_guard, int timeout_msec, int requested_space, bool unlock_write_cache)
 {
    // return values:
    // BM_SUCCESS - have "requested_space" bytes free in the buffer
@@ -9689,7 +9689,7 @@ int bm_send_event_vec(int buffer_handle, const std::vector<std::vector<char>>& e
    return bm_send_event_sg(buffer_handle, sg_n, sg_ptr, sg_len, timeout_msec);
 }
 
-static INT bm_flush_cache_locked(int buffer_handle, bm_lock_buffer_guard& pbuf_guard, int timeout_msec);
+static INT bm_flush_cache_locked(bm_lock_buffer_guard& pbuf_guard, int timeout_msec);
 
 /********************************************************************/
 /**
@@ -9824,7 +9824,7 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
                   return pbuf_guard.get_status();
                }
 
-               status = bm_flush_cache_locked(buffer_handle, pbuf_guard, timeout_msec);
+               status = bm_flush_cache_locked(pbuf_guard, timeout_msec);
 
                if (pbuf_guard.is_locked()) {
                   // check if bm_wait_for_free_space() failed to relock the buffer
@@ -9892,7 +9892,7 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
          return BM_NO_MEMORY;
       }
 
-      status = bm_wait_for_free_space_locked(buffer_handle, pbuf_guard, timeout_msec, total_size, false);
+      status = bm_wait_for_free_space_locked(pbuf_guard, timeout_msec, total_size, false);
 
       if (status != BM_SUCCESS) {
          // implicit unlock
@@ -10022,7 +10022,7 @@ One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
 and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
 #ifdef LOCAL_ROUTINES
-static INT bm_flush_cache_locked(int buffer_handle, bm_lock_buffer_guard& pbuf_guard, int timeout_msec)
+static INT bm_flush_cache_locked(bm_lock_buffer_guard& pbuf_guard, int timeout_msec)
 {
    // NB we come here with write cache locked and buffer locked.
 
@@ -10070,7 +10070,7 @@ static INT bm_flush_cache_locked(int buffer_handle, bm_lock_buffer_guard& pbuf_g
       }
 #endif
 
-      status = bm_wait_for_free_space_locked(buffer_handle, pbuf_guard, timeout_msec, ask_free, true);
+      status = bm_wait_for_free_space_locked(pbuf_guard, timeout_msec, ask_free, true);
 
       if (status != BM_SUCCESS) {
          return status;
@@ -10203,7 +10203,7 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
       if (!pbuf_guard.is_locked())
          return pbuf_guard.get_status();
 
-      status = bm_flush_cache_locked(buffer_handle, pbuf_guard, timeout_msec);
+      status = bm_flush_cache_locked(pbuf_guard, timeout_msec);
 
       /* unlock in correct order */
 
