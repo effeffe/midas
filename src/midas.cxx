@@ -9047,6 +9047,14 @@ static void bm_convert_event_header(EVENT_HEADER *pevent, int convert_flags) {
 
 static int bm_wait_for_free_space_locked(int buffer_handle, bm_lock_buffer_guard& pbuf_guard, int timeout_msec, int requested_space, bool unlock_write_cache)
 {
+   // return values:
+   // BM_SUCCESS - have "requested_space" bytes free in the buffer
+   // BM_CORRUPTED - shared memory is corrupted
+   // BM_NO_MEMORY - asked for more than buffer size
+   // BM_ASYNC_RETURN - timeout waiting for free space
+   // BM_INVALID_HANDLE - buffer was closed (locks released) (via bm_clock_xxx())
+   // SS_ABORT - we are told to shutdown (locks releases)
+
    int status;
    BUFFER* pbuf = pbuf_guard.get_pbuf();
    BUFFER_HEADER *pheader = pbuf->buffer_header;
@@ -9257,6 +9265,8 @@ static int bm_wait_for_free_space_locked(int buffer_handle, bm_lock_buffer_guard
 
       ss_suspend_get_buffer_port(ss_gettid(), &pc->port);
 
+      /* before waiting, unlock everything in the correct order */
+
       pbuf_guard.unlock();
 
       if (unlock_write_cache)
@@ -9276,6 +9286,12 @@ static int bm_wait_for_free_space_locked(int buffer_handle, bm_lock_buffer_guard
       //bm_cleanup("bm_wait_for_free_space", ss_millitime(), FALSE);
 
       status = ss_suspend(sleep_time_msec, MSG_BM);
+
+      /* we are told to shutdown */
+      if (status == SS_ABORT) {
+         // NB: buffer is locked!
+         return SS_ABORT;
+      }
 
       /* make sure we do sleep in this loop:
        * if we are the mserver receiving data on the event
@@ -9299,6 +9315,8 @@ static int bm_wait_for_free_space_locked(int buffer_handle, bm_lock_buffer_guard
        * so we should update all the timeouts & etc. K.O. */
 
       cm_periodic_tasks();
+
+      /* lock things again in the correct order */
 
       if (unlock_write_cache) {
          status = bm_lock_buffer_write_cache(pbuf);
@@ -9331,12 +9349,6 @@ static int bm_wait_for_free_space_locked(int buffer_handle, bm_lock_buffer_guard
       //   cm_msg(MERROR, "bm_wait_for_free_space", "our client index is no longer valid, exiting...");
       //   status = SS_ABORT;
       //}
-
-      /* return if TCP connection broken */
-      if (status == SS_ABORT) {
-         // NB: buffer is locked!
-         return SS_ABORT;
-      }
 
 #ifdef DEBUG_MSG
       cm_msg(MDEBUG, "Send woke up: rp=%d, wp=%d, level=%1.1lf", pheader->read_pointer, pheader->write_pointer, 100 - 100.0 * size / pheader->size);
@@ -9821,6 +9833,9 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
 
                if (status != BM_SUCCESS) {
                   pbuf->write_cache_mutex.unlock();
+                  // bm_flush_cache() failed: timeout in bm_wait_for_free_space() or write cache size is bigger than buffer size or buffer was closed.
+                  if (status == BM_NO_MEMORY)
+                     cm_msg(MERROR, "bm_send_event", "write cache size is bigger than buffer size");
                   return status;
                }
 
@@ -10019,6 +10034,8 @@ static INT bm_flush_cache_locked(int buffer_handle, bm_lock_buffer_guard& pbuf_g
       BUFFER* pbuf = pbuf_guard.get_pbuf();
       BUFFER_HEADER* pheader = pbuf->buffer_header;
 
+      //printf("bm_flush_cache_locked: buffer %s, cache rp %zu, wp %zu, timeout %d msec\n", pbuf->buffer_name, pbuf->write_cache_rp, pbuf->write_cache_wp, timeout_msec);
+
       int old_write_pointer = pheader->write_pointer;
 
       int request_id[MAX_CLIENTS];
@@ -10026,120 +10043,116 @@ static INT bm_flush_cache_locked(int buffer_handle, bm_lock_buffer_guard& pbuf_g
          request_id[i] = -1;
       }
          
-      while (1) {
-         size_t ask_rp = pbuf->write_cache_rp;
-         size_t ask_wp = pbuf->write_cache_wp;
+      size_t ask_rp = pbuf->write_cache_rp;
+      size_t ask_wp = pbuf->write_cache_wp;
 
-         if (ask_rp == ask_wp) { // nothing to do
-            break;
-         }
-
-         assert(ask_rp < ask_wp);
-
-         size_t ask_free = ALIGN8(ask_wp - ask_rp);
-
-         if (ask_free == 0) { // nothing to do
-            break;
-         }
-
-         if (ask_free > 2*pbuf->write_cache_size/3)
-            ask_free = ALIGN8(2*pbuf->write_cache_size/3);
-
-#if 0
-         status = bm_validate_buffer_locked(pbuf);
-         if (status != BM_SUCCESS) {
-            printf("bm_flush_cache: corrupted 111!\n");
-            abort();
-         }
-#endif
-
-         status = bm_wait_for_free_space_locked(buffer_handle, pbuf_guard, timeout_msec, ask_free, true);
-
-         if (status != BM_SUCCESS) {
-            return status;
-         }
-
-         // NB: wait_for_free_space() will sleep with all locks released,
-         // diring this time, another thread may call bm_send_event() that will
-         // add one or more events to the write cache and after wait_for_free_space()
-         // returns, size of data in cache will be bigger than the amount
-         // of free space we requested. so we need to keep track of how
-         // much data we write to the buffer and ask for more data
-         // if we run short. This is the reason for the big loop
-         // around wait_for_free_space(). We ask for slightly too little free
-         // space to make sure all this code is always used and does work. K.O.
-
-         if (pbuf->write_cache_wp == 0) {
-            /* somebody emptied the cache while we were inside bm_wait_for_free_space */
-            return BM_SUCCESS;
-         }
-
-         size_t written = 0;
-         while (pbuf->write_cache_rp < pbuf->write_cache_wp) {
-            /* loop over all events in cache */
-
-            const EVENT_HEADER *pevent = (const EVENT_HEADER *) (pbuf->write_cache + pbuf->write_cache_rp);
-            size_t event_size = (pevent->data_size + sizeof(EVENT_HEADER));
-            size_t total_size = ALIGN8(event_size);
-
-#if 0
-            printf("bm_flush_cache: cache size %d, wp %d, rp %d, event data_size %d, event_size %d, total_size %d, free %d, written %d\n",
-                   int(pbuf->write_cache_size),
-                   int(pbuf->write_cache_wp),
-                   int(pbuf->write_cache_rp),
-                   int(pevent->data_size),
-                   int(event_size),
-                   int(total_size),
-                   int(ask_free),
-                   int(written));
-#endif
-
-            assert(total_size >= sizeof(EVENT_HEADER));
-            assert(total_size <= (size_t)pheader->size);
-
-            if (written + total_size > ask_free) {
-               // we ran out of space in the shared memory, ask for more space!
-               break;
-            }
-
-            bm_write_to_buffer_locked(pheader, 1, (char**)&pevent, &event_size, total_size);
-
-            /* update statistics */
-            pheader->num_in_events++;
-            pbuf->count_sent += 1;
-            pbuf->bytes_sent += total_size;
-            
-            /* see comment for the same code in bm_send_event().
-             * We make sure the buffer is never 100% full */
-            assert(pheader->write_pointer != pheader->read_pointer);
-
-            /* check if anybody has a request for this event */
-            for (int i = 0; i < pheader->max_client_index; i++) {
-               BUFFER_CLIENT *pc = pheader->client + i;
-               int r = bm_find_first_request_locked(pc, pevent);
-               if (r >= 0) {
-                  request_id[i] = r;
-               }
-            }
-            
-            /* this loop does not loop forever because rp
-             * is monotonously incremented here. write_cache_wp does
-             * not change */
-            
-            pbuf->write_cache_rp += total_size;
-            written += total_size;
-
-            assert(pbuf->write_cache_rp > 0);
-            assert(pbuf->write_cache_rp <= pbuf->write_cache_size);
-            assert(pbuf->write_cache_rp <= pbuf->write_cache_wp);
-         }
+      if (ask_wp == 0) { // nothing to do
+         return BM_SUCCESS;
       }
 
-      if (pbuf->write_cache_wp == pbuf->write_cache_rp) {
-         /* the write cache is now empty */
-         pbuf->write_cache_wp = 0;
-         pbuf->write_cache_rp = 0;
+      if (ask_rp == ask_wp) { // nothing to do
+         return BM_SUCCESS;
       }
+
+      assert(ask_rp < ask_wp);
+
+      size_t ask_free = ALIGN8(ask_wp - ask_rp);
+
+      if (ask_free == 0) { // nothing to do
+         return BM_SUCCESS;
+      }
+
+#if 0
+      status = bm_validate_buffer_locked(pbuf);
+      if (status != BM_SUCCESS) {
+         printf("bm_flush_cache: corrupted 111!\n");
+         abort();
+      }
+#endif
+
+      status = bm_wait_for_free_space_locked(buffer_handle, pbuf_guard, timeout_msec, ask_free, true);
+
+      if (status != BM_SUCCESS) {
+         return status;
+      }
+
+      // NB: ask_rp, ask_wp and ask_free are invalid after calling bm_wait_for_free_space():
+      //
+      // wait_for_free_space() will sleep with all locks released,
+      // during this time, another thread may call bm_send_event() that will
+      // add one or more events to the write cache and after wait_for_free_space()
+      // returns, size of data in cache will be bigger than the amount
+      // of free space we requested. so we need to keep track of how
+      // much data we write to the buffer and ask for more data
+      // if we run short. This is the reason for the big loop
+      // around wait_for_free_space(). We ask for slightly too little free
+      // space to make sure all this code is always used and does work. K.O.
+
+      if (pbuf->write_cache_wp == 0) {
+         /* somebody emptied the cache while we were inside bm_wait_for_free_space */
+         return BM_SUCCESS;
+      }
+
+      //size_t written = 0;
+      while (pbuf->write_cache_rp < pbuf->write_cache_wp) {
+         /* loop over all events in cache */
+
+         const EVENT_HEADER *pevent = (const EVENT_HEADER *) (pbuf->write_cache + pbuf->write_cache_rp);
+         size_t event_size = (pevent->data_size + sizeof(EVENT_HEADER));
+         size_t total_size = ALIGN8(event_size);
+
+#if 0
+         printf("bm_flush_cache: cache size %d, wp %d, rp %d, event data_size %d, event_size %d, total_size %d, free %d, written %d\n",
+                int(pbuf->write_cache_size),
+                int(pbuf->write_cache_wp),
+                int(pbuf->write_cache_rp),
+                int(pevent->data_size),
+                int(event_size),
+                int(total_size),
+                int(ask_free),
+                int(written));
+#endif
+
+         // check for crazy event size
+         assert(total_size >= sizeof(EVENT_HEADER));
+         assert(total_size <= (size_t)pheader->size);
+
+         bm_write_to_buffer_locked(pheader, 1, (char**)&pevent, &event_size, total_size);
+
+         /* update statistics */
+         pheader->num_in_events++;
+         pbuf->count_sent += 1;
+         pbuf->bytes_sent += total_size;
+
+         /* see comment for the same code in bm_send_event().
+          * We make sure the buffer is never 100% full */
+         assert(pheader->write_pointer != pheader->read_pointer);
+
+         /* check if anybody has a request for this event */
+         for (int i = 0; i < pheader->max_client_index; i++) {
+            BUFFER_CLIENT *pc = pheader->client + i;
+            int r = bm_find_first_request_locked(pc, pevent);
+            if (r >= 0) {
+               request_id[i] = r;
+            }
+         }
+            
+         /* this loop does not loop forever because rp
+          * is monotonously incremented here. write_cache_wp does
+          * not change */
+
+         pbuf->write_cache_rp += total_size;
+         //written += total_size;
+
+         assert(pbuf->write_cache_rp > 0);
+         assert(pbuf->write_cache_rp <= pbuf->write_cache_size);
+         assert(pbuf->write_cache_rp <= pbuf->write_cache_wp);
+      }
+
+      /* the write cache is now empty */
+      assert(pbuf->write_cache_wp == pbuf->write_cache_rp);
+      pbuf->write_cache_wp = 0;
+      pbuf->write_cache_rp = 0;
 
       /* check which clients are waiting */
       for (int i = 0; i < pheader->max_client_index; i++) {
