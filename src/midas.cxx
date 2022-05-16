@@ -9812,19 +9812,23 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
       /* round up total_size to next DWORD boundary */
       //int total_size = ALIGN8(event_size);
 
-      /* look if there is space in the cache */
+      /* check if write cache is enabled */
       if (pbuf->write_cache_size) {
          status = bm_lock_buffer_write_cache(pbuf);
 
          if (status != BM_SUCCESS)
             return status;
          
+         /* check if write cache is enabled */
          if (pbuf->write_cache_size) {
-            int status = BM_SUCCESS;
+            size_t max_event_size = pbuf->write_cache_size/MAX_WRITE_CACHE_EVENT_SIZE_DIV;
+            bool too_big = event_size > max_event_size;
+
+            //printf("bm_send_event: write %zu/%zu max %zu, cache size %zu, wp %zu\n", event_size, total_size, max_event_size, pbuf->write_cache_size.load(), pbuf->write_cache_wp);
 
             /* if this event does not fit into the write cache, flush the write cache */
-            if (pbuf->write_cache_wp > 0 && pbuf->write_cache_wp + total_size > pbuf->write_cache_size) {
-               //printf("bm_send_event: write %d/%d but cache is full, size %d, wp %d\n", (int)event_size, (int)total_size, int(pbuf->write_cache_size), int(pbuf->write_cache_wp));
+            if (pbuf->write_cache_wp > 0 && (pbuf->write_cache_wp + total_size > pbuf->write_cache_size || too_big)) {
+               //printf("bm_send_event: write %zu/%zu but cache is full, size %zu, wp %zu\n", event_size, total_size, pbuf->write_cache_size.load(), pbuf->write_cache_wp);
 
                bm_lock_buffer_guard pbuf_guard(pbuf);
 
@@ -9833,7 +9837,7 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
                   return pbuf_guard.get_status();
                }
 
-               status = bm_flush_cache_locked(pbuf_guard, timeout_msec);
+               int status = bm_flush_cache_locked(pbuf_guard, timeout_msec);
 
                if (pbuf_guard.is_locked()) {
                   // check if bm_wait_for_free_space() failed to relock the buffer
@@ -9852,8 +9856,8 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
                assert(pbuf->write_cache_wp == 0);
             }
 
-            /* write this event into the write cache, if it fits */
-            if (pbuf->write_cache_wp + total_size <= pbuf->write_cache_size) {
+            /* write this event into the write cache, if it is not too big and if it fits */
+            if (!too_big && pbuf->write_cache_wp + total_size <= pbuf->write_cache_size) {
                //printf("bm_send_event: write %d/%d to cache size %d, wp %d\n", (int)event_size, (int)total_size, (int)pbuf->write_cache_size, (int)pbuf->write_cache_wp);
                
                char* wptr = pbuf->write_cache + pbuf->write_cache_wp;
@@ -9870,7 +9874,7 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
             }
          }
 
-         /* event did not fit into the write cache, send it directly to shared memory */
+         /* event did not fit into the write cache, we flushed the write cache and we send it directly to shared memory */
          pbuf->write_cache_mutex.unlock();
       }
 
