@@ -8150,9 +8150,18 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       if (write_size < 0)
          write_size = 0;
 
-      if (write_size > pbuf->buffer_header->size/4) {
-         int new_write_size = pbuf->buffer_header->size/4;
-         cm_msg(MERROR, "bm_set_cache_size", "requested write cache size %d on buffer \"%s\" is too big: buffer size is %d, write cache size will be %d bytes", write_size, pbuf->buffer_header->name, pbuf->buffer_header->size, new_write_size);
+      if (write_size > 0) {
+         if (write_size < MIN_WRITE_CACHE_SIZE) {
+            cm_msg(MERROR, "bm_set_cache_size", "requested write cache size %d on buffer \"%s\" too small, will use minimum size %d", write_size, pbuf->buffer_name, MIN_WRITE_CACHE_SIZE);
+            write_size = MIN_WRITE_CACHE_SIZE;
+         }
+      }
+
+      size_t max_write_size = pbuf->buffer_header->size/MAX_WRITE_CACHE_SIZE_DIV;
+
+      if (write_size > max_write_size) {
+         int new_write_size = max_write_size;
+         cm_msg(MERROR, "bm_set_cache_size", "requested write cache size %d on buffer \"%s\" is too big: buffer size is %d, write cache size will be %d bytes", write_size, pbuf->buffer_name, pbuf->buffer_header->size, new_write_size);
          write_size = new_write_size;
       }
 

@@ -256,6 +256,10 @@ class MJsonNode; // forward declaration from mjson.h
 #define DEFAULT_MAX_EVENT_SIZE (4*1024*1024) /**< default maximum event size 4MiB, actual maximum event size is set by ODB /Experiment/MAX_EVENT_SIZE */
 #define DEFAULT_BUFFER_SIZE   (32*1024*1024) /**< default event buffer size 32MiB, actual event buffer size is set by ODB /Experiment/Buffer sizes/SYSTEM */
 
+#define MIN_WRITE_CACHE_SIZE      (10000000) /**< default and minimum write cache size, in bytes */
+#define MAX_WRITE_CACHE_SIZE_DIV         (3) /**< maximum write cache size as fraction of buffer size */
+#define MAX_WRITE_CACHE_EVENT_SIZE_DIV  (10) /**< maximum event size cached in write cache as fraction of write cache size */
+
 #ifdef OS_WINNT
 #define TAPE_BUFFER_SIZE       0x100000      /**< buffer size for taping data */
 #else
