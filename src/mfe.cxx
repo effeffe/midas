@@ -383,7 +383,7 @@ static INT register_equipment(void) {
          db_create_record(hDB, 0, str, EQUIPMENT_COMMON_STR);
          db_find_key(hDB, 0, str, &hKey);
          if (eq_info->write_cache_size == 0)
-            eq_info->write_cache_size = 100000;
+            eq_info->write_cache_size = MIN_WRITE_CACHE_SIZE;
          status = db_set_record(hDB, hKey, eq_info, sizeof(EQUIPMENT_INFO), 0);
          if (status != DB_SUCCESS) {
             printf("ERROR: Cannot create equipment record \"%s\", db_set_record() status %d\n", str, status);
