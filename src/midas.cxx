@@ -3087,8 +3087,125 @@ static BUFFER* bm_get_buffer(const char *who, INT buffer_handle, int *pstatus);
 static int bm_lock_buffer_read_cache(BUFFER *pbuf);
 static int bm_lock_buffer_write_cache(BUFFER *pbuf);
 static int bm_lock_buffer_mutex(BUFFER *pbuf);
-static int bm_lock_buffer(BUFFER *pbuf);
-static void bm_unlock_buffer(BUFFER *pbuf);
+static int xbm_lock_buffer(BUFFER *pbuf);
+static void xbm_unlock_buffer(BUFFER *pbuf);
+
+class bm_lock_buffer_guard
+{
+public:
+   bool fDebug = false;
+   
+public:
+   bm_lock_buffer_guard(BUFFER* pbuf, bool do_not_lock=false) // ctor
+   {
+      assert(pbuf != NULL);
+      fBuf = pbuf;
+      if (do_not_lock) {
+         if (fDebug)
+            printf("lock_buffer_guard(%s) ctor without lock\n", fBuf->buffer_name);
+         return;
+      }
+      if (fDebug)
+         printf("lock_buffer_guard(%s) ctor\n", fBuf->buffer_name);
+      int status = xbm_lock_buffer(fBuf);
+      if (status != BM_SUCCESS) {
+         fLocked = false;
+         fError  = true;
+         fStatus = status;
+      } else {
+         fLocked = true;
+      }
+   }
+
+   ~bm_lock_buffer_guard() // dtor
+   {
+      if (fInvalid) {
+         if (fDebug)
+            printf("lock_buffer_guard(invalid) dtor\n");
+      } else {
+         assert(fBuf != NULL);
+         if (fDebug)
+            printf("lock_buffer_guard(%s) dtor, locked %d, error %d\n", fBuf->buffer_name, fLocked, fError);
+         if (fLocked) {
+            xbm_unlock_buffer(fBuf);
+            fLocked = false;
+            fError = false;
+         }
+         fBuf = NULL;
+      }
+   }
+
+   // make object uncopyable
+   bm_lock_buffer_guard(const bm_lock_buffer_guard&) = delete;
+   bm_lock_buffer_guard& operator=(const bm_lock_buffer_guard&) = delete;
+
+   void unlock()
+   {
+      assert(fBuf != NULL);
+      if (fDebug)
+         printf("lock_buffer_guard(%s) unlock, locked %d, error %d\n", fBuf->buffer_name, fLocked, fError);
+      assert(fLocked);
+      xbm_unlock_buffer(fBuf);
+      fLocked = false;
+      fError = false;
+   }
+
+   bool relock()
+   {
+      assert(fBuf != NULL);
+      if (fDebug)
+         printf("lock_buffer_guard(%s) relock, locked %d, error %d\n", fBuf->buffer_name, fLocked, fError);
+      assert(!fLocked);
+      int status = xbm_lock_buffer(fBuf);
+      if (status != BM_SUCCESS) {
+         fLocked = false;
+         fError  = true;
+         fStatus = status;
+      } else {
+         fLocked = true;
+      }
+      return fLocked;
+   }
+
+   void invalidate()
+   {
+      assert(fBuf != NULL);
+      if (fDebug)
+         printf("lock_buffer_guard(%s) invalidate, locked %d, error %d\n", fBuf->buffer_name, fLocked, fError);
+      assert(!fLocked);
+      fInvalid = true;
+      fBuf = NULL;
+   }
+
+   bool is_locked() const
+   {
+      return fLocked;
+   }
+
+   bool is_error() const
+   {
+      return fError;
+   }
+
+   int get_status() const
+   {
+      return fStatus;
+   }
+
+   BUFFER* get_pbuf() const
+   {
+      assert(!fInvalid); // pbuf was deleted
+      assert(fBuf); // we do not return NULL
+      return fBuf;
+   }
+   
+private:
+   BUFFER* fBuf    = NULL;
+   bool    fLocked = false;
+   bool    fError  = false;
+   bool    fInvalid = false;
+   int     fStatus = 0;
+};
 #endif
 
 static INT bm_notify_client(const char *buffer_name, int s);
@@ -3152,9 +3269,9 @@ INT cm_set_watchdog_params_local(BOOL call_watchdog, DWORD timeout)
       if (!pbuf || !pbuf->attached)
          continue;
 
-      int status = bm_lock_buffer(pbuf);
+      bm_lock_buffer_guard pbuf_guard(pbuf);
 
-      if (status != BM_SUCCESS)
+      if (!pbuf_guard.is_locked())
          continue;
       
       BUFFER_HEADER *pheader = pbuf->buffer_header;
@@ -3165,8 +3282,6 @@ INT cm_set_watchdog_params_local(BOOL call_watchdog, DWORD timeout)
       
       /* show activity */
       pclient->last_activity = ss_millitime();
-
-      bm_unlock_buffer(pbuf);
    }
 
    /* set watchdog timeout for ODB */
@@ -5817,8 +5932,9 @@ static DWORD _bm_max_event_size = 0;
 
 #ifdef LOCAL_ROUTINES
 
-static double _bm_mutex_timeout_sec = 10.000;
+// see locking code in xbm_lock_buffer()
 static int _bm_lock_timeout = 5 * 60 * 1000;
+static double _bm_mutex_timeout_sec = _bm_lock_timeout/1000 + 15.000;
 
 static int bm_validate_client_index(const BUFFER *buf, BOOL abort_if_invalid) {
    static int prevent_recursion = 1;
@@ -5996,9 +6112,9 @@ static void bm_update_last_activity(DWORD millitime) {
          continue;
       if (pbuf->attached) {
 
-         int status = bm_lock_buffer(pbuf);
+         bm_lock_buffer_guard pbuf_guard(pbuf);
 
-         if (status != BM_SUCCESS)
+         if (!pbuf_guard.is_locked())
             continue;
 
          BUFFER_HEADER *pheader = pbuf->buffer_header;
@@ -6008,8 +6124,6 @@ static void bm_update_last_activity(DWORD millitime) {
                pclient->last_activity = millitime;
             }
          }
-
-         bm_unlock_buffer(pbuf);
       }
    }
 }
@@ -6038,9 +6152,9 @@ static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
       if (pbuf->attached) {
          /* update the last_activity entry to show that we are alive */
 
-         int status = bm_lock_buffer(pbuf);
+         bm_lock_buffer_guard pbuf_guard(pbuf);
          
-         if (status != BM_SUCCESS)
+         if (!pbuf_guard.is_locked())
             continue;
 
          BUFFER_HEADER *pheader = pbuf->buffer_header;
@@ -6050,8 +6164,6 @@ static void bm_cleanup(const char *who, DWORD actual_time, BOOL wrong_interval)
          /* don't check other clients if interval is strange */
          if (!wrong_interval)
             bm_cleanup_buffer_locked(pbuf, who, actual_time);
-
-         bm_unlock_buffer(pbuf);
       }
    }
 #endif // LOCAL_ROUTINES
@@ -6468,16 +6580,13 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER *pbuf, BOOL forc
 {
    //printf("bm_buffer_write_statistics_to_odb: buffer [%s] client [%s], lock count %d -> %d, force %d\n", pbuf->buffer_name, pbuf->client_name, pbuf->last_count_lock, pbuf->count_lock, force);
 
-   // FIXME: buffer should be locked here, but should not call ODB and cm_msg() with buffer locked!
+   bm_lock_buffer_guard pbuf_guard(pbuf);
 
-   int status = bm_lock_buffer(pbuf);
-
-   if (status != BM_SUCCESS)
+   if (!pbuf_guard.is_locked())
       return;
 
    if (!force) {
       if (pbuf->count_lock == pbuf->last_count_lock) {
-         bm_unlock_buffer(pbuf);
          return;
       }
    }
@@ -6486,7 +6595,8 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER *pbuf, BOOL forc
    std::string client_name = pbuf->client_name;
 
    if ((strlen(buffer_name.c_str()) < 1) || (strlen(client_name.c_str()) < 1)) {
-      bm_unlock_buffer(pbuf);
+      // do not call cm_msg() while holding buffer lock, if we are SYSMSG, we will deadlock. K.O.
+      pbuf_guard.unlock(); // unlock before cm_msg()
       cm_msg(MERROR, "bm_write_buffer_statistics_to_odb", "Invalid empty buffer name \"%s\" or client name \"%s\"", buffer_name.c_str(), client_name.c_str());
       return;
    }
@@ -6497,7 +6607,7 @@ static void bm_write_buffer_statistics_to_odb(HNDLE hDB, BUFFER *pbuf, BOOL forc
    BUFFER_HEADER xheader = *pbuf->buffer_header;
    int client_index = pbuf->client_index;
 
-   bm_unlock_buffer(pbuf);
+   pbuf_guard.unlock();
 
    bm_write_buffer_statistics_to_odb_copy(hDB, buffer_name.c_str(), client_name.c_str(), client_index, &xbuf, &xheader);
 }
@@ -6740,9 +6850,9 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
 
       pbuf->attached = true; // required by bm_lock_buffer()
 
-      status = bm_lock_buffer(pbuf);
+      bm_lock_buffer_guard pbuf_guard(pbuf);
 
-      if (status != BM_SUCCESS) {
+      if (!pbuf_guard.is_locked()) {
          // cannot happen, no other thread can see this pbuf
          abort();
          return BM_NO_SEMAPHORE;
@@ -6755,7 +6865,8 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
 
       if (status != SS_SUCCESS && status != SS_CREATED) {
          *buffer_handle = 0;
-         bm_unlock_buffer(pbuf);
+         pbuf_guard.unlock();
+         pbuf_guard.invalidate(); // destructor will see a deleted pbuf
          delete pbuf;
          return BM_NO_SHM;
       }
@@ -6778,6 +6889,9 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
          /* validate existing shared memory */
 
          if (!equal_ustring(pheader->name, buffer_name)) {
+            // unlock before calling cm_msg(). if we are SYSMSG, we wil ldeadlock. K.O.
+            pbuf_guard.unlock();
+            pbuf_guard.invalidate(); // destructor will see a deleted pbuf
             cm_msg(MERROR, "bm_open_buffer",
                    "Buffer \"%s\" is corrupted, mismatch of buffer name in shared memory \"%s\"", buffer_name,
                    pheader->name);
@@ -6787,6 +6901,9 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
          }
 
          if ((pheader->num_clients < 0) || (pheader->num_clients > MAX_CLIENTS)) {
+            // unlock before calling cm_msg(). if we are SYSMSG, we wil ldeadlock. K.O.
+            pbuf_guard.unlock();
+            pbuf_guard.invalidate(); // destructor will see a deleted pbuf
             cm_msg(MERROR, "bm_open_buffer", "Buffer \"%s\" is corrupted, num_clients %d exceeds MAX_CLIENTS %d",
                    buffer_name, pheader->num_clients, MAX_CLIENTS);
             *buffer_handle = 0;
@@ -6795,6 +6912,9 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
          }
 
          if ((pheader->max_client_index < 0) || (pheader->max_client_index > MAX_CLIENTS)) {
+            // unlock before calling cm_msg(). if we are SYSMSG, we wil ldeadlock. K.O.
+            pbuf_guard.unlock();
+            pbuf_guard.invalidate(); // destructor will see a deleted pbuf
             cm_msg(MERROR, "bm_open_buffer", "Buffer \"%s\" is corrupted, max_client_index %d exceeds MAX_CLIENTS %d",
                    buffer_name, pheader->max_client_index, MAX_CLIENTS);
             *buffer_handle = 0;
@@ -6815,6 +6935,8 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
 
             if (status != SS_SUCCESS) {
                *buffer_handle = 0;
+               pbuf_guard.unlock();
+               pbuf_guard.invalidate(); // destructor will see a deleted pbuf
                delete pbuf;
                return BM_NO_SHM;
             }
@@ -6851,9 +6973,10 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
             break;
 
       if (iclient == MAX_CLIENTS) {
-         bm_unlock_buffer(pbuf);
          *buffer_handle = 0;
-         bm_unlock_buffer(pbuf);
+         // unlock before calling cm_msg(). if we are SYSMSG, we wil ldeadlock. K.O.
+         pbuf_guard.unlock();
+         pbuf_guard.invalidate(); // destructor will see a deleted pbuf
          delete pbuf;
          cm_msg(MERROR, "bm_open_buffer", "buffer \'%s\' maximum number of clients %d exceeded", buffer_name, MAX_CLIENTS);
          return BM_NO_SLOT;
@@ -6886,7 +7009,7 @@ INT bm_open_buffer(const char *buffer_name, INT buffer_size, INT *buffer_handle)
 
       cm_get_watchdog_params(NULL, &pclient->watchdog_timeout);
 
-      bm_unlock_buffer(pbuf);
+      pbuf_guard.unlock();
 
       /* shared memory is not locked from here down, do not touch pheader and pbuf->buffer_header! */
 
@@ -6995,8 +7118,7 @@ INT bm_close_buffer(INT buffer_handle) {
          bm_write_buffer_statistics_to_odb(hDB, pbuf, TRUE);
       }
 
-
-      /* first lock buffer */
+      /* lock buffer in correct order */
 
       status = bm_lock_buffer_read_cache(pbuf);
 
@@ -7011,12 +7133,12 @@ INT bm_close_buffer(INT buffer_handle) {
          return status;
       }
 
-      status = bm_lock_buffer(pbuf);
+      bm_lock_buffer_guard pbuf_guard(pbuf);
 
-      if (status != BM_SUCCESS) {
+      if (!pbuf_guard.is_locked()) {
          pbuf->write_cache_mutex.unlock();
          pbuf->read_cache_mutex.unlock();
-         return status;
+         return pbuf_guard.get_status();
       }
 
       BUFFER_HEADER *pheader = pbuf->buffer_header;
@@ -7045,6 +7167,8 @@ INT bm_close_buffer(INT buffer_handle) {
       pheader->num_clients = j;
 
       int destroy_flag = (pheader->num_clients == 0);
+
+      // we hold the locks on the read cache and the write cache.
 
       /* free cache */
       if (pbuf->read_cache_size > 0) {
@@ -7082,9 +7206,9 @@ INT bm_close_buffer(INT buffer_handle) {
       pbuf->shm_size = 0;
       pbuf->shm_handle = 0;
 
-      /* unlock buffer */
+      /* unlock buffer in correct order */
 
-      bm_unlock_buffer(pbuf);
+      pbuf_guard.unlock();
 
       pbuf->write_cache_mutex.unlock();
       pbuf->read_cache_mutex.unlock();
@@ -7492,9 +7616,9 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout) {
          if (pbuf->attached) {
             std::string msg;
 
-            int status = bm_lock_buffer(pbuf);
+            bm_lock_buffer_guard pbuf_guard(pbuf);
 
-            if (status != BM_SUCCESS)
+            if (!pbuf_guard.is_locked())
                continue;
 
             /* update the last_activity entry to show that we are alive */
@@ -7536,7 +7660,8 @@ INT cm_cleanup(const char *client_name, BOOL ignore_timeout) {
                }
             }
 
-            bm_unlock_buffer(pbuf);
+            // unlock buffer before calling cm_msg(), if we are SYSMSG, we will deadlock.
+            pbuf_guard.unlock();
 
             /* display info message after unlocking buffer */
             if (!msg.empty())
@@ -7685,14 +7810,12 @@ INT bm_get_buffer_info(INT buffer_handle, BUFFER_HEADER *buffer_header)
    if (!pbuf)
       return status;
 
-   status = bm_lock_buffer(pbuf);
+   bm_lock_buffer_guard pbuf_guard(pbuf);
 
-   if (status != BM_SUCCESS)
-      return status;
+   if (!pbuf_guard.is_locked())
+      return pbuf_guard.get_status();
 
    memcpy(buffer_header, pbuf->buffer_header, sizeof(BUFFER_HEADER));
-
-   bm_unlock_buffer(pbuf);
 
 #endif                          /* LOCAL_ROUTINES */
 
@@ -7732,10 +7855,10 @@ INT bm_get_buffer_level(INT buffer_handle, INT *n_bytes)
       if (!pbuf)
          return status;
 
-      status = bm_lock_buffer(pbuf);
+      bm_lock_buffer_guard pbuf_guard(pbuf);
 
-      if (status != BM_SUCCESS)
-         return status;
+      if (!pbuf_guard.is_locked())
+         return pbuf_guard.get_status();
 
       BUFFER_HEADER *pheader = pbuf->buffer_header;
 
@@ -7745,7 +7868,7 @@ INT bm_get_buffer_level(INT buffer_handle, INT *n_bytes)
       if (*n_bytes < 0)
          *n_bytes += pheader->size;
 
-      bm_unlock_buffer(pbuf);
+      pbuf_guard.unlock();
 
       if (pbuf->read_cache_size) {
          status = bm_lock_buffer_read_cache(pbuf);
@@ -7837,7 +7960,7 @@ static int bm_lock_buffer_mutex(BUFFER *pbuf)
 }
 
 /********************************************************************/
-static int bm_lock_buffer(BUFFER *pbuf)
+static int xbm_lock_buffer(BUFFER *pbuf)
 {
    int status;
 
@@ -7853,13 +7976,31 @@ static int bm_lock_buffer(BUFFER *pbuf)
    if (status != BM_SUCCESS)
       return status;
 
-   status = ss_semaphore_wait_for(pbuf->semaphore, _bm_lock_timeout);
-
+   status = ss_semaphore_wait_for(pbuf->semaphore, 1000);
+ 
    if (status != SS_SUCCESS) {
-      fprintf(stderr, "bm_lock_buffer: Error: Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...\n", pbuf->buffer_name, status);
-      cm_msg(MERROR, "bm_lock_buffer", "Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...", pbuf->buffer_name, status);
-      abort();
-      /* DOES NOT RETURN */
+      fprintf(stderr, "bm_lock_buffer: Lock buffer \"%s\" is taking longer than 1 second!\n", pbuf->buffer_name);
+
+      status = ss_semaphore_wait_for(pbuf->semaphore, 10000);
+
+      if (status != SS_SUCCESS) {
+         fprintf(stderr, "bm_lock_buffer: Lock buffer \"%s\" is taking longer than 10 seconds, buffer semaphore is probably stuck, delete %s.SHM and try again!\n", pbuf->buffer_name, pbuf->buffer_name);
+
+         if (pbuf->buffer_header) {
+            for (int i=0; i<MAX_CLIENTS; i++) {
+               fprintf(stderr, "bm_lock_buffer: Buffer \"%s\" client %d \"%s\" pid %d\n", pbuf->buffer_name, i, pbuf->buffer_header->client[i].name, pbuf->buffer_header->client[i].pid);
+            }
+         }
+            
+         status = ss_semaphore_wait_for(pbuf->semaphore, _bm_lock_timeout);
+         
+         if (status != SS_SUCCESS) {
+            fprintf(stderr, "bm_lock_buffer: Error: Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...\n", pbuf->buffer_name, status);
+            cm_msg(MERROR, "bm_lock_buffer", "Cannot lock buffer \"%s\", ss_semaphore_wait_for() status %d, aborting...", pbuf->buffer_name, status);
+            abort();
+            /* DOES NOT RETURN */
+         }
+      }
    }
 
    // protect against double lock
@@ -7881,7 +8022,7 @@ static int bm_lock_buffer(BUFFER *pbuf)
 }
 
 /********************************************************************/
-static void bm_unlock_buffer(BUFFER *pbuf) {
+static void xbm_unlock_buffer(BUFFER *pbuf) {
    // NB: locking order: 1st buffer mutex, 2nd buffer semaphore. Unlock in reverse order.
 
 #if 0
@@ -7939,15 +8080,13 @@ INT bm_init_buffer_counters(INT buffer_handle)
    if (!pbuf)
       return status;
 
-   status = bm_lock_buffer(pbuf);
+   bm_lock_buffer_guard pbuf_guard(pbuf);
 
-   if (status != BM_SUCCESS)
-      return status;
+   if (!pbuf_guard.is_locked())
+      return pbuf_guard.get_status();
 
    pbuf->buffer_header->num_in_events = 0;
    pbuf->buffer_header->num_out_events = 0;
-
-   bm_unlock_buffer(pbuf);
 
 #endif                          /* LOCAL_ROUTINES */
 
@@ -8001,7 +8140,7 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       if (!pbuf)
          return status;
 
-      /* lock pbuf for local access. we do not lock buffer semaphore because we do nto touch the shared memory */
+      /* lock pbuf for local access. we do not lock buffer semaphore because we do not touch the shared memory */
 
       status = bm_lock_buffer_mutex(pbuf);
 
@@ -8204,21 +8343,21 @@ INT bm_add_event_request(INT buffer_handle, short int event_id,
          return status;
 
       /* lock buffer */
-      status = bm_lock_buffer(pbuf);
+      bm_lock_buffer_guard pbuf_guard(pbuf);
 
-      if (status != BM_SUCCESS)
-         return status;
+      if (!pbuf_guard.is_locked())
+         return pbuf_guard.get_status();
 
       /* avoid callback/non callback requests */
       if (func == NULL && pbuf->callback) {
-         bm_unlock_buffer(pbuf);
+         pbuf_guard.unlock(); // unlock before cm_msg()
          cm_msg(MERROR, "bm_add_event_request", "mixing callback/non callback requests not possible");
          return BM_INVALID_MIXING;
       }
 
       /* do not allow GET_RECENT with nonzero cache size */
       if (sampling_type == GET_RECENT && pbuf->read_cache_size > 0) {
-         bm_unlock_buffer(pbuf);
+         pbuf_guard.unlock(); // unlock before cm_msg()
          cm_msg(MERROR, "bm_add_event_request", "GET_RECENT request not possible if read cache is enabled");
          return BM_INVALID_PARAM;
       }
@@ -8234,7 +8373,7 @@ INT bm_add_event_request(INT buffer_handle, short int event_id,
             break;
 
       if (i == MAX_EVENT_REQUESTS) {
-         bm_unlock_buffer(pbuf);
+         // implicit unlock
          return BM_NO_MEMORY;
       }
 
@@ -8260,8 +8399,6 @@ INT bm_add_event_request(INT buffer_handle, short int event_id,
 
       if (i + 1 > pclient->max_request_index)
          pclient->max_request_index = i + 1;
-
-      bm_unlock_buffer(pbuf);
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -8376,10 +8513,10 @@ INT bm_remove_event_request(INT buffer_handle, INT request_id) {
          return status;
 
       /* lock buffer */
-      status = bm_lock_buffer(pbuf);
+      bm_lock_buffer_guard pbuf_guard(pbuf);
 
-      if (status != BM_SUCCESS)
-         return status;
+      if (!pbuf_guard.is_locked())
+         return pbuf_guard.get_status();
 
       INT i, deleted;
 
@@ -8411,8 +8548,6 @@ INT bm_remove_event_request(INT buffer_handle, INT request_id) {
          }
 
       pbuf->get_all_flag = pclient->all_flag;
-
-      bm_unlock_buffer(pbuf);
 
       if (!deleted)
          return BM_NOT_FOUND;
@@ -8815,9 +8950,12 @@ static BOOL bm_check_requests(const BUFFER_CLIENT *pc, const EVENT_HEADER *peven
    return is_requested;
 }
 
-static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, BUFFER_CLIENT *pc, int timeout_msec, BOOL unlock_read_cache);
+static int bm_wait_for_more_events_locked(bm_lock_buffer_guard& pbuf_guard, BUFFER_CLIENT *pc, int timeout_msec, BOOL unlock_read_cache);
 
-static int bm_fill_read_cache_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, int timeout_msec) {
+static int bm_fill_read_cache_locked(bm_lock_buffer_guard& pbuf_guard, int timeout_msec)
+{
+   BUFFER* pbuf = pbuf_guard.get_pbuf();
+   BUFFER_HEADER* pheader = pbuf->buffer_header;
    BUFFER_CLIENT *pc = bm_get_my_client(pbuf, pheader);
    BOOL need_wakeup = FALSE;
    int count_events = 0;
@@ -8847,12 +8985,7 @@ static int bm_fill_read_cache_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, int t
             return BM_SUCCESS;
          }
 
-         int status = bm_wait_for_more_events_locked(pbuf, pheader, pc, timeout_msec, TRUE);
-
-         if (status == BM_INVALID_HANDLE) {
-            // internal bm_lock_buffer() failed
-            return status;
-         }
+         int status = bm_wait_for_more_events_locked(pbuf_guard, pc, timeout_msec, TRUE);
 
          if (status != BM_SUCCESS) {
             // we only come here with SS_ABORT & co
@@ -8912,9 +9045,10 @@ static void bm_convert_event_header(EVENT_HEADER *pevent, int convert_flags) {
    }
 }
 
-static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int timeout_msec, int requested_space, bool unlock_write_cache)
+static int bm_wait_for_free_space_locked(int buffer_handle, bm_lock_buffer_guard& pbuf_guard, int timeout_msec, int requested_space, bool unlock_write_cache)
 {
    int status;
+   BUFFER* pbuf = pbuf_guard.get_pbuf();
    BUFFER_HEADER *pheader = pbuf->buffer_header;
    char *pdata = (char *) (pheader + 1);
 
@@ -9123,7 +9257,7 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int ti
 
       ss_suspend_get_buffer_port(ss_gettid(), &pc->port);
 
-      bm_unlock_buffer(pbuf);
+      pbuf_guard.unlock();
 
       if (unlock_write_cache)
          pbuf->write_cache_mutex.unlock();
@@ -9175,15 +9309,13 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int ti
          }
       }
 
-      status = bm_lock_buffer(pbuf);
-
-      if (status != BM_SUCCESS) {
+      if (!pbuf_guard.relock()) {
          if (unlock_write_cache) {
             pbuf->write_cache_mutex.unlock();
          }
 
          // bail out with all locks released
-         return status;
+         return pbuf_guard.get_status();
       }
 
       /* revalidate the client index: we could have been removed from the buffer while sleeping */
@@ -9213,8 +9345,11 @@ static int bm_wait_for_free_space_locked(int buffer_handle, BUFFER *pbuf, int ti
    }
 }
 
-static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, BUFFER_CLIENT *pc, int timeout_msec, BOOL unlock_read_cache)
+static int bm_wait_for_more_events_locked(bm_lock_buffer_guard& pbuf_guard, BUFFER_CLIENT *pc, int timeout_msec, BOOL unlock_read_cache)
 {
+   BUFFER* pbuf = pbuf_guard.get_pbuf();
+   BUFFER_HEADER* pheader = pbuf->buffer_header;
+   
    //printf("bm_wait_for_more_events_locked: [%s] timeout %d\n", pheader->name, timeout_msec);
    
    if (pc->read_pointer != pheader->write_pointer) {
@@ -9259,7 +9394,7 @@ static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, 
 
       // NB: locking order is: 1st read cache lock, 2nd buffer lock, unlock in reverse order
 
-      bm_unlock_buffer(pbuf);
+      pbuf_guard.unlock();
 
       if (unlock_read_cache)
          pbuf->read_cache_mutex.unlock();
@@ -9293,14 +9428,12 @@ static int bm_wait_for_more_events_locked(BUFFER *pbuf, BUFFER_HEADER *pheader, 
          }
       }
 
-      status = bm_lock_buffer(pbuf);
-
-      if (status != BM_SUCCESS) {
+      if (!pbuf_guard.relock()) {
          if (unlock_read_cache) {
             pbuf->read_cache_mutex.unlock();
          }
          // bail out with all locks released
-         return status;
+         return pbuf_guard.get_status();
       }
       
       /* need to revalidate our BUFFER_CLIENT after releasing the buffer lock
@@ -9544,7 +9677,7 @@ int bm_send_event_vec(int buffer_handle, const std::vector<std::vector<char>>& e
    return bm_send_event_sg(buffer_handle, sg_n, sg_ptr, sg_len, timeout_msec);
 }
 
-static INT bm_flush_cache_locked(int buffer_handle, BUFFER *pbuf, int timeout_msec);
+static INT bm_flush_cache_locked(int buffer_handle, bm_lock_buffer_guard& pbuf_guard, int timeout_msec);
 
 /********************************************************************/
 /**
@@ -9669,29 +9802,30 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
             int status = BM_SUCCESS;
 
             /* if this event does not fit into the write cache, flush the write cache */
-            if (pbuf->write_cache_wp + total_size > pbuf->write_cache_size) {
+            if (pbuf->write_cache_wp > 0 && pbuf->write_cache_wp + total_size > pbuf->write_cache_size) {
                //printf("bm_send_event: write %d/%d but cache is full, size %d, wp %d\n", (int)event_size, (int)total_size, int(pbuf->write_cache_size), int(pbuf->write_cache_wp));
 
-               status = bm_lock_buffer(pbuf);
+               bm_lock_buffer_guard pbuf_guard(pbuf);
+
+               if (!pbuf_guard.is_locked()) {
+                  pbuf->write_cache_mutex.unlock();
+                  return pbuf_guard.get_status();
+               }
+
+               status = bm_flush_cache_locked(buffer_handle, pbuf_guard, timeout_msec);
+
+               if (pbuf_guard.is_locked()) {
+                  // check if bm_wait_for_free_space() failed to relock the buffer
+                  pbuf_guard.unlock();
+               }
 
                if (status != BM_SUCCESS) {
                   pbuf->write_cache_mutex.unlock();
                   return status;
                }
 
-               status = bm_flush_cache_locked(buffer_handle, pbuf, timeout_msec);
-
-               if (status == BM_INVALID_HANDLE) {
-                  // internal bm_lock_buffer() has failed
-                  return status;
-               }
-
-               bm_unlock_buffer(pbuf);
-
-               if (status != BM_SUCCESS) {
-                  pbuf->write_cache_mutex.unlock();
-                  return status;
-               }
+               // write cache must be empty here
+               assert(pbuf->write_cache_wp == 0);
             }
 
             /* write this event into the write cache, if it fits */
@@ -9719,10 +9853,10 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
       /* we come here only for events that are too big to fit into the cache */
 
       /* lock the buffer */
-      status = bm_lock_buffer(pbuf);
+      bm_lock_buffer_guard pbuf_guard(pbuf);
 
-      if (status != BM_SUCCESS) {
-         return status;
+      if (!pbuf_guard.is_locked()) {
+         return pbuf_guard.get_status();
       }
 
       /* calculate some shorthands */
@@ -9738,20 +9872,15 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
 
       /* check if buffer is large enough */
       if (total_size >= (size_t)pheader->size) {
-         bm_unlock_buffer(pbuf);
+         pbuf_guard.unlock(); // unlock before cm_msg()
          cm_msg(MERROR, "bm_send_event", "total event size (%d) larger than size (%d) of buffer \'%s\'", (int)total_size, pheader->size, pheader->name);
          return BM_NO_MEMORY;
       }
 
-      status = bm_wait_for_free_space_locked(buffer_handle, pbuf, timeout_msec, total_size, false);
-
-      if (status == BM_INVALID_HANDLE) {
-         // internal bm_lock_buffer() failed
-         return status;
-      }
+      status = bm_wait_for_free_space_locked(buffer_handle, pbuf_guard, timeout_msec, total_size, false);
 
       if (status != BM_SUCCESS) {
-         bm_unlock_buffer(pbuf);
+         // implicit unlock
          return status;
       }
 
@@ -9796,9 +9925,6 @@ int bm_send_event_sg(int buffer_handle, int sg_n, const char* const sg_ptr[], co
       pheader->num_in_events++;
       pbuf->count_sent += 1;
       pbuf->bytes_sent += total_size;
-
-      /* unlock the buffer */
-      bm_unlock_buffer(pbuf);
    }
 #endif                          /* LOCAL_ROUTINES */
 
@@ -9881,7 +10007,7 @@ One has to increase the event buffer size "/Experiment/Buffer sizes/SYSTEM"
 and/or /Experiment/MAX_EVENT_SIZE in ODB.
 */
 #ifdef LOCAL_ROUTINES
-static INT bm_flush_cache_locked(int buffer_handle, BUFFER *pbuf, int timeout_msec)
+static INT bm_flush_cache_locked(int buffer_handle, bm_lock_buffer_guard& pbuf_guard, int timeout_msec)
 {
    // NB we come here with write cache locked and buffer locked.
 
@@ -9890,6 +10016,7 @@ static INT bm_flush_cache_locked(int buffer_handle, BUFFER *pbuf, int timeout_ms
 
       //printf("bm_flush_cache_locked!\n");
 
+      BUFFER* pbuf = pbuf_guard.get_pbuf();
       BUFFER_HEADER* pheader = pbuf->buffer_header;
 
       int old_write_pointer = pheader->write_pointer;
@@ -9926,12 +10053,7 @@ static INT bm_flush_cache_locked(int buffer_handle, BUFFER *pbuf, int timeout_ms
          }
 #endif
 
-         status = bm_wait_for_free_space_locked(buffer_handle, pbuf, timeout_msec, ask_free, true);
-
-         if (status == BM_INVALID_HANDLE) {
-            // internal bm_lock_buffer() failed
-            return status;
-         }
+         status = bm_wait_for_free_space_locked(buffer_handle, pbuf_guard, timeout_msec, ask_free, true);
 
          if (status != BM_SUCCESS) {
             return status;
@@ -10063,15 +10185,19 @@ INT bm_flush_cache(int buffer_handle, int timeout_msec)
       }
 
       /* lock the buffer */
-      status = bm_lock_buffer(pbuf);
+      bm_lock_buffer_guard pbuf_guard(pbuf);
 
-      if (status != BM_SUCCESS)
-         return status;
+      if (!pbuf_guard.is_locked())
+         return pbuf_guard.get_status();
 
-      status = bm_flush_cache_locked(buffer_handle, pbuf, timeout_msec);
+      status = bm_flush_cache_locked(buffer_handle, pbuf_guard, timeout_msec);
 
-      /* unlock the buffer */
-      bm_unlock_buffer(pbuf);
+      /* unlock in correct order */
+
+      if (pbuf_guard.is_locked()) {
+         // check if bm_wait_for_free_space() failed to relock the buffer
+         pbuf_guard.unlock();
+      }
 
       pbuf->write_cache_mutex.unlock();
 
@@ -10095,7 +10221,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
 
    //printf("bm_read_buffer: [%s] timeout %d, conv %d, ptr %p, buf %p, disp %d\n", pbuf->buffer_name, timeout_msec, convert_flags, bufptr, buf, dispatch);
 
-   BOOL locked = FALSE;
+   bm_lock_buffer_guard pbuf_guard(pbuf, true); // buffer is not locked
 
    // NB: locking order is: 1st read cache lock, 2nd buffer lock, unlock in reverse order
 
@@ -10109,30 +10235,34 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
 
       if (pbuf->read_cache_wp == 0) {
 
-         status = bm_lock_buffer(pbuf);
+         // lock buffer for the first time
 
+         if (!pbuf_guard.relock()) {
+            pbuf->read_cache_mutex.unlock();
+            return pbuf_guard.get_status();
+         }
+
+         status = bm_fill_read_cache_locked(pbuf_guard, timeout_msec);
          if (status != BM_SUCCESS) {
+            // unlock in correct order
+            if (pbuf_guard.is_locked()) {
+               // check if bm_wait_for_more_events() failed to relock the buffer
+               pbuf_guard.unlock();
+            }
             pbuf->read_cache_mutex.unlock();
             return status;
          }
 
-         locked = TRUE;
-         BUFFER_HEADER *pheader = pbuf->buffer_header;
-         status = bm_fill_read_cache_locked(pbuf, pheader, timeout_msec);
-         if (status != BM_SUCCESS) {
-            bm_unlock_buffer(pbuf);
-            pbuf->read_cache_mutex.unlock();
-            return status;
-         }
+         // buffer remains locked here
       }
       EVENT_HEADER *pevent;
       int event_size;
       int total_size;
       if (bm_peek_read_cache_locked(pbuf, &pevent, &event_size, &total_size)) {
-         if (locked) {
+         if (pbuf_guard.is_locked()) {
             // do not need to keep the event buffer locked
             // when reading from the read cache
-            bm_unlock_buffer(pbuf);
+            pbuf_guard.unlock();
          }
          //printf("bm_read_buffer: [%s] async %d, conv %d, ptr %p, buf %p, disp %d, total_size %d, read from cache %d %d %d\n", pbuf->buffer_name, async_flag, convert_flags, bufptr, buf, dispatch, total_size, pbuf->read_cache_size, pbuf->read_cache_rp, pbuf->read_cache_wp);
          status = BM_SUCCESS;
@@ -10168,6 +10298,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
             bm_dispatch_event(buffer_handle, pevent);
             return BM_MORE_EVENTS;
          }
+         // buffer is unlocked here
          return status;
       }
       pbuf->read_cache_mutex.unlock();
@@ -10176,11 +10307,9 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
    /* we come here if the read cache is disabled */
    /* we come here if the next event is too big to fit into the read cache */
 
-   if (!locked) {
-      status = bm_lock_buffer(pbuf);
-
-      if (status != BM_SUCCESS)
-         return status;
+   if (!pbuf_guard.is_locked()) {
+      if (!pbuf_guard.relock())
+         return pbuf_guard.get_status();
    }
 
    EVENT_HEADER *event_buffer = NULL;
@@ -10192,15 +10321,10 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
    while (1) {
       /* loop over events in the event buffer */
 
-      status = bm_wait_for_more_events_locked(pbuf, pheader, pc, timeout_msec, FALSE);
-
-      if (status == BM_INVALID_HANDLE) {
-         // internal bm_lock_buffer() failed.
-         return status;
-      }
+      status = bm_wait_for_more_events_locked(pbuf_guard, pc, timeout_msec, FALSE);
 
       if (status != BM_SUCCESS) {
-         bm_unlock_buffer(pbuf);
+         // implicit unlock
          return status;
       }
 
@@ -10212,7 +10336,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
 
       status = bm_peek_buffer_locked(pbuf, pheader, pc, &pevent, &event_size, &total_size);
       if (status == BM_CORRUPTED) {
-         bm_unlock_buffer(pbuf);
+         // implicit unlock
          return status;
       } else if (status != BM_SUCCESS) {
          /* event buffer is empty */
@@ -10280,7 +10404,7 @@ static INT bm_read_buffer(BUFFER *pbuf, INT buffer_handle, void **bufptr, void *
 
    bm_wakeup_producers_locked(pheader, pc);
 
-   bm_unlock_buffer(pbuf);
+   pbuf_guard.unlock();
 
    if (dispatch && event_buffer) {
       bm_dispatch_event(buffer_handle, event_buffer);
@@ -10671,18 +10795,16 @@ static int bm_skip_event(BUFFER* pbuf)
       pbuf->read_cache_mutex.unlock();
    }
    
-   int status = bm_lock_buffer(pbuf);
+   bm_lock_buffer_guard pbuf_guard(pbuf);
 
-   if (status != BM_SUCCESS)
-      return status;
+   if (!pbuf_guard.is_locked())
+      return pbuf_guard.get_status();
    
    BUFFER_HEADER *pheader = pbuf->buffer_header;
    
    /* forward read pointer to global write pointer */
    BUFFER_CLIENT *pclient = bm_get_my_client(pbuf, pheader);
    pclient->read_pointer = pheader->write_pointer;
-   
-   bm_unlock_buffer(pbuf);
    
    return BM_SUCCESS;
 }
