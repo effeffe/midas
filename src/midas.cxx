@@ -5933,8 +5933,8 @@ static DWORD _bm_max_event_size = 0;
 #ifdef LOCAL_ROUTINES
 
 // see locking code in xbm_lock_buffer()
-static double _bm_mutex_timeout_sec = 15.000; // 10.000;
-static int _bm_lock_timeout = 1*1000; // 5 * 60 * 1000;
+static int _bm_lock_timeout = 5 * 60 * 1000;
+static double _bm_mutex_timeout_sec = _bm_lock_timeout/1000 + 15.000;
 
 static int bm_validate_client_index(const BUFFER *buf, BOOL abort_if_invalid) {
    static int prevent_recursion = 1;
