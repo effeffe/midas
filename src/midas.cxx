@@ -9704,7 +9704,9 @@ int bm_send_event_vec(int buffer_handle, const std::vector<std::vector<char>>& e
    return bm_send_event_sg(buffer_handle, sg_n, sg_ptr, sg_len, timeout_msec);
 }
 
+#ifdef LOCAL_ROUTINES
 static INT bm_flush_cache_locked(bm_lock_buffer_guard& pbuf_guard, int timeout_msec);
+#endif
 
 /********************************************************************/
 /**
