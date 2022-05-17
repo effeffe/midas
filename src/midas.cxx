@@ -8125,7 +8125,7 @@ The cache size has therefore be optimized manually to maximize data throughput.
 @param write_size cache size for writing events in bytes, zero for no cache
 @return BM_SUCCESS, BM_INVALID_HANDLE, BM_NO_MEMORY, BM_INVALID_PARAM
 */
-INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
+INT bm_set_cache_size(INT buffer_handle, size_t read_size, size_t write_size)
 /*------------------------------------------------------------------*/
 {
    if (rpc_is_remote())
@@ -8152,7 +8152,7 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
 
       if (write_size > 0) {
          if (write_size < MIN_WRITE_CACHE_SIZE) {
-            cm_msg(MERROR, "bm_set_cache_size", "requested write cache size %d on buffer \"%s\" too small, will use minimum size %d", write_size, pbuf->buffer_name, MIN_WRITE_CACHE_SIZE);
+            cm_msg(MERROR, "bm_set_cache_size", "requested write cache size %zu on buffer \"%s\" too small, will use minimum size %d", write_size, pbuf->buffer_name, MIN_WRITE_CACHE_SIZE);
             write_size = MIN_WRITE_CACHE_SIZE;
          }
       }
@@ -8160,8 +8160,8 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       size_t max_write_size = pbuf->buffer_header->size/MAX_WRITE_CACHE_SIZE_DIV;
 
       if (write_size > max_write_size) {
-         int new_write_size = max_write_size;
-         cm_msg(MERROR, "bm_set_cache_size", "requested write cache size %d on buffer \"%s\" is too big: buffer size is %d, write cache size will be %d bytes", write_size, pbuf->buffer_name, pbuf->buffer_header->size, new_write_size);
+         size_t new_write_size = max_write_size;
+         cm_msg(MERROR, "bm_set_cache_size", "requested write cache size %zu on buffer \"%s\" is too big: buffer size is %d, write cache size will be %zu bytes", write_size, pbuf->buffer_name, pbuf->buffer_header->size, new_write_size);
          write_size = new_write_size;
       }
 
@@ -8183,8 +8183,11 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       if (read_size > 0) {
          pbuf->read_cache = (char *) malloc(read_size);
          if (pbuf->read_cache == NULL) {
+            pbuf->read_cache_size = 0;
+            pbuf->read_cache_rp = 0;
+            pbuf->read_cache_wp = 0;
             pbuf->read_cache_mutex.unlock();
-            cm_msg(MERROR, "bm_set_cache_size", "not enough memory to allocate cache buffer, malloc(%d) failed", read_size);
+            cm_msg(MERROR, "bm_set_cache_size", "not enough memory to allocate read cache for buffer \"%s\", malloc(%zu) failed", pbuf->buffer_name, read_size);
             return BM_NO_MEMORY;
          }
       }
@@ -8204,7 +8207,7 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
 
       // FIXME: should flush the write cache!
       if (pbuf->write_cache_size && pbuf->write_cache_wp > 0) {
-         cm_msg(MERROR, "bm_set_cache_size", "buffer \"%s\" lost %d bytes from the write cache", pbuf->buffer_name, (int)pbuf->write_cache_wp);
+         cm_msg(MERROR, "bm_set_cache_size", "buffer \"%s\" lost %zu bytes from the write cache", pbuf->buffer_name, pbuf->write_cache_wp);
       }
 
       /* manage write cache */
@@ -8216,8 +8219,11 @@ INT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size)
       if (write_size > 0) {
          pbuf->write_cache = (char *) M_MALLOC(write_size);
          if (pbuf->write_cache == NULL) {
+            pbuf->write_cache_size = 0;
+            pbuf->write_cache_rp = 0;
+            pbuf->write_cache_wp = 0;
             pbuf->write_cache_mutex.unlock();
-            cm_msg(MERROR, "bm_set_cache_size", "not enough memory to allocate cache buffer, malloc(%d) failed", write_size);
+            cm_msg(MERROR, "bm_set_cache_size", "not enough memory to allocate write cache for buffer \"%s\", malloc(%zu) failed", pbuf->buffer_name, write_size);
             return BM_NO_MEMORY;
          }
       }
