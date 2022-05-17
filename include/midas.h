@@ -1828,7 +1828,7 @@ flags for db_json_save() */
    INT EXPRT bm_init_buffer_counters(INT buffer_handle);
    INT EXPRT bm_get_buffer_info(INT buffer_handle, BUFFER_HEADER * buffer_header);
    INT EXPRT bm_get_buffer_level(INT buffer_handle, INT * n_bytes);
-   INT EXPRT bm_set_cache_size(INT buffer_handle, INT read_size, INT write_size);
+   INT EXPRT bm_set_cache_size(INT buffer_handle, size_t read_size, size_t write_size);
    INT EXPRT bm_compose_event(EVENT_HEADER * event_header, short int event_id, short int trigger_mask, DWORD data_size, DWORD serial);
    INT EXPRT bm_compose_event_threadsafe(EVENT_HEADER *event_header, short int event_id, short int trigger_mask, DWORD data_size, DWORD *serial);
    INT EXPRT bm_request_event(INT buffer_handle,
