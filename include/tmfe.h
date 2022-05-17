@@ -179,7 +179,11 @@ public: // equipment configuration stored in ODB Common
    uint32_t    fEqConfNumSubEvents   = 0; // not used
    int         fEqConfLogHistory     = 0;
    bool        fEqConfHidden         = false;
-   int         fEqConfWriteCacheSize = 1024*1024;
+#ifdef MIN_WRITE_CACHE_SIZE
+   int         fEqConfWriteCacheSize = MIN_WRITE_CACHE_SIZE;
+#else
+   int         fEqConfWriteCacheSize = 10000000;
+#endif
    //std::string FrontendHost;
    //std::string FrontendName;
    //std::string FrontendFileName;
