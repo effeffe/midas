@@ -124,21 +124,7 @@ namespace midas {
          if (!read_key(s))
             mthrow("ODB key \"" + s + "\" not found in ODB");
 
-         if (m_tid == TID_KEY) {
-            std::vector<std::string> name;
-            m_num_values = get_subkeys(name);
-            delete[] m_data;
-            m_data = new midas::u_odb[m_num_values]{};
-            for (int i = 0; i < m_num_values; i++) {
-               std::string k(s);
-               k += "/" + name[i];
-               auto *o = new midas::odb(k.c_str());
-               o->set_parent(this);
-               m_data[i].set_tid(TID_KEY);
-               m_data[i].set_parent(this);
-               m_data[i].set(o);
-            }
-         } else
+         if (m_tid != TID_KEY)
             read();
       } else {
          // Construct object from initializer_list
