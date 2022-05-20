@@ -4626,6 +4626,8 @@ INT open_history()
 
    time_t now = time(NULL);
 
+   double tstart = ss_time_sec();
+
    // delete old history channels
 
    for (unsigned i=0; i<mh.size(); i++)
@@ -5221,6 +5223,12 @@ INT open_history()
    status = hs_save_event_list(&history_events);
    if (status != HS_SUCCESS)
       return status;
+
+   double tend = ss_time_sec();
+   double telapsed = tend - tstart;
+   if (telapsed > 10.0) {
+      cm_msg(MERROR, "open_history", "open_history() took %.3f seconds", telapsed);
+   }
 
    return CM_SUCCESS;
 }
