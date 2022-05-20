@@ -2490,10 +2490,10 @@ static MJsonNode* js_hs_read_arraybuffer(const MJsonNode* params)
    // NB: beware of 32-bit integer overflow. all values are now 64-bit size_t, overflow should not happen.
    size_t p0_size = sizeof(double)*(2+2*num_var+2*num_values);
 
-   size_t size_limit = 100*1024*1024;
+   size_t size_limit = 1000*1024*1024;
 
    if (p0_size > size_limit) {
-      cm_msg(MERROR, "js_hs_read_binned_arraybuffer", "Refusing to return %d bytes. limit is %d bytes\n", int(p0_size), int(size_limit));
+      cm_msg(MERROR, "js_hs_read_binned_arraybuffer", "Refusing to return %zu bytes of history data, limit is %zu bytes\n", p0_size, size_limit);
 
       for (size_t i=0; i<num_var; i++) {
          delete jbuf[i];
@@ -2508,7 +2508,7 @@ static MJsonNode* js_hs_read_arraybuffer(const MJsonNode* params)
       delete[] jbuf;
       delete[] hs_status;
       
-      return mjsonrpc_make_error(-32603, "Internal error", "Refuse to return too much data");
+      return mjsonrpc_make_error(-32603, "Internal error", "Too much history data");
    }
 
    double* p0 = (double*)malloc(p0_size);
