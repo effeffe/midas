@@ -673,7 +673,19 @@ namespace midas {
          if (m_num_values == 0) {
             // initialize this
             m_num_values = v.size();
-            m_tid = detect_type(v[0]);
+            if (std::is_same<T, bool>::value) {
+               // Special logic for vector<bool>, which may not be a true 
+               // container: it's often optimized to be a bitfield, with 
+               // references to elements being masked bits rather than bools. 
+               // So T is a bool here, but typeof(v[0]) may not be bool!
+               // "Fake container optimization" only applies to vector<bool>,
+               // not array<bool> or any other vector<T>.
+               m_tid = TID_BOOL;
+            } else {
+               // Every other type can be detected using ref to first element.
+               m_tid = detect_type(v[0]);
+            }
+
             m_data = new u_odb[m_num_values]{};
             for (int i = 0; i < m_num_values; i++) {
                m_data[i].set_tid(m_tid);

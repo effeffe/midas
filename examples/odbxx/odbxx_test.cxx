@@ -95,6 +95,10 @@ int main() {
    o["String Array"][2] = "Another String";
    o["String Array"][3] = std::string("One more");
 
+   // test with bool arrays/vectors
+   o["Bool Array"] = std::array<bool, 3>{true, false, true};
+   o["Bool Array from Vector"] = std::vector<bool>{true, false, true};
+
    // iterate over array
    int sum = 0;
    for (int e : o["Int Array"])
