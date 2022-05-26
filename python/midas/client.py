@@ -1251,7 +1251,7 @@ class MidasClient:
                 continue
             
             if isinstance(v, dict):
-                retval[k] = self._prune_metadata_from_odb(v)
+                retval[k] = self._convert_dwords_from_odb(v)
             else:
                 meta = curr_place[k+"/key"]
                 
