@@ -96,19 +96,20 @@ public:
    {
       int chn_index = 0;
 
+      // individual variable can overwrite standard value
+      if (std::isnan(threshold))
+         threshold = mThreshold;
+      if (std::isnan(factor))
+         factor = mFactor;
+      if (std::isnan(offset))
+         offset = mOffset;
+
       // put info into settings subtree
       if (mEq->driver[mDevIndex].flags & DF_INPUT) {
          // count total number of input channels
          for (int i=0 ; i <= mDevIndex ; i++)
             if (mEq->driver[i].flags & DF_INPUT)
                chn_index += mEq->driver[i].channels;
-
-         if (std::isnan(threshold))
-            threshold = mThreshold;
-         if (std::isnan(factor))
-            factor = mFactor;
-         if (std::isnan(offset))
-            offset = mOffset;
 
          mOdbSettings["Update Threshold"][chn_index] = (float) threshold;
          mOdbSettings["Input Factor"][chn_index] = (float) factor;

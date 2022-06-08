@@ -365,7 +365,7 @@ INT multi_init(EQUIPMENT *pequipment) {
       db_merge_data(hDB, m_info->hKeyRoot, "Settings/Input Factor",
                     m_info->factor_input, m_info->num_channels_input * sizeof(float),
                     m_info->num_channels_input, TID_FLOAT);
-      db_find_key(hDB, m_info->hKeyRoot, "Settings/Input factor", &hKey);
+      db_find_key(hDB, m_info->hKeyRoot, "Settings/Input Factor", &hKey);
       db_open_record(hDB, hKey, m_info->factor_input,
                      m_info->num_channels_input * sizeof(float), MODE_READ, NULL, NULL);
    }
@@ -376,7 +376,7 @@ INT multi_init(EQUIPMENT *pequipment) {
       db_merge_data(hDB, m_info->hKeyRoot, "Settings/Output Factor",
                     m_info->factor_output, m_info->num_channels_output * sizeof(float),
                     m_info->num_channels_output, TID_FLOAT);
-      db_find_key(hDB, m_info->hKeyRoot, "Settings/Output factor", &hKey);
+      db_find_key(hDB, m_info->hKeyRoot, "Settings/Output Factor", &hKey);
       db_open_record(hDB, hKey, m_info->factor_output,
                      m_info->num_channels_output * sizeof(float), MODE_READ, NULL, NULL);
    }
