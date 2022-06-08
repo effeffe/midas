@@ -575,11 +575,6 @@ INT multi_init(EQUIPMENT *pequipment) {
    if (m_info->num_channels_input && (m_info->driver_input[0]->flags & DF_QUICKSTART) == 0)
       multi_read(pequipment, -1);
 
-   /* initially read all output channels */
-   if (m_info->num_channels_output && (m_info->driver_output[0]->flags & DF_QUICKSTART) == 0 &&
-           (m_info->driver_output[0]->flags & DF_PRIO_DEVICE))
-      multi_read_output(pequipment, -1);
-
    if (partially_disabled)
       return FE_PARTIALLY_DISABLED;
 
