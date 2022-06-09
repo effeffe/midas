@@ -15,6 +15,10 @@
 #define HAVE_HWCRC32C 1
 #endif
 
+#ifdef __ARM_FEATURE_CRC32
+#include <arm_acle.h>
+#endif
+
 /* crc32c.c -- compute CRC-32C using the Intel crc32 instruction
  * Copyright (C) 2013 Mark Adler
  * Version 1.1  1 Aug 2013  Mark Adler
@@ -351,6 +355,36 @@ uint32_t crc32c_hw(uint32_t crc, const void *buf, size_t len)
 
 #endif // HAVE_HWCRC32C
 
+#ifdef __ARM_FEATURE_CRC32
+
+uint32_t crc32c_arm_hw(uint32_t crc, const void *buf, size_t len)
+{
+   crc = ~crc;
+   uint8_t *pd = (uint8_t *)buf;
+
+   // Align data if it's not aligned
+   while (((uintptr_t)pd & 7) && len > 0) {
+      crc = __crc32cb(crc, *(uint8_t *)pd);
+      pd++;
+      len--;
+   }
+
+   while (len >= 8) {
+      crc = __crc32cd(crc, *(uint64_t *)pd);
+      pd += 8;
+      len -= 8;
+   }
+
+   while (len > 0) {
+      crc = __crc32cb(crc, *(uint8_t *)pd);
+      pd++;
+      len--;
+   }
+
+   return ~crc;
+}
+
+#endif
 
 /* Compute a CRC-32C.  If the crc32 instruction is available, use the hardware
    version.  Otherwise, use the software version. */
@@ -361,6 +395,8 @@ uint32_t crc32c(uint32_t crc, const void *buf, size_t len)
 
     SSE42(sse42);
     return sse42 ? crc32c_hw(crc, buf, len) : crc32c_sw(crc, buf, len);
+#elif defined(__ARM_FEATURE_CRC32)
+   return crc32c_arm_hw(crc, buf, len);
 #else
 #warning Hardware accelerated CRC32C is not available.
     return crc32c_sw(crc, buf, len);
