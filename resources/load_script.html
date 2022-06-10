@@ -89,7 +89,7 @@ function click_script() {
 
 function load_script(script) {
 
-   if (script === undefined) {
+   if (script === undefined || script instanceof MouseEvent) {
       script = document.getElementById("msg_sel").value;
       //console.log("load_script: Selected: " + script);
 
