@@ -119,7 +119,7 @@ class MidasClient:
         if daemon_flag is not None:
             self.lib.c_ss_daemon_init(daemon_flag)
         
-        c_host_name = ctypes.create_string_buffer(32)
+        c_host_name = ctypes.create_string_buffer(256)
         c_expt_name = ctypes.create_string_buffer(32)
         c_client_name = ctypes.create_string_buffer(client_name.encode('ascii'), 32)
         
