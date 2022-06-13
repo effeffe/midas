@@ -3,9 +3,7 @@
   Name:         rs232.c
   Created by:   Stefan Ritt
 
-  Contents:     RS232 communication routines for MS-DOS and NT
-
-  $Id:$
+  Contents:     RS232 communication routines for various OS
 
 \********************************************************************/
 
