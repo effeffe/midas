@@ -370,11 +370,13 @@ function ODBInlineEdit(p, odb_path, bracket) {
    if (p.inEdit)
       return;
    p.inEdit = true;
-   p.editAll = p.childNodes[2] !== undefined &&
-       p.childNodes[2].dataset !== undefined &&
-       p.childNodes[2].dataset.all === '1';
+   p.editAll = p.childNodes[0] !== undefined &&
+       p.childNodes[0].dataset !== undefined &&
+       p.childNodes[0].dataset.all === '1';
    mjsonrpc_db_get_values([odb_path]).then(function (rpc) {
       let value = rpc.result.data[0];
+      if (Array.isArray(value))
+         value = value[0];
       let tid = rpc.result.tid[0];
       let format = p.dataset.format;
       let size = p.dataset.size;

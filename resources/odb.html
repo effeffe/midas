@@ -219,7 +219,7 @@
                key.type = TID_KEY;
                key.subdir_open = false;
                key.num_values = 1;
-               key.size = 0;
+               key.item_size = 0;
                key.last_written = 0;
                key.access_mode = 0;
             } else {
@@ -227,7 +227,10 @@
                key.num_values = data[item + '/key'].num_values;
                if (key.num_values === undefined)
                   key.num_values = 1;
-               key.size = tid_size[key.type];
+               if (data[item + '/key'].item_size !== undefined)
+                  key.item_size = data[item + '/key'].item_size;
+               else
+                  key.item_size = tid_size[key.type];
                key.last_written = data[item + '/key'].last_written;
                key.access_mode = data[item + '/key'].access_mode;
             }
@@ -334,14 +337,13 @@
             td.className = 'odbKey';
             tr.appendChild(td);
 
-            let p = path === '/' ? '/' + key.name : path + '/' + key.name;
+            let p = (path === '/' ? '/' + key.name : path + '/' + key.name);
 
             if (Array.isArray(key.value)) {
                let edit = '<a href="#" data-all="1" onclick="ODBInlineEdit(this.parentNode, \'' + p + '\');return false;" ' +
                        'onfocus="ODBInlineEdit(this.parentNode, \'' + p + '\')" title="Set array elements to same value">';
 
-               td.innerHTML = '<a href="#" onclick="resize_array(\''+p+'\','+key.value.length+')">n='
-                       + key.value.length + '</a>&nbsp;&nbsp;' + edit + '*' + '</a>';
+               td.innerHTML = edit + '*' + '</a>';
             } else {
                let edit = '<a href="#" onclick="ODBInlineEdit(this.parentNode, \'' + p + '\');return false;" ' +
                        'onfocus="ODBInlineEdit(this.parentNode, \'' + p + '\')" title="Change value">';
@@ -372,7 +374,8 @@
             td.setAttribute('name', 'odbExt');
             td.style.display = odbExpand ? 'table-cell' : 'none';
             tr.appendChild(td);
-            td.appendChild(document.createTextNode(key.num_values));
+            td.innerHTML = '<a href="#" onclick="resize_array(\''+p+'\','+key.num_values+')">'
+                    + key.num_values + '</a>';
 
             // Size
             td = document.createElement('TD');
@@ -380,7 +383,11 @@
             td.setAttribute('name', 'odbExt');
             td.style.display = odbExpand ? 'table-cell' : 'none';
             tr.appendChild(td);
-            td.appendChild(document.createTextNode(key.size));
+            if (key.type === TID_STRING)
+               td.innerHTML = '<a href="#" onclick="resize_string(\''+p+'\','+key.item_size+','+key.num_values+')">'
+                       + key.item_size + '</a>';
+            else
+               td.innerHTML = key.item_size;
 
             // Written
             td = document.createElement('TD');
@@ -501,7 +508,9 @@
                        'onfocus="ODBInlineEdit(this.parentNode, \''+p+'\')" title="Change array element">';
 
                let v = key.value[i].toString();
-               if (key.type === TID_BOOL)
+               if (key.type === TID_STRING && v === "")
+                  v = "(empty)";
+               else if (key.type === TID_BOOL)
                   v = (key.value[i] ? 'y' : 'n') + ' (' + (key.value[i] ? '1' : '0') +')';
                else if (v.substring(0, 2) === "0x")
                   v += " (" + parseInt(key.value[i]) + ')';
@@ -570,13 +579,26 @@
       }
 
       function resize_array(path, n) {
-         dlgQuery("Enter size of array:", n, do_resize, path);
+         dlgQuery("Enter size of array:", n, do_resize_array, path);
       }
 
-      function do_resize(n, path) {
+      function do_resize_array(n, path) {
          mjsonrpc_db_resize([path],[parseInt(n)]).then(rpc => {
          }).catch(error => mjsonrpc_error_alert(error));
       }
+
+      function resize_string(path, size, num_values) {
+         dlgQuery("Enter new string size:", size, do_resize_string, { "path": path, "num_values": num_values });
+      }
+
+      function do_resize_string(size, p) {
+         mjsonrpc_call("db_resize_string",
+                 { "paths": [p.path],
+                    "new_lengths": [parseInt(p.num_values)],
+                    "new_string_lengths": [parseInt(size)]}).then(rpc => {
+         }).catch(error => mjsonrpc_error_alert(error));
+      }
+
    </script>
 </head>
 
