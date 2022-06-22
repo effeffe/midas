@@ -47,7 +47,7 @@
          tr = document.createElement('TR');
          tb.appendChild(tr);
          let td = document.createElement('TD');
-         td.appendChild(document.createTextNode(path));
+         td.innerHTML = "";
          td.colSpan = "7";
          tr.appendChild(td);
 
@@ -81,6 +81,7 @@
       }
 
       let odbExpand = false;
+      let updateTimer;
 
       function expand() {
          let rarr = document.getElementById('expRight');
@@ -102,14 +103,46 @@
          // find key belonging to 'path'
          let dirs = path.split('/');
          let o = odb;
-         for (let l=2 ; l<dirs.length ; l++) {
+         for (let l=1 ; l<dirs.length ; l++) {
             for (let i = 0 ; i<o.key.length ; i++)
                if (o.key[i].name == dirs[l]) {
-                 o.key[i].subdir_open = true;
-                 break;
+                  if (l == dirs.length-1)
+                     o.key[i].subdir_open = !o.key[i].subdir_open;
+                  else
+                     o = o.key[i].value; // recurse one level
+                  break;
                }
          }
+         odb.skip_yellow = true;
          odb_update(odb);
+      }
+
+      function subdir_goto(path) {
+         // kill old timer
+         if (updateTimer !== undefined)
+            window.clearTimeout(updateTimer);
+
+         // initialize ODB object
+         odb = { id: odb.id, path: path, level: 0, dataIndex: 0, key: [] };
+
+         odb.skip_yellow = true;
+         odb_update(odb);
+      }
+
+      let numClicks = 0;
+      let singleClickTimer;
+      function subdir_click(path) {
+         numClicks++;
+         if (numClicks === 1) {
+            singleClickTimer = setTimeout(() => {
+               numClicks = 0;
+               subdir_open(path);
+            }, 200);
+         } else if (numClicks === 2) {
+            clearTimeout(singleClickTimer);
+            numClicks = 0;
+            subdir_goto(path);
+         }
       }
 
       function push_paths(paths, odb, path) {
@@ -120,7 +153,7 @@
                if (odb.key[i].value.id === undefined) {
                   odb.key[i].value = {
                      id: odb.id,
-                     path: odb.path + '/' + odb.key[i].name,
+                     path: odb.path === '/' ? '/' + odb.key[i].name : odb.path + '/' + odb.key[i].name,
                      level: odb.level + 1,
                      dataIndex: paths.length,
                      key: []
@@ -132,9 +165,29 @@
       }
 
       function odb_update(odb) {
+
+         if (updateTimer !== undefined)
+            window.clearTimeout(updateTimer);
          let d = document.getElementById(odb.id);
          let tb = d.firstChild.firstChild;
-         let row = 3;
+         let row = { i:3 };
+
+         // show clickable ODB path
+         let dirs;
+         if (odb.path === '/')
+            dirs = ['/'];
+         else
+            dirs = odb.path.split('/');
+         let path = '';
+         let s = "<a href='#' onclick=\"subdir_goto('/')\">/</a>&nbsp;";
+         for (let i=1 ; i<dirs.length ; i++) {
+            path += "/" + dirs[i];
+            s += "<a href='#' onclick=\"subdir_goto('" + path + "')\">"+dirs[i]+"</a>";
+            if (i < dirs.length - 1)
+               s += "&nbsp;/&nbsp;";
+         }
+         if (s != tb.childNodes[1].firstChild.innerHTML)
+            tb.childNodes[1].firstChild.innerHTML = s;
 
          // request ODB data
          let paths = [];
@@ -143,8 +196,9 @@
          mjsonrpc_db_ls(paths).then(rpc => {
             odb_extract(odb, rpc.result.data);
             odb_print(tb, row, odb);
+            odb.skip_yellow = false;
 
-            window.setTimeout(odb_update, 1000, odb);
+            updateTimer = window.setTimeout(odb_update, 1000, odb);
          }).catch(error => mjsonrpc_error_alert(error));
       }
 
@@ -195,13 +249,20 @@
 
       function odb_print(tb, row, odb) {
          for (const key of odb.key) {
-            odb_print_key(tb, row++, odb.path, key);
-            if (key.type === TID_KEY && key.subdir_open)
+            odb_print_key(tb, odb, row.i++, odb.path, key);
+            if (key.type === TID_KEY && key.subdir_open) {
+               key.value.skip_yellow = odb.skip_yellow;
                odb_print(tb, row, key.value);
+            }
          }
+         if (odb.level === 0)
+            while (tb.childNodes.length > row.i)
+               tb.removeChild(tb.childNodes[tb.childNodes.length-1]);
       }
 
-      function odb_print_key(tb, row, path, key) {
+      function odb_print_key(tb, odb, row, path, key) {
+         // console.log(row, odb.skip_yellow, key.name);
+
          // create empty row
          let tr = document.createElement('TR');
 
@@ -209,12 +270,23 @@
          let td = document.createElement('TD');
          td.className = 'odbKey';
          tr.appendChild(td);
-         if (key.type === TID_KEY)
-            td.innerHTML = "<a href='#' " +
-                    "onclick=\"subdir_open(\'"+path+"/"+key.name+"\');return false;\">\u25B6 "
-                    + key.name + "</a>";
-         else
-            td.appendChild(document.createTextNode(key.name));
+         let indent = "";
+         for (let i=0 ; i<odb.level ; i++)
+            indent += "&nbsp;&nbsp;&nbsp;";
+         if (key.type === TID_KEY) {
+            if (path === '/')
+               path = "";
+            let handler = "onclick=\"subdir_click(\'" + path + "/" + key.name + "\')\" ";
+            if (key.subdir_open)
+               td.innerHTML = indent + "<a href='#' " +
+                       handler +
+                       "> \u25BE " + key.name + "</a>";
+            else
+               td.innerHTML = indent + "<a href='#' " +
+                       handler +
+                       "> \u25B8 " + key.name + "</a>";
+         } else
+            td.innerHTML = indent + key.name;
 
          if (key.type === TID_KEY) {
             td.colSpan = "7";
@@ -309,7 +381,7 @@
                   changed = true;
 
                tb.childNodes[row].replaceWith(tr);
-               if (changed)
+               if (changed && !odb.skip_yellow)
                   tb.childNodes[row].childNodes[1].style.backgroundColor = 'var(--myellow)';
             }
          }
@@ -317,7 +389,7 @@
    </script>
 </head>
 
-<body class="mcss" onload="mhttpd_init('ODB'); odb_init('odb', '/Experiment')">
+<body class="mcss" onload="mhttpd_init('ODB'); odb_init('odb', '/')">
 
    <div id="mheader"></div>
    <div id="msidenav"></div>
