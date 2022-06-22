@@ -2698,6 +2698,17 @@ int SchemaHistoryBase::hs_define_event(const char* event_name, time_t timestamp,
 
    s->disabled = false;
 
+   // keep only active variables
+   std::vector<HsSchemaEntry> active_vars;
+
+   for (auto& var : s->variables) {
+      if (!var.inactive) {
+         active_vars.push_back(var);
+      }
+   }
+
+   s->variables = active_vars;
+
    // find empty slot in events list
    for (unsigned int i=0; i<fEvents.size(); i++)
       if (!fEvents[i]) {
@@ -2738,12 +2749,6 @@ int SchemaHistoryBase::hs_write_event(const char* event_name, time_t timestamp, 
    if (s->n_bytes == 0) { // compute expected data size
       // NB: history data does not have any padding!
       for (unsigned i=0; i<s->variables.size(); i++) {
-         // NB: inactive is only used by SQL history,
-         // inactive columns are not written to database,
-         // but they are still present in the data and should
-         // be counted in the expected data size. K.O.
-         //if (s->variables[i].inactive)
-         //continue;
          s->n_bytes += s->variables[i].n_bytes;
       }
    }
