@@ -250,8 +250,10 @@
          }
 
          // if local data remaining, ODB key must have been deleted, so delete also local data
-         if (odb.key.length > n)
+         if (odb.key.length > n) {
             odb.key = odb.key.slice(0, n);
+            odb.skip_yellow = true;
+         }
       }
 
       function odb_print(tb, row, odb) {
@@ -338,7 +340,8 @@
                let edit = '<a href="#" data-all="1" onclick="ODBInlineEdit(this.parentNode, \'' + p + '\');return false;" ' +
                        'onfocus="ODBInlineEdit(this.parentNode, \'' + p + '\')" title="Set array elements to same value">';
 
-               td.innerHTML = 'n=' + key.value.length + '&nbsp;&nbsp;' + edit + '*' + '</a>';
+               td.innerHTML = '<a href="#" onclick="resize_array(\''+p+'\','+key.value.length+')">n='
+                       + key.value.length + '</a>&nbsp;&nbsp;' + edit + '*' + '</a>';
             } else {
                let edit = '<a href="#" onclick="ODBInlineEdit(this.parentNode, \'' + p + '\');return false;" ' +
                        'onfocus="ODBInlineEdit(this.parentNode, \'' + p + '\')" title="Change value">';
@@ -566,10 +569,14 @@
          }
       }
 
-      function inline_edit(e, path) {
-         console.log(path);
+      function resize_array(path, n) {
+         dlgQuery("Enter size of array:", n, do_resize, path);
       }
 
+      function do_resize(n, path) {
+         mjsonrpc_db_resize([path],[parseInt(n)]).then(rpc => {
+         }).catch(error => mjsonrpc_error_alert(error));
+      }
    </script>
 </head>
 
