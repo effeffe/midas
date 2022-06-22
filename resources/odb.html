@@ -1,30 +1,330 @@
 <!DOCTYPE html>
-<html class="mcss" lang="en">
-<!--Created by Shuoyi Ma in 27st July 2017-->
+<html lang="en">
+<!-- Full ODB editor as pure custom page -->
+<!-- Created by Stefan Ritt on July 21st, 2022 -->
 
 <head>
    <meta charset="UTF-8">
    <link rel="stylesheet" href="midas.css" type="text/css">
    <script src="midas.js"></script>
    <script src="mhttpd.js"></script>
-   <title>MIDAS online database</title>
+   <script src="controls.js"></script>
+   <title>MIDAS online database editor</title>
+
+   <style>
+      #odb .colHeader {
+         font-weight: bold;
+      }
+      #odb .mtable {
+         border-spacing: 0;
+      }
+      #odb td, th {
+         padding: 3px;
+      }
+   </style>
+   <script>
+
+      let odb = {};
+
+      function odb_init(id, path) {
+         // initialize ODB object
+         odb = { id: id, path: path, level: 0, dataIndex: 0, key: [] };
+
+         // crate table header
+         let d = document.getElementById(id);
+         let table = document.createElement('TABLE');
+         table.className = "mtable";
+         let tb = document.createElement('TBODY');
+         table.appendChild(tb);
+         let tr = document.createElement('TR');
+         tb.appendChild(tr);
+         let th = document.createElement('TH');
+         tr.appendChild(th);
+         th.className = "mtableheader";
+         th.colSpan = "7";
+         th.appendChild(document.createTextNode("Online Database Browser"));
+
+         tr = document.createElement('TR');
+         tb.appendChild(tr);
+         let td = document.createElement('TD');
+         td.appendChild(document.createTextNode(path));
+         td.colSpan = "7";
+         tr.appendChild(td);
+
+         tr = document.createElement('TR');
+         tb.appendChild(tr);
+         let a = [ "Key", "Value", "Type", "#Val", "Size", "Written", "Mode" ];
+         for (const t of a) {
+            let td = document.createElement('TD');
+            td.appendChild(document.createTextNode(t));
+            td.className = 'colHeader';
+            if (t !== "Key" && t !== "Value") {
+               td.setAttribute('name', 'odbExt');
+               td.style.display = odbExpand ? 'table-cell' : 'none';
+            }
+            tr.appendChild(td);
+         }
+
+         tr.childNodes[1].innerHTML +=
+                 "<div title='Show key details' style='display:inline;float:right'>" +
+                 "<a id='expRight' href='#' onclick='expand();return false;'>&#x21E5;</a>"+
+                 "</div>";
+
+         tr.childNodes[6].innerHTML +=
+                 "&nbsp;<div title='Hide key details' style='display:inline;float:right'>" +
+                 "<a id='expRight' href='#' onclick='expand();return false;'>&#x21E4;</a>"+
+                 "</div>";
+
+         d.appendChild(table);
+
+         odb_update(odb);
+      }
+
+      let odbExpand = false;
+
+      function expand() {
+         let rarr = document.getElementById('expRight');
+         let n = document.getElementsByName('odbExt');
+         odbExpand = !odbExpand;
+
+         if (odbExpand) {
+            for (const d of n)
+               d.style.display = 'table-cell';
+            rarr.style.display = 'none';
+         } else {
+            for (const d of n)
+               d.style.display = 'none';
+            rarr.style.display = 'inline';
+         }
+      }
+
+      function subdir_open(path) {
+         // find key belonging to 'path'
+         let dirs = path.split('/');
+         let o = odb;
+         for (let l=2 ; l<dirs.length ; l++) {
+            for (let i = 0 ; i<o.key.length ; i++)
+               if (o.key[i].name == dirs[l]) {
+                 o.key[i].subdir_open = true;
+                 break;
+               }
+         }
+         odb_update(odb);
+      }
+
+      function push_paths(paths, odb, path) {
+         odb.dataIndex = paths.length;
+         paths.push(path);
+         for (let i=0 ; i< odb.key.length ; i++) {
+            if (odb.key[i].type === TID_KEY && odb.key[i].subdir_open) {
+               if (odb.key[i].value.id === undefined) {
+                  odb.key[i].value = {
+                     id: odb.id,
+                     path: odb.path + '/' + odb.key[i].name,
+                     level: odb.level + 1,
+                     dataIndex: paths.length,
+                     key: []
+                  };
+               }
+               push_paths(paths, odb.key[i].value, odb.key[i].value.path);
+            }
+         }
+      }
+
+      function odb_update(odb) {
+         let d = document.getElementById(odb.id);
+         let tb = d.firstChild.firstChild;
+         let row = 3;
+
+         // request ODB data
+         let paths = [];
+         push_paths(paths, odb, odb.path);
+
+         mjsonrpc_db_ls(paths).then(rpc => {
+            odb_extract(odb, rpc.result.data);
+            odb_print(tb, row, odb);
+
+            window.setTimeout(odb_update, 1000, odb);
+         }).catch(error => mjsonrpc_error_alert(error));
+      }
+
+      function odb_extract(odb, dataArray) {
+         let data = dataArray[odb.dataIndex];
+         let n = 0;
+         for (const item in data) {
+            if (item.indexOf('/') !== -1)
+               continue;
+
+            let key = {};
+            key.name = item;
+            key.value = data[item];
+            if (typeof key.value === 'object' && Object.keys(key.value).length === 0) {
+               key.type = TID_KEY;
+               key.subdir_open = false;
+               key.num_values = 1;
+               key.size = 0;
+               key.last_written = 0;
+               key.access_mode = 0;
+            } else {
+               key.type = data[item + '/key'].type;
+               key.num_values = data[item + '/key'].num_values;
+               if (key.num_values === undefined)
+                  key.num_values = 1;
+               key.size = tid_size[key.type];
+               key.last_written = data[item + '/key'].last_written;
+               key.access_mode = data[item + '/key'].access_mode;
+            }
+
+            if (odb.key.length <= n)
+               odb.key.push(key);
+            else {
+               if (odb.key[n].subdir_open) {
+                  key.subdir_open = true;
+                  key.value = odb.key[n].value;
+               }
+               odb.key[n] = key;
+            }
+            n++;
+
+            if (key.type === TID_KEY && key.subdir_open) {
+               odb_extract(odb.key[n-1].value, dataArray);
+            }
+
+         }
+      }
+
+      function odb_print(tb, row, odb) {
+         for (const key of odb.key) {
+            odb_print_key(tb, row++, odb.path, key);
+            if (key.type === TID_KEY && key.subdir_open)
+               odb_print(tb, row, key.value);
+         }
+      }
+
+      function odb_print_key(tb, row, path, key) {
+         // create empty row
+         let tr = document.createElement('TR');
+
+         // Key name
+         let td = document.createElement('TD');
+         td.className = 'odbKey';
+         tr.appendChild(td);
+         if (key.type === TID_KEY)
+            td.innerHTML = "<a href='#' " +
+                    "onclick=\"subdir_open(\'"+path+"/"+key.name+"\');return false;\">\u25B6 "
+                    + key.name + "</a>";
+         else
+            td.appendChild(document.createTextNode(key.name));
+
+         if (key.type === TID_KEY) {
+            td.colSpan = "7";
+
+            if (tb.childNodes.length > row) {
+               if (!tb.childNodes[row].isEqualNode(tr))
+                  tb.childNodes[row].replaceWith(tr);
+            } else
+               tb.appendChild(tr);
+
+            return;
+         }
+
+         // Value
+         td = document.createElement('TD');
+         td.className = 'odbKey';
+         tr.appendChild(td);
+         td.appendChild(document.createTextNode(key.value));
+
+         // Type
+         td = document.createElement('TD');
+         td.className = 'odbKey';
+         td.setAttribute('name', 'odbExt');
+         td.style.display = odbExpand ? 'table-cell' : 'none';
+         tr.appendChild(td);
+         td.appendChild(document.createTextNode(tid_name[key.type]));
+
+         // #Val
+         td = document.createElement('TD');
+         td.className = 'odbKey';
+         td.setAttribute('name', 'odbExt');
+         td.style.display = odbExpand ? 'table-cell' : 'none';
+         tr.appendChild(td);
+         td.appendChild(document.createTextNode(key.num_values));
+
+         // Size
+         td = document.createElement('TD');
+         td.className = 'odbKey';
+         td.setAttribute('name', 'odbExt');
+         td.style.display = odbExpand ? 'table-cell' : 'none';
+         tr.appendChild(td);
+         td.appendChild(document.createTextNode(key.size));
+
+         // Written
+         td = document.createElement('TD');
+         td.className = 'odbKey';
+         td.setAttribute('name', 'odbExt');
+         td.style.display = odbExpand ? 'table-cell' : 'none';
+         tr.appendChild(td);
+         let s = Math.floor(0.5 + new Date().getTime() / 1000 - key.last_written);
+         let t;
+         if (s < 60)
+            t = s + 's';
+         else if (s < 60 * 60)
+            t = Math.floor(0.5 + s / 60) + 'm';
+         else if (s < 60 * 60 * 24)
+            t = Math.floor(0.5 + s / 60 / 60) + 'h';
+         else if (s < 60 * 60 * 24 * 99)
+            t = Math.floor(0.5 + s / 60 / 60 / 24) + 'd';
+         else
+            t = ">99d";
+         td.appendChild(document.createTextNode(t));
+
+         // Mode
+         td = document.createElement('TD');
+         td.className = 'odbKey';
+         td.setAttribute('name', 'odbExt');
+         td.style.display = odbExpand ? 'table-cell' : 'none';
+         tr.appendChild(td);
+         let mode = key.access_mode;
+         let m = "";
+         if (mode & MODE_READ)
+            m += "R";
+         if (mode & MODE_WRITE)
+            m += "W";
+         if (mode & MODE_DELETE)
+            m += "D";
+         if (mode & MODE_EXCLUSIVE)
+            m += "X";
+         if (mode & MODE_WATCH)
+            m += "W";
+         td.appendChild(document.createTextNode(m));
+
+         if (row >= tb.childNodes.length) {
+            tb.appendChild(tr);
+         } else {
+            if (!tb.childNodes[row].isEqualNode(tr)) {
+               let changed = false;
+
+               if (tb.childNodes[row].childNodes[1] !== undefined &&
+                       tr.childNodes[1].innerHTML !== tb.childNodes[row].childNodes[1].innerHTML)
+                  changed = true;
+
+               tb.childNodes[row].replaceWith(tr);
+               if (changed)
+                  tb.childNodes[row].childNodes[1].style.backgroundColor = 'var(--myellow)';
+            }
+         }
+      }
+   </script>
 </head>
 
-<body class="mcss" onload="mhttpd_init('ODB')">
+<body class="mcss" onload="mhttpd_init('ODB'); odb_init('odb', '/Experiment')">
 
    <div id="mheader"></div>
    <div id="msidenav"></div>
 
    <div id="mmain">
-
-
-
-      
+      <div id="odb"></div>
    </div>
 
-
-
 </body>
-
-
 </html>

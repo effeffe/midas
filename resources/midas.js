@@ -32,6 +32,28 @@ const tid_name = [
    "UINT64"
 ];
 
+const tid_size = [
+   0,
+   1,
+   1,
+   1,
+   2,
+   2,
+   4,
+   4,
+   4,
+   4,
+   8,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   8,
+   8
+];
+
 const TID_BYTE     =  1;
 const TID_UINT8    =  1;
 const TID_SBYTE    =  2;
@@ -84,6 +106,13 @@ const TR_PAUSE      =    4;   /**< Pause transition */
 const TR_RESUME     =    8;   /**< Resume transition  */
 const TR_STARTABORT =   16;   /**< Start aborted transition  */
 const TR_DEFERRED   = 4096;
+
+const MODE_READ      = (1<<0);
+const MODE_WRITE     = (1<<1);
+const MODE_DELETE    = (1<<2);
+const MODE_EXCLUSIVE = (1<<3);
+const MODE_ALLOC     = (1<<6);
+const MODE_WATCH     = (1<<7);
 
 /// \defgroup mjsonrpc_js JSON-RPC Javascript library (mjsonrpc_xxx)
 
