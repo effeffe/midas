@@ -374,15 +374,39 @@
             tb.appendChild(tr);
          } else {
             if (!tb.childNodes[row].isEqualNode(tr)) {
-               let changed = false;
+               if (tr.childNodes.length === 1) { // Subdir
+                  tb.childNodes[row].replaceWith(tr);
+               } else if (tr.childNodes.length === 7) { // Key
+                  if (tb.childNodes[row].childNodes[0].colSpan !== 1)
+                     tb.childNodes[row].childNodes[0].colSpan = "1";
+                  for (let i = 0; i < 7; i++) {
+                     let changed = false;
 
-               if (tb.childNodes[row].childNodes[1] !== undefined &&
-                       tr.childNodes[1].innerHTML !== tb.childNodes[row].childNodes[1].innerHTML)
-                  changed = true;
+                     if (tb.childNodes[row].childNodes[i] !== undefined &&
+                             tr.childNodes[i].innerHTML !== tb.childNodes[row].childNodes[i].innerHTML)
+                        changed = true;
 
-               tb.childNodes[row].replaceWith(tr);
-               if (changed && !odb.skip_yellow)
-                  tb.childNodes[row].childNodes[1].style.backgroundColor = 'var(--myellow)';
+                     if (tb.childNodes[row].childNodes[i] === undefined)
+                        tb.childNodes[row].appendChild(tr.childNodes[i].cloneNode(true));
+                     else
+                        tb.childNodes[row].childNodes[i].innerHTML = tr.childNodes[i].innerHTML;
+
+                     let e = tb.childNodes[row].childNodes[i];
+                     if (changed && !odb.skip_yellow && i !== 5) {
+                        e.style.backgroundColor = 'var(--myellow)';
+                        e.style.setProperty("-webkit-transition", "", "");
+                        e.style.setProperty("transition", "", "");
+                        e.age = new Date() / 1000;
+                     }
+
+                     if (e.age !== undefined && new Date() / 1000 > e.age + 1) {
+                        e.style.setProperty("-webkit-transition", "background-color 1s", "");
+                        e.style.setProperty("transition", "background-color 1s", "");
+                        e.style.backgroundColor = "";
+                     }
+
+                  }
+               }
             }
          }
       }
