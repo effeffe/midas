@@ -2205,11 +2205,12 @@ static INT scheduler() {
             max_bytes_per_sec = 0;
             for (i = 0; equipment[i].name[0]; i++) {
                eq = &equipment[i];
-               eq->stats.events_per_sec =
-                  n_events[i] / ((actual_millitime - last_time_rate) / 1000.0);
-               eq->stats.kbytes_per_sec =
-                  eq->bytes_sent / 1000.0 / ((actual_millitime - last_time_rate) / 1000.0);
+               double e = n_events[i] / ((actual_millitime - last_time_rate) / 1000.0);
+               eq->stats.events_per_sec = ((int)(e * 100 + 0.5)) / 100.0;
 
+               e = eq->bytes_sent / 1000.0 / ((actual_millitime - last_time_rate) / 1000.0);
+               eq->stats.kbytes_per_sec = ((int)(e * 1000 + 0.5)) / 1000.0;
+               
                if ((INT) eq->bytes_sent > max_bytes_per_sec)
                   max_bytes_per_sec = (INT) eq->bytes_sent;
 
