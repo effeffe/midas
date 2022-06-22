@@ -198,7 +198,7 @@
             odb_print(tb, row, odb);
             odb.skip_yellow = false;
 
-            updateTimer = window.setTimeout(odb_update, 1000, odb);
+            updateTimer = window.setTimeout(odb_update, 100000, odb);
          }).catch(error => mjsonrpc_error_alert(error));
       }
 
@@ -249,19 +249,29 @@
 
       function odb_print(tb, row, odb) {
          for (const key of odb.key) {
-            odb_print_key(tb, odb, row.i++, odb.path, key);
+            // Print current key
+            odb_print_key(tb, odb, row, odb.path, key);
+            row.i++;
+
+            // Print whole subdirectory if open
             if (key.type === TID_KEY && key.subdir_open) {
+
+               // Propagate skip_yellow flag (dirctory just opened) to all subkeys
                key.value.skip_yellow = odb.skip_yellow;
+
+               // Print whole subdirectory
                odb_print(tb, row, key.value);
             }
          }
+
+         // At the end, remove old rows if subdirectory has been closed
          if (odb.level === 0)
             while (tb.childNodes.length > row.i)
                tb.removeChild(tb.childNodes[tb.childNodes.length-1]);
       }
 
       function odb_print_key(tb, odb, row, path, key) {
-         // console.log(row, odb.skip_yellow, key.name);
+         console.log(row, key.name, key.value);
 
          // create empty row
          let tr = document.createElement('TR');
@@ -270,9 +280,13 @@
          let td = document.createElement('TD');
          td.className = 'odbKey';
          tr.appendChild(td);
+
+         // Add three spaces of indent for each level
          let indent = "";
          for (let i=0 ; i<odb.level ; i++)
             indent += "&nbsp;&nbsp;&nbsp;";
+
+         // Print subdir with open subdir handler
          if (key.type === TID_KEY) {
             if (path === '/')
                path = "";
@@ -288,12 +302,13 @@
          } else
             td.innerHTML = indent + key.name;
 
+         // Subdirs occupy all 7 columns
          if (key.type === TID_KEY) {
             td.colSpan = "7";
 
-            if (tb.childNodes.length > row) {
-               if (!tb.childNodes[row].isEqualNode(tr))
-                  tb.childNodes[row].replaceWith(tr);
+            if (tb.childNodes.length > row.i) {
+               if (!tb.childNodes[row.i].isEqualNode(tr))
+                  tb.childNodes[row.i].replaceWith(tr);
             } else
                tb.appendChild(tr);
 
@@ -304,7 +319,11 @@
          td = document.createElement('TD');
          td.className = 'odbKey';
          tr.appendChild(td);
-         td.appendChild(document.createTextNode(key.value));
+
+         if (Array.isArray(key.value))
+            td.appendChild(document.createTextNode(key.value.length + '  *'));
+         else
+            td.appendChild(document.createTextNode(key.value));
 
          // Type
          td = document.createElement('TD');
@@ -370,28 +389,28 @@
             m += "W";
          td.appendChild(document.createTextNode(m));
 
-         if (row >= tb.childNodes.length) {
+         if (row.i >= tb.childNodes.length) {
             tb.appendChild(tr);
          } else {
-            if (!tb.childNodes[row].isEqualNode(tr)) {
+            if (!tb.childNodes[row.i].isEqualNode(tr)) {
                if (tr.childNodes.length === 1) { // Subdir
-                  tb.childNodes[row].replaceWith(tr);
+                  tb.childNodes[row.i].replaceWith(tr);
                } else if (tr.childNodes.length === 7) { // Key
-                  if (tb.childNodes[row].childNodes[0].colSpan !== 1)
-                     tb.childNodes[row].childNodes[0].colSpan = "1";
+                  if (tb.childNodes[row.i].childNodes[0].colSpan !== 1)
+                     tb.childNodes[row.i].childNodes[0].colSpan = "1";
                   for (let i = 0; i < 7; i++) {
                      let changed = false;
 
-                     if (tb.childNodes[row].childNodes[i] !== undefined &&
-                             tr.childNodes[i].innerHTML !== tb.childNodes[row].childNodes[i].innerHTML)
+                     if (tb.childNodes[row.i].childNodes[i] !== undefined &&
+                             tr.childNodes[i].innerHTML !== tb.childNodes[row.i].childNodes[i].innerHTML)
                         changed = true;
 
-                     if (tb.childNodes[row].childNodes[i] === undefined)
-                        tb.childNodes[row].appendChild(tr.childNodes[i].cloneNode(true));
+                     if (tb.childNodes[row.i].childNodes[i] === undefined)
+                        tb.childNodes[row.i].appendChild(tr.childNodes[i].cloneNode(true));
                      else
-                        tb.childNodes[row].childNodes[i].innerHTML = tr.childNodes[i].innerHTML;
+                        tb.childNodes[row.i].childNodes[i].innerHTML = tr.childNodes[i].innerHTML;
 
-                     let e = tb.childNodes[row].childNodes[i];
+                     let e = tb.childNodes[row.i].childNodes[i];
                      if (changed && !odb.skip_yellow && i !== 5) {
                         e.style.backgroundColor = 'var(--myellow)';
                         e.style.setProperty("-webkit-transition", "", "");
@@ -405,6 +424,75 @@
                         e.style.backgroundColor = "";
                      }
 
+                  }
+               }
+            }
+         }
+
+         // Print array values
+         if (Array.isArray(key.value)) {
+            for (let i=0 ; i<key.value.length ; i++) {
+               row.i++;
+
+               // create empty row
+               let tr = document.createElement('TR');
+
+               // Key name
+               let td = document.createElement('TD');
+               td.className = 'odbKey';
+               tr.appendChild(td);
+
+               // Key value
+               td = document.createElement('TD');
+               td.className = 'odbKey';
+               tr.appendChild(td);
+               td.appendChild(document.createTextNode('['+i+'] '+key.value[i]));
+
+               // Empty fill cells
+               for (let i=0 ; i<5 ; i++) {
+                  td = document.createElement('TD');
+                  td.className = 'odbKey';
+                  td.setAttribute('name', 'odbExt');
+                  td.style.display = odbExpand ? 'table-cell' : 'none';
+                  tr.appendChild(td);
+               }
+
+               if (row.i >= tb.childNodes.length) {
+                  tb.appendChild(tr);
+               } else {
+                  if (!tb.childNodes[row.i].isEqualNode(tr)) {
+                     if (tr.childNodes.length === 1) { // Subdir
+                        tb.childNodes[row.i].replaceWith(tr);
+                     } else if (tr.childNodes.length === 7) { // Key
+                        if (tb.childNodes[row.i].childNodes[0].colSpan !== 1)
+                           tb.childNodes[row.i].childNodes[0].colSpan = "1";
+                        for (let i = 0; i < 7; i++) {
+                           let changed = false;
+
+                           if (tb.childNodes[row.i].childNodes[i] !== undefined &&
+                                   tr.childNodes[i].innerHTML !== tb.childNodes[row.i].childNodes[i].innerHTML)
+                              changed = true;
+
+                           if (tb.childNodes[row.i].childNodes[i] === undefined)
+                              tb.childNodes[row.i].appendChild(tr.childNodes[i].cloneNode(true));
+                           else
+                              tb.childNodes[row.i].childNodes[i].innerHTML = tr.childNodes[i].innerHTML;
+
+                           let e = tb.childNodes[row.i].childNodes[i];
+                           if (changed && !odb.skip_yellow && i !== 5) {
+                              e.style.backgroundColor = 'var(--myellow)';
+                              e.style.setProperty("-webkit-transition", "", "");
+                              e.style.setProperty("transition", "", "");
+                              e.age = new Date() / 1000;
+                           }
+
+                           if (e.age !== undefined && new Date() / 1000 > e.age + 1) {
+                              e.style.setProperty("-webkit-transition", "background-color 1s", "");
+                              e.style.setProperty("transition", "background-color 1s", "");
+                              e.style.backgroundColor = "";
+                           }
+                        }
+                     }
                   }
                }
             }
