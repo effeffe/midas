@@ -3397,10 +3397,9 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
       MJSO* doc = MJSO::I();
       doc->D("read event buffers");
       doc->P("buffer_name", MJSON_STRING, "name of event buffer");
+      doc->P("event_id?", MJSON_INT, "requested event id, -1 means any event id");
+      doc->P("trigger_mask?", MJSON_INT, "requested trigger mask, -1 means any trigger mask");
       doc->P("timeout_millisec?", MJSON_NUMBER, "how long to wait for an event");
-      //doc->P("run_number?", MJSON_INT, "New run number, value 0 means /runinfo/run_number + 1, default is 0");
-      //doc->P("async_flag?", MJSON_INT, "Transition type. Default is multithreaded transition TR_MTHREAD");
-      //doc->P("debug_flag?", MJSON_INT, "See cm_transition(), value 1: trace to stdout, value 2: trace to midas.log");
       doc->R("binary data", MJSON_ARRAYBUFFER, "binary event data");
       doc->R("status", MJSON_INT, "return status of bm_open_buffer(), bm_request_event(), bm_set_cache_size(), bm_receive_alloc()");
       return doc;
@@ -3409,11 +3408,18 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
    MJsonNode* error = NULL;
 
    std::string buffer_name  = mjsonrpc_get_param(params, "buffer_name", &error)->GetString(); if (error) return error;
+   int event_id = mjsonrpc_get_param(params, "event_id", NULL)->GetInt();
+   int trigger_mask = mjsonrpc_get_param(params, "trigger_mask", NULL)->GetInt();
    int timeout_millisec = mjsonrpc_get_param(params, "timeout_millisec", NULL)->GetInt();
-   //int run_number = mjsonrpc_get_param(params, "run_number", NULL)->GetInt();
-   //int async_flag = mjsonrpc_get_param(params, "async_flag", NULL)->GetInt();
-   //int debug_flag = mjsonrpc_get_param(params, "debug_flag", NULL)->GetInt();
 
+   if (event_id == 0)
+      event_id = EVENTID_ALL;
+
+   if (trigger_mask == 0)
+      trigger_mask = TRIGGER_ALL;
+
+   //printf("js_bm_receive_event: buffer \"%s\", event_id %d, trigger_mask 0x%04x\n", buffer_name.c_str(), event_id, trigger_mask);
+ 
    int status;
 
    HNDLE buffer_handle = 0;
@@ -3445,7 +3451,7 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
             return mjsonrpc_make_result(result);
          }
          int request_id = 0;
-         status = bm_request_event(buffer_handle, EVENTID_ALL, TRIGGER_ALL, GET_NONBLOCKING, &request_id, NULL);
+         status = bm_request_event(buffer_handle, event_id, trigger_mask, GET_NONBLOCKING, &request_id, NULL);
          if (status != BM_SUCCESS) {
             MJsonNode* result = MJsonNode::MakeObject();
             result->AddToObject("status", MJsonNode::MakeInt(status));

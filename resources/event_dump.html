@@ -80,11 +80,12 @@
             </select>
             &nbsp;&nbsp;&nbsp;
             <label for="event_id">Event ID:</label>
-            <select id="event_id">
+            <select id="event_id_x">
             </select>
+            <input type="text" id="event_id" size="6" value="-1"></input>
             &nbsp;&nbsp;&nbsp;
             Trigger mask:
-            <input type="text" id="trigger_mask" size="5" value="0"></input>
+            <input type="text" id="trigger_mask" size="6" value="-1"></input>
             &nbsp;
          </td>
       </tr>
@@ -257,7 +258,10 @@
    function update() {
       clearTimeout(update_timer_id);
       let buffer_name = document.getElementById("buffer_name").value;
-      mjsonrpc_call("bm_receive_event", {"buffer_name":buffer_name}, "arraybuffer").then(function (rpc) {
+      let event_id = parseInt(document.getElementById("event_id").value);
+      let trigger_mask = parseInt(document.getElementById("trigger_mask").value);
+      //console.log("bm_receive_event: buffer: " + buffer_name + ", event_id: " + event_id + ", trigger_mask: " + trigger_mask);
+      mjsonrpc_call("bm_receive_event", {"buffer_name":buffer_name,"event_id":event_id,"trigger_mask":trigger_mask}, "arraybuffer").then(function (rpc) {
          let success = callback(rpc);
          if (run_flag || !success)
             update_timer_id = setTimeout('update()', 1000);
@@ -295,10 +299,10 @@
          }
          mjsonrpc_db_get_values(eq_odb).then(function(rpc) {
 
-            for (let i=0 ; i<rpc.result.data.length ; i++) {
-               eq_id.push(Number(rpc.result.data[i]));
-               document.getElementById("event_id").add(new Option(eq_name[i] + " - " + eq_id[i]));
-            }
+            //for (let i=0 ; i<rpc.result.data.length ; i++) {
+            //   eq_id.push(Number(rpc.result.data[i]));
+            //   document.getElementById("event_id_x").add(new Option(eq_name[i] + " - " + eq_id[i]));
+            //}
 
             update();
 
