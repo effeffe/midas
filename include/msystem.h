@@ -482,16 +482,6 @@ typedef struct {
    void* info;                  /* addtl. info for dispatcher */
 } WATCH_LIST;
 
-/* Event request descriptor */
-
-typedef struct {
-   INT buffer_handle;           /* Buffer handle */
-   short int event_id;          /* same as in EVENT_HEADER */
-   short int trigger_mask;
-   EVENT_HANDLER* dispatcher;   /* Dispatcher func. */
-
-} REQUEST_LIST;
-
 /**dox***************************************************************/
 /** @} *//* end of mssectionh */
 

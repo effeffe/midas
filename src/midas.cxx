@@ -200,8 +200,26 @@ static std::vector<BUFFER*> gBuffers;
 static INT _msg_buffer = 0;
 static EVENT_HANDLER *_msg_dispatch = NULL;
 
-static REQUEST_LIST *_request_list;
-static INT _request_list_entries = 0;
+/* Event request descriptor */
+
+struct EventRequest
+{
+   INT buffer_handle = 0;            /* Buffer handle */
+   short int event_id = 0;           /* same as in EVENT_HEADER */
+   short int trigger_mask = 0;       /* same as in EVENT_HEADER */
+   EVENT_HANDLER* dispatcher = NULL; /* Dispatcher func. */
+
+   void clear()
+   {
+      buffer_handle = 0;
+      event_id = 0;
+      trigger_mask = 0;
+      dispatcher = NULL;
+   }
+};
+
+static std::mutex _request_list_mutex;
+static std::vector<EventRequest> _request_list;
 
 //static char *_tcp_buffer = NULL;
 //static INT _tcp_wp = 0;
@@ -7105,10 +7123,16 @@ INT bm_close_buffer(INT buffer_handle) {
 
       int i;
 
-      /* delete all requests for this buffer */
-      for (i = 0; i < _request_list_entries; i++)
-         if (_request_list[i].buffer_handle == buffer_handle)
-            bm_delete_request(i);
+      { /* delete all requests for this buffer */
+         _request_list_mutex.lock();
+         std::vector<EventRequest> request_list_copy = _request_list;
+         _request_list_mutex.unlock();
+         for (size_t i = 0; i < request_list_copy.size(); i++) {
+            if (request_list_copy[i].buffer_handle == buffer_handle) {
+               bm_delete_request(i);
+            }
+         }
+      }
 
       HNDLE hDB;
       cm_get_experiment_database(&hDB, NULL);
@@ -8454,51 +8478,41 @@ should be increased.
 INT bm_request_event(HNDLE buffer_handle, short int event_id,
                      short int trigger_mask,
                      INT sampling_type, HNDLE *request_id,
-                     EVENT_HANDLER *func) {
-   INT idx, status;
+                     EVENT_HANDLER *func)
+{
+   assert(request_id != NULL);
+   
+   EventRequest r;
+   r.buffer_handle = buffer_handle;
+   r.event_id      = event_id;
+   r.trigger_mask  = trigger_mask;
+   r.dispatcher    = func;
 
-   /* allocate new space for the local request list */
-   if (_request_list_entries == 0) {
-      _request_list = (REQUEST_LIST *) M_MALLOC(sizeof(REQUEST_LIST));
-      memset(_request_list, 0, sizeof(REQUEST_LIST));
-      if (_request_list == NULL) {
-         cm_msg(MERROR, "bm_request_event", "not enough memory to allocate request list buffer");
-         return BM_NO_MEMORY;
-      }
-
-      _request_list_entries = 1;
-      idx = 0;
-   } else {
-      /* check for a deleted entry */
-      for (idx = 0; idx < _request_list_entries; idx++)
-         if (!_request_list[idx].buffer_handle)
+   {
+      std::lock_guard<std::mutex> guard(_request_list_mutex);
+   
+      bool found = false;
+      
+      // find deleted entry
+      for (size_t i = 0; i < _request_list.size(); i++) {
+         if (_request_list[i].buffer_handle == 0) {
+            _request_list[i] = r;
+            *request_id = i;
+            found = true;
             break;
-
-      /* if not found, create new one */
-      if (idx == _request_list_entries) {
-         _request_list =
-                 (REQUEST_LIST *) realloc(_request_list, sizeof(REQUEST_LIST) * (_request_list_entries + 1));
-         if (_request_list == NULL) {
-            cm_msg(MERROR, "bm_request_event", "not enough memory to allocate request list buffer");
-            return BM_NO_MEMORY;
          }
-
-         memset(&_request_list[_request_list_entries], 0, sizeof(REQUEST_LIST));
-
-         _request_list_entries++;
       }
+      
+      if (!found) { // not found
+         *request_id = _request_list.size();
+         _request_list.push_back(r);
+      }
+
+      // implicit unlock()
    }
 
-   /* initialize request list */
-   _request_list[idx].buffer_handle = buffer_handle;
-   _request_list[idx].event_id = event_id;
-   _request_list[idx].trigger_mask = trigger_mask;
-   _request_list[idx].dispatcher = func;
-
-   *request_id = idx;
-
    /* add request in buffer structure */
-   status = bm_add_event_request(buffer_handle, event_id, trigger_mask, sampling_type, func, idx);
+   int status = bm_add_event_request(buffer_handle, event_id, trigger_mask, sampling_type, func, *request_id);
    if (status != BM_SUCCESS)
       return status;
 
@@ -8581,16 +8595,23 @@ event requests from that buffer are deleted automatically
 @param request_id request identifier given by bm_request_event()
 @return BM_SUCCESS, BM_INVALID_HANDLE
 */
-INT bm_delete_request(INT request_id) {
-   if (request_id < 0 || request_id >= _request_list_entries)
+INT bm_delete_request(INT request_id)
+{
+   _request_list_mutex.lock();
+   
+   if (request_id < 0 || request_id >= _request_list.size()) {
+      _request_list_mutex.unlock();
       return BM_INVALID_HANDLE;
+   }
+
+   int buffer_handle = _request_list[request_id].buffer_handle;
+
+   _request_list[request_id].clear();
+
+   _request_list_mutex.unlock();
 
    /* remove request entry from buffer */
-   int status = bm_remove_event_request(_request_list[request_id].buffer_handle, request_id);
-
-   memset(&_request_list[request_id], 0, sizeof(REQUEST_LIST));
-
-   return status;
+   return bm_remove_event_request(buffer_handle, request_id);
 }
 
 #if 0                           // currently not used
@@ -8813,19 +8834,34 @@ static void bm_wakeup_producers_locked(const BUFFER_HEADER *pheader, const BUFFE
    }
 }
 
-static void bm_dispatch_event(int buffer_handle, EVENT_HEADER *pevent) {
-   int i;
-
+static void bm_dispatch_event(int buffer_handle, EVENT_HEADER *pevent)
+{
+   _request_list_mutex.lock();
+   bool locked = true;
+   size_t n = _request_list.size();
    /* call dispatcher */
-   for (i = 0; i < _request_list_entries; i++)
-      if (_request_list[i].buffer_handle == buffer_handle &&
-          bm_match_event(_request_list[i].event_id, _request_list[i].trigger_mask, pevent)) {
-         /* if event is fragmented, call defragmenter */
-         if (((uint16_t(pevent->event_id) & uint16_t(0xF000)) == uint16_t(EVENTID_FRAG1)) || ((uint16_t(pevent->event_id) & uint16_t(0xF000)) == uint16_t(EVENTID_FRAG)))
-            bm_defragment_event(buffer_handle, i, pevent, (void *) (pevent + 1), _request_list[i].dispatcher);
-         else
-            _request_list[i].dispatcher(buffer_handle, i, pevent, (void *) (pevent + 1));
+   for (size_t i = 0; i < n; i++) {
+      if (!locked) {
+         _request_list_mutex.lock();
+         locked = true;
       }
+      EventRequest r = _request_list[i];
+      if (r.buffer_handle != buffer_handle)
+         continue;
+      if (!bm_match_event(r.event_id, r.trigger_mask, pevent))
+         continue;
+      /* must release the lock on the request list: user provided r.dispatcher() can add or remove event requests, and we will deadlock. K.O. */
+      _request_list_mutex.unlock();
+      locked = false;
+      /* if event is fragmented, call defragmenter */
+      if (((uint16_t(pevent->event_id) & uint16_t(0xF000)) == uint16_t(EVENTID_FRAG1)) || ((uint16_t(pevent->event_id) & uint16_t(0xF000)) == uint16_t(EVENTID_FRAG))) {
+         bm_defragment_event(buffer_handle, i, pevent, (void *) (pevent + 1), r.dispatcher);
+      } else {
+         r.dispatcher(buffer_handle, i, pevent, (void *) (pevent + 1));
+      }
+   }
+   if (locked)
+      _request_list_mutex.unlock();
 }
 
 #ifdef LOCAL_ROUTINES
@@ -11121,32 +11157,42 @@ INT bm_poll_event()
 
 \********************************************************************/
 {
-   INT status;
-   DWORD start_time;
    BOOL dispatched_something = FALSE;
 
    //printf("bm_poll_event!\n");
 
-   start_time = ss_millitime();
+   DWORD start_time = ss_millitime();
 
    std::vector<char> vec;
 
    /* loop over all requests */
-   int request_id;
-   for (request_id = 0; request_id < _request_list_entries; request_id++) {
+   _request_list_mutex.lock();
+   bool locked = true;
+   size_t n = _request_list.size();
+   for (size_t i = 0; i < n; i++) {
+      if (!locked) {
+         _request_list_mutex.lock();
+         locked = true;
+      }
       /* continue if no dispatcher set (manual bm_receive_event) */
-      if (_request_list[request_id].dispatcher == NULL)
+      if (_request_list[i].dispatcher == NULL)
          continue;
+
+      int buffer_handle = _request_list[i].buffer_handle;
+
+      /* must release the lock on the request list: user provided r.dispatcher() can add or remove event requests, and we will deadlock. K.O. */
+      _request_list_mutex.unlock();
+      locked = false;
 
       do {
          /* receive event */
-         status = bm_receive_event_vec(_request_list[request_id].buffer_handle, &vec, BM_NO_WAIT);
+         int status = bm_receive_event_vec(buffer_handle, &vec, BM_NO_WAIT);
 
-         //printf("bm_poll_event: request_id %d, buffer_handle %d, bm_receive_event(BM_NO_WAIT) status %d, vec size %d, capacity %d\n", request_id, _request_list[request_id].buffer_handle, status, (int)vec.size(), (int)vec.capacity());
+         //printf("bm_poll_event: request_id %d, buffer_handle %d, bm_receive_event(BM_NO_WAIT) status %d, vec size %d, capacity %d\n", request_id, buffer_handle, status, (int)vec.size(), (int)vec.capacity());
 
          /* call user function if successful */
          if (status == BM_SUCCESS) {
-            bm_dispatch_event(_request_list[request_id].buffer_handle, (EVENT_HEADER*)vec.data());
+            bm_dispatch_event(buffer_handle, (EVENT_HEADER*)vec.data());
             dispatched_something = TRUE;
          }
 
@@ -11175,6 +11221,9 @@ INT bm_poll_event()
 
       } while (TRUE);
    }
+
+   if (locked)
+      _request_list_mutex.unlock();
 
    if (dispatched_something)
       return BM_SUCCESS;
