@@ -7150,7 +7150,7 @@ void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
                   else if (delta < 86400)
                      r->rsprintf("%1.0lfh", delta / 3600.0);
                   else if (delta < 86400 * 99)
-                     r->rsprintf("%1.0lfh", delta / 86400.0);
+                     r->rsprintf("%1.0lfd", delta / 86400.0);
                   else
                      r->rsprintf(">99d");
                   r->rsprintf("</td>\n");
