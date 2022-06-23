@@ -224,6 +224,7 @@
                key.access_mode = 0;
             } else {
                key.type = data[item + '/key'].type;
+               key.link = data[item + '/key'].link;
                key.num_values = data[item + '/key'].num_values;
                if (key.num_values === undefined)
                   key.num_values = 1;
@@ -285,10 +286,20 @@
       function odb_print_key(tb, odb, row, path, key) {
          // console.log(row, key.name, key.value);
 
+         // extract edit mode
+         let valueEdit = tb.childNodes[row.i] !== undefined &&
+                 tb.childNodes[row.i].childNodes[1] !== undefined &&
+                 tb.childNodes[row.i].childNodes[1].inEdit;
+         let linkEdit = tb.childNodes[row.i] !== undefined  &&
+                 tb.childNodes[row.i].childNodes[0] !== undefined &&
+                 tb.childNodes[row.i].childNodes[0].childNodes[1] != undefined &&
+                 tb.childNodes[row.i].childNodes[0].childNodes[1].inEdit;
+
          // only print key if not in edit mode
-         if (tb.childNodes[row.i] === undefined ||
-             tb.childNodes[row.i].childNodes[1] === undefined ||
-             !tb.childNodes[row.i].childNodes[1].inEdit) {
+         if (!valueEdit && !linkEdit) {
+
+            // ful path to key
+            let keyPath = (path === '/' ? '/' + key.name : path + '/' + key.name);
 
             // create empty row
             let tr = document.createElement('TR');
@@ -319,6 +330,15 @@
             } else
                td.innerHTML = indent + key.name;
 
+            // add link if present
+            if (key.link !== undefined) {
+               let edit = '<a href="#" data-link="' + key.link +
+                       '" onclick="ODBInlineEdit(this.parentNode, \'' + keyPath + '\');return false;" ' +
+                       'onfocus="ODBInlineEdit(this.parentNode, \'' + keyPath + '\')" title="Change value">';
+
+               td.innerHTML += " &rarr; <span>" + edit + key.link + "</a></span>";
+            }
+
             // Subdirs occupy all 7 columns
             if (key.type === TID_KEY) {
                td.colSpan = "7";
@@ -337,20 +357,20 @@
             td.className = 'odbKey';
             tr.appendChild(td);
 
-            let p = (path === '/' ? '/' + key.name : path + '/' + key.name);
-
             if (Array.isArray(key.value)) {
-               let edit = '<a href="#" data-all="1" onclick="ODBInlineEdit(this.parentNode, \'' + p + '\');return false;" ' +
-                       'onfocus="ODBInlineEdit(this.parentNode, \'' + p + '\')" title="Set array elements to same value">';
+               let edit = '<a href="#" data-all="1" onclick="ODBInlineEdit(this.parentNode, \'' + keyPath + '\');return false;" ' +
+                       'onfocus="ODBInlineEdit(this.parentNode, \'' + keyPath + '\')" title="Set array elements to same value">';
 
                td.innerHTML = edit + '*' + '</a>';
             } else {
-               let edit = '<a href="#" onclick="ODBInlineEdit(this.parentNode, \'' + p + '\');return false;" ' +
-                       'onfocus="ODBInlineEdit(this.parentNode, \'' + p + '\')" title="Change value">';
+               let edit = '<a href="#" onclick="ODBInlineEdit(this.parentNode, \'' + keyPath + '\');return false;" ' +
+                       'onfocus="ODBInlineEdit(this.parentNode, \'' + keyPath + '\')" title="Change value">';
 
                let v = key.value.toString();
                if (key.type === TID_STRING && v === "")
                   v = "(empty)";
+               else if (key.type === TID_LINK)
+                  v = '<span style="color:red;background-color:yellow">(cannot resolve link)</span>';
                else if (key.type === TID_BOOL)
                   v = (key.value ? 'y' : 'n') + ' (' + (key.value ? '1' : '0') + ')';
                else if (v.substring(0, 2) === "0x")
@@ -374,7 +394,7 @@
             td.setAttribute('name', 'odbExt');
             td.style.display = odbExpand ? 'table-cell' : 'none';
             tr.appendChild(td);
-            td.innerHTML = '<a href="#" onclick="resize_array(\''+p+'\','+key.num_values+')">'
+            td.innerHTML = '<a href="#" onclick="resize_array(\''+keyPath+'\','+key.num_values+')">'
                     + key.num_values + '</a>';
 
             // Size
@@ -384,7 +404,7 @@
             td.style.display = odbExpand ? 'table-cell' : 'none';
             tr.appendChild(td);
             if (key.type === TID_STRING)
-               td.innerHTML = '<a href="#" onclick="resize_string(\''+p+'\','+key.item_size+','+key.num_values+')">'
+               td.innerHTML = '<a href="#" onclick="resize_string(\''+keyPath+'\','+key.item_size+','+key.num_values+')">'
                        + key.item_size + '</a>';
             else
                td.innerHTML = key.item_size;
