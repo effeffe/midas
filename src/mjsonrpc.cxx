@@ -3451,7 +3451,7 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
             return mjsonrpc_make_result(result);
          }
          int request_id = 0;
-         status = bm_request_event(buffer_handle, event_id, trigger_mask, GET_NONBLOCKING, &request_id, NULL);
+         status = bm_request_event(buffer_handle, EVENTID_ALL, TRIGGER_ALL, GET_NONBLOCKING, &request_id, NULL);
          if (status != BM_SUCCESS) {
             MJsonNode* result = MJsonNode::MakeObject();
             result->AddToObject("status", MJsonNode::MakeInt(status));
@@ -3460,22 +3460,45 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
       }
    }
 
-   if (timeout_millisec == 0)
-      timeout_millisec = BM_NO_WAIT;
+   if (timeout_millisec <= 0)
+      timeout_millisec = 100.0;
 
-   EVENT_HEADER* pevent = NULL;
+   double start_time = ss_time_sec();
+   double end_time = start_time + timeout_millisec/1000.0;
 
-   status = bm_receive_event_alloc(buffer_handle, &pevent, timeout_millisec);
+   while (1) {
+      EVENT_HEADER* pevent = NULL;
+      
+      status = bm_receive_event_alloc(buffer_handle, &pevent, BM_NO_WAIT);
 
-   if (status != BM_SUCCESS) {
-      MJsonNode* result = MJsonNode::MakeObject();
-      result->AddToObject("status", MJsonNode::MakeInt(status));
-      return mjsonrpc_make_result(result);
+      if (status == BM_SUCCESS) {
+         //printf("got event_id %d, trigger_mask 0x%04x\n", pevent->event_id, pevent->trigger_mask);
+         
+         if (bm_match_event(event_id, trigger_mask, pevent)) {
+            size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
+            //size_t total_size = ALIGN8(event_size);
+            return MJsonNode::MakeArrayBuffer((char*)pevent, event_size);
+         }
+
+         free(pevent);
+         pevent = NULL;
+      } else if (status == BM_ASYNC_RETURN) {
+         ss_sleep(10);
+      } else {
+         MJsonNode* result = MJsonNode::MakeObject();
+         result->AddToObject("status", MJsonNode::MakeInt(status));
+         return mjsonrpc_make_result(result);
+      }
+
+      if (ss_time_sec() > end_time) {
+         //printf("timeout!\n");
+         break;
+      }
    }
-
-   size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
-   //size_t total_size = ALIGN8(event_size);
-   return MJsonNode::MakeArrayBuffer((char*)pevent, event_size);
+      
+   MJsonNode* result = MJsonNode::MakeObject();
+   result->AddToObject("status", MJsonNode::MakeInt(BM_ASYNC_RETURN));
+   return mjsonrpc_make_result(result);
 }
 
 /////////////////////////////////////////////////////////////////////////////////

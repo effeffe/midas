@@ -1831,6 +1831,7 @@ flags for db_json_save() */
    INT EXPRT bm_set_cache_size(INT buffer_handle, size_t read_size, size_t write_size);
    INT EXPRT bm_compose_event(EVENT_HEADER * event_header, short int event_id, short int trigger_mask, DWORD data_size, DWORD serial);
    INT EXPRT bm_compose_event_threadsafe(EVENT_HEADER *event_header, short int event_id, short int trigger_mask, DWORD data_size, DWORD *serial);
+   INT EXPRT bm_match_event(short int event_id, short int trigger_mask, const EVENT_HEADER *pevent);
    INT EXPRT bm_request_event(INT buffer_handle,
                               short int event_id,
                               short int trigger_mask,
