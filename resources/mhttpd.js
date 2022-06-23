@@ -252,17 +252,10 @@ function ODBFinishInlineEdit(p, path, bracket) {
       return;
    p.inEdit = false;
 
-   if (p.editAll)
-      path += '[*]';
-
    if (p.childNodes.length === 2)
       value = p.childNodes[1].value;
    else
       value = p.childNodes[0].value;
-
-   if (p.editLink) {
-      mjsonrpc_db_link();
-   }
 
    //console.log("mie_write odb [" + path + "] value [" + value + "]");
 
@@ -282,10 +275,8 @@ function ODBFinishInlineEdit(p, path, bracket) {
       value = p.childNodes[0].value;
 
    mjsonrpc_db_set_value(path, value).then(function (rpc) {
-      //mjsonrpc_debug_alert(rpc);
       p.ODBsent = true;
-      if (!p.editAll)
-         mie_back_to_link(p, path, bracket);
+      mie_back_to_link(p, path, bracket);
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
    });
@@ -374,18 +365,6 @@ function ODBInlineEdit(p, odb_path, bracket) {
    if (p.inEdit)
       return;
    p.inEdit = true;
-   p.editAll = p.childNodes[0] !== undefined &&
-       p.childNodes[0].dataset !== undefined &&
-       p.childNodes[0].dataset.all === '1';
-   p.editLink = p.childNodes[0] !== undefined &&
-       p.childNodes[0].dataset !== undefined &&
-       p.childNodes[0].dataset.link !== undefined;
-
-   if (p.editLink) {
-      mie_link_to_edit(p, odb_path, bracket, p.childNodes[0].dataset.link,
-          p.childNodes[0].dataset.link.length);
-      return;
-   }
 
    mjsonrpc_db_get_values([odb_path]).then(function (rpc) {
       let value = rpc.result.data[0];

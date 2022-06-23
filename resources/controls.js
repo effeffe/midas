@@ -842,6 +842,28 @@ function dlgConfirm(string, confirmCallback, param) {
    return d;
 }
 
+function dlgQueryKeyDown(event, inp) {
+   let keyCode = ('which' in event) ? event.which : event.keyCode;
+
+   if (keyCode === 27) {
+      // cancel editing
+      let d = inp.parentElement.parentElement.parentElement;
+      d.callback(false, d.callbackParam);
+      dlgMessageDestroy(inp.parentElement);
+      return false;
+   }
+
+   if (keyCode === 13) {
+      // finish editing
+      let d = inp.parentElement.parentElement.parentElement;
+      d.callback(inp.value, d.callbackParam);
+      dlgMessageDestroy(inp.parentElement);
+      return false;
+   }
+
+   return true;
+}
+
 function dlgQuery(string, value, queryCallback, param) {
    let d = document.createElement("div");
    d.className = "dlgFrame";
@@ -850,19 +872,22 @@ function dlgQuery(string, value, queryCallback, param) {
    d.callbackParam = param;
    d.shouldDestroy = true;
 
-   d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">Please confirm</div>" +
-      "<div class=\"dlgPanel\" style=\"padding: 20px;\">" +
-      "<div id=\"dlgMessageString\">" + string + "&nbsp;&nbsp;<input type='text' size='30' id='dlgQueryInput' value='" + value + "'></input></div>" +
-      "<br /><br />" +
-      "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
-      " onClick=\"let d=this.parentElement.parentElement;d.callback(document.getElementById('dlgQueryInput').value,d.callbackParam);dlgMessageDestroy(this);\">OK</button>" +
-      "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
-      " onClick=\"let d=this.parentElement.parentElement;d.callback(false,d.callbackParam);dlgMessageDestroy(this);\">Cancel</button>" +
-      "</div>";
+   d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">&nbsp;</div>" +
+       "<div class=\"dlgPanel\" style=\"padding: 20px;\">" +
+       "<div id=\"dlgMessageString\">" + string + "&nbsp;&nbsp;<input type='text' size='30' id='dlgQueryInput' onkeydown='return dlgQueryKeyDown(event, this);' value='" + value + "'></input></div>" +
+       "<br /><br />" +
+       "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
+       " onClick=\"let d=this.parentElement.parentElement;d.callback(document.getElementById('dlgQueryInput').value,d.callbackParam);dlgMessageDestroy(this);\">OK</button>" +
+       "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
+       " onClick=\"let d=this.parentElement.parentElement;d.callback(false,d.callbackParam);dlgMessageDestroy(this);\">Cancel</button>" +
+       "</div>";
 
    document.body.appendChild(d);
 
    dlgShow(d, true);
+   document.getElementById('dlgQueryInput').focus();
+   document.getElementById('dlgQueryInput').select();
+
    return d;
 }
 

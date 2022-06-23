@@ -1,3 +1,5 @@
 https://feathericons.com/
 
-Modify in Inkscape to 50% grey
+Size: 24px
+Stroke width: 2px
+Color: #808080
