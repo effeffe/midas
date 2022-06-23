@@ -3433,7 +3433,7 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
 
       if (status != BM_SUCCESS) {
          status = bm_open_buffer(buffer_name.c_str(), 0, &buffer_handle);
-         if (status != BM_SUCCESS) {
+         if (status != BM_SUCCESS && status != BM_CREATED) {
             MJsonNode* result = MJsonNode::MakeObject();
             result->AddToObject("status", MJsonNode::MakeInt(status));
             return mjsonrpc_make_result(result);
