@@ -3391,6 +3391,119 @@ static MJsonNode* js_cm_transition(const MJsonNode* params)
 //
 /////////////////////////////////////////////////////////////////////////////////
 
+static const EVENT_HEADER* CopyEvent(const EVENT_HEADER* pevent)
+{
+   size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
+   //size_t total_size = ALIGN8(event_size);
+   EVENT_HEADER* ptr = (EVENT_HEADER*)malloc(event_size);
+   assert(ptr);
+   memcpy(ptr, pevent, event_size);
+   return ptr;
+}
+
+struct EventStashEntry
+{
+   std::string buffer_name;
+   int event_id = 0;
+   int trigger_mask = 0;
+   const EVENT_HEADER* pevent = NULL;
+
+   ~EventStashEntry() // dtor
+   {
+      //Print(); printf(", dtor!\n");
+      buffer_name.clear();
+      event_id = 0;
+      trigger_mask = 0;
+      if (pevent)
+         free((void*)pevent);
+      pevent = NULL;
+   }
+
+   void ReplaceEvent(const EVENT_HEADER* xpevent)
+   {
+      if (pevent) {
+         free((void*)pevent);
+         pevent = NULL;
+      }
+      pevent = CopyEvent(xpevent);
+   }
+
+   void Print() const
+   {
+      printf("EventStashEntry: %s,%d,0x%x,%p", buffer_name.c_str(), event_id, trigger_mask, pevent);
+      if (pevent)
+         printf(", size %d, serial %d, time %d, event_id %d, trigger_mask %x", pevent->data_size, pevent->serial_number, pevent->time_stamp, pevent->event_id, pevent->trigger_mask);
+   }
+};
+
+static std::mutex gEventStashMutex;
+static std::vector<EventStashEntry*> gEventStash;
+
+static void StashEvent(const std::string buffer_name, int event_id, int trigger_mask, const EVENT_HEADER* pevent)
+{
+   std::lock_guard<std::mutex> guard(gEventStashMutex);
+   bool found = false;
+   for (EventStashEntry* s : gEventStash) {
+      if (s->buffer_name != buffer_name)
+         continue;
+      if (s->event_id == event_id && s->trigger_mask == trigger_mask) {
+         found = true;
+         s->ReplaceEvent(pevent);
+         //s->Print(); printf(", replaced\n");
+      } else if (bm_match_event(s->event_id, s->trigger_mask, pevent)) {
+         s->ReplaceEvent(pevent);
+         //s->Print(); printf(", matched\n");
+      }
+   }
+   if (!found) {
+      EventStashEntry* s = new EventStashEntry();
+      s->buffer_name = buffer_name;
+      s->event_id = event_id;
+      s->trigger_mask = trigger_mask;
+      s->pevent = CopyEvent(pevent);
+      //s->Print(); printf(", added\n");
+      gEventStash.push_back(s);
+   }
+}
+
+static void MatchEvent(const std::string buffer_name, const EVENT_HEADER* pevent)
+{
+   std::lock_guard<std::mutex> guard(gEventStashMutex);
+   for (EventStashEntry* s : gEventStash) {
+      if (s->buffer_name != buffer_name)
+         continue;
+      if (bm_match_event(s->event_id, s->trigger_mask, pevent)) {
+         s->ReplaceEvent(pevent);
+         //s->Print(); printf(", matched\n");
+      }
+   }
+}
+
+static void DeleteEventStash()
+{
+   std::lock_guard<std::mutex> guard(gEventStashMutex);
+   for (size_t i=0; i<gEventStash.size(); i++) {
+      if (gEventStash[i]) {
+         delete gEventStash[i];
+         gEventStash[i] = NULL;
+      }
+   }
+}
+
+static const EVENT_HEADER* FindEvent(const std::string buffer_name, int event_id, int trigger_mask)
+{
+   std::lock_guard<std::mutex> guard(gEventStashMutex);
+   for (EventStashEntry* s : gEventStash) {
+      if (s->buffer_name != buffer_name)
+         continue;
+      if (bm_match_event(event_id, trigger_mask, s->pevent)) {
+         //s->Print(); printf(", serving for %d,0x%x\n", event_id, trigger_mask);
+         return CopyEvent(s->pevent);
+      }
+   }
+   return NULL;
+}
+
 static MJsonNode* js_bm_receive_event(const MJsonNode* params)
 {
    if (!params) {
@@ -3473,12 +3586,16 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
 
       if (status == BM_SUCCESS) {
          //printf("got event_id %d, trigger_mask 0x%04x\n", pevent->event_id, pevent->trigger_mask);
-         
+
          if (bm_match_event(event_id, trigger_mask, pevent)) {
+            StashEvent(buffer_name, event_id, trigger_mask, pevent);
+         
             size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
             //size_t total_size = ALIGN8(event_size);
             return MJsonNode::MakeArrayBuffer((char*)pevent, event_size);
          }
+
+         MatchEvent(buffer_name, pevent);
 
          free(pevent);
          pevent = NULL;
@@ -3494,6 +3611,13 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
          //printf("timeout!\n");
          break;
       }
+   }
+
+   const EVENT_HEADER* pevent = FindEvent(buffer_name, event_id, trigger_mask);
+   if (pevent) {
+      size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
+      //size_t total_size = ALIGN8(event_size);
+      return MJsonNode::MakeArrayBuffer((char*)pevent, event_size);
    }
       
    MJsonNode* result = MJsonNode::MakeObject();
@@ -4190,6 +4314,7 @@ void mjsonrpc_exit()
    }
 
    js_hs_exit();
+   DeleteEventStash();
 }
 
 static MJsonNode* mjsonrpc_make_schema(MethodsTable* h)
