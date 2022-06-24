@@ -199,6 +199,50 @@ public:
 #endif
 };
 
+class EqRare :
+   public TMFeEquipment
+{
+public:
+   EqRare(const char* eqname, const char* eqfilename) // ctor
+      : TMFeEquipment(eqname, eqfilename)
+   {
+      fEqConfEventID = 4;
+      fEqConfPeriodMilliSec = 10000;
+      fEqConfLogHistory = 0;
+      fEqConfWriteEventsToOdb = false;
+      fEqConfReadOnlyWhenRunning = false;
+   }
+
+   TMFeResult HandleInit(const std::vector<std::string>& args)
+   {
+      return TMFeOk();
+   }
+   
+   void SendData(double dvalue)
+   {
+      char buf[1024];
+      ComposeEvent(buf, sizeof(buf));
+      BkInit(buf, sizeof(buf));
+         
+      double* ptr = (double*)BkOpen(buf, "rare", TID_DOUBLE);
+      *ptr++ = dvalue;
+      BkClose(buf, ptr);
+
+      EqSendEvent(buf);
+   }
+
+   void HandlePeriodic()
+   {
+      //printf("EqSlow::HandlePeriodic!\n");
+      double t = TMFE::GetTime();
+      double data = 100.0*sin(-M_PI/2.0+M_PI*t/60);
+      SendData(data);
+      char status_buf[256];
+      sprintf(status_buf, "value %.1f", data);
+      EqSetStatus(status_buf, "#00FF00");
+   }
+};
+
 class EqBulk :
    public TMFeEquipment
 {
@@ -473,6 +517,7 @@ public:
       FeAddEquipment(new EqRpc("test_rpc", __FILE__));
       FeAddEquipment(new EqRandom("test_random", __FILE__));
       FeAddEquipment(new EqSlow("test_slow", __FILE__));
+      FeAddEquipment(new EqRare("test_rare", __FILE__));
       FeAddEquipment(new EqBulk("test_bulk", __FILE__));
    }
 
