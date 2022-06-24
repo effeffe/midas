@@ -8599,7 +8599,7 @@ INT bm_delete_request(INT request_id)
 {
    _request_list_mutex.lock();
    
-   if (request_id < 0 || request_id >= _request_list.size()) {
+   if (request_id < 0 || size_t(request_id) >= _request_list.size()) {
       _request_list_mutex.unlock();
       return BM_INVALID_HANDLE;
    }
