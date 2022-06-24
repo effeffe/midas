@@ -80,7 +80,7 @@
             </select>
             &nbsp;&nbsp;&nbsp;
             <label for="event_id">Event ID:</label>
-            <select id="event_id_x">
+            <select id="event_id_x" onchange="select_event_id()">
             </select>
             <input type="text" id="event_id" size="6" value="-1"></input>
             &nbsp;&nbsp;&nbsp;
@@ -88,6 +88,9 @@
             <input type="text" id="trigger_mask" size="6" value="-1"></input>
             &nbsp;
          </td>
+      </tr>
+      <tr>
+         <td align=center><span id="status">status</span></td>
       </tr>
       <tr>
          <td class="mtableheader" id="event_header">Event dump</td>
@@ -131,6 +134,13 @@
    //   dlgAlert("Not yet implemented");
    //}
 
+   function select_event_id() {
+      let v = document.getElementById("event_id_x").value;
+      //console.log("selected: " + v);
+      let e = document.getElementById("event_id");
+      e.value = parseInt(v);
+   }
+
    function set_if_changed(e, v) {
       if (e.innerHTML !== v)
          e.innerHTML = v;
@@ -147,16 +157,18 @@
    let lastEvent;
 
    function callback(rpc) {
+      let e = document.getElementById("status");
       if (rpc.result) {
          let status = rpc.result.status;
-         let e = document.getElementById("dump");
          if (status === 209) {
-            set_if_changed(e, "Waiting for events...");
+            set_if_changed(e, "Waiting for next event...");
          } else {
             set_if_changed(e, "No data, status = " + status);
          }
          return false;
       }
+
+      set_if_changed(e, "");
 
       let event = bkToObj(rpc);
       lastEvent = event;
@@ -296,7 +308,7 @@
          a = rpc.result.data[1];
          let eq_odb = [];
          let eq_name = [];
-         let eq_id = [];
+         //let eq_id = [];
 
          for (const e in a) {
             if (e.indexOf("/") !== -1)
@@ -307,10 +319,14 @@
          }
          mjsonrpc_db_get_values(eq_odb).then(function(rpc) {
 
-            //for (let i=0 ; i<rpc.result.data.length ; i++) {
-            //   eq_id.push(Number(rpc.result.data[i]));
-            //   document.getElementById("event_id_x").add(new Option(eq_name[i] + " - " + eq_id[i]));
-            //}
+            //eq_id.push(Number(-1));
+            document.getElementById("event_id_x").add(new Option("-1 : ALL"));
+
+            for (let i=0 ; i<rpc.result.data.length ; i++) {
+               //   eq_id.push(Number(rpc.result.data[i]));
+               let event_id = Number(rpc.result.data[i]);
+               document.getElementById("event_id_x").add(new Option(event_id + " : " + eq_name[i]));
+            }
 
             update();
 
