@@ -361,19 +361,21 @@ public:
       printf("begin_of_run %d\n", run_number);
       
       int fail = 0;
-      fOdbEqSettings->RI("fail_begin_of_run", &fail, true);
+      fOdbEqSettings->RI("begin_of_run_fail", &fail, true);
       
       if (fail) {
          printf("fail_begin_of_run: returning error status %d\n", fail);
          return TMFeErrorMessage("begin of run failed by ODB setting!");
       }
       
-      int s = 0;
-      fOdbEqSettings->RI("sleep_begin_of_run", &s, true);
+      double s = 0;
+      fOdbEqSettings->RD("begin_of_run_sleep_sec", &s, true);
       
       if (s) {
-         printf("sleep_begin_of_run: calling ss_sleep(%d)\n", s);
-         ss_sleep(s);
+         fMfe->SetWatchdogSec(s + 1);
+         int ms = int(s*1000.0);
+         printf("sleep_begin_of_run: calling ss_sleep(%d)\n", ms);
+         ss_sleep(ms);
       }
       
       return TMFeOk();
@@ -387,19 +389,21 @@ public:
       printf("end_of_run %d\n", run_number);
       
       int fail = 0;
-      fOdbEqSettings->RI("fail_end_of_run", &fail, true);
+      fOdbEqSettings->RI("end_of_run_fail", &fail, true);
       
       if (fail) {
          printf("fail_end_of_run: returning error status %d\n", fail);
          return TMFeResult(fail, "end of run failed by ODB setting!");
       }
       
-      int s = 0;
-      fOdbEqSettings->RI("sleep_end_of_run", &s, true);
+      double s = 0;
+      fOdbEqSettings->RD("end_of_run_sleep_sec", &s, true);
       
       if (s) {
-         printf("sleep_end_of_run: calling ss_sleep(%d)\n", s);
-         ss_sleep(s);
+         fMfe->SetWatchdogSec(s + 1);
+         int ms = int(s*1000.0);
+         printf("sleep_end_of_run: calling ss_sleep(%d)\n", ms);
+         ss_sleep(ms);
       }
       
       return TMFeOk();
@@ -413,7 +417,7 @@ public:
       printf("pause_run %d\n", run_number);
 
       int fail = 0;
-      fOdbEqSettings->RI("fail_pause_run", &fail, true);
+      fOdbEqSettings->RI("pause_run_fail", &fail, true);
       
       if (fail) {
          printf("fail_pause_run: returning error status %d\n", fail);
@@ -431,7 +435,7 @@ public:
       printf("resume_run %d\n", run_number);
 
       int fail = 0;
-      fOdbEqSettings->RI("fail_resume_run", &fail, true);
+      fOdbEqSettings->RI("resume_run_fail", &fail, true);
       
       if (fail) {
          printf("fail_resume_run: returning error status %d\n", fail);
@@ -449,7 +453,7 @@ public:
       printf("start abort run %d\n", run_number);
 
       int fail = 0;
-      fOdbEqSettings->RI("fail_start_abort", &fail, true);
+      fOdbEqSettings->RI("start_abort_fail", &fail, true);
       
       if (fail) {
          printf("fail_start_abort: returning error status %d\n", fail);
