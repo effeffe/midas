@@ -104,7 +104,7 @@
    // Globals ------------------
    let update_timer_id;
    let run_flag = false;
-   let recent_events = false;
+   //let recent_events = false;
 
    function next() {
       update();
@@ -175,7 +175,7 @@
       d += "<td>Trigger&nbsp;Mask: " + o.trigger_mask + "&nbsp;/&nbsp;0x" + o.trigger_mask.toString(16) + "</td>"
       d += "<td>Serial&nbsp;Number: " + o.serial_number + "</td>"
       d += "<td>Size&nbsp;[Bytes]: " + o.data_size + "&nbsp;/&nbsp;0x" + o.data_size.toString(16) + "</td>"
-      d += "<td>Time&nbsp;stamp: " + o.time_stamp.toLocaleString() + "</td>"
+      d += "<td>Time&nbsp;stamp: " + o.time_stamp_date.toLocaleString() + "</td>"
       d += "</tr>";
       d += "</table>";
 
@@ -264,8 +264,12 @@
       let event_id = parseInt(document.getElementById("event_id").value);
       let trigger_mask = parseInt(document.getElementById("trigger_mask").value);
       let get_recent = document.getElementById("get_recent").checked;
-      //console.log("bm_receive_event: buffer: " + buffer_name + ", event_id: " + event_id + ", trigger_mask: " + trigger_mask + ", get_recent: " + get_recent);
-      mjsonrpc_call("bm_receive_event", {"buffer_name":buffer_name,"event_id":event_id,"trigger_mask":trigger_mask,"get_recent":get_recent}, "arraybuffer").then(function (rpc) {
+      let last_event_header = [];
+      if (lastEvent) {
+         last_event_header = [lastEvent.event_id,lastEvent.trigger_mask,lastEvent.serial_number,lastEvent.time_stamp];
+      }
+      //console.log("bm_receive_event: buffer: " + buffer_name + ", event_id: " + event_id + ", trigger_mask: " + trigger_mask + ", get_recent: " + get_recent + ", last_event_header: " + last_event_header);
+      mjsonrpc_call("bm_receive_event", {"buffer_name":buffer_name,"event_id":event_id,"trigger_mask":trigger_mask,"get_recent":get_recent,"last_event_header":last_event_header}, "arraybuffer").then(function (rpc) {
          let success = callback(rpc);
          if (run_flag || !success)
             update_timer_id = setTimeout('update()', 1000);

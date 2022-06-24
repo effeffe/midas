@@ -3490,15 +3490,23 @@ static void DeleteEventStash()
    }
 }
 
-static const EVENT_HEADER* FindEvent(const std::string buffer_name, int event_id, int trigger_mask)
+static const EVENT_HEADER* FindEvent(const std::string buffer_name, int event_id, int trigger_mask, int last_event_id, int last_trigger_mask, DWORD last_serial_number, DWORD last_time_stamp)
 {
    std::lock_guard<std::mutex> guard(gEventStashMutex);
    for (EventStashEntry* s : gEventStash) {
       if (s->buffer_name != buffer_name)
          continue;
       if (bm_match_event(event_id, trigger_mask, s->pevent)) {
-         //s->Print(); printf(", serving for %d,0x%x\n", event_id, trigger_mask);
-         return CopyEvent(s->pevent);
+         if (s->pevent->event_id == last_event_id
+             && s->pevent->trigger_mask == last_trigger_mask
+             && s->pevent->serial_number == last_serial_number
+             && s->pevent->time_stamp == last_time_stamp) {
+            //s->Print(); printf(", already sent for %d,0x%x\n", event_id, trigger_mask);
+            return NULL;
+         } else {
+            //s->Print(); printf(", serving for %d,0x%x\n", event_id, trigger_mask);
+            return CopyEvent(s->pevent);
+         }
       }
    }
    return NULL;
@@ -3513,6 +3521,7 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
       doc->P("event_id?", MJSON_INT, "requested event id, -1 means any event id");
       doc->P("trigger_mask?", MJSON_INT, "requested trigger mask, -1 means any trigger mask");
       doc->P("get_recent?", MJSON_BOOL, "get last available event that matches this event request");
+      doc->P("last_event_header[]?", MJSON_INT, "do not resend an event we already received: event header of last received event [event_id,trigger_mask,serial_number,time_stamp]");
       doc->P("timeout_millisec?", MJSON_NUMBER, "how long to wait for an event");
       doc->R("binary data", MJSON_ARRAYBUFFER, "binary event data");
       doc->R("status", MJSON_INT, "return status of bm_open_buffer(), bm_request_event(), bm_set_cache_size(), bm_receive_alloc()");
@@ -3525,7 +3534,26 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
    int event_id = mjsonrpc_get_param(params, "event_id", NULL)->GetInt();
    int trigger_mask = mjsonrpc_get_param(params, "trigger_mask", NULL)->GetInt();
    bool get_recent  = mjsonrpc_get_param(params, "get_recent", NULL)->GetBool();
+   const MJsonNodeVector* last_event_header = mjsonrpc_get_param(params, "last_event_header", NULL)->GetArray();
    int timeout_millisec = mjsonrpc_get_param(params, "timeout_millisec", NULL)->GetInt();
+
+   int last_event_id      = 0;
+   int last_trigger_mask  = 0;
+   int last_serial_number = 0;
+   int last_time_stamp    = 0;
+
+   if (last_event_header && last_event_header->size() > 0) {
+      if (last_event_header->size() != 4) {
+         return mjsonrpc_make_error(-32602, "Invalid params", "last_event_header should be an array with 4 elements");
+      }
+      
+      last_event_id      = (*last_event_header)[0]->GetInt();
+      last_trigger_mask  = (*last_event_header)[1]->GetInt();
+      last_serial_number = (*last_event_header)[2]->GetInt();
+      last_time_stamp    = (*last_event_header)[3]->GetInt();
+   }
+
+   //printf("last event header: %d %d %d %d\n", last_event_id, last_trigger_mask, last_serial_number, last_time_stamp);
 
    if (event_id == 0)
       event_id = EVENTID_ALL;
@@ -3593,18 +3621,28 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
       if (status == BM_SUCCESS) {
          //printf("got event_id %d, trigger_mask 0x%04x\n", pevent->event_id, pevent->trigger_mask);
 
-         if (bm_match_event(event_id, trigger_mask, pevent) && !get_recent) {
-            StashEvent(buffer_name, event_id, trigger_mask, pevent);
-         
-            size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
-            //size_t total_size = ALIGN8(event_size);
-            return MJsonNode::MakeArrayBuffer((char*)pevent, event_size);
+         if (get_recent) {
+            if (bm_match_event(event_id, trigger_mask, pevent)) {
+               StashEvent(buffer_name, event_id, trigger_mask, pevent);
+            } else {
+               MatchEvent(buffer_name, pevent);
+            }
+            free(pevent);
+            pevent = NULL;
+         } else {
+            if (bm_match_event(event_id, trigger_mask, pevent)) {
+               StashEvent(buffer_name, event_id, trigger_mask, pevent);
+
+               size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
+               //size_t total_size = ALIGN8(event_size);
+               return MJsonNode::MakeArrayBuffer((char*)pevent, event_size);
+            }
+
+            MatchEvent(buffer_name, pevent);
+            
+            free(pevent);
+            pevent = NULL;
          }
-
-         MatchEvent(buffer_name, pevent);
-
-         free(pevent);
-         pevent = NULL;
       } else if (status == BM_ASYNC_RETURN) {
          if (get_recent) {
             //printf("bm_async_return!\n");
@@ -3623,7 +3661,7 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
       }
    }
 
-   const EVENT_HEADER* pevent = FindEvent(buffer_name, event_id, trigger_mask);
+   const EVENT_HEADER* pevent = FindEvent(buffer_name, event_id, trigger_mask, last_event_id, last_trigger_mask, last_serial_number, last_time_stamp);
    if (pevent) {
       size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
       //size_t total_size = ALIGN8(event_size);

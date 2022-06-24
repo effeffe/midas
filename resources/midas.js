@@ -934,6 +934,7 @@ function bkToObj(array) {
    /// e.trigger_mask   <-/
    /// e.serial_number  <-/
    /// e.time_stamp     <-/
+   /// e.time_stamp_date<-/
    /// e.data_size      <-/
    ///
    /// e.banks_16bit    <-- true if we have 16-bit banks
@@ -961,7 +962,8 @@ function bkToObj(array) {
    e.event_id = data16[0];
    e.trigger_mask = data16[1];
    e.serial_number = data32[1];
-   e.time_stamp = new Date(data32[2]*1000);
+   e.time_stamp = data32[2];
+   e.time_stamp_date = new Date(e.time_stamp*1000);
    e.data_size = data32[3];
    e.bank = [];
    let event_header_size = 16; // bytes
