@@ -319,7 +319,7 @@ public: // multithreaded lock
 
 public: // constructor
    TMFrontend(); // ctor
-   ~TMFrontend(); // dtor
+   virtual ~TMFrontend(); // dtor
    
 public: // main program, main event loop
    int FeMain(int argc, char* argv[]);
