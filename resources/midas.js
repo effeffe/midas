@@ -976,9 +976,10 @@ function bkToObj(array) {
 
    let i8 = event_header_size + bank_header_size;
 
-   // iterate over banks
-   do {
+   //console.log("AAA bank type: " + e.banks_16bit + e.banks_32bit + e.banks_32bita);
 
+   // iterate over banks
+   while(i8 < e.data_size + event_header_size) {
       let b = {};
       b.name = String.fromCharCode(data8[i8], data8[i8 + 1], data8[i8 + 2], data8[i8 + 3]);
       if (e.banks_16bit) {
@@ -997,16 +998,47 @@ function bkToObj(array) {
       if (b.type >= tid_name.length)
          b.type = 0;
 
-      b.data = array.slice(i8, i8+b.size);
-      i8 += b.size;
+      let size_align = 1;
 
-      if (e.banks_32bit) {
-         let pad = align8(b.size) - b.size;
-         i8 += pad;
-      } else
-         i8 = align8(i8);
+      if (b.type === TID_INT8) {
+      } else if (b.type === TID_UINT8) {
+      } else if (b.type === TID_INT16) {
+         size_align = 2;
+      } else if (b.type === TID_UINT16) {
+         size_align = 2;
+      } else if (b.type === TID_INT32) {
+         size_align = 4;
+      } else if (b.type === TID_UINT32) {
+         size_align = 4;
+      } else if (b.type === TID_INT64) {
+         size_align = 8;
+      } else if (b.type === TID_UINT64) {
+         size_align = 8;
+      } else if (b.type === TID_FLOAT) {
+         size_align = 4;
+      } else if (b.type === TID_DOUBLE) {
+         size_align = 8;
+      } else {
+      }
+
+      let aligned_size = align8(b.size);
+
+      if (b.size % size_align != 0) {
+         //console.log("b.size: " + b.size + " misalign: " + b.size % size_align);
+         b.size -= (b.size % size_align);
+      }
+
+      b.data = array.slice(i8, i8+b.size);
+      i8 += aligned_size;
+
+      //if (e.banks_32bit) {
+      //   let pad = align8(b.size) - b.size;
+      //   i8 += pad;
+      //} else
+      //   i8 = align8(i8);
 
       b.hexdata = new Uint8Array(b.data);
+
       if (b.type === TID_INT8)
          b.array = new Int8Array(b.data);
       else if (b.type === TID_UINT8)
@@ -1019,6 +1051,10 @@ function bkToObj(array) {
          b.array = new Int32Array(b.data);
       else if (b.type === TID_UINT32)
          b.array = new Uint32Array(b.data);
+      else if (b.type === TID_INT64)
+         b.array = new Int32Array(b.data);
+      else if (b.type === TID_UINT64)
+         b.array = new Uint32Array(b.data);
       else if (b.type === TID_FLOAT)
          b.array = new Float32Array(b.data);
       else if (b.type === TID_DOUBLE)
@@ -1027,8 +1063,7 @@ function bkToObj(array) {
          b.array = "Unknown data type " + b.type;
 
       e.bank.push(b);
-
-   } while(i8 < e.data_size + event_header_size);
+   }
 
    return e;
 }

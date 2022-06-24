@@ -216,7 +216,7 @@
 
             // data specific part
             d += "<td>";
-            if (b.type === TID_UINT8 || b.type === TID_INT8) {
+            if (b.type === TID_UINT8 || b.type === TID_INT8 || b.type == TID_CHAR) {
                for (let i = 0; i < 16 && row*16 + i < b.hexdata.length; i++) {
                   let c = b.hexdata[row*16 + i];
                   d += (c < 32 || c > 128) ? "." : "&#" + c + ";";
@@ -225,6 +225,9 @@
                for (let i = 0; i < 8 && row*16 + i*2 < b.size; i++)
                   d += "0x" + b.array[row*8 + i].toString(16).padStart(4, "0") + " ";
             } else if (b.type === TID_UINT32 || b.type === TID_INT32) {
+               for (let i = 0; i < 4 && row*16 + i*4 < b.size; i++)
+                  d += "0x" + b.array[row*4 + i].toString(16).padStart(8, "0") + " ";
+            } else if (b.type === TID_UINT64 || b.type === TID_INT64) {
                for (let i = 0; i < 4 && row*16 + i*4 < b.size; i++)
                   d += "0x" + b.array[row*4 + i].toString(16).padStart(8, "0") + " ";
             } else if (b.type === TID_FLOAT) {
