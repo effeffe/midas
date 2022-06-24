@@ -1853,7 +1853,7 @@ MhistoryGraph.prototype.draw = function () {
 
    this.x1 = axisLabelWidth + 15;
    this.y1 = this.height - 25;
-   this.x2 = this.width - 30;
+   this.x2 = this.width - 26;
    this.y2 = 26;
 
    this.timeToXInit();  // initialize scale factor t -> x
@@ -2405,11 +2405,12 @@ MhistoryGraph.prototype.draw = function () {
 
    // buttons
    let y = 0;
+   let buttonSize = 20;
    this.button.forEach(b => {
-      b.x1 = this.width - 30;
-      b.y1 = 6 + y * 28;
-      b.width = 28;
-      b.height = 28;
+      b.x1 = this.width - buttonSize - 6;
+      b.y1 = 6 + y * (buttonSize + 4);
+      b.width = buttonSize + 4;
+      b.height = buttonSize + 4;
       b.enabled = true;
 
       if (b.src === "maximize-2.svg") {
@@ -2447,26 +2448,26 @@ MhistoryGraph.prototype.draw = function () {
 
    // zoom buttons
    if (this.showZoomButtons) {
-      let xb = this.width - 30 - 48;
-      let yb = this.y1 - 24;
+      let xb = this.width - 26 - 40;
+      let yb = this.y1 - 20;
       ctx.fillStyle = "#F0F0F0";
       ctx.globalAlpha = 0.5;
-      ctx.fillRect(xb, yb, 24, 24);
+      ctx.fillRect(xb, yb, 20, 20);
       ctx.globalAlpha = 1;
       ctx.strokeStyle = "#808080";
-      ctx.strokeRect(xb, yb, 24, 24);
+      ctx.strokeRect(xb, yb, 20, 20);
       ctx.strokeStyle = "#202020";
-      ctx.drawLine(xb + 5, yb + 12, xb + 19, yb + 12);
-      ctx.drawLine(xb + 12, yb + 5, xb + 12, yb + 19);
+      ctx.drawLine(xb + 4, yb + 10, xb + 17, yb + 10);
+      ctx.drawLine(xb + 10, yb + 4, xb + 10, yb + 17);
 
-      xb += 24;
+      xb += 20;
       ctx.globalAlpha = 0.5;
-      ctx.fillRect(xb, yb, 24, 24);
+      ctx.fillRect(xb, yb, 20, 20);
       ctx.globalAlpha = 1;
       ctx.strokeStyle = "#808080";
-      ctx.strokeRect(xb, yb, 24, 24);
+      ctx.strokeRect(xb, yb, 20, 20);
       ctx.strokeStyle = "#202020";
-      ctx.drawLine(xb + 5, yb + 12, xb + 19, yb + 12);
+      ctx.drawLine(xb + 4, yb + 10, xb + 17, yb + 10);
    }
 
    // axis zoom

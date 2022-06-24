@@ -1,5 +1,5 @@
 https://feathericons.com/
 
-Size: 24px
+Size: 20px
 Stroke width: 2px
-Color: #808080
+Color: #606060

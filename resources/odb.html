@@ -20,6 +20,7 @@
       }
       #odb td, th {
          padding: 3px;
+         user-select: none;
       }
    </style>
    <script>
@@ -59,31 +60,28 @@
          td.colSpan = "8";
          tr.appendChild(td);
          td.innerHTML =
-                 '<img src="icons/check-square.svg" title="Select keys" onclick="toggle_selboxes()">&nbsp;&nbsp;' +
-
-                 '<span id="iconDelete" style="display:none">' +
-                 '<img src="icons/trash-2.svg" title="Delete keys" ' +
-                 'onclick="odb_delete()">&nbsp;&nbsp;</span>' +
-
                  '<img src="icons/file-plus.svg" title="Create key" onclick="new_key()">&nbsp;&nbsp;' +
                  '<img src="icons/folder-plus.svg" title="Create subdirectory" onclick="new_subdir()">&nbsp;&nbsp;' +
                  '<img src="icons/link.svg" title="Create link">&nbsp;&nbsp;' +
-                 '<img src="icons/shuffle.svg" title="Reorder keys">&nbsp;&nbsp;' +
+                 '<img src="icons/edit-3.svg" title="Create link">&nbsp;&nbsp;' +
+                 '<img src="icons/shuffle.svg" title="Reorder keys" onclick="toggle_handles()">&nbsp;&nbsp;' +
                  '<img src="icons/search.svg" title="Search keys">&nbsp;&nbsp;' +
+                 '<span id="iconDelete">' +
+                 '<img src="icons/trash-2.svg" title="Delete keys" ' +
+                 'onclick="odb_delete()">&nbsp;&nbsp;</span>' +
                  '';
 
          // Column header
          tr = document.createElement('TR');
          tb.appendChild(tr);
-         let a = [ "Sel", "Key", "Value", "Type", "#Val", "Size", "Written", "Mode" ];
+         let a = [ "Handle", "Key", "Value", "Type", "#Val", "Size", "Written", "Mode" ];
          for (const t of a) {
             td = document.createElement('TD');
             td.className = 'colHeader';
-            if (t === "Sel") {
-               td.setAttribute('name', 'odbSel');
-               td.style.display = odbSelect ? 'table-cell' : 'none';
+            if (t === "Handle") {
+               td.setAttribute('name', 'odbHandle');
+               td.style.display = odbHandle ? 'table-cell' : 'none';
                td.style.width = "10px";
-               td.innerHTML = '<input type="checkbox"  id="odbSelInvert" onchange="invert_selection()">';
             }
             else if (t !== "Key" && t !== "Value") {
                td.innerHTML = t;
@@ -259,8 +257,88 @@
          }).catch(error => mjsonrpc_error_alert(error));
       }
 
+      function change_color(e, color) {
+         if (e.style !== undefined)
+            e.style.color = color;
+         if (e.childNodes)
+            for (const c of e.childNodes)
+               change_color(c, color);
+      }
+
+      function unselect_all_keys() {
+         let tb = document.getElementById(odb.id).firstChild.firstChild;
+         for (let i=4 ; i<tb.childNodes.length ; i++) {
+            let tr = tb.childNodes[i];
+            tr.odbSelected = false;
+            tr.odbLastSelected = false;
+            tr.style.backgroundColor = '';
+            change_color(tr, '');
+         }
+      }
+
+      function select_key(event) {
+         event.preventDefault();
+
+         let tb = document.getElementById(odb.id).firstChild.firstChild;
+         let tr = event.target;
+         while (tr.tagName !== 'TR')
+            tr = tr.parentElement;
+
+         if (event.shiftKey) {
+            // search last selected row
+            let i1;
+            for (i1=4 ; i1<tb.childNodes.length ; i1++)
+               if (tb.childNodes[i1].odbLastSelected)
+                  break;
+            if (i1 === tb.childNodes.length)
+               i1 = 4; // non selected, so use first one
+
+            let i2;
+            for (i2=4 ; i2<tb.childNodes.length ; i2++)
+               if (tb.childNodes[i2] === tr)
+                  break;
+
+            if (i2 < tb.childNodes.length) {
+               if (i1 > i2)
+                  [i1, i2] = [i2, i1];
+
+               for (let i=i1 ; i<=i2 ; i++)
+                  tb.childNodes[i].odbSelected = true;
+            }
+
+         } else if (event.metaKey) {
+
+            // command key just toggles current selection
+            tr.odbSelected = !tr.odbSelected;
+
+            for (let i=4 ; i<tb.childNodes.length ; i++)
+               tb.childNodes[i].odbLastSelected = false;
+            if (tr.odbSelected)
+               tr.odbLastSelected = true;
+
+         } else {
+
+            // no key pressed -> un-select all but current
+            for (let i=4 ; i<tb.childNodes.length ; i++) {
+               tb.childNodes[i].odbSelected = false;
+               tb.childNodes[i].odbLastSelected = false;
+            }
+
+            tr.odbSelected = true;
+            tr.odbLastSelected = true;
+         }
+
+         // change color of all rows according to selection
+         for (let i=4 ; i<tb.childNodes.length ; i++) {
+            let tr = tb.childNodes[i];
+
+            tr.style.backgroundColor = tr.odbSelected ? '#004CBD' : '';
+            change_color(tr, tr.odbSelected ? '#FFFFFF' : '');
+         }
+      }
+
       let odbExpand = false;
-      let odbSelect = false;
+      let odbHandle = false;
       let updateTimer;
 
       function expand() {
@@ -279,51 +357,45 @@
          }
       }
 
-      function toggle_selboxes() {
-         let n = document.getElementsByName('odbSel');
-         odbSelect = !odbSelect;
+      function toggle_handles() {
+         let n = document.getElementsByName('odbHandle');
+         odbHandle = !odbHandle;
 
-         if (odbSelect) {
+         if (odbHandle) {
             for (const d of n)
                d.style.display = 'table-cell';
          } else {
             for (const d of n)
                d.style.display = 'none';
          }
-
-         document.getElementById('iconDelete').style.display = odbSelect ? 'inline' : 'none';
-      }
-
-      function invert_selection() {
-         let cbAll = document.querySelectorAll('input[type="checkbox"]');
-         for (const c of cbAll) {
-            if (c.id !== 'odbSelInvert')
-               c.checked = !c.checked;
-         }
       }
 
       function odb_delete() {
-         let cbAll = document.querySelectorAll('input[type="checkbox"]');
+         let d = document.getElementById(odb.id);
+         let tb = d.firstChild.firstChild;
          let paths = [];
-         for (const c of cbAll) {
-            if (c.id !== 'odbSelInvert' && c.checked) {
-               let key = c.parentElement.parentElement.childNodes[1].innerHTML;
-               if (key.indexOf('<a href="#"') !== -1)
-                  key = c.parentElement.parentElement.childNodes[1].childNodes[0].innerHTML.substring(3);
-               paths.push(key);
-            }
+         for (const tr of tb.childNodes) {
+            if (tr.odbSelected)
+               paths.push(tr.odbPath);
          }
-         if (paths.length > 1)
-            dlgConfirm('Are you sure to delete ' + paths.length + ' keys?', do_odb_delete, paths);
+
+         if (paths.length == 0)
+            dlgAlert("Please select one or more keys to delete");
+         else if (paths.length == 1)
+            dlgConfirm('Are you sure to delete odb key ' + paths[0] + '?', do_odb_delete, paths);
          else
-            do_odb_delete(paths);
+            dlgConfirm('Are you sure to delete ' + paths.length + ' keys?', do_odb_delete, paths);
       }
 
-      function do_odb_delete(paths) {
-         console.log("Delete " + paths);
+      function do_odb_delete(flag, paths) {
+         if (flag)
+            mjsonrpc_db_delete(paths).then().catch(error => mjsonrpc_error_alert(error));
       }
 
+      // user clicks on subdirectory, so open it
       function subdir_open(path) {
+         unselect_all_keys();
+
          // find key belonging to 'path'
          let dirs = path.split('/');
          let o = odb;
@@ -341,7 +413,10 @@
          odb_update(odb);
       }
 
+      // after a double click open the subdirectory as top level
       function subdir_goto(path) {
+         unselect_all_keys();
+
          // kill old timer
          if (updateTimer !== undefined)
             window.clearTimeout(updateTimer);
@@ -355,20 +430,31 @@
 
       let numClicks = 0;
       let singleClickTimer;
-      function subdir_click(path) {
+      function subdir_click(event, tr) {
+
+         event.stopPropagation(); // don't pass event to not select row
+
+         // travel from the <a> element up to the <tr> element which contains the path
+         while (tr.tagName !== 'TR')
+            tr = tr.parentElement;
+         let path = tr.odbPath;
+
          numClicks++;
          if (numClicks === 1) {
+            // if no second click in the next 200ms, we have a single click
             singleClickTimer = setTimeout(() => {
                numClicks = 0;
                subdir_open(path);
             }, 200);
          } else if (numClicks === 2) {
+            // we have a double click
             clearTimeout(singleClickTimer);
             numClicks = 0;
             subdir_goto(path);
          }
       }
 
+      // push all paths of open subdirectories recursively for a following db_ls
       function push_paths(paths, odb, path) {
          odb.dataIndex = paths.length;
          paths.push(path);
@@ -527,14 +613,14 @@
          // create empty row
          let tr = document.createElement('TR');
 
-         // Select column
+         // Handle column
          let td = document.createElement('TD');
          td.className = 'odbKey';
-         td.setAttribute('name', 'odbSel');
-         td.style.display = odbSelect ? 'table-cell' : 'none';
+         td.setAttribute('name', 'odbHandle');
+         td.style.display = odbHandle ? 'table-cell' : 'none';
          td.style.width = "10px";
          tr.appendChild(td);
-         td.innerHTML = '<input type="checkbox">';
+         td.innerHTML = '<img src="icons/menu.svg">';
 
          // Key name
          td = document.createElement('TD');
@@ -548,9 +634,7 @@
 
          // Print subdir with open subdir handler
          if (key.type === TID_KEY) {
-            if (path === '/')
-               path = "";
-            let handler = "onclick=\"subdir_click(\'" + path + "/" + key.name + "\')\" ";
+            let handler = "onclick=\"subdir_click(event, this)\" ";
             if (key.subdir_open)
                td.innerHTML = indent + "<a href='#' " +
                        handler +
@@ -576,10 +660,22 @@
             td.colSpan = "8";
 
             if (tb.childNodes.length > row.i) {
+               let selected = tb.childNodes[row.i].odbSelected;
+               if (selected) {
+                  tr.style.backgroundColor = '#004CBD';
+                  change_color(tr, '#FFFFFF');
+               }
+
                if (!tb.childNodes[row.i].isEqualNode(tr))
                   tb.childNodes[row.i].replaceWith(tr);
             } else
                tb.appendChild(tr);
+
+            // Install mouse click handler
+            tb.childNodes[row.i].addEventListener('click', select_key);
+
+            // Remember ODB path in row
+            tb.childNodes[row.i].odbPath = keyPath;
 
             return;
          }
@@ -683,58 +779,80 @@
          td.appendChild(document.createTextNode(m));
 
          if (row.i >= tb.childNodes.length) {
+            // append new row if nothing exists
             tb.appendChild(tr);
          } else {
+            // replace current row if it differs
             if (!tb.childNodes[row.i].isEqualNode(tr)) {
-               if (tr.childNodes.length === 1) { // Subdir
-                  tb.childNodes[row.i].replaceWith(tr);
-               } else if (tr.childNodes.length === 8) { // Key
-                  if (tb.childNodes[row.i].childNodes[1].colSpan !== 1)
-                     tb.childNodes[row.i].childNodes[1].colSpan = "1";
-                  for (let i = 0; i < 8; i++) {
-                     let changed = false;
+               if (tb.childNodes[row.i].childNodes[1].colSpan !== 1)
+                  tb.childNodes[row.i].childNodes[1].colSpan = "1";
+               for (let i = 0; i < 8; i++) {
+                  let yellowBg = false;
 
-                     let oldValue;
-                     if (tb.childNodes[row.i].childNodes[i] !== undefined)
-                        oldValue = tb.childNodes[row.i].childNodes[i].innerHTML;
-                     let newValue = tr.childNodes[i].innerHTML;
+                  // check for data change in value column
+                  if (i === 2) {
+                     let oldElem = tb.childNodes[row.i].childNodes[i];
+                     if (oldElem === undefined)
+                        oldElem = "xxx";
+                     else {
+                        while (oldElem.tagName === 'TD' || oldElem.tagName === 'A' || oldElem.tagName === 'DIV')
+                           oldElem = oldElem.childNodes[0]; // get into <td> <a> <div> elements
+                        oldElem = oldElem.parentNode.innerHTML;
+                     }
+                     let newElem = tr.childNodes[i];
+                     if (newElem === undefined)
+                        newElem = "xxx";
+                     else {
+                        while (newElem.tagName === 'TD' || newElem.tagName === 'A' || newElem.tagName === 'DIV')
+                           newElem = newElem.childNodes[0]; // get into <td> <a> <div> elements
+                        newElem = newElem.parentNode.innerHTML;
+                     }
 
-                     if (oldValue !== undefined &&
-                             oldValue !== newValue &&  // value changed
-                             i === 2 &&                // we are in value column
+                     if (oldElem !== newElem &&  // value changed
                              !odb.skip_yellow &&       // skip if globally disabled
                              // skip if edit just finished
-                             !(oldValue.indexOf('(') == -1 && newValue.indexOf('(') !== -1) &&
+                             !(oldElem.indexOf('(') == -1 && newElem.indexOf('(') !== -1) &&
                              // skip '*' of arrays
-                             newValue.indexOf('>*</a>') === -1)
-                        changed = true;
+                             newElem.indexOf('>*</a>') === -1)
+                        yellowBg = true;
+                     else
+                        yellowBg = false;
+                  }
 
-                     // check for edit mode
-                     let inlineEdit = find_input_element(tb.childNodes[row.i].childNodes[i]);
+                  // check for edit mode
+                  let inlineEdit = find_input_element(tb.childNodes[row.i].childNodes[i]);
 
-                     if (tb.childNodes[row.i].childNodes[i] === undefined)
-                        tb.childNodes[row.i].appendChild(tr.childNodes[i].cloneNode(true));
-                     else if (!inlineEdit) {
-                        tb.childNodes[row.i].childNodes[i].innerHTML = tr.childNodes[i].innerHTML;
+                  if (tb.childNodes[row.i].childNodes[i] === undefined)
+                     tb.childNodes[row.i].appendChild(tr.childNodes[i].cloneNode(true));
+                  else if (!inlineEdit) {
+                     let e = tb.childNodes[row.i].childNodes[i];
 
-                        let e = tb.childNodes[row.i].childNodes[i];
-                        if (changed) {
-                           e.style.backgroundColor = 'var(--myellow)';
-                           e.style.setProperty("-webkit-transition", "", "");
-                           e.style.setProperty("transition", "", "");
-                           e.age = new Date() / 1000;
-                        }
+                     let c = e.style.color; // preserve color if key is slected
+                     e.innerHTML = tr.childNodes[i].innerHTML;
+                     change_color(e, c);
 
-                        if (e.age !== undefined && new Date() / 1000 > e.age + 1) {
-                           e.style.setProperty("-webkit-transition", "background-color 1s", "");
-                           e.style.setProperty("transition", "background-color 1s", "");
-                           e.style.backgroundColor = "";
-                        }
+                     if (yellowBg) {
+                        e.style.backgroundColor = 'var(--myellow)';
+                        e.style.setProperty("-webkit-transition", "", "");
+                        e.style.setProperty("transition", "", "");
+                        e.age = new Date() / 1000;
+                     }
+
+                     if (e.age !== undefined && new Date() / 1000 > e.age + 1) {
+                        e.style.setProperty("-webkit-transition", "background-color 1s", "");
+                        e.style.setProperty("transition", "background-color 1s", "");
+                        e.style.backgroundColor = "";
                      }
                   }
                }
             }
          }
+
+         // Install mouse click handler
+         tb.childNodes[row.i].addEventListener('click', select_key);
+
+         // Remember ODB path in row
+         tb.childNodes[row.i].odbPath = keyPath;
 
          // Print array values
          if (Array.isArray(key.value)) {
@@ -750,9 +868,12 @@
                // create empty row
                let tr = document.createElement('TR');
 
-               // Select column
+               // Handle column (empty for array values)
                let td = document.createElement('TD');
                td.className = 'odbKey';
+               td.setAttribute('name', 'odbHandle');
+               td.style.display = odbHandle ? 'table-cell' : 'none';
+               td.style.width = "10px";
                tr.appendChild(td);
 
                // Key name
