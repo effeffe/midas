@@ -66,10 +66,10 @@
       </tr>
       <tr>
          <td class="select">
-            <button class="mbutton" onclick="next()">Next</button>
-            <button class="mbutton" onclick="previous()">Previous</button>
+            <button class="mbutton" onclick="next()">Next event</button>
+            <!--- <button class="mbutton" onclick="previous()">Previous</button> --->
             <button class="mbutton" id="runbutton" onclick="run()">Run</button>
-            &nbsp;&nbsp;&nbsp;<input type="checkbox" id="recent" onclick="recent()">
+            &nbsp;&nbsp;&nbsp;<input type="checkbox" id="get_recent" checked>
             <label for="recent">Show only recent events</label>
          </td>
       </tr>
@@ -110,9 +110,9 @@
       update();
    }
 
-   function previous() {
-      dlgAlert("Not yet implemented");
-   }
+   //function previous() {
+   //   dlgAlert("Not yet implemented");
+   //}
 
    function run() {
       if (run_flag) {
@@ -126,10 +126,10 @@
       }
    }
 
-   function recent() {
-      recent_events = !recent_events;
-      dlgAlert("Not yet implemented");
-   }
+   //function recent() {
+   //   recent_events = !recent_events;
+   //   dlgAlert("Not yet implemented");
+   //}
 
    function set_if_changed(e, v) {
       if (e.innerHTML !== v)
@@ -263,8 +263,9 @@
       let buffer_name = document.getElementById("buffer_name").value;
       let event_id = parseInt(document.getElementById("event_id").value);
       let trigger_mask = parseInt(document.getElementById("trigger_mask").value);
-      //console.log("bm_receive_event: buffer: " + buffer_name + ", event_id: " + event_id + ", trigger_mask: " + trigger_mask);
-      mjsonrpc_call("bm_receive_event", {"buffer_name":buffer_name,"event_id":event_id,"trigger_mask":trigger_mask}, "arraybuffer").then(function (rpc) {
+      let get_recent = document.getElementById("get_recent").checked;
+      //console.log("bm_receive_event: buffer: " + buffer_name + ", event_id: " + event_id + ", trigger_mask: " + trigger_mask + ", get_recent: " + get_recent);
+      mjsonrpc_call("bm_receive_event", {"buffer_name":buffer_name,"event_id":event_id,"trigger_mask":trigger_mask,"get_recent":get_recent}, "arraybuffer").then(function (rpc) {
          let success = callback(rpc);
          if (run_flag || !success)
             update_timer_id = setTimeout('update()', 1000);

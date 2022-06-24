@@ -3512,6 +3512,7 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
       doc->P("buffer_name", MJSON_STRING, "name of event buffer");
       doc->P("event_id?", MJSON_INT, "requested event id, -1 means any event id");
       doc->P("trigger_mask?", MJSON_INT, "requested trigger mask, -1 means any trigger mask");
+      doc->P("get_recent?", MJSON_BOOL, "get last available event that matches this event request");
       doc->P("timeout_millisec?", MJSON_NUMBER, "how long to wait for an event");
       doc->R("binary data", MJSON_ARRAYBUFFER, "binary event data");
       doc->R("status", MJSON_INT, "return status of bm_open_buffer(), bm_request_event(), bm_set_cache_size(), bm_receive_alloc()");
@@ -3523,6 +3524,7 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
    std::string buffer_name  = mjsonrpc_get_param(params, "buffer_name", &error)->GetString(); if (error) return error;
    int event_id = mjsonrpc_get_param(params, "event_id", NULL)->GetInt();
    int trigger_mask = mjsonrpc_get_param(params, "trigger_mask", NULL)->GetInt();
+   bool get_recent  = mjsonrpc_get_param(params, "get_recent", NULL)->GetBool();
    int timeout_millisec = mjsonrpc_get_param(params, "timeout_millisec", NULL)->GetInt();
 
    if (event_id == 0)
@@ -3579,6 +3581,10 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
    double start_time = ss_time_sec();
    double end_time = start_time + timeout_millisec/1000.0;
 
+   // in "GET_RECENT" mode, we read all avialable events from the event buffer
+   // and save them in the event stash (MatchEvent()), after we empty the event
+   // buffer (BM_ASYNC_RETURN), we send the last saved event. K.O.
+
    while (1) {
       EVENT_HEADER* pevent = NULL;
       
@@ -3587,7 +3593,7 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
       if (status == BM_SUCCESS) {
          //printf("got event_id %d, trigger_mask 0x%04x\n", pevent->event_id, pevent->trigger_mask);
 
-         if (bm_match_event(event_id, trigger_mask, pevent)) {
+         if (bm_match_event(event_id, trigger_mask, pevent) && !get_recent) {
             StashEvent(buffer_name, event_id, trigger_mask, pevent);
          
             size_t event_size = sizeof(EVENT_HEADER) + pevent->data_size;
@@ -3600,6 +3606,10 @@ static MJsonNode* js_bm_receive_event(const MJsonNode* params)
          free(pevent);
          pevent = NULL;
       } else if (status == BM_ASYNC_RETURN) {
+         if (get_recent) {
+            //printf("bm_async_return!\n");
+            break;
+         }
          ss_sleep(10);
       } else {
          MJsonNode* result = MJsonNode::MakeObject();
