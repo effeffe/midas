@@ -15,6 +15,7 @@ import datetime
 import inspect
 import collections
 import logging
+import time
 
 ver = sys.version_info
 if ver <= (3, 0):
@@ -171,7 +172,7 @@ class MidasClient:
         """
         self.disconnect()
     
-    def msg(self, message, is_error=False):
+    def msg(self, message, is_error=False, facility="midas"):
         """
         Send a message into the midas message log.
         
@@ -183,6 +184,8 @@ class MidasClient:
             * is_error (bool) - Whether this message is informational or an 
                 error message. Error messages are highlighted in red on the
                 message page.
+            * facility (str) - The log file to write to. Vast majority of
+                messages are written to the "midas" facility.
         """
         
         # Find out where this function was called from. We go up
@@ -195,10 +198,11 @@ class MidasClient:
         filename = ctypes.create_string_buffer(bytes(caller.filename, "utf-8"))
         line = ctypes.c_int(caller.lineno)
         routine = ctypes.create_string_buffer(bytes(caller.function, "utf-8"))
+        c_facility = ctypes.create_string_buffer(bytes(facility, "utf-8"))
         c_msg = ctypes.create_string_buffer(bytes(message, "utf-8"))
         msg_type = ctypes.c_int(midas.MT_ERROR if is_error else midas.MT_INFO)
     
-        self.lib.c_cm_msg(msg_type, filename, line, routine, c_msg)
+        self.lib.c_cm_msg(msg_type, filename, line, c_facility, routine, c_msg)
 
     def communicate(self, time_ms):
         """
@@ -1209,6 +1213,108 @@ class MidasClient:
         """
         c_name = ctypes.create_string_buffer(bytes(alarm_name, "utf-8"))
         self.lib.c_al_reset_alarm(c_name)
+
+    def get_message_facilities(self):
+        """
+        Get a list of "facilties" that send messages to the message log.
+        By default the "midas" facility is used when sending messages, but
+        others can be used. The facility name can be used when calling
+        `get_recent_messages()`.
+
+        Returns:
+            list of string
+        """
+        arr = ctypes.POINTER(ctypes.c_char_p)()
+        arr_len = ctypes.c_int()
+        self.lib.c_cm_msg_facilities(ctypes.byref(arr), ctypes.byref(arr_len))
+        casted = ctypes.cast(arr, ctypes.POINTER(ctypes.c_char_p))
+        py_list = [casted[i].decode("utf-8") for i in range(arr_len.value)]
+        self.lib.c_free_list(arr, arr_len)
+        return py_list
+
+    def get_recent_messages(self, min_messages=1, before=None, facility="midas"):
+        """
+        Get a list of messages that were sent to the midas message log before a
+        certain time.
+
+        The number of messages returned is based on:
+            * Search until we find `min_messages`
+            * If there are more messages with the same UNIX timestamp (to 1s
+                resolution), include those messages as well.
+            * If log files are being split by date, and we've had to look back
+                through several files without finding anything, give up.
+
+        Args:
+            * min_messages (int) - Minimum number of messages to try to retrieve.
+            * before (datetime.datetime, number or None) - Start searching for messages
+                before the specified time. None means get the most recent. A number is
+                interpreted as a UNIX timestamp.
+            * facility (str) - The "facility" to search in. By default most messages
+                are written to the "midas" facility.
+
+        Returns:
+            list of string - messages, with the most recent one first
+        """
+        c_facility = ctypes.create_string_buffer(bytes(facility, "utf-8"))
+        c_n_msg = ctypes.c_int(min_messages)
+        c_msgs = ctypes.c_char_p()
+        c_num_msgs_recvd = ctypes.c_int()
+
+        # Convert timestamp to a number
+        if before is None:
+            before = 0
+
+        if isinstance(before, datetime.datetime):
+            before = before.timestamp()
+
+        c_before = ctypes.c_uint64(int(before))
+        
+        # Get messages
+        self.lib.c_cm_msg_retrieve2(c_facility, c_before, c_n_msg, ctypes.byref(c_msgs), ctypes.byref(c_num_msgs_recvd))
+        
+        # Convert \n-separated value to list of python strings
+        pylist = c_msgs.value.decode('utf-8').split("\n")
+        self.lib.c_free(c_msgs)
+
+        return [m for m in pylist if len(m) > 0]
+
+    def register_message_callback(self, callback, only_message_types=[midas.MT_INFO, midas.MT_ERROR]):
+        """
+        Register a function to be called when a message is sent to the message log.
+        Note you will receive messages from all "facilities" - it is not possible
+        to only request messages from a single facility.
+        
+        Args:
+            * transition (int) - One of `midas.TR_START`, `midas.TR_STOP`,
+                `midas.TR_PAUSE`, `midas.TR_RESUME`, `midas.TR_STARTABORT`.
+            * sequence (int) - The order in which this function will be 
+                called.
+            * callback (function) - See below.
+            * only_message_types (None, or list of midas.MT_xxx flags) - which message types
+                to pass to the callback function (e.g. only midas.MT_ERROR, not midas.MT_INFO)
+            
+        Python function (`callback`) details:
+            * Arguments it should accept:
+                * client (midas.client.MidasClient)
+                * msg (str) - the actual message
+                * timestamp (datetime.datetime) - the timestamp of the message
+                * msg_type (int) - midas.MT_xxx flag, e.g. midas.MT_ERROR
+            * Value it should return:
+                * Anything or nothing, we don't do anything with it 
+        """
+        if only_message_types is not None and not self._is_list_like(only_message_types):
+            only_message_types = [only_message_types]
+        cb = midas.callbacks.make_msg_handler_callback(callback, self, only_message_types)
+        self.lib.c_cm_msg_register(cb)
+
+    def deregister_message_callback(self):
+        """
+        Unregister a callback that was registered with `register_message_callback()`.
+        """
+        # No clean way to do this with C++ API, but closing and re-opening the
+        # message buffer does the trick.
+        self.lib.c_cm_msg_close_buffer()
+        self.lib.c_cm_msg_open_buffer()
 
     #
     # Most users should not need to use the functions below here, as they are

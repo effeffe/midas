@@ -45,8 +45,12 @@ extern "C" {
    INT c_cm_get_experiment_database(HNDLE * hDB, HNDLE * hKeyClient);
    const char* c_cm_get_revision(void);
    const char* c_cm_get_version(void);
-   INT c_cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) MATTRPRINTF(5,6);
+   INT c_cm_msg(INT message_type, const char *filename, INT line, const char *facility, const char *routine, const char *format, ...) MATTRPRINTF(6,7);
    INT c_cm_msg_facilities(char*** dest, int& dest_len);
+   INT c_cm_msg_register(EVENT_HANDLER *func);
+   INT c_cm_msg_retrieve2(const char *facility, uint64_t before, INT min_messages, char **messages, int *num_messages_read);
+   INT c_cm_msg_open_buffer();
+   INT c_cm_msg_close_buffer();
    INT c_cm_register_deferred_transition(INT transition, BOOL(*func) (INT, BOOL));
    INT c_cm_register_function(INT id, INT(*func) (INT, void **));
    INT c_cm_register_transition(INT transition, INT(*func) (INT, char *), int sequence_number);
