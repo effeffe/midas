@@ -5117,42 +5117,29 @@ static INT cm_transition2(INT transition, INT run_number, char *errstr, INT errs
          break;
    }
 
-   if (async_flag & TR_MTHREAD) {
-      /* wait until all threads have finished */
-      while (1) {
-         int all_done = 1;
-
-         for (size_t idx = 0; idx < s.clients.size(); idx++) {
-            if (s.clients[idx]->status == 0) {
-               all_done = 0;
-               break;
-            }
-
-            if (s.clients[idx]->thread) {
-               s.clients[idx]->thread->join();
-               delete s.clients[idx]->thread;
-               s.clients[idx]->thread = NULL;
-            }
-         }
-
-         if (all_done)
-            break;
-
-         i = 0;
-         size = sizeof(i);
-         status = db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT32, FALSE);
-
-         if (status == DB_SUCCESS && i == 0) {
-            cm_msg(MERROR, "cm_transition", "transition %s aborted: \"/Runinfo/Transition in progress\" was cleared", trname.c_str());
-
-            if (errstr != NULL)
-               strlcpy(errstr, "Canceled", errstr_size);
-
-            return tr_finish(hDB, &s, transition, CM_TRANSITION_CANCELED, "Canceled");
-         }
-
-         ss_sleep(100);
+   /* wait until all threads have finished */
+   for (size_t idx = 0; idx < s.clients.size(); idx++) {
+      if (s.clients[idx]->thread) {
+         // join() will wait forever until thread finishes
+         s.clients[idx]->thread->join();
+         delete s.clients[idx]->thread;
+         s.clients[idx]->thread = NULL;
       }
+   }
+
+   /* at this point, all per-client threads have stopped and it is safe to delete TrState and return */
+
+   i = 0;
+   size = sizeof(i);
+   status = db_get_value(hDB, 0, "/Runinfo/Transition in progress", &i, &size, TID_INT32, FALSE);
+
+   if (status == DB_SUCCESS && i == 0) {
+      cm_msg(MERROR, "cm_transition", "transition %s aborted: \"/Runinfo/Transition in progress\" was cleared", trname.c_str());
+
+      if (errstr != NULL)
+         strlcpy(errstr, "Canceled", errstr_size);
+
+      return tr_finish(hDB, &s, transition, CM_TRANSITION_CANCELED, "Canceled");
    }
 
    /* search for any error */
