@@ -243,13 +243,13 @@ const char* c_cm_get_version(void) {
    return cm_get_version();
 }
 
-INT c_cm_msg(INT message_type, const char *filename, INT line, const char *routine, const char *format, ...) {
+INT c_cm_msg(INT message_type, const char *filename, INT line, const char *facility, const char *routine, const char *format, ...) {
    va_list argptr;
    char message[1000];
    va_start(argptr, format);
-   vsprintf(message, (char *) format, argptr);
+   vsnprintf(message, 1000, (char *) format, argptr);
    va_end(argptr);
-   return cm_msg(message_type, filename, line, routine, "%s", message);
+   return cm_msg1(message_type, filename, line, facility, routine, "%s", message);
 }
 
 /*
@@ -275,6 +275,25 @@ INT c_cm_msg_facilities(char*** dest, int& dest_len) {
    } else {
       return retcode;
    }
+}
+
+INT c_cm_msg_register(EVENT_HANDLER *func) {
+   return cm_msg_register(func);
+}
+
+INT c_cm_msg_retrieve2(const char *facility, uint64_t before, INT min_messages, char **messages, int *num_messages_read) {
+   // Python ctypes doesn't know the size of time_t, so just accept a uint64_t and convert here.
+   time_t t = before;
+   INT retval = cm_msg_retrieve2(facility, t, min_messages, messages, num_messages_read);
+   return retval;
+}
+
+INT c_cm_msg_open_buffer() {
+   return cm_msg_open_buffer();
+}
+
+INT c_cm_msg_close_buffer() {
+   return cm_msg_close_buffer();
 }
 
 INT c_cm_register_deferred_transition(INT transition, BOOL(*func) (INT, BOOL)) {

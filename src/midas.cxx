@@ -1286,6 +1286,7 @@ INT cm_msg_retrieve2(const char *facility, time_t t, INT n_message, char **messa
 
    /* if there is no symlink, then there is no additional log files to read */
    if (linkname.empty()) {
+      *num_messages = n;
       return CM_SUCCESS;
    }
 

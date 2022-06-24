@@ -11,6 +11,8 @@ import ctypes
 import midas
 import traceback
 import json
+import midas.structs
+import datetime
 
 # Callback functions we've instantiated for watching ODB records, keyed by ODB path
 hotlink_callbacks = {}
@@ -27,6 +29,9 @@ deferred_transition_callbacks = []
 
 # List of callback functions we've instantated for RPC callbacks
 rpc_callbacks = []
+
+# List of callback functions we've instantiated for reading msg events
+event_callbacks = []
 
 # Define the C style of the callback function we must pass to db_open_record
 # return void; args int (hDB) / int (hKey) / void* (info; unused).
@@ -47,6 +52,10 @@ DEFERRED_TRANSITION_FUNC_TYPE = ctypes.CFUNCTYPE(ctypes.c_uint32, ctypes.c_int, 
 # Define the C style of the callback function we must pass to cm_register_function
 # return int (status); args int (index) / void** (params)
 RPC_CALLBACK_FUNC_TYPE = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_void_p))
+
+# Define the C style of the callback function we must pass to cm_msg_register
+# return void; args int (buffer_handler) / int (request_id) / EVENT_HEADER* (event_header) / void* event_data
+EVENT_HANDLER_FUNC_TYPE = ctypes.CFUNCTYPE(None, ctypes.c_int, ctypes.c_int, ctypes.POINTER(midas.structs.EventHeader), ctypes.c_void_p)
 
 def exception_message(e):
     """
@@ -364,4 +373,52 @@ def make_rpc_callback(callback, client, return_success_even_on_failure=False):
 
     cb = RPC_CALLBACK_FUNC_TYPE(_wrapper)
     rpc_callbacks.append(cb)
+    return cb
+
+
+def make_msg_handler_callback(callback, client, only_message_types):
+    """
+    Create a callback function that can be passed to cm_msg_register 
+    from the midas C library.
+    
+    Args:
+        * callback (function) - See below.
+        * client (midas.client.MidasClient) - the client that's creating this.
+        * only_message_types (None, or list of midas.MT_xxx flags) - which message types
+            to pass to the callback function (e.g. only midas.MT_ERROR, not midas.MT_INFO)
+        
+    Returns:
+        * `EVENT_HANDLER_FUNC_TYPE`
+        
+    Python function (`callback`) details:
+        * Arguments it should accept:
+            * client (midas.client.MidasClient)
+            * msg (str) - the actual message
+            * timestamp (datetime.datetime) - the timestamp of the message
+            * msg_type (int) - midas.MT_xxx flag, e.g. midas.MT_ERROR
+        * Value it should return:
+            * Anything or nothing, we don't do anything with it 
+    """
+    
+    # We create a closure that tracks which python callback function
+    # to call and which message types to pass on.
+    def _wrapper(buffer_handler, request_id, event_header_p, event_data_p):
+        try:
+            event_header = event_header_p.contents
+            timestamp = datetime.datetime.fromtimestamp(event_header.time_stamp)
+            msg_type = event_header.trigger_mask
+
+            if only_message_types is not None and msg_type not in only_message_types:
+                return
+                
+            msg = ctypes.cast(event_data_p, ctypes.c_char_p).value.decode("utf-8")
+            callback(client, msg, timestamp, msg_type)
+        except Exception as e:
+            traceback.print_exc()
+            client.msg("Exception raised during message handler callback: %s" % exception_message(e), True)
+
+        return
+
+    cb = EVENT_HANDLER_FUNC_TYPE(_wrapper)
+    event_callbacks.append(cb)
     return cb
