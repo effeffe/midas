@@ -299,7 +299,8 @@
          for (const b in a) {
             if (b.indexOf("/") !== -1)
                continue;
-
+            if (b === "SYSMSG")
+               continue;
             document.getElementById("buffer_name").add(new Option(b));
          }
          document.getElementById("buffer_name").value = "SYSTEM";
