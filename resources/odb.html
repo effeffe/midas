@@ -96,7 +96,7 @@
                  '<img src="icons/trash-2.svg" title="Delete keys" ' +
                  'onclick="odb_delete()">&nbsp;&nbsp;' +
                  '<img src="icons/more-vertical.svg" title="More menu commands" ' +
-                 'onclick="more_menu()">&nbsp;&nbsp;' +
+                 'onclick="more_menu(event)">&nbsp;&nbsp;' +
                  '';
 
          tr.addEventListener('click', select_key); // used to deselect any kay
@@ -295,8 +295,77 @@
          dlgAlert("Function not yet implemented");
       }
 
-      function more_menu() {
-         dlgAlert("Function not yet implemented");
+      function more_menu(event) {
+
+         event.stopPropagation(); // don't send click to select_key()
+
+         let d = document.getElementById('moreMenu');
+         if (d === null) {
+
+            // create menu
+            d = document.createElement("div");
+            d.id = "moreMenu";
+            d.style.display = "none";
+            d.style.position = "absolute";
+            d.className = "mtable";
+            d.style.borderRadius = "0";
+            d.style.border = "2px solid #808080";
+            d.style.margin = "0";
+            d.style.padding = "0";
+
+            d.style.left = "100px";
+            d.style.top = "100px";
+
+            let table = document.createElement("table");
+
+            // Show open records ----------
+
+            let tr = document.createElement("tr");
+            let td = document.createElement("td");
+            td.style.padding = "0";
+
+            let a = document.createElement("a");
+            a.href = "" + odb.path;
+            a.innerHTML = "Show open record";
+            a.title = "Show ODB keys which are open by other programs";
+            a.onclick = function () {
+               d.style.display = 'none';
+               window.location.href = "?cmd=odb_sor&odb_path=" + odb.path;
+               return false;
+            }
+            td.appendChild(a);
+            tr.appendChild(td);
+            table.appendChild(tr);
+
+            // Show ODB clients  ----------
+
+            tr = document.createElement("tr");
+            td = document.createElement("td");
+            td.style.padding = "0";
+
+            a = document.createElement("a");
+            a.href = "" + odb.path;
+            a.innerHTML = "Show ODB clients";
+            a.title = "Show clients currently attached to ODB";
+            a.onclick = function () {
+               d.style.display = 'none';
+               window.location.href = "?cmd=odb_scl";
+               return false;
+            }
+            td.appendChild(a);
+            tr.appendChild(td);
+            table.appendChild(tr);
+
+            d.appendChild(table);
+
+            document.body.appendChild(d);
+         }
+
+         let rect = event.target.getBoundingClientRect();
+
+         d.style.display = 'block';
+         d.style.left = (rect.left + window.scrollX) + 'px';
+         d.style.top = (rect.bottom + 4 + window.scrollY) + 'px';
       }
 
       function change_color(e, color) {
@@ -320,6 +389,11 @@
 
       function select_key(event) {
          event.preventDefault();
+
+         // hide submenu if visible
+         let m = document.getElementById('moreMenu');
+         if (m !== null && m.style.display === 'block')
+            m.style.display = 'none';
 
          let tb = document.getElementById(odb.id).firstChild.firstChild;
          let tr = event.target;
@@ -489,7 +563,12 @@
       }
 
       function search_key() {
-         dlgAlert("Function not yet implemented");
+         dlgQuery("Enter key name (substring case insensitive):", "", do_search_key);
+      }
+
+      function do_search_key(str) {
+         if (str !== false)
+            window.location.href = "?cmd=Find&value=" + str;
       }
 
       // user clicks on subdirectory, so open it
