@@ -924,7 +924,10 @@
          tr.appendChild(td);
 
          if (Array.isArray(key.value)) {
-            td.innerHTML =
+            if (key.value.length > 4096)
+               td.innerHTML = '... ' + key.value.length + ' values ...';
+            else
+               td.innerHTML =
                     '<div><a href="#" ' +
                     'onclick="inline_edit(this.parentNode, \'' +
                     key.value[0] + '\', odb_setall, 10, \''+ keyPath +
@@ -962,7 +965,7 @@
          td.setAttribute('name', 'odbExt');
          td.style.display = odbExpand ? 'table-cell' : 'none';
          tr.appendChild(td);
-         td.innerHTML = '<a href="#" onclick="resize_array(\''+keyPath+'\','+key.num_values+');return false;">'
+         td.innerHTML = '<a href="#" onclick="resize_array(event, \''+keyPath+'\','+key.num_values+');return false;">'
                  + key.num_values + '</a>';
 
          // Size
@@ -972,7 +975,7 @@
          td.style.display = odbExpand ? 'table-cell' : 'none';
          tr.appendChild(td);
          if (key.type === TID_STRING)
-            td.innerHTML = '<a href="#" onclick="resize_string(\''+keyPath+'\','+key.item_size+','+key.num_values+');return false;">'
+            td.innerHTML = '<a href="#" onclick="resize_string(event, \''+keyPath+'\','+key.item_size+','+key.num_values+');return false;">'
                     + key.item_size + '</a>';
          else
             td.innerHTML = key.item_size;
@@ -1032,7 +1035,7 @@
                   if (i === 2) {
                      let oldElem = tb.childNodes[row.i].childNodes[i];
                      if (oldElem === undefined)
-                        oldElem = "xxx";
+                        oldElem = "";
                      else {
                         while (oldElem.tagName === 'TD' || oldElem.tagName === 'A' || oldElem.tagName === 'DIV')
                            oldElem = oldElem.childNodes[0]; // get into <td> <a> <div> elements
@@ -1040,7 +1043,7 @@
                      }
                      let newElem = tr.childNodes[i];
                      if (newElem === undefined)
-                        newElem = "xxx";
+                        newElem = "";
                      else {
                         while (newElem.tagName === 'TD' || newElem.tagName === 'A' || newElem.tagName === 'DIV')
                            newElem = newElem.childNodes[0]; // get into <td> <a> <div> elements
@@ -1098,7 +1101,9 @@
 
          // Print array values
          if (Array.isArray(key.value)) {
-            for (let i=0 ; i<key.value.length ; i++) {
+            if (key.value.length > 4096) {
+               // do nothing
+            } else for (let i=0 ; i<key.value.length ; i++) {
                row.i++;
 
                // return if in edit mode
@@ -1205,7 +1210,8 @@
          }
       }
 
-      function resize_array(path, n) {
+      function resize_array(event, path, n) {
+         event.stopPropagation(); // do not select row
          dlgQuery("Enter size of array:", n, do_resize_array, path);
       }
 
@@ -1214,7 +1220,8 @@
          }).catch(error => mjsonrpc_error_alert(error));
       }
 
-      function resize_string(path, size, num_values) {
+      function resize_string(event, path, size, num_values) {
+         event.stopPropagation(); // do not select row
          dlgQuery("Enter new string size:", size, do_resize_string, { "path": path, "num_values": num_values });
       }
 
