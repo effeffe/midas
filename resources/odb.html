@@ -22,6 +22,15 @@
          padding: 3px;
          user-select: none;
       }
+      #odb img {
+         cursor: pointer;
+         border: 5px solid #E0E0E0;
+         border-radius: 5px;
+      }
+      #odb img:hover {
+         border: 5px solid #C8C8C8;
+         background-color: #C8C8C8;
+      }
    </style>
    <script>
 
@@ -64,6 +73,8 @@
          td.colSpan = "8";
          tr.appendChild(td);
 
+         tr.addEventListener('click', select_key); // used to deselect any kay
+
          // Toolbar
          tr = document.createElement('TR');
          tb.appendChild(tr);
@@ -71,16 +82,24 @@
          td.colSpan = "8";
          tr.appendChild(td);
          td.innerHTML =
-                 '<img src="icons/file-plus.svg" title="Create key" onclick="new_key()">&nbsp;&nbsp;' +
+                 '<img src="icons/file-plus.svg" title="Create key" ' +
+                 'onclick="new_key()">&nbsp;&nbsp;' +
                  '<img src="icons/folder-plus.svg" title="Create subdirectory" onclick="new_subdir()">&nbsp;&nbsp;' +
-                 '<img src="icons/link.svg" title="Create link">&nbsp;&nbsp;' +
-                 '<img src="icons/edit-3.svg" title="Create link">&nbsp;&nbsp;' +
-                 '<img src="icons/shuffle.svg" title="Reorder keys" onclick="toggle_handles()">&nbsp;&nbsp;' +
-                 '<img src="icons/search.svg" title="Search keys">&nbsp;&nbsp;' +
-                 '<span id="iconDelete">' +
+                 '<img src="icons/link.svg" title="Create link" ' +
+                 'onclick="new_link()">&nbsp;&nbsp;' +
+                 '<img src="icons/edit-3.svg" title="Rename key" ' +
+                 'onclick="rename_key()">&nbsp;&nbsp;' +
+                 '<img src="icons/shuffle.svg" title="Reorder keys" ' +
+                 'onclick="toggle_handles()">&nbsp;&nbsp;' +
+                 '<img src="icons/search.svg" title="Search keys" ' +
+                 'onclick="search_key()">&nbsp;&nbsp;' +
                  '<img src="icons/trash-2.svg" title="Delete keys" ' +
-                 'onclick="odb_delete()">&nbsp;&nbsp;</span>' +
+                 'onclick="odb_delete()">&nbsp;&nbsp;' +
+                 '<img src="icons/more-vertical.svg" title="More menu commands" ' +
+                 'onclick="more_menu()">&nbsp;&nbsp;' +
                  '';
+
+         tr.addEventListener('click', select_key); // used to deselect any kay
 
          // Column header
          tr = document.createElement('TR');
@@ -114,6 +133,8 @@
                  "<a id='expRight' href='#' onclick='expand();return false;'>&#x21E4;</a>"+
                  "</div>";
 
+         tr.addEventListener('click', select_key); // used to deselect any kay
+
          d.appendChild(table);
 
          odb_update(odb);
@@ -126,6 +147,8 @@
             // cancel editing
             p.odb.inEdit = false;
             p.innerHTML = p.odb.oldhtml;
+            if (p.inRename)
+               p.inRename = false;
             return false;
          }
 
@@ -143,9 +166,9 @@
             return;
          let value = p.childNodes[0].value;
          p.odb.inEdit = false;
-         if (p.odb.callback)
-            p.odb.callback(p, value);
          p.innerHTML = p.odb.oldhtml;
+         if (p.odb.callback)
+            p.odb.callback(p, value, p.odb.param);
       }
 
       function inline_edit(p, str, callback, size, param) {
@@ -268,10 +291,18 @@
          }).catch(error => mjsonrpc_error_alert(error));
       }
 
+      function new_link() {
+         dlgAlert("Function not yet implemented");
+      }
+
+      function more_menu() {
+         dlgAlert("Function not yet implemented");
+      }
+
       function change_color(e, color) {
-         if (e.style !== undefined)
+         if (e.style !== undefined && !e.inRename)
             e.style.color = color;
-         if (e.childNodes)
+         if (e.childNodes && !e.inRename)
             for (const c of e.childNodes)
                change_color(c, color);
       }
@@ -292,10 +323,25 @@
 
          let tb = document.getElementById(odb.id).firstChild.firstChild;
          let tr = event.target;
-         while (tr.tagName !== 'TR')
-            tr = tr.parentElement;
 
-         if (event.shiftKey) {
+         // don't select key when we are in edit mode
+         if (tr.tagName === 'INPUT')
+            return;
+         while (tr.tagName !== 'TR') {
+            tr = tr.parentElement;
+            if (tr === null)
+               return;
+         }
+
+         // check if click is on header row, if so remove selection further down
+         let headerRow = false;
+         for (let i=0 ; i<4 ; i++)
+            if (tb.childNodes[i] === tr) {
+               headerRow = true;
+               break;
+            }
+
+         if (event.shiftKey && !headerRow) {
             // search last selected row
             let i1;
             for (i1=4 ; i1<tb.childNodes.length ; i1++)
@@ -313,11 +359,14 @@
                if (i1 > i2)
                   [i1, i2] = [i2, i1];
 
-               for (let i=i1 ; i<=i2 ; i++)
-                  tb.childNodes[i].odbSelected = true;
+               for (let i=i1 ; i<=i2 ; i++) {
+                  // don't select arrays
+                  if (tb.childNodes[i].childNodes[1].innerHTML !== "")
+                     tb.childNodes[i].odbSelected = true;
+               }
             }
 
-         } else if (event.metaKey) {
+         } else if (event.metaKey && !headerRow) {
 
             // command key just toggles current selection
             tr.odbSelected = !tr.odbSelected;
@@ -335,8 +384,10 @@
                tb.childNodes[i].odbLastSelected = false;
             }
 
-            tr.odbSelected = true;
-            tr.odbLastSelected = true;
+            if (!headerRow) {
+               tr.odbSelected = true;
+               tr.odbLastSelected = true;
+            }
          }
 
          // change color of all rows according to selection
@@ -401,6 +452,44 @@
       function do_odb_delete(flag, paths) {
          if (flag)
             mjsonrpc_db_delete(paths).then().catch(error => mjsonrpc_error_alert(error));
+      }
+
+      function rename_key() {
+         let d = document.getElementById(odb.id);
+         let tb = d.firstChild.firstChild;
+         let n = 0;
+         let tr;
+         for (const t of tb.childNodes) {
+            if (t.odbSelected) {
+               n++;
+               tr = t;
+            }
+         }
+
+         if (n === 0)
+            dlgAlert("Please select key to be renamed");
+         else if (n > 1)
+            dlgAlert("Please select only single key to be renamed");
+         else {
+            tr.inRename = true;
+            inline_edit(tr.childNodes[1],
+                    tr.childNodes[1].innerHTML,
+                    do_rename_key,
+                    tr.childNodes[1].innerHTML.length,
+                    tr.odbPath);
+         }
+      }
+
+      function do_rename_key(p, str, path) {
+         p.parentNode.inRename = false;
+         p.innerHTML = str;
+         mjsonrpc_call("db_rename", { "paths": [path], "new_names": [str]})
+                 .then()
+                 .catch(error => mjsonrpc_error_alert(error));
+      }
+
+      function search_key() {
+         dlgAlert("Function not yet implemented");
       }
 
       // user clicks on subdirectory, so open it
