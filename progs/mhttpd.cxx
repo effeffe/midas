@@ -1877,6 +1877,7 @@ void init_menu_buttons(MVOdb* odb)
    db_get_value(hDB, 0, "/Experiment/Menu/Start",      &false_value, &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Transition", &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/ODB",        &true_value,  &size, TID_BOOL, TRUE);
+   db_get_value(hDB, 0, "/Experiment/Menu/OldODB",     &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Messages",   &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Chat",       &true_value,  &size, TID_BOOL, TRUE);
    db_get_value(hDB, 0, "/Experiment/Menu/Elog",       &true_value,  &size, TID_BOOL, TRUE);
@@ -6879,7 +6880,7 @@ void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
 
    /* display root key */
    r->rsprintf("<tr><td colspan=%d class='ODBpath'><b>", colspan);
-   r->rsprintf("<a href=\"?cmd=odb\">/</a> \n");
+   r->rsprintf("<a href=\"?cmd=oldodb\">/</a> \n");
 
    std::string enc_root_path;
 
@@ -6894,7 +6895,7 @@ void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
          enc_root_path += urlEncode(pd.c_str());
          
          if (pd.length() > 0)
-            r->rsprintf("<a href=\"?cmd=odb&odb_path=%s\">%s</a>\n / ", enc_root_path.c_str(), pd.c_str());
+            r->rsprintf("<a href=\"?cmd=oldodb&odb_path=%s\">%s</a>\n / ", enc_root_path.c_str(), pd.c_str());
          
          enc_root_path += "/";
          if (*p == '/')
@@ -7021,7 +7022,7 @@ void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
 
             if (key.type == TID_KEY && scan == 0) {
                /* for keys, don't display data value */
-               r->rsprintf("<tr><td colspan=%d class=\"ODBdirectory\"><a href=\"?cmd=odb&odb_path=%s\">&#x25B6 %s</a>\n", colspan, enc_full_path.c_str(), keyname.c_str());
+               r->rsprintf("<tr><td colspan=%d class=\"ODBdirectory\"><a href=\"?cmd=oldodb&odb_path=%s\">&#x25B6 %s</a>\n", colspan, enc_full_path.c_str(), keyname.c_str());
                if (link_name[0])
                   r->rsprintf("<i>&rarr; <a href=\"%s\">%s</a></i>", enc_link_ref.c_str(), link_name);
                r->rsprintf("</tr>\n");
@@ -7171,7 +7172,7 @@ void show_odb_page(Param* pp, Return* r, const char* dec_path, int write_access)
                } else { /* display array value */
                   /* check for exceeding length */
                   if (key.num_values > 1000 && !pp->isparam("all"))
-                     r->rsprintf("<tr><td class=\"ODBkey\">%s<td class=\"%s\"><span style=\"font-style: italic\"><a href=\"?cmd=odb&odb_path=%s&all=1\">... %d values ...</a></span>\n", keyname.c_str(), style, enc_full_path.c_str(), key.num_values);
+                     r->rsprintf("<tr><td class=\"ODBkey\">%s<td class=\"%s\"><span style=\"font-style: italic\"><a href=\"?cmd=oldodb&odb_path=%s&all=1\">... %d values ...</a></span>\n", keyname.c_str(), style, enc_full_path.c_str(), key.num_values);
                   else {
                      /* display first value */
                      if (link_name[0])
@@ -12958,7 +12959,7 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
 
    /*---- show ODB --------------------------------------------------*/
 
-   if (equal_ustring(command, "odb")) {
+   if (equal_ustring(command, "oldOdb")) {
       int write_access = TRUE;
       db_find_key(hDB, 0, "/Experiment/Security/Web Password", &hkey);
       if (hkey) {
@@ -12978,6 +12979,13 @@ void interprete(Param* p, Return* r, Attachment* a, const Cookies* c, const char
       Lock(t);
       show_odb_page(p, r, odb_path.c_str(), write_access);
       Unlock(t);
+      return;
+   }
+
+   /*---- New ODB browser --------------------------------------------*/
+
+   if (equal_ustring(command, "odb")) {
+      send_resource(r, "odb.html");
       return;
    }
 
