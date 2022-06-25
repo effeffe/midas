@@ -136,6 +136,7 @@
          tr.addEventListener('click', select_key); // used to deselect any kay
 
          d.appendChild(table);
+         odb.tb = tb;
 
          odb_update(odb);
       }
@@ -147,12 +148,11 @@
             // cancel editing
             p.odb.inEdit = false;
             p.innerHTML = p.odb.oldhtml;
-            if (p.inRename)
-               p.inRename = false;
             return false;
          }
 
          if (keyCode === 13) {
+            p.odb.inEdit = false;
             inline_edit_finish(p);
             return false;
          }
@@ -160,28 +160,22 @@
          return true;
       }
 
-      function inline_edit_finish(p) {
+      function inline_edit_finish(p, event) {
          // finish editing
-         if (!p.odb.inEdit)
-            return;
          let value = p.childNodes[0].value;
-         p.odb.inEdit = false;
          p.innerHTML = p.odb.oldhtml;
          if (p.odb.callback)
             p.odb.callback(p, value, p.odb.param);
       }
 
       function inline_edit(p, str, callback, size, param) {
-         if (p.odb == undefined) {
-            p.odb = {
-               "inEdit": false,
-               "param": param,
-               "callback": callback,
-               "oldhtml": p.innerHTML
-            };
-         }
-         if (p.odb.inEdit)
+         if (p.odb !== undefined && p.odb.inEdit)
             return;
+
+         p.odb = {};
+         p.odb.param = param;
+         p.odb.callback = callback;
+         p.odb.oldhtml = p.innerHTML;
          p.odb.inEdit = true;
 
          if (size === undefined)
@@ -190,7 +184,7 @@
             size = 10;
 
          p.innerHTML = "<input type='text' size='" + size + "' value='" + str +
-                 "' onKeydown='return inline_edit_keydown(event, this.parentNode);' onBlur='inline_edit_finish(this.parentNode);' >";
+                 "' onKeydown='return inline_edit_keydown(event, this.parentNode);'>";
 
          // needed for Firefox
          setTimeout(function () {
@@ -369,15 +363,15 @@
       }
 
       function change_color(e, color) {
-         if (e.style !== undefined && !e.inRename)
+         if (e.style !== undefined && (e.odb === undefined || !e.odb.inEdit))
             e.style.color = color;
-         if (e.childNodes && !e.inRename)
+         if (e.childNodes && (e.odb === undefined || !e.odb.inEdit))
             for (const c of e.childNodes)
                change_color(c, color);
       }
 
       function unselect_all_keys() {
-         let tb = document.getElementById(odb.id).firstChild.firstChild;
+         let tb = odb.tb;
          for (let i=4 ; i<tb.childNodes.length ; i++) {
             let tr = tb.childNodes[i];
             tr.odbSelected = false;
@@ -395,7 +389,7 @@
          if (m !== null && m.style.display === 'block')
             m.style.display = 'none';
 
-         let tb = document.getElementById(odb.id).firstChild.firstChild;
+         let tb = odb.tb;
          let tr = event.target;
 
          // don't select key when we are in edit mode
@@ -458,7 +452,8 @@
                tb.childNodes[i].odbLastSelected = false;
             }
 
-            if (!headerRow) {
+            // don't select header row and array values
+            if (!headerRow && tr.childNodes[1].innerHTML !== "") {
                tr.odbSelected = true;
                tr.odbLastSelected = true;
             }
@@ -507,8 +502,7 @@
       }
 
       function odb_delete() {
-         let d = document.getElementById(odb.id);
-         let tb = d.firstChild.firstChild;
+         let tb = odb.tb;
          let paths = [];
          for (const tr of tb.childNodes) {
             if (tr.odbSelected)
@@ -528,9 +522,30 @@
             mjsonrpc_db_delete(paths).then().catch(error => mjsonrpc_error_alert(error));
       }
 
+      function rename_key_click(event) {
+         let tr = event.target;
+         while (tr.tagName !== 'TR')
+            tr = tr.parentElement;
+         if (!tr.odbSelected)
+            return;
+         if (tr.childNodes[1].odb && tr.childNodes[1].odb.inEdit)
+            return;
+
+         let key = tr.childNodes[1].innerHTML;
+         while (key.indexOf("&nbsp;") !== -1)
+            key = key.substring(key.indexOf("&nbsp;")+6);
+
+         tr.oldKey = key;
+
+         inline_edit(tr.childNodes[1],
+                 key,
+                 do_rename_key,
+                 key.length,
+                 tr.odbPath);
+      }
+
       function rename_key() {
-         let d = document.getElementById(odb.id);
-         let tb = d.firstChild.firstChild;
+         let tb = odb.tb;
          let n = 0;
          let tr;
          for (const t of tb.childNodes) {
@@ -545,21 +560,47 @@
          else if (n > 1)
             dlgAlert("Please select only single key to be renamed");
          else {
-            tr.inRename = true;
+            tr.odbSelected = false;
+            tr.style.backgroundColor = '';
+            change_color(tr, '');
+
+            let key = tr.childNodes[1].innerHTML;
+            if (key.indexOf('<a href=') !== -1) {
+               for (const c of tr.childNodes[1].childNodes)
+                  if (c.tagName === 'A') {
+                     key = c.innerHTML;
+                     break;
+                  }
+               if (key.indexOf('\u25BE') !== -1)
+                  key = key.substring(key.indexOf('\u25BE') + 2);
+               if (key.indexOf('\u25B8') !== -1)
+                  key = key.substring(key.indexOf('\u25B8') + 2);
+            }
+
+            while (key.indexOf("&nbsp;") !== -1)
+               key = key.substring(key.indexOf("&nbsp;")+6);
+
+            tr.oldKey = key;
+
             inline_edit(tr.childNodes[1],
-                    tr.childNodes[1].innerHTML,
+                    key,
                     do_rename_key,
-                    tr.childNodes[1].innerHTML.length,
+                    key.length,
                     tr.odbPath);
          }
       }
 
       function do_rename_key(p, str, path) {
-         p.parentNode.inRename = false;
-         p.innerHTML = str;
+         if (str === '') {
+            dlgAlert("Empty name not allowed");
+            return;
+         }
          mjsonrpc_call("db_rename", { "paths": [path], "new_names": [str]})
                  .then()
                  .catch(error => mjsonrpc_error_alert(error));
+         let old = p.parentElement.oldKey;
+
+         p.innerHTML = p.innerHTML.replace(old, str);
       }
 
       function search_key() {
@@ -609,7 +650,7 @@
             window.history.replaceState({}, "MIDAS ODB Browser", url);
 
          // initialize ODB object
-         odb = { id: odb.id, path: path, level: 0, dataIndex: 0, key: [] };
+         odb = { id: odb.id, tb: odb.tb, path: path, level: 0, dataIndex: 0, key: [] };
 
          odb.skip_yellow = true;
          odb_update(odb);
@@ -666,8 +707,7 @@
 
          if (updateTimer !== undefined)
             window.clearTimeout(updateTimer);
-         let d = document.getElementById(odb.id);
-         let tb = d.firstChild.firstChild;
+         let tb = odb.tb;
          let row = { i:4 };
 
          // show clickable ODB path in top row
@@ -787,8 +827,10 @@
             if (c.tagName === 'INPUT')
                return true;
             if (c.childNodes.length > 0)
-               return find_input_element(c);
+               if (find_input_element(c))
+                  return true;
          }
+         return false;
       }
 
       function odb_print_key(tb, odb, row, path, key) {
@@ -819,6 +861,9 @@
          for (let i = 0; i < odb.level; i++)
             indent += "&nbsp;&nbsp;&nbsp;";
 
+         // Remember indent level for key rename
+         tr.level = odb.level;
+
          // Print subdir with open subdir handler
          if (key.type === TID_KEY) {
             let handler = "onclick=\"subdir_click(event, this);return false;\" ";
@@ -830,8 +875,10 @@
                td.innerHTML = indent + "<a href='#' " +
                        handler +
                        "> \u25B8 " + key.name + "</a>";
-         } else
+         } else {
             td.innerHTML = indent + key.name;
+            td.addEventListener('click', rename_key_click);
+         }
 
          // add link if present
          if (key.link !== undefined) {
@@ -854,8 +901,11 @@
                   change_color(tr, '#FFFFFF');
                }
 
-               if (!tb.childNodes[row.i].isEqualNode(tr))
-                  tb.childNodes[row.i].replaceWith(tr);
+               if (!tb.childNodes[row.i].isEqualNode(tr)) {
+                  if (tb.childNodes[row.i].childNodes[1].odb === undefined ||
+                          !tb.childNodes[row.i].childNodes[1].odb.inEdit)
+                     tb.childNodes[row.i].replaceWith(tr);
+               }
             } else
                tb.appendChild(tr);
 
@@ -1016,9 +1066,12 @@
                   else if (!inlineEdit) {
                      let e = tb.childNodes[row.i].childNodes[i];
 
-                     let c = e.style.color; // preserve color if key is slected
+                     let c = e.style.color; // preserve color if key is selected
                      e.innerHTML = tr.childNodes[i].innerHTML;
                      change_color(e, c);
+
+                     if (i == 1 && key.type !== TID_KEY)
+                        e.addEventListener('click', rename_key_click);
 
                      if (yellowBg) {
                         e.style.backgroundColor = 'var(--myellow)';
