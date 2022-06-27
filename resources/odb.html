@@ -34,7 +34,11 @@
    </style>
    <script>
 
-      let odb = {};
+      function getOdbTb(e) {
+         while (e.tagName !== 'TBODY')
+            e = e.parentElement;
+         return e;
+      }
 
       function odb_init(id, path) {
 
@@ -48,8 +52,6 @@
                path = '/' + path;
          }
 
-         // initialize ODB object
-         odb = { id: id, path: path, level: 0, dataIndex: 0, key: [] };
 
          // crate table header
          let d = document.getElementById(id);
@@ -57,6 +59,19 @@
          table.className = "mtable";
          let tb = document.createElement('TBODY');
          table.appendChild(tb);
+
+         // Attach ODB to table body
+         tb.odb = {
+            id: id,
+            updateTimer: 0,
+            path: path,
+            level: 0,
+            dataIndex: 0,
+            handleColumn : false,
+            detailsColumn: false,
+            key: []
+         };
+
          let tr = document.createElement('TR');
          tb.appendChild(tr);
          let th = document.createElement('TH');
@@ -83,18 +98,18 @@
          tr.appendChild(td);
          td.innerHTML =
                  '<img src="icons/file-plus.svg" title="Create key" ' +
-                 'onclick="new_key()">&nbsp;&nbsp;' +
-                 '<img src="icons/folder-plus.svg" title="Create subdirectory" onclick="new_subdir()">&nbsp;&nbsp;' +
+                 'onclick="new_key(this)">&nbsp;&nbsp;' +
+                 '<img src="icons/folder-plus.svg" title="Create subdirectory" onclick="new_subdir(this)">&nbsp;&nbsp;' +
                  '<img src="icons/link.svg" title="Create link" ' +
-                 'onclick="new_link()">&nbsp;&nbsp;' +
+                 'onclick="new_link(this)">&nbsp;&nbsp;' +
                  '<img src="icons/edit-3.svg" title="Rename key" ' +
-                 'onclick="rename_key()">&nbsp;&nbsp;' +
+                 'onclick="rename_key(this)">&nbsp;&nbsp;' +
                  '<img src="icons/shuffle.svg" title="Reorder keys" ' +
-                 'onclick="toggle_handles()">&nbsp;&nbsp;' +
+                 'onclick="toggle_handles(this)">&nbsp;&nbsp;' +
                  '<img src="icons/search.svg" title="Search keys" ' +
-                 'onclick="search_key()">&nbsp;&nbsp;' +
+                 'onclick="search_key(this)">&nbsp;&nbsp;' +
                  '<img src="icons/trash-2.svg" title="Delete keys" ' +
-                 'onclick="odb_delete()">&nbsp;&nbsp;' +
+                 'onclick="odb_delete(this)">&nbsp;&nbsp;' +
                  '<img src="icons/more-vertical.svg" title="More menu commands" ' +
                  'onclick="more_menu(event)">&nbsp;&nbsp;' +
                  '';
@@ -110,13 +125,13 @@
             td.className = 'colHeader';
             if (t === "Handle") {
                td.setAttribute('name', 'odbHandle');
-               td.style.display = odbHandle ? 'table-cell' : 'none';
+               td.style.display = tb.odb.handleColumn ? 'table-cell' : 'none';
                td.style.width = "10px";
             }
             else if (t !== "Key" && t !== "Value") {
                td.innerHTML = t;
                td.setAttribute('name', 'odbExt');
-               td.style.display = odbExpand ? 'table-cell' : 'none';
+               td.style.display = tb.odb.detailColumn ? 'table-cell' : 'none';
             } else {
                td.innerHTML = t;
             }
@@ -125,20 +140,19 @@
 
          tr.childNodes[2].innerHTML +=
                  "<div title='Show key details' style='display:inline;float:right'>" +
-                 "<a id='expRight' href='#' onclick='expand();return false;'>&#x21E5;</a>"+
+                 "<a id='expRight' href='#' onclick='expand(this);return false;'>&#x21E5;</a>"+
                  "</div>";
 
          tr.childNodes[7].innerHTML +=
                  "&nbsp;<div title='Hide key details' style='display:inline;float:right'>" +
-                 "<a id='expRight' href='#' onclick='expand();return false;'>&#x21E4;</a>"+
+                 "<a id='expRight' href='#' onclick='expand(this);return false;'>&#x21E4;</a>"+
                  "</div>";
 
          tr.addEventListener('click', select_key); // used to deselect any kay
 
          d.appendChild(table);
-         odb.tb = tb;
 
-         odb_update(odb);
+         odb_update(tb);
       }
 
       function inline_edit_keydown(event, p) {
@@ -146,13 +160,13 @@
 
          if (keyCode === 27) {
             // cancel editing
-            p.odb.inEdit = false;
-            p.innerHTML = p.odb.oldhtml;
+            p.odbParam.inEdit = false;
+            p.innerHTML = p.odbParam.oldhtml;
             return false;
          }
 
          if (keyCode === 13) {
-            p.odb.inEdit = false;
+            p.odbParam.inEdit = false;
             inline_edit_finish(p);
             return false;
          }
@@ -163,20 +177,20 @@
       function inline_edit_finish(p, event) {
          // finish editing
          let value = p.childNodes[0].value;
-         p.innerHTML = p.odb.oldhtml;
-         if (p.odb.callback)
-            p.odb.callback(p, value, p.odb.param);
+         p.innerHTML = p.odbParam.oldhtml;
+         if (p.odbParam.callback)
+            p.odbParam.callback(p, value, p.odbParam.param);
       }
 
       function inline_edit(p, str, callback, size, param) {
-         if (p.odb !== undefined && p.odb.inEdit)
+         if (p.odbParam !== undefined && p.odbParam.inEdit)
             return;
 
-         p.odb = {};
-         p.odb.param = param;
-         p.odb.callback = callback;
-         p.odb.oldhtml = p.innerHTML;
-         p.odb.inEdit = true;
+         p.odbParam = {};
+         p.odbParam.param = param;
+         p.odbParam.callback = callback;
+         p.odbParam.oldhtml = p.innerHTML;
+         p.odbParam.inEdit = true;
 
          if (size === undefined)
          size = str.length;
@@ -195,12 +209,12 @@
 
       function odb_setall(p, value) {
          // console.log(p.odb.param, value);
-         let path = p.odb.param + '[*]';
+         let path = p.odbParam.param + '[*]';
          mjsonrpc_db_set_value(path, value);
       }
 
       function odb_setlink(p, value) {
-         // console.log(p.odb.param, value);
+         // console.log(p.odbParam.param, value);
 
          dlgAlert("Currently not implemented");
 
@@ -208,13 +222,14 @@
          // }).catch(error =>{ mjsonrpc_error_alert(error); });
       }
 
-      function new_key() {
-         document.getElementById('odbCreateDir').innerHTML = odb.path;
+      function new_key(e) {
+         let tb = getOdbTb(e);
+         document.getElementById('odbCreateDir').innerHTML = tb.odb.path;
          dlgShow('dlgCreate', true);
       }
 
       function do_new_key() {
-         let path = odb.path;
+         let path = document.getElementById('odbCreateDir').innerHTML;
          if (path === '/') path = "";
          let name = document.getElementById('odbCreateName').value;
          let type = parseInt(document.getElementById('odbCreateType').value);
@@ -269,7 +284,7 @@
             return;
          }
 
-         let path = odb.path;
+         let path = document.getElementById('odbCreateDir').innerHTML;
          if (path === '/') path = "";
          let param = {};
          param.path = path + "/" + subdir;
@@ -370,8 +385,7 @@
                change_color(c, color);
       }
 
-      function unselect_all_keys() {
-         let tb = odb.tb;
+      function unselect_all_keys(tb) {
          for (let i=4 ; i<tb.childNodes.length ; i++) {
             let tr = tb.childNodes[i];
             tr.odbSelected = false;
@@ -384,22 +398,28 @@
       function select_key(event) {
          event.preventDefault();
 
+         let tr = event.target;
+         let tb = getOdbTb(tr);
+         let odb = tb.odb;
+
          // hide submenu if visible
          let m = document.getElementById('moreMenu');
          if (m !== null && m.style.display === 'block')
             m.style.display = 'none';
 
-         let tb = odb.tb;
-         let tr = event.target;
+         // hide context menu if visible
+         m = document.getElementById('contextMenu');
+         if (m !== null && m.style.display === 'block')
+            m.style.display = 'none';
 
          // don't select key when we are in edit mode
-         if (tr.tagName === 'INPUT')
-            return;
          while (tr.tagName !== 'TR') {
             tr = tr.parentElement;
             if (tr === null)
                return;
          }
+         if (find_input_element(tr))
+            return;
 
          // check if click is on header row, if so remove selection further down
          let headerRow = false;
@@ -468,16 +488,124 @@
          }
       }
 
-      let odbExpand = false;
-      let odbHandle = false;
-      let updateTimer;
+      function context_menu(event) {
+         event.preventDefault();
+         event.stopPropagation();
 
-      function expand() {
-         let rarr = document.getElementById('expRight');
-         let n = document.getElementsByName('odbExt');
-         odbExpand = !odbExpand;
+         let tr = event.target;
+         while (tr.tagName !== 'TR')
+            tr = tr.parentElement;
+         let tb = getOdbTb(tr);
+         let odb = tb.odb;
+         let path = tr.odbPath;
 
-         if (odbExpand) {
+         if (!tr.odbSelected)
+            select_key(event);
+
+         let d = document.getElementById('contextMenu');
+         if (d === null) {
+
+            // create menu
+            d = document.createElement("div");
+            d.id = "contextMenu";
+            d.style.display = "none";
+            d.style.position = "absolute";
+            d.className = "mtable";
+            d.style.borderRadius = "0";
+            d.style.border = "2px solid #808080";
+            d.style.margin = "0";
+            d.style.padding = "0";
+
+            d.style.left = "100px";
+            d.style.top = "100px";
+
+            let table = document.createElement("table");
+
+            // delete key ----------
+
+            let trm = document.createElement("tr");
+            let tdm = document.createElement("td");
+            tdm.style.padding = "0";
+
+            let a = document.createElement("a");
+            a.href = "#";
+            a.innerHTML = "Delete key";
+            a.title = "Delete key";
+
+            tdm.appendChild(a);
+            trm.appendChild(tdm);
+            table.appendChild(trm);
+
+            // rename key  ----------
+
+            trm = document.createElement("tr");
+            tdm = document.createElement("td");
+            tdm.style.padding = "0";
+
+            a = document.createElement("a");
+            a.href = "#";
+            a.innerHTML = "Rename key";
+            a.title = "Rename key";
+
+            tdm.appendChild(a);
+            trm.appendChild(tdm);
+            table.appendChild(trm);
+
+            d.appendChild(table);
+
+            document.body.appendChild(d);
+         }
+
+         // set event handler for delete menu
+         d.childNodes[0].childNodes[0].childNodes[0].childNodes[0].onclick = function () {
+            d.style.display = 'none';
+            dlgConfirm('Are you sure to delete odb key ' + path + '?', do_odb_delete, [path]);
+         }
+
+         // set event handler for rename menu
+         d.childNodes[0].childNodes[1].childNodes[0].childNodes[0].onclick = function () {
+            d.style.display = 'none';
+
+            let key = tr.childNodes[1].innerHTML;
+            if (key.indexOf('<a href=') !== -1) {
+               for (const c of tr.childNodes[1].childNodes)
+                  if (c.tagName === 'A') {
+                     key = c.innerHTML;
+                     break;
+                  }
+               if (key.indexOf('\u25BE') !== -1)
+                  key = key.substring(key.indexOf('\u25BE') + 2);
+               if (key.indexOf('\u25B8') !== -1)
+                  key = key.substring(key.indexOf('\u25B8') + 2);
+            }
+
+            while (key.indexOf("&nbsp;") !== -1)
+               key = key.substring(key.indexOf("&nbsp;")+6);
+
+            tr.oldKey = key;
+
+            inline_edit(tr.childNodes[1],
+                    key,
+                    do_rename_key,
+                    key.length,
+                    tr.odbPath);
+         }
+
+         let rect = event.target.getBoundingClientRect();
+
+         d.style.display = 'block';
+         d.style.left = (event.offsetX + rect.left + window.scrollX) + 'px';
+         d.style.top = (event.offsetY+rect.top + window.scrollY) + 'px';
+      }
+
+      function expand(e) {
+         let odb = getOdbTb(e).odb;
+
+         let rarr = document.getElementById('expRight'); // ## TBD
+         let n = document.getElementsByName('odbExt');   // ## TBD
+         odb.detailsColumn = !odb.detailsColumn;
+
+         if (odb.detailsColumn) {
             for (const d of n)
                d.style.display = 'table-cell';
             rarr.style.display = 'none';
@@ -488,11 +616,13 @@
          }
       }
 
-      function toggle_handles() {
-         let n = document.getElementsByName('odbHandle');
-         odbHandle = !odbHandle;
+      function toggle_handles(e) {
+         let odb = getOdbTb(e).odb;
 
-         if (odbHandle) {
+         let n = document.getElementsByName('odbHandle');
+         odb.handleColumn = !odb.handleColumn;
+
+         if (odb.handleColumn) {
             for (const d of n)
                d.style.display = 'table-cell';
          } else {
@@ -501,8 +631,8 @@
          }
       }
 
-      function odb_delete() {
-         let tb = odb.tb;
+      function odb_delete(e) {
+         let tb = getOdbTb(e);
          let paths = [];
          for (const tr of tb.childNodes) {
             if (tr.odbSelected)
@@ -528,8 +658,10 @@
             tr = tr.parentElement;
          if (!tr.odbSelected)
             return;
-         if (tr.childNodes[1].odb && tr.childNodes[1].odb.inEdit)
+         if (tr.childNodes[1].odbParam && tr.childNodes[1].odbParam.inEdit)
             return;
+
+         event.stopPropagation(); // don't select key again
 
          let key = tr.childNodes[1].innerHTML;
          while (key.indexOf("&nbsp;") !== -1)
@@ -544,8 +676,8 @@
                  tr.odbPath);
       }
 
-      function rename_key() {
-         let tb = odb.tb;
+      function rename_key(e) {
+         let tb = getOdbTb(e);
          let n = 0;
          let tr;
          for (const t of tb.childNodes) {
@@ -613,33 +745,37 @@
       }
 
       // user clicks on subdirectory, so open it
-      function subdir_open(path) {
-         unselect_all_keys();
+      function subdir_open(e, path) {
+         let tb = getOdbTb(e);
+         let odb = tb.odb;
+         unselect_all_keys(tb);
 
          // find key belonging to 'path'
          let dirs = path.split('/');
-         let o = odb;
          for (let l=1 ; l<dirs.length ; l++) {
-            for (let i = 0 ; i<o.key.length ; i++)
-               if (o.key[i].name == dirs[l]) {
+            for (let i = 0 ; i<odb.key.length ; i++)
+               if (odb.key[i].name == dirs[l]) {
                   if (l == dirs.length-1)
-                     o.key[i].subdir_open = !o.key[i].subdir_open;
+                     odb.key[i].subdir_open = !odb.key[i].subdir_open;
                   else
-                     o = o.key[i].value; // recurse one level
+                     odb = odb.key[i].value; // recurse one level
                   break;
                }
          }
          odb.skip_yellow = true;
-         odb_update(odb);
+         odb_update(tb);
       }
 
       // after a double click open the subdirectory as top level
-      function subdir_goto(path) {
-         unselect_all_keys();
+      function subdir_goto(e, path) {
+         let tb = getOdbTb(e);
+         let odb = tb.odb;
+
+         unselect_all_keys(tb);
 
          // kill old timer
-         if (updateTimer !== undefined)
-            window.clearTimeout(updateTimer);
+         if (odb.updateTimer !== undefined)
+            window.clearTimeout(odb.updateTimer);
 
          // update URL
          let url = window.location.href;
@@ -649,11 +785,14 @@
          if (url !== window.location.href)
             window.history.replaceState({}, "MIDAS ODB Browser", url);
 
-         // initialize ODB object
-         odb = { id: odb.id, tb: odb.tb, path: path, level: 0, dataIndex: 0, key: [] };
-
+         // update ODB object
+         odb.path = path;
+         odb.level = 0;
+         odb.dataIndex = 0;
+         odb.key = [];
          odb.skip_yellow = true;
-         odb_update(odb);
+
+         odb_update(tb);
       }
 
       let numClicks = 0;
@@ -672,13 +811,13 @@
             // if no second click in the next 200ms, we have a single click
             singleClickTimer = setTimeout(() => {
                numClicks = 0;
-               subdir_open(path);
+               subdir_open(tr, path);
             }, 200);
          } else if (numClicks === 2) {
             // we have a double click
             clearTimeout(singleClickTimer);
             numClicks = 0;
-            subdir_goto(path);
+            subdir_goto(tr, path);
          }
       }
 
@@ -703,11 +842,11 @@
       }
 
       // update overall ODB display
-      function odb_update(odb) {
+      function odb_update(tb) {
+         let odb = tb.odb;
 
-         if (updateTimer !== undefined)
-            window.clearTimeout(updateTimer);
-         let tb = odb.tb;
+         if (odb.updateTimer !== undefined)
+            window.clearTimeout(odb.updateTimer);
          let row = { i:4 };
 
          // show clickable ODB path in top row
@@ -717,10 +856,10 @@
          else
             dirs = odb.path.split('/');
          let path = '';
-         let s = "<a href='#' onclick=\"subdir_goto('/');return false;\">/</a>&nbsp;";
+         let s = "<a href='#' onclick=\"subdir_goto(this, '/');return false;\">/</a>&nbsp;";
          for (let i=1 ; i<dirs.length ; i++) {
             path += "/" + dirs[i];
-            s += "<a href='#' onclick=\"subdir_goto('" + path + "');return false;\">"+dirs[i]+"</a>";
+            s += "<a href='#' onclick=\"subdir_goto(this, '" + path + "');return false;\">"+dirs[i]+"</a>";
             if (i < dirs.length - 1)
                s += "&nbsp;/&nbsp;";
          }
@@ -737,7 +876,7 @@
             odb.skip_yellow = false;
 
             // call timer in one second to update again
-            updateTimer = window.setTimeout(odb_update, 1000, odb);
+            odb.updateTimer = window.setTimeout(odb_update, 1000, tb);
          }).catch(error => mjsonrpc_error_alert(error));
       }
 
@@ -800,7 +939,7 @@
       function odb_print(tb, row, odb) {
          for (const key of odb.key) {
             // Print current key
-            odb_print_key(tb, odb, row, odb.path, key);
+            odb_print_key(tb, row, odb.path, key);
             row.i++;
 
             // Print whole subdirectory if open
@@ -833,7 +972,9 @@
          return false;
       }
 
-      function odb_print_key(tb, odb, row, path, key) {
+      function odb_print_key(tb, row, path, key) {
+         let odb = tb.odb;
+
          // console.log(row, key.name, key.value);
 
          // ful path to key
@@ -846,7 +987,7 @@
          let td = document.createElement('TD');
          td.className = 'odbKey';
          td.setAttribute('name', 'odbHandle');
-         td.style.display = odbHandle ? 'table-cell' : 'none';
+         td.style.display = odb.handleColumn ? 'table-cell' : 'none';
          td.style.width = "10px";
          tr.appendChild(td);
          td.innerHTML = '<img src="icons/menu.svg">';
@@ -902,8 +1043,9 @@
                }
 
                if (!tb.childNodes[row.i].isEqualNode(tr)) {
-                  if (tb.childNodes[row.i].childNodes[1].odb === undefined ||
-                          !tb.childNodes[row.i].childNodes[1].odb.inEdit)
+                  // check for edit mode
+                  let inlineEdit = find_input_element(tb.childNodes[row.i]);
+                  if (!inlineEdit)
                      tb.childNodes[row.i].replaceWith(tr);
                }
             } else
@@ -911,6 +1053,7 @@
 
             // Install mouse click handler
             tb.childNodes[row.i].addEventListener('click', select_key);
+            tb.childNodes[row.i].addEventListener('contextmenu', context_menu);
 
             // Remember ODB path in row
             tb.childNodes[row.i].odbPath = keyPath;
@@ -955,7 +1098,7 @@
          td = document.createElement('TD');
          td.className = 'odbKey';
          td.setAttribute('name', 'odbExt');
-         td.style.display = odbExpand ? 'table-cell' : 'none';
+         td.style.display = odb.detailsColumn ? 'table-cell' : 'none';
          tr.appendChild(td);
          td.appendChild(document.createTextNode(tid_name[key.type]));
 
@@ -963,7 +1106,7 @@
          td = document.createElement('TD');
          td.className = 'odbKey';
          td.setAttribute('name', 'odbExt');
-         td.style.display = odbExpand ? 'table-cell' : 'none';
+         td.style.display = odb.detailsColumn ? 'table-cell' : 'none';
          tr.appendChild(td);
          td.innerHTML = '<a href="#" onclick="resize_array(event, \''+keyPath+'\','+key.num_values+');return false;">'
                  + key.num_values + '</a>';
@@ -972,7 +1115,7 @@
          td = document.createElement('TD');
          td.className = 'odbKey';
          td.setAttribute('name', 'odbExt');
-         td.style.display = odbExpand ? 'table-cell' : 'none';
+         td.style.display = odb.detailsColumn ? 'table-cell' : 'none';
          tr.appendChild(td);
          if (key.type === TID_STRING)
             td.innerHTML = '<a href="#" onclick="resize_string(event, \''+keyPath+'\','+key.item_size+','+key.num_values+');return false;">'
@@ -984,7 +1127,7 @@
          td = document.createElement('TD');
          td.className = 'odbKey';
          td.setAttribute('name', 'odbExt');
-         td.style.display = odbExpand ? 'table-cell' : 'none';
+         td.style.display = odb.detailsColumn ? 'table-cell' : 'none';
          tr.appendChild(td);
          let s = Math.floor(0.5 + new Date().getTime() / 1000 - key.last_written);
          let t;
@@ -1004,7 +1147,7 @@
          td = document.createElement('TD');
          td.className = 'odbKey';
          td.setAttribute('name', 'odbExt');
-         td.style.display = odbExpand ? 'table-cell' : 'none';
+         td.style.display = odb.detailsColumn ? 'table-cell' : 'none';
          tr.appendChild(td);
          let mode = key.access_mode;
          let m = "";
@@ -1095,6 +1238,7 @@
 
          // Install mouse click handler
          tb.childNodes[row.i].addEventListener('click', select_key);
+         tb.childNodes[row.i].addEventListener('contextmenu', context_menu);
 
          // Remember ODB path in row
          tb.childNodes[row.i].odbPath = keyPath;
@@ -1119,7 +1263,7 @@
                let td = document.createElement('TD');
                td.className = 'odbKey';
                td.setAttribute('name', 'odbHandle');
-               td.style.display = odbHandle ? 'table-cell' : 'none';
+               td.style.display = odb.handleColumn ? 'table-cell' : 'none';
                td.style.width = "10px";
                tr.appendChild(td);
 
@@ -1153,7 +1297,7 @@
                   td = document.createElement('TD');
                   td.className = 'odbKey';
                   td.setAttribute('name', 'odbExt');
-                  td.style.display = odbExpand ? 'table-cell' : 'none';
+                  td.style.display = odb.detailsColumn ? 'table-cell' : 'none';
                   tr.appendChild(td);
                }
 
@@ -1289,7 +1433,7 @@
                <td style="text-align: left"><input type=text size=6 value=32 id="odbCreateStrLen"></td>
             </tr>
          </table>
-         <button class="dlgButton" onclick="if(do_new_key())dlgHide('dlgCreate');">Create</button>
+         <button class="dlgButton" onclick="if(do_new_key(this))dlgHide('dlgCreate');">Create</button>
          <button class="dlgButton" onclick="dlgHide('dlgCreate')">Cancel</button>
       </div>
    </div>
