@@ -21,6 +21,7 @@ message(STATUS "MIDAS: Curent build type is '${CMAKE_BUILD_TYPE}'")
 
 #
 # option for address sanitizer, turn on via "ccmake .." in build directory
+# or "cmake -DUSE_ADDRESS_SANITIZER=ON .." when running cmake
 #
 option(USE_ADDRESS_SANITIZER "Enable address sanitizer" FALSE)
 if (USE_ADDRESS_SANITIZER)
@@ -36,6 +37,16 @@ if (USE_ADDRESS_SANITIZER)
 else()
    message(STATUS "MIDAS: Disabled address sanitizer")
 endif()
+
+#
+# Flags for code coverage build. 
+# Enable with cmake .. -DCMAKE_BUILD_TYPE=Coverage
+# Use a custom build type (rather than a feature flag) to avoid conflicts between 
+# optimization levels specified for Debug/RelWithDebug/Release build types and 
+# the -O0 we need for accurate coverage.
+#
+set(CMAKE_CXX_FLAGS_COVERAGE "-g -O0 -fprofile-arcs -ftest-coverage")
+set(CMAKE_C_FLAGS_COVERAGE "-g -O0 -fprofile-arcs -ftest-coverage")
 
 #
 # Directories

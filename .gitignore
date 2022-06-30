@@ -1,5 +1,5 @@
 .idea
-build
+build*
 cmake-build-debug
 cmake-build-release
 xcode
@@ -25,3 +25,6 @@ testexpt
 exptab
 testexpt.log
 testexpt.json
+genhtml.log
+cov_html
+*.info

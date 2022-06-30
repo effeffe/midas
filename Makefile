@@ -703,3 +703,27 @@ test:
 	@echo
 
 #####################################################################
+# Coverage. Must have compiled midas with `cmake -DCMAKE_BUILD_TYPE=Coverage ..`
+# The pre-test step (with -i flag) is needed so that the final output includes
+# data for all source files, even those that aren't touched at all by the tests.
+
+coverage:
+	@rm -f init.info post.info coverage.info
+	@echo Zeroing current counts
+	@lcov -q -z -d .
+	@echo Building pre-test coverage data
+	@lcov -q -c -d . -o init.info --no-external -i
+	@echo Running tests
+	$(MAKE) test
+	@echo Building post-test coverage data
+	@lcov -q -c -d . -o post.info --no-external
+	@lcov -q -a init.info -a post.info -o coverage.info
+	@echo Generating HTML output
+	@genhtml coverage.info --demangle-cpp --output-directory cov_html 2>&1 > genhtml.log
+	@grep -E "(Overall)|( of )" genhtml.log
+	@echo
+	@echo -----------------------------------------
+	@echo Open file://$(PWD)/cov_html/index.html in a browser to view annotated source code.
+	@echo -----------------------------------------
+
+#####################################################################
