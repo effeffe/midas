@@ -221,6 +221,7 @@ function mie_back_to_link(p, path, bracket) {
       link.onfocus = function () {
          ODBInlineEdit(p, path, bracket);
       };
+      link.style.color = p.oldStyle.color;
 
       // what is this for?!?
       if (p.childNodes.length === 2)//two values means it was editing an array
@@ -314,6 +315,7 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val, size) {
    let string_val = String(cur_val);
 
    p.ODBsent = false;
+   p.oldStyle = p.style;
 
    if (size === undefined)
       size = 10;
