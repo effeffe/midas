@@ -106,6 +106,10 @@
                  'onclick="rename_key(this)">&nbsp;&nbsp;' +
                  '<img src="icons/shuffle.svg" title="Reorder keys" ' +
                  'onclick="toggle_handles(this)">&nbsp;&nbsp;' +
+                 '<img src="icons/download.svg" title="Download ODB" ' +
+                 'onclick="odb_download(this)">&nbsp;&nbsp;' +
+                 '<img src="icons/upload.svg" title="Upload ODB" ' +
+                 'onclick="odb_upload(this)">&nbsp;&nbsp;' +
                  '<img src="icons/search.svg" title="Search keys" ' +
                  'onclick="search_key(this)">&nbsp;&nbsp;' +
                  '<img src="icons/trash-2.svg" title="Delete keys" ' +
@@ -222,7 +226,7 @@
          // }).catch(error =>{ mjsonrpc_error_alert(error); });
       }
 
-      function new_key(e) {
+      function nefdbw_key(e) {
          let tb = getOdbTb(e);
          document.getElementById('odbCreateDir').innerHTML = tb.odb.path;
          dlgShow('dlgCreate', true);
@@ -742,6 +746,56 @@
       function do_search_key(str) {
          if (str !== false)
             window.location.href = "?cmd=Find&value=" + str;
+      }
+
+      function odb_download(e) {
+         let tb = getOdbTb(e);
+         mjsonrpc_db_copy([tb.odb.path]).then(rpc => {
+
+            let dirs = tb.odb.path.split('/');
+            let filename = dirs[dirs.length - 1];
+            if (filename === '')
+               filename = 'root';
+            filename += ".json";
+
+            let header = {
+               "/MIDAS version": "2.1",
+               "/filename": filename,
+               "/ODB path": tb.odb.path
+            }
+            header = JSON.stringify(header);
+            header = header.substring(0, header.length-1) + ','; // stip trailing '}'
+
+            let odbJson = JSON.stringify(rpc.result.data[0]);
+            if (odbJson.indexOf('{') === 0)
+               odbJson = odbJson.substring(1); // strip leading '{'
+
+            odbJson = header + odbJson;
+
+            // use trick from FileSaver.js
+            let a = document.getElementById('downloadHook');
+            if (a === null) {
+               a = document.createElement("a");
+               a.style.display = "none";
+               a.id = "downloadHook";
+               document.body.appendChild(a);
+            }
+
+            let blob = new Blob([odbJson], {type: "text/json"});
+            let url = window.URL.createObjectURL(blob);
+
+            a.href = url;
+            a.download = filename;
+            a.click();
+            window.URL.revokeObjectURL(url);
+            dlgAlert("ODB subtree \"" + tb.odb.path +
+                    "\" downloaded to file \"" + filename + "\"");
+
+         }).catch(error => mjsonrpc_error_alert(error));
+      }
+
+      function odb_upload() {
+         dlgAlert("Currently not implemented");
       }
 
       // user clicks on subdirectory, so open it
