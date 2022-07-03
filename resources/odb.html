@@ -794,8 +794,46 @@
          }).catch(error => mjsonrpc_error_alert(error));
       }
 
-      function odb_upload() {
-         dlgAlert("Currently not implemented");
+      async function odb_upload(e) {
+         dlgShow('dlgFileSelect');
+         return;
+         // Chrome has file picker, others might have not
+         try {
+            let fileHandle;
+            [fileHandle] = await window.showOpenFilePicker();
+            const file = await fileHandle.getFile();
+            const text = await file.text();
+            pasteBuffer(text);
+         } catch (error) {
+            if (error.name !== 'AbortError') {
+               // fall-back to old method
+               dlgShow('fileSelector');
+            }
+         }
+      }
+
+      function loadFileFromSelector() {
+
+         let input = document.getElementById('fileSelector');
+         let file = input.files[0];
+         if (file !== undefined) {
+            let reader = new FileReader();
+            reader.readAsText(file);
+
+            reader.onerror = function () {
+               dlgAlert('File read error: ' + reader.error);
+            };
+
+            reader.onload = function () {
+               pasteBuffer(reader.result);
+            };
+         }
+      }
+
+      function pasteBuffer(text) {
+         let path = "/Test";
+         mjsonrpc_db_paste([path], [text]).then().catch(error =>
+         mjsonrpc_error_alert(error));
       }
 
       // user clicks on subdirectory, so open it
@@ -1489,6 +1527,17 @@
          </table>
          <button class="dlgButton" onclick="if(do_new_key(this))dlgHide('dlgCreate');">Create</button>
          <button class="dlgButton" onclick="dlgHide('dlgCreate')">Cancel</button>
+      </div>
+   </div>
+
+   <!-- Select file dialog -->
+   <div id="dlgFileSelect" class="dlgFrame">
+      <div class="dlgTitlebar">Select file</div>
+      <div class="dlgPanel">
+         </br><div style="margin: auto;width:70%">
+         <input type="file" id="fileSelector" accept=".json"></div></br></br>
+         <button class="dlgButton" onclick="loadFileFromSelector();dlgHide('dlgFileSelect');">Upload</button>
+         <button class="dlgButton" onclick="dlgHide('dlgFileSelect')">Cancel</button>
       </div>
    </div>
 
