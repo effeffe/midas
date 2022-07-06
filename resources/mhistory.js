@@ -268,7 +268,7 @@ function MhistoryGraph(divElement) { // Constructor
          }
       },
       {
-         src: "return.svg",
+         src: "corner-down-left.svg",
          title: "Return to all variables",
          click: function (t) {
             t.solo.active = false;
@@ -2423,7 +2423,7 @@ MhistoryGraph.prototype.draw = function () {
          }
       }
 
-      if (b.src === "return.svg") {
+      if (b.src === "corner-down-left.svg") {
          b.x1 = this.x1;
          b.y1 = this.y2;
          if (this.solo.active)
