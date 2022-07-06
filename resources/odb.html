@@ -35,7 +35,7 @@
    <script>
 
       function getOdbTb(e) {
-         while (e.tagName !== 'TBODY')
+         while (e !== undefined && e.tagName !== 'TBODY')
             e = e.parentElement;
          return e;
       }
@@ -1031,7 +1031,7 @@
       function odb_print(tb, row, odb) {
          for (const key of odb.key) {
             // Print current key
-            odb_print_key(tb, row, odb.path, key);
+            odb_print_key(tb, row, odb.path, key, odb.level);
             row.i++;
 
             // Print whole subdirectory if open
@@ -1064,7 +1064,7 @@
          return false;
       }
 
-      function odb_print_key(tb, row, path, key) {
+      function odb_print_key(tb, row, path, key, level) {
          let odb = tb.odb;
 
          // console.log(row, key.name, key.value);
@@ -1091,7 +1091,7 @@
 
          // Add three spaces of indent for each level
          let indent = "";
-         for (let i = 0; i < odb.level; i++)
+         for (let i = 0; i < level; i++)
             indent += "&nbsp;&nbsp;&nbsp;";
 
          // Remember indent level for key rename
