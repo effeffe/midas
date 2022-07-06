@@ -390,7 +390,7 @@ INT gen_init(EQUIPMENT * pequipment)
    if (!(gen_info->driver[0]->flags & DF_QUICKSTART)) {
       gen_read_direct(pequipment);
 
-      if (gen_info->driver[0]->flags &DF_MULTITHREAD) {
+      if (gen_info->driver[0]->flags & DF_MULTITHREAD) {
          for (i = 0; i < gen_info->num_channels; i++)
             gen_info->driver[i]->mt_buffer->channel[i].variable[CMD_GET] = gen_info->measured[i];
       }
