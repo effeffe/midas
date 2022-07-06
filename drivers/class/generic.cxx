@@ -131,6 +131,23 @@ INT gen_read(EQUIPMENT * pequipment, int channel)
 
 /*------------------------------------------------------------------*/
 
+INT gen_read_direct(EQUIPMENT * pequipment) {
+   int i, status;
+   GEN_INFO *gen_info;
+   HNDLE hDB;
+   gen_info = (GEN_INFO *) pequipment->cd_info;
+   cm_get_experiment_database(&hDB, NULL);
+
+   for (i = 0; i < gen_info->num_channels; i++)
+      status = device_driver(gen_info->driver[i], CMD_GET_DIRECT,
+                             i - gen_info->channel_offset[i],
+                             &gen_info->measured[i]);
+
+   return status;
+}
+
+/*------------------------------------------------------------------*/
+
 void gen_demand(INT hDB, INT hKey, void *info)
 {
    INT i;
@@ -295,12 +312,17 @@ INT gen_init(EQUIPMENT * pequipment)
    }
    /* let device driver overwrite demand values, if it supports it */
    for (i = 0; i < gen_info->num_channels; i++) {
-      if (gen_info->driver[i]->flags & DF_PRIO_DEVICE) {
-         device_driver(gen_info->driver[i], CMD_GET_DEMAND,
+      if ((gen_info->driver[i]->flags & DF_PRIO_DEVICE) &&
+          !(gen_info->driver[i]->flags & DF_QUICKSTART)) {
+         device_driver(gen_info->driver[i], CMD_GET_DEMAND_DIRECT,
                        i - gen_info->channel_offset[i], &gen_info->demand[i]);
          gen_info->demand_mirror[i] = gen_info->demand[i];
+
+         if (gen_info->driver[i]->flags &DF_MULTITHREAD)
+            gen_info->driver[i]->mt_buffer->channel[i].variable[CMD_GET_DEMAND] = gen_info->demand[i];
+
       } else
-         gen_info->demand_mirror[i] = -12345.f; /* use -12345 as invalid value */
+         gen_info->demand_mirror[i] = ss_nan();
    }
    /* write back demand values */
    status =
@@ -365,8 +387,14 @@ INT gen_init(EQUIPMENT * pequipment)
    gen_demand(hDB, gen_info->hKeyDemand, pequipment);
 
    /* initially read all channels */
-   for (i = 0; i < gen_info->num_channels; i++)
-      gen_read(pequipment, i);
+   if (!(gen_info->driver[0]->flags & DF_QUICKSTART)) {
+      gen_read_direct(pequipment);
+
+      if (gen_info->driver[0]->flags &DF_MULTITHREAD) {
+         for (i = 0; i < gen_info->num_channels; i++)
+            gen_info->driver[i]->mt_buffer->channel[i].variable[CMD_GET] = gen_info->measured[i];
+      }
+   }
 
    return FE_SUCCESS;
 }
