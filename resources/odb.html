@@ -179,14 +179,16 @@
 
       function inline_edit_cancel(event, p) {
          // cancel editing
-         p.odbParam.inEdit = false;
-         p.innerHTML = p.odbParam.oldhtml;
+         if (p.odbParam.inEdit) {
+            p.odbParam.inEdit = false;
+            p.innerHTML = p.odbParam.oldhtml;
+         }
       }
 
       function inline_edit_finish(p) {
          // finish editing
-         p.odbParam.inEdit = false;
          let value = p.childNodes[0].value;
+         p.odbParam.inEdit = false;
          p.innerHTML = p.odbParam.oldhtml;
          if (p.odbParam.callback)
             p.odbParam.callback(p, value, p.odbParam.param);
@@ -570,7 +572,7 @@
          // set event handler for delete menu
          d.childNodes[0].childNodes[0].childNodes[0].childNodes[0].onclick = function () {
             d.style.display = 'none';
-            dlgConfirm('Are you sure to delete odb key ' + path + '?', do_odb_delete, [path]);
+            odb_delete(tr);
          }
 
          // set event handler for rename menu
