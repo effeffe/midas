@@ -170,7 +170,6 @@
          }
 
          if (keyCode === 13) {
-            p.odbParam.inEdit = false;
             inline_edit_finish(p);
             return false;
          }
@@ -178,8 +177,15 @@
          return true;
       }
 
-      function inline_edit_finish(p, event) {
+      function inline_edit_cancel(event, p) {
+         // cancel editing
+         p.odbParam.inEdit = false;
+         p.innerHTML = p.odbParam.oldhtml;
+      }
+
+      function inline_edit_finish(p) {
          // finish editing
+         p.odbParam.inEdit = false;
          let value = p.childNodes[0].value;
          p.innerHTML = p.odbParam.oldhtml;
          if (p.odbParam.callback)
@@ -202,7 +208,8 @@
             size = 10;
 
          p.innerHTML = "<input type='text' size='" + size + "' value='" + str +
-                 "' onKeydown='return inline_edit_keydown(event, this.parentNode);'>";
+                 "' onKeydown='return inline_edit_keydown(event, this.parentNode);'" +
+                 " onBlur='return inline_edit_cancel(event, this.parentNode);'>";
 
          // needed for Firefox
          setTimeout(function () {
@@ -226,7 +233,7 @@
          // }).catch(error =>{ mjsonrpc_error_alert(error); });
       }
 
-      function nefdbw_key(e) {
+      function new_key(e) {
          let tb = getOdbTb(e);
          document.getElementById('odbCreateDir').innerHTML = tb.odb.path;
          dlgShow('dlgCreate', true);
