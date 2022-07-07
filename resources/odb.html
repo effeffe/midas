@@ -244,6 +244,8 @@
          let tb = getOdbTb(e);
          document.getElementById('odbCreateDir').innerHTML = tb.odb.path;
          dlgShow('dlgCreate', true);
+         document.getElementById('odbCreateName').focus();
+         document.getElementById('odbCreateName').select();
       }
 
       function do_new_key() {
@@ -1500,6 +1502,25 @@
          }).catch(error => mjsonrpc_error_alert(error));
       }
 
+      function dlgCreateKeyDown(event, inp) {
+         let keyCode = ('which' in event) ? event.which : event.keyCode;
+
+         if (keyCode === 27) {
+            // cancel editing
+            dlgHide('dlgCreate');
+            return false;
+         }
+
+         if (keyCode === 13) {
+            // finish editing
+            if (do_new_key(this))
+               dlgHide('dlgCreate');
+            return false;
+         }
+
+         return true;
+      }
+
    </script>
 </head>
 
@@ -1545,15 +1566,16 @@
             </tr>
             <tr>
                <td style="text-align: right">Name:</td>
-               <td style="text-align: left"><input type=text size=20 maxlength=31 id="odbCreateName"></td>
+               <td style="text-align: left"><input type="text" size="20" maxlength="31"
+                                id="odbCreateName" onkeydown="return dlgCreateKeyDown(event, this)"></td>
             </tr>
             <tr>
                <td style="text-align: right">Array size:</td>
-               <td style="text-align: left"><input type=text size=6 value=1 id="odbCreateSize"></td>
+               <td style="text-align: left"><input type="text" size="6" value="1" id="odbCreateSize"></td>
             </tr>
             <tr id="odbCreateStrLenTR" style="visibility: hidden">
                <td style="text-align: right">String length:</td>
-               <td style="text-align: left"><input type=text size=6 value=32 id="odbCreateStrLen"></td>
+               <td style="text-align: left"><input type="text" size="6" value="32" id="odbCreateStrLen"></td>
             </tr>
          </table>
          <button class="dlgButton" onclick="if(do_new_key(this))dlgHide('dlgCreate');">Create</button>
