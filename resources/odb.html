@@ -35,8 +35,13 @@
    <script>
 
       function getOdbTb(e) {
-         while (e !== undefined && e.tagName !== 'TBODY')
+         if (e === null)
+            return;
+         while (e.tagName !== 'TBODY') {
             e = e.parentElement;
+            if (e === null)
+               return;
+         }
          return e;
       }
 
@@ -413,6 +418,9 @@
 
          let tr = event.target;
          let tb = getOdbTb(tr);
+         if (tb === undefined)
+            return;
+
          let odb = tb.odb;
 
          // hide submenu if visible
@@ -773,7 +781,7 @@
                "/ODB path": tb.odb.path
             }
             header = JSON.stringify(header);
-            header = header.substring(0, header.length-1) + ','; // stip trailing '}'
+            header = header.substring(0, header.length-1) + ','; // strip trailing '}'
 
             let odbJson = JSON.stringify(rpc.result.data[0]);
             if (odbJson.indexOf('{') === 0)
@@ -804,7 +812,7 @@
       }
 
       async function odb_upload(e) {
-         dlgShow('dlgFileSelect');
+         dlgShow('dlgFileSelect', true, e);
          return;
          // Chrome has file picker, others might have not
          try {
@@ -812,16 +820,16 @@
             [fileHandle] = await window.showOpenFilePicker();
             const file = await fileHandle.getFile();
             const text = await file.text();
-            pasteBuffer(text);
+            pasteBuffer(e.param, text, file);
          } catch (error) {
             if (error.name !== 'AbortError') {
                // fall-back to old method
-               dlgShow('fileSelector');
+               dlgShow('fileSelector', true, e);
             }
          }
       }
 
-      function loadFileFromSelector() {
+      function loadFileFromSelector(e) {
 
          let input = document.getElementById('fileSelector');
          let file = input.files[0];
@@ -834,15 +842,29 @@
             };
 
             reader.onload = function () {
-               pasteBuffer(reader.result);
+               pasteBuffer(e.param, reader.result, file.name);
             };
          }
       }
 
-      function pasteBuffer(text) {
-         let path = "/Test";
-         mjsonrpc_db_paste([path], [text]).then().catch(error =>
-         mjsonrpc_error_alert(error));
+      function pasteBuffer(e, text, filename) {
+         let tb = getOdbTb(e);
+         let path = tb.odb.path;
+         let odbJson;
+         try {
+            odbJson = JSON.parse(text);
+         } catch (error) {
+            dlgAlert(error);
+            return;
+         }
+         // delete /MIDAS version, /filename etc.
+         for (let [name, value] of Object.entries(odbJson)) {
+            if (name[0] === '/')
+               delete odbJson[name];
+         }
+         mjsonrpc_db_paste([path], [odbJson]).then(rpc =>
+                 dlgAlert("File \"" + filename + "\" successfully loaded to ODB under " + path)).catch(error =>
+                 mjsonrpc_error_alert(error));
       }
 
       // user clicks on subdirectory, so open it
@@ -1545,7 +1567,7 @@
       <div class="dlgPanel">
          </br><div style="margin: auto;width:70%">
          <input type="file" id="fileSelector" accept=".json"></div></br></br>
-         <button class="dlgButton" onclick="loadFileFromSelector();dlgHide('dlgFileSelect');">Upload</button>
+         <button class="dlgButton" onclick="loadFileFromSelector(this.parentElement.parentElement);dlgHide('dlgFileSelect');">Upload</button>
          <button class="dlgButton" onclick="dlgHide('dlgFileSelect')">Cancel</button>
       </div>
    </div>
