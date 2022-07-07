@@ -525,7 +525,7 @@ function drawCloseButton(c, mark) {
    }
 }
 
-function dlgShow(dlg, modal) {
+function dlgShow(dlg, modal, param) {
    let d;
    if (typeof dlg === "string")
       d = document.getElementById(dlg);
@@ -536,6 +536,9 @@ function dlgShow(dlg, modal) {
       dlgAlert("Dialog '" + dlg + "' does not exist");
       return;
    }
+
+   // add optional parameter to dialog
+   d.param = param;
 
    // put "close" icon into title bar
    let t;
@@ -583,7 +586,7 @@ function dlgShow(dlg, modal) {
       d.style.top = (parseInt(dlgs[dlgs.length - 2].style.top) + 30).toString() + "px";
    }
 
-   // enable scrolling if dialog bog goes beyond screen
+   // enable scrolling if dialog box goes beyond screen
    d.oldScroll = window.getComputedStyle(document.body).overflow;
    document.body.style.overflow = "scroll";
 
