@@ -291,11 +291,11 @@
          return true;
       }
 
-      function new_subdir() {
-         dlgQuery('Subdirectory name:', "", do_new_subdir);
+      function new_subdir(e) {
+         dlgQuery('Subdirectory name:', "", do_new_subdir, e);
       }
 
-      function do_new_subdir(subdir) {
+      function do_new_subdir(subdir, e) {
          if (subdir === false)
             return;
 
@@ -304,8 +304,9 @@
             return;
          }
 
-         let path = document.getElementById('odbCreateDir').innerHTML;
-         if (path === '/') path = "";
+         let path = getOdbTb(e).odb.path;
+         if (path === '/')
+            path = "";
          let param = {};
          param.path = path + "/" + subdir;
          param.type = TID_KEY;
@@ -656,23 +657,37 @@
 
       function odb_delete(e) {
          let tb = getOdbTb(e);
+         let currentPath = tb.odb.path;
          let paths = [];
          for (const tr of tb.childNodes) {
             if (tr.odbSelected)
                paths.push(tr.odbPath);
          }
 
-         if (paths.length == 0)
-            dlgAlert("Please select one or more keys to delete");
-         else if (paths.length == 1)
-            dlgConfirm('Are you sure to delete odb key ' + paths[0] + '?', do_odb_delete, paths);
+         if (paths.length == 0) {
+            // strip last directory from current path
+            let newPath = currentPath;
+            if (newPath.lastIndexOf('/') !== -1)
+               newPath = newPath.substring(0, newPath.lastIndexOf('/'));
+            if (newPath === "")
+               newPath = '/';
+
+            dlgConfirm('Are you sure to delete odb directory ' + currentPath + '?',
+               do_odb_delete, {"e": e, "paths": [currentPath], "newPath": newPath} );
+         } else if (paths.length == 1)
+            dlgConfirm('Are you sure to delete odb key ' + paths[0] + '?',
+               do_odb_delete, {"e": e, "paths": paths});
          else
-            dlgConfirm('Are you sure to delete ' + paths.length + ' keys?', do_odb_delete, paths);
+            dlgConfirm('Are you sure to delete ' + paths.length + ' keys?',
+               do_odb_delete, {"e": e, "paths": paths});
       }
 
-      function do_odb_delete(flag, paths) {
-         if (flag)
-            mjsonrpc_db_delete(paths).then().catch(error => mjsonrpc_error_alert(error));
+      function do_odb_delete(flag, param) {
+         if (flag) {
+            mjsonrpc_db_delete(param.paths).then().catch(error => mjsonrpc_error_alert(error));
+            if (param.newPath)
+               subdir_goto(param.e, param.newPath);
+         }
       }
 
       function rename_key_click(event) {
