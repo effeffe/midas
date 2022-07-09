@@ -34,7 +34,6 @@ CanvasRenderingContext2D.prototype.drawLine = function (x1, y1, x2, y2) {
 // convert json dom values to text for display and editing
 // this is similar to db_sprintf()
 //
-
 function mie_to_string(tid, jvalue, format) {
    if (tid === TID_BOOL) {
       if (jvalue)
@@ -178,7 +177,6 @@ function mie_to_string(tid, jvalue, format) {
 // to make it safe to assign a json string
 // to p.innerHTML. What gives? K.O.
 //
-
 function mhttpd_escape(s) {
    let ss = s;
 
@@ -201,7 +199,6 @@ function mhttpd_escape(s) {
 //
 // odb inline edit - make element a link to inline editor
 //
-
 function mie_back_to_link(p, path, bracket) {
    let link = document.createElement('a');
    link.href = path + "?cmd=Set";
@@ -240,9 +237,33 @@ function mie_back_to_link(p, path, bracket) {
 }
 
 //
+// called from ODBFinishInlineEdit if element has 'confirm' flag
+//
+function ODBConfirmInlineEdit(flag, p) {
+
+   let value;
+   if (p.childNodes.length === 2)
+      value = p.childNodes[1].value;
+   else
+      value = p.childNodes[0].value;
+
+   if (flag === true) {
+      mjsonrpc_db_set_value(p.odbPath, value).then(function (rpc) {
+         p.ODBsent = true;
+         mie_back_to_link(p, p.odbPath, p. bracket);
+      }).catch(function (error) {
+         mjsonrpc_error_alert(error);
+      });
+   } else {
+      p.ODBsent = true;
+      mie_back_to_link(p, p.odbPath, p.bracket);
+   }
+}
+
+
+//
 // odb inline edit - write new value to odb
 //
-
 function ODBFinishInlineEdit(p, path, bracket) {
    let value;
 
@@ -260,7 +281,8 @@ function ODBFinishInlineEdit(p, path, bracket) {
 
    //console.log("mie_write odb [" + path + "] value [" + value + "]");
 
-   if (p.dataset.validate !== undefined) {
+   // check for validation
+    if (p.dataset.validate !== undefined) {
       let flag = eval(p.dataset.validate)(value, p);
       if (!flag) {
          p.ODBsent = true;
@@ -275,6 +297,12 @@ function ODBFinishInlineEdit(p, path, bracket) {
    else
       value = p.childNodes[0].value;
 
+   // check for confirm
+   if (p.dataset.confirm !== undefined) {
+      dlgConfirm(p.dataset.confirm, ODBConfirmInlineEdit, p);
+      return;
+   }
+
    mjsonrpc_db_set_value(path, value).then(function (rpc) {
       p.ODBsent = true;
       mie_back_to_link(p, path, bracket);
@@ -286,7 +314,6 @@ function ODBFinishInlineEdit(p, path, bracket) {
 //
 // odb inline edit - key-press handler
 //
-
 function ODBInlineEditKeydown(event, p, path, bracket) {
    let keyCode = ('which' in event) ? event.which : event.keyCode;
 
@@ -309,8 +336,7 @@ function ODBInlineEditKeydown(event, p, path, bracket) {
 //
 // odb inline edit - convert link to edit field
 //
-
-function mie_link_to_edit(p, odb_path, bracket, cur_val, size) {
+function mie_link_to_edit(p, cur_val, size) {
    let index;
    let string_val = String(cur_val);
 
@@ -321,13 +347,13 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val, size) {
       size = 10;
    let str = mhttpd_escape(string_val);
 
-   if (odb_path.indexOf('[') > 0) {
-      index = odb_path.substr(odb_path.indexOf('['));
-      if (bracket === 0) {
+   if (p.odbPath.indexOf('[') > 0) {
+      index = p.odbPath.substring(p.odbPath.indexOf('['));
+      if (p.bracket === 0) {
          p.innerHTML = "<input type='text' size='" + size + "' value='" + str +
             "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" +
-            odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
-            odb_path + "&quot;," + bracket + ");' >";
+             p.odbPath + "&quot;," + p.bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
+             p.odbPath + "&quot;," + p.bracket + ");' >";
          setTimeout(function () {
             p.childNodes[0].focus();
             p.childNodes[0].select();
@@ -335,8 +361,8 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val, size) {
       } else {
          p.innerHTML = index + "&nbsp;<input type='text' size='" + size + "' value='" + str +
             "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" +
-            odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
-            odb_path + "&quot;," + bracket + ");' >";
+             p.odbPath + "&quot;," + p.bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
+             p.odbPath + "&quot;," + p.bracket + ");' >";
 
          // needed for Firefox
          setTimeout(function () {
@@ -348,8 +374,8 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val, size) {
 
       p.innerHTML = "<input type='text' size='" + size + "' value='" + str +
          "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" +
-         odb_path + "&quot;," + bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
-         odb_path + "&quot;," + bracket + ");' >";
+          p.odbPath + "&quot;," + p.bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
+          p.odbPath + "&quot;," + p.bracket + ");' >";
 
       // needed for Firefox
       setTimeout(function () {
@@ -362,11 +388,12 @@ function mie_link_to_edit(p, odb_path, bracket, cur_val, size) {
 //
 // odb inline edit - start editing
 //
-
 function ODBInlineEdit(p, odb_path, bracket) {
    if (p.inEdit)
       return;
    p.inEdit = true;
+   p.odbPath = odb_path;
+   p.bracke = bracket;
 
    mjsonrpc_db_get_values([odb_path]).then(function (rpc) {
       let value = rpc.result.data[0];
@@ -394,7 +421,7 @@ function ODBInlineEdit(p, odb_path, bracket) {
          }
       }
       let mvalue = mie_to_string(tid, value, format);
-      mie_link_to_edit(p, odb_path, bracket, mvalue, size);
+      mie_link_to_edit(p, mvalue, size);
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
    });
@@ -477,11 +504,12 @@ function dlgOdbEdit(path) {
 
 /*---- mhttpd functions -------------------------------------*/
 
-function mhttpd_get_display_time(sec) {
+//
 // Returns time to display in status bar and history.
 // By default show local time, but through the config page the
 // user can select the server time zone or any other time zone
-
+//
+function mhttpd_get_display_time(sec) {
    // retrieve timezone of server on the first call
    if (serverTimezoneOffset === undefined) {
       mjsonrpc_get_timezone().then(function (rpc) {
