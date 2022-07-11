@@ -199,7 +199,7 @@ function mhttpd_escape(s) {
 //
 // odb inline edit - make element a link to inline editor
 //
-function mie_back_to_link(p, path, bracket) {
+function mie_back_to_link(p, path) {
    let link = document.createElement('a');
    link.href = path + "?cmd=Set";
    link.innerHTML = "(loading...)";
@@ -212,11 +212,11 @@ function mie_back_to_link(p, path, bracket) {
          mvalue = "(empty)";
       link.innerHTML = mhttpd_escape(mvalue);
       link.onclick = function () {
-         ODBInlineEdit(p, path, bracket);
+         ODBInlineEdit(p, path);
          return false;
       };
       link.onfocus = function () {
-         ODBInlineEdit(p, path, bracket);
+         ODBInlineEdit(p, path);
       };
       link.style.color = p.oldStyle.color;
 
@@ -250,13 +250,13 @@ function ODBConfirmInlineEdit(flag, p) {
    if (flag === true) {
       mjsonrpc_db_set_value(p.odbPath, value).then(function (rpc) {
          p.ODBsent = true;
-         mie_back_to_link(p, p.odbPath, p. bracket);
+         mie_back_to_link(p, p.odbPath);
       }).catch(function (error) {
          mjsonrpc_error_alert(error);
       });
    } else {
       p.ODBsent = true;
-      mie_back_to_link(p, p.odbPath, p.bracket);
+      mie_back_to_link(p, p.odbPath);
    }
 }
 
@@ -264,7 +264,7 @@ function ODBConfirmInlineEdit(flag, p) {
 //
 // odb inline edit - write new value to odb
 //
-function ODBFinishInlineEdit(p, path, bracket) {
+function ODBFinishInlineEdit(p, path) {
    let value;
 
    if (p.ODBsent === true)
@@ -286,7 +286,7 @@ function ODBFinishInlineEdit(p, path, bracket) {
       let flag = eval(p.dataset.validate)(value, p);
       if (!flag) {
          p.ODBsent = true;
-         mie_back_to_link(p, path, bracket);
+         mie_back_to_link(p, path);
          return;
       }
    }
@@ -305,7 +305,7 @@ function ODBFinishInlineEdit(p, path, bracket) {
 
    mjsonrpc_db_set_value(path, value).then(function (rpc) {
       p.ODBsent = true;
-      mie_back_to_link(p, path, bracket);
+      mie_back_to_link(p, path);
    }).catch(function (error) {
       mjsonrpc_error_alert(error);
    });
@@ -314,19 +314,19 @@ function ODBFinishInlineEdit(p, path, bracket) {
 //
 // odb inline edit - key-press handler
 //
-function ODBInlineEditKeydown(event, p, path, bracket) {
+function ODBInlineEditKeydown(event, p, path) {
    let keyCode = ('which' in event) ? event.which : event.keyCode;
 
    if (keyCode === 27) {
       /* cancel editing */
       p.ODBsent = true;
       p.inEdit = false;
-      mie_back_to_link(p, path, bracket);
+      mie_back_to_link(p, path);
       return false;
    }
 
    if (keyCode === 13) {
-      ODBFinishInlineEdit(p, path, bracket);
+      ODBFinishInlineEdit(p, path);
       return false;
    }
 
@@ -337,7 +337,6 @@ function ODBInlineEditKeydown(event, p, path, bracket) {
 // odb inline edit - convert link to edit field
 //
 function mie_link_to_edit(p, cur_val, size) {
-   let index;
    let string_val = String(cur_val);
 
    p.ODBsent = false;
@@ -347,53 +346,35 @@ function mie_link_to_edit(p, cur_val, size) {
       size = 10;
    let str = mhttpd_escape(string_val);
 
-   if (p.odbPath.indexOf('[') > 0) {
-      index = p.odbPath.substring(p.odbPath.indexOf('['));
-      if (p.bracket === 0) {
-         p.innerHTML = "<input type='text' size='" + size + "' value='" + str +
-            "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" +
-             p.odbPath + "&quot;," + p.bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
-             p.odbPath + "&quot;," + p.bracket + ");' >";
-         setTimeout(function () {
-            p.childNodes[0].focus();
-            p.childNodes[0].select();
-         }, 10); // needed for Firefox
-      } else {
-         p.innerHTML = index + "&nbsp;<input type='text' size='" + size + "' value='" + str +
-            "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" +
-             p.odbPath + "&quot;," + p.bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
-             p.odbPath + "&quot;," + p.bracket + ");' >";
+   let index = "";
+   if (p.innerHTML[0] === '[' && p.innerHTML.indexOf(']') !== 0)
+      index = p.innerHTML.substring(0, p.innerHTML.indexOf(']')+1) + "&nbsp;";
 
-         // needed for Firefox
-         setTimeout(function () {
-            p.childNodes[1].focus();
-            p.childNodes[1].select();
-         }, 10);
-      }
-   } else {
+   p.innerHTML = index + "<input type='text' size='" + size + "' value='" + str +
+      "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" +
+       p.odbPath + "&quot;," + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
+       p.odbPath + "&quot;," + ");' >";
 
-      p.innerHTML = "<input type='text' size='" + size + "' value='" + str +
-         "' onKeydown='return ODBInlineEditKeydown(event, this.parentNode,&quot;" +
-          p.odbPath + "&quot;," + p.bracket + ");' onBlur='ODBFinishInlineEdit(this.parentNode,&quot;" +
-          p.odbPath + "&quot;," + p.bracket + ");' >";
-
-      // needed for Firefox
-      setTimeout(function () {
+   // needed for Firefox
+   setTimeout(function () {
+      if (index === "") {
          p.childNodes[0].focus();
          p.childNodes[0].select();
-      }, 10);
-   }
+      } else {
+         p.childNodes[1].focus();
+         p.childNodes[1].select();
+      }
+   }, 10);
 }
 
 //
 // odb inline edit - start editing
 //
-function ODBInlineEdit(p, odb_path, bracket) {
+function ODBInlineEdit(p, odb_path) {
    if (p.inEdit)
       return;
    p.inEdit = true;
    p.odbPath = odb_path;
-   p.bracke = bracket;
 
    mjsonrpc_db_get_values([odb_path]).then(function (rpc) {
       let value = rpc.result.data[0];
