@@ -998,6 +998,11 @@ std::vector<std::string> get_resource_paths()
    // add  "/Logger/History/IMAGE/History dir"
    paths.push_back(cm_get_history_path("IMAGE"));
 
+   // add /Logger/Data dir
+   status = db_get_value_string(hDB, 0, "/Logger/Data dir", 0, &buf, TRUE);
+   if (status == DB_SUCCESS && buf.length() > 0)
+      paths.push_back(buf);
+
    std::string cwd = ss_getcwd();
    if (!cwd.empty()) {
       paths.push_back(cwd + "/");
