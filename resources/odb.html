@@ -104,7 +104,8 @@
          td.innerHTML =
                  '<img src="icons/file-plus.svg" title="Create key" ' +
                  'onclick="new_key(this)">&nbsp;&nbsp;' +
-                 '<img src="icons/folder-plus.svg" title="Create subdirectory" onclick="new_subdir(this)">&nbsp;&nbsp;' +
+                 '<img src="icons/folder-plus.svg" title="Create subdirectory" ' +
+                 'onclick="new_subdir(this)">&nbsp;&nbsp;' +
                  '<img src="icons/link.svg" title="Create link" ' +
                  'onclick="new_link(this)">&nbsp;&nbsp;' +
                  '<img src="icons/edit-3.svg" title="Rename key" ' +
@@ -291,6 +292,49 @@
          return true;
       }
 
+      function new_link(e) {
+         let tb = getOdbTb(e);
+         document.getElementById('odbCreateLinkDir').innerHTML = tb.odb.path;
+         dlgShow('dlgCreateLink', true);
+         document.getElementById('odbCreateLinkName').focus();
+         document.getElementById('odbCreateLinkName').select();
+      }
+
+      function do_new_link() {
+         let path = document.getElementById('odbCreateLinkDir').innerHTML;
+         if (path === '/') path = "";
+         let name = document.getElementById('odbCreateLinkName').value;
+         let target = document.getElementById('odbCreateLinkTarget').value;
+
+         if (name.length < 1) {
+            dlgAlert("No name specified");
+            return false;
+         }
+
+         if (target.length < 1) {
+            dlgAlert("No link target specified");
+            return false;
+         }
+
+         if (target[0] !== '/') {
+            dlgAlert("Link target must be absolute (start with a \"/\")");
+            return false;
+         }
+
+         path = path + "/" + name;
+
+         mjsonrpc_call("db_link", {"new_links": [path], "target_paths":[target]}).then(rpc => {
+            let status = rpc.result.status[0];
+            if (status === 311) {
+               dlgMessage("Error", "ODB entry \"" + name + "\" exists already");
+            } else if (status !== 1) {
+               dlgMessage("Error", "db_create_key() error " + status + ", see MIDAS messages");
+            }
+         }).catch(error => mjsonrpc_error_alert(error));
+
+         return true;
+      }
+
       function new_subdir(e) {
          dlgQuery('Subdirectory name:', "", do_new_subdir, e);
       }
@@ -319,10 +363,6 @@
                dlgMessage("Error", "db_create_key() error " + status + ", see MIDAS messages");
             }
          }).catch(error => mjsonrpc_error_alert(error));
-      }
-
-      function new_link() {
-         dlgAlert("Function not yet implemented");
       }
 
       function more_menu(event) {
@@ -829,8 +869,6 @@
       }
 
       async function odb_upload(e) {
-         dlgShow('dlgFileSelect', true, e);
-         return;
          // Chrome has file picker, others might have not
          try {
             let fileHandle;
@@ -1223,6 +1261,8 @@
             let v = key.value.toString();
             if (key.type === TID_STRING && v === "")
                v = "(empty)";
+            else if (key.type === TID_STRING && v.trim() === "")
+               v = "(spaces)";
             else if (key.type === TID_LINK)
                v = '<span style="color:red;background-color:yellow">(cannot resolve link)</span>';
             else if (key.type === TID_BOOL)
@@ -1536,6 +1576,25 @@
          return true;
       }
 
+      function dlgCreateLinkKeyDown(event, inp) {
+         let keyCode = ('which' in event) ? event.which : event.keyCode;
+
+         if (keyCode === 27) {
+            // cancel editing
+            dlgHide('dlgCreateLink');
+            return false;
+         }
+
+         if (keyCode === 13) {
+            // finish editing
+            if (do_new_link(this))
+               dlgHide('dlgCreateLink');
+            return false;
+         }
+
+         return true;
+      }
+
    </script>
 </head>
 
@@ -1595,6 +1654,32 @@
          </table>
          <button class="dlgButton" onclick="if(do_new_key(this))dlgHide('dlgCreate');">Create</button>
          <button class="dlgButton" onclick="dlgHide('dlgCreate')">Cancel</button>
+      </div>
+   </div>
+
+   <!-- Create link dialog -->
+   <div id="dlgCreateLink" class="dlgFrame">
+      <div class="dlgTitlebar">Create ODB link</div>
+      <div class="dlgPanel">
+         <table class="dialogTable" style="border-spacing:10px;">
+            <tr>
+               <td style="text-align: right">Directory:</td>
+               <td style="text-align: left" id="odbCreateLinkDir"></td>
+            </tr>
+            <tr>
+               <td style="text-align: right">Link name:</td>
+               <td style="text-align: left"><input type="text" size="20" maxlength="31"
+                                                   id="odbCreateLinkName" onkeydown="return dlgCreateLinkKeyDown(event, this)"></td>
+            </tr>
+
+            <tr>
+               <td style="text-align: right">Link target:</td>
+               <td style="text-align: left"><input type="text" size="20" maxlength="31"
+                                                   id="odbCreateLinkTarget" onkeydown="return dlgCreateLinkKeyDown(event, this)"></td>
+            </tr>
+         </table>
+         <button class="dlgButton" onclick="if(do_new_link(this))dlgHide('dlgCreateLink');">Create</button>
+         <button class="dlgButton" onclick="dlgHide('dlgCreateLink')">Cancel</button>
       </div>
    </div>
 

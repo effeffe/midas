@@ -2165,6 +2165,8 @@ function mhttpd_refresh() {
             let mvalue = mie_to_string(tid, x, modbvalue[i].dataset.format);
             if (mvalue === "")
                mvalue = "(empty)";
+            else if (typeof mvalue === 'string' && mvalue.trim() === "")
+               mvalue = "(spaces)";
             let html = mhttpd_escape(mvalue);
             if (parseInt(modbvalue[i].dataset.odbEditable)) {
                if (modbvalue[i].childNodes[0] === undefined) {

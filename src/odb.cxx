@@ -3583,7 +3583,25 @@ INT db_create_link(HNDLE hDB, HNDLE hKey, const char *link_name, const char *des
 
    //printf("db_create_link: [%s] hkey %d\n", destination, hkey);
 
-   return db_set_value(hDB, hKey, link_name, destination, strlen(destination) + 1, 1, TID_LINK);
+   /* check if link already exists */
+   status = db_find_link(hDB, hKey, link_name, &hkey);
+   if (status != DB_SUCCESS) {
+      // create new link
+      status = db_set_value(hDB, hKey, link_name, destination, strlen(destination) + 1, 1, TID_LINK);
+   } else {
+      // check if key is TID_LINK
+      KEY key;
+      db_get_key(hDB, hkey, &key);
+      if (key.type != TID_LINK) {
+         cm_msg(MERROR, "db_create_link", "Existing key \"%s\" is not a link", link_name);
+         return DB_KEY_EXIST;
+      }
+
+      // modify existing link
+      status = db_set_link_data(hDB, hkey, destination, strlen(destination)+1, 1, TID_LINK);
+   }
+
+   return status;
 }
 
 /********************************************************************/
@@ -8694,7 +8712,7 @@ INT db_paste(HNDLE hDB, HNDLE hKeyRoot, const char *buffer)
                      }
                   }
 
-                  /* set key data if created sucessfully */
+                  /* set key data if created successfully */
                   if (hKey) {
                      if (tid == TID_STRING || tid == TID_LINK)
                         db_set_link_data(hDB, hKey, data, string_length * n_data, n_data, tid);
