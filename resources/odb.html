@@ -200,9 +200,12 @@
             p.odbParam.callback(p, value, p.odbParam.param);
       }
 
-      function inline_edit(p, str, callback, size, param) {
+      function inline_edit(event, p, str, callback, size, param) {
          if (p.odbParam !== undefined && p.odbParam.inEdit)
             return;
+
+         if (event !== undefined)
+            event.stopPropagation(); // don't propagate to rename_key()
 
          p.odbParam = {};
          p.odbParam.param = param;
@@ -233,12 +236,10 @@
       }
 
       function odb_setlink(p, value) {
-         // console.log(p.odbParam.param, value);
+         console.log(p.odbParam.param, value);
 
-         dlgAlert("Currently not implemented");
-
-         // mjsonrpc_call("db_link", {"new_links":[p.odb.param],"target_paths":[value]}).then(rpc => {
-         // }).catch(error =>{ mjsonrpc_error_alert(error); });
+         mjsonrpc_call("db_link", {"new_links":[p.odbParam.param],"target_paths":[value]}).then(rpc => {
+         }).catch(error =>{ mjsonrpc_error_alert(error); });
       }
 
       function new_key(e) {
@@ -648,7 +649,8 @@
 
             tr.oldKey = key;
 
-            inline_edit(tr.childNodes[1],
+            inline_edit(event,
+                    tr.childNodes[1],
                     key,
                     do_rename_key,
                     key.length,
@@ -741,21 +743,26 @@
 
          event.stopPropagation(); // don't select key again
 
-         let key = tr.childNodes[1].innerHTML;
+         let key;
+         if (tr.childNodes[1].childNodes[0].tagName === 'SPAN')
+            key = tr.childNodes[1].childNodes[0].innerHTML;
+         else
+            key = tr.childNodes[1].innerHTML;
          while (key.indexOf("&nbsp;") !== -1)
             key = key.substring(key.indexOf("&nbsp;")+6);
 
          tr.oldKey = key;
 
-         inline_edit(tr.childNodes[1],
+         inline_edit(event,
+                 tr.childNodes[1],
                  key,
                  do_rename_key,
                  key.length,
                  tr.odbPath);
       }
 
-      function rename_key(e) {
-         let tb = getOdbTb(e);
+      function rename_key(element) {
+         let tb = getOdbTb(element);
          let n = 0;
          let tr;
          for (const t of tb.childNodes) {
@@ -774,7 +781,14 @@
             tr.style.backgroundColor = '';
             change_color(tr, '');
 
-            let key = tr.childNodes[1].innerHTML;
+            let key;
+            if (tr.childNodes[1].childNodes[0].tagName === 'SPAN')
+               key = tr.childNodes[1].childNodes[0].innerHTML;
+            else
+               key = tr.childNodes[1].innerHTML;
+            while (key.indexOf("&nbsp;") !== -1)
+               key = key.substring(key.indexOf("&nbsp;")+6);
+            
             if (key.indexOf('<a href=') !== -1) {
                for (const c of tr.childNodes[1].childNodes)
                   if (c.tagName === 'A') {
@@ -792,7 +806,8 @@
 
             tr.oldKey = key;
 
-            inline_edit(tr.childNodes[1],
+            inline_edit(undefined,
+                    tr.childNodes[1],
                     key,
                     do_rename_key,
                     key.length,
@@ -1194,15 +1209,13 @@
                td.innerHTML = indent + "<a href='#' " +
                        handler +
                        "> \u25B8 " + key.name + "</a>";
-         } else {
+         } else if (key.link === undefined) {
             td.innerHTML = indent + key.name;
             td.addEventListener('click', rename_key_click);
-         }
-
-         // add link if present
-         if (key.link !== undefined) {
+         } else {
+            td.innerHTML = indent + '<span>' + key.name + '</span>';
             td.innerHTML += ' &rarr; <span>'+ '<a href="#" ' +
-                    'onclick="inline_edit(this.parentNode, \'' +
+                    'onclick="inline_edit(event, this.parentNode, \'' +
                     key.link + '\', odb_setlink, undefined, \'' + keyPath +
                     '\'); return false;" ' +
                     ' title="Change value">' + key.link +
@@ -1250,7 +1263,7 @@
             else
                td.innerHTML =
                     '<div><a href="#" ' +
-                    'onclick="inline_edit(this.parentNode, \'' +
+                    'onclick="inline_edit(event, this.parentNode, \'' +
                     key.value[0] + '\', odb_setall, 10, \''+ keyPath +
                     '\');return false;" ' +
                     'title="Set array elements to same value">*</a></div>';
