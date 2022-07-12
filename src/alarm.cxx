@@ -160,8 +160,12 @@ BOOL al_evaluate_condition(const char *condition, char *value) {
       }
 
       /* return value */
-      if (value)
-         strcpy(value, value1_str);
+      if (value) {
+         if (idx1 != idx2)
+            sprintf(value, "[%d] %s", idx, value1_str);
+         else
+            strcpy(value, value1_str);
+      }
 
       /* now do logical operation */
       if (strcmp(op, "=") == 0)
