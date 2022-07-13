@@ -470,7 +470,10 @@ namespace midas {
          // merge ODB keys with local keys
          for (int i = 0; i < m_num_values; i++) {
             std::string k(path);
-            k += "/" + m_data[i].get_odb().get_name();
+            if (k.back() != '/') {
+               k += "/";
+            }
+            k += m_data[i].get_odb().get_name();
             HNDLE h;
             status = db_find_link(m_hDB, 0, k.c_str(), &h);
             if (status != DB_SUCCESS) {
@@ -503,7 +506,10 @@ namespace midas {
          m_data = new midas::u_odb[m_num_values]{};
          for (int i = 0; i < m_num_values; i++) {
             std::string k(path);
-            k += "/" + name[i];
+            if (k.back() != '/') {
+               k += "/";
+            }
+            k += name[i];
             midas::odb *o = new midas::odb(k.c_str());
             o->set_parent(this);
             m_data[i].set_tid(TID_KEY);
@@ -1122,7 +1128,13 @@ namespace midas {
 
       if (!name.empty())
          m_name = name;
-      std::string path(p + "/" + m_name);
+      std::string path(p);
+
+      if (path.back() != '/') {
+         path += "/";
+      }
+
+      path += m_name;
 
       HNDLE hKey;
       int status = db_find_link(m_hDB, 0, path.c_str(), &hKey);
