@@ -207,6 +207,7 @@ class TestOdb(unittest.TestCase):
     def testKey(self):
         self.set_and_readback("/pytest/key", {}, midas.TID_KEY)
         self.set_and_readback("/pytest/key", {"int": 1, "float": 2}, midas.TID_KEY)
+        self.set_and_readback("/pytest/key/", {"int": 1, "string": "path_has_final_slash"}, midas.TID_KEY)
         self.set_and_readback("/pytest/key", {"int": 1, "float": 2, "nested": {"bool": True}}, midas.TID_KEY)
         
         retval = self.client.odb_get("/pytest/key", recurse_dir=False)
@@ -241,6 +242,12 @@ class TestOdb(unittest.TestCase):
     def testCreateParents(self):
         self.set_and_readback("/pytest/deep/link/needed/str", "Hello!", midas.TID_STRING)
     
+    def testGetRootDirectory(self):
+        content = self.client.odb_get("/", recurse_dir=False)
+
+        # /Experiment should exist in any valid ODB
+        self.assertTrue("Experiment" in content)
+
     def testSingleIndex(self):
         self.set_and_readback("/pytest/int_si", [1, 2], midas.TID_INT)
         self.client.odb_set("/pytest/int_si[1]", 3)

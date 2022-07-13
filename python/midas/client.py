@@ -250,6 +250,7 @@ class MidasClient:
         Returns:
             bool
         """
+        path = self._odb_strip_final_slash(path)
         c_path = ctypes.create_string_buffer(bytes(path, "utf-8"))
         hKey = ctypes.c_int()
         
@@ -271,6 +272,7 @@ class MidasClient:
                 not. If False, we'll delete the link itself, rather than the 
                 target of the link.
         """
+        path = self._odb_strip_final_slash(path)
         c_path = ctypes.create_string_buffer(bytes(path, "utf-8"))
         c_follow = ctypes.c_uint32(follow_links)
         hKey = ctypes.c_int()
@@ -326,6 +328,7 @@ class MidasClient:
             * KeyError if `path` doesn't exist in the ODB
             * midas.MidasError for other midas-related issues
         """
+        path = self._odb_strip_final_slash(path)
         (array_single, dummy, dummy2) = self._odb_path_is_for_single_array_element(path)
         c_path = ctypes.create_string_buffer(bytes(path, "utf-8"))
         
@@ -439,7 +442,7 @@ class MidasClient:
                 doesn't match the size of the existing ODB array).
             * midas.MidasError if there is some other midas issue.
         """
-        
+        path = self._odb_strip_final_slash(path)
         c_path = ctypes.create_string_buffer(bytes(path, "utf-8"))
         did_create = False
         
@@ -545,6 +548,8 @@ class MidasClient:
         Raises:
             * ValueError if link_path already exists, but isn't already a link
         """
+        link_path = self._odb_strip_final_slash(link_path)
+        destination_path = self._odb_strip_final_slash(destination_path)
         c_link_path = ctypes.create_string_buffer(bytes(link_path, "utf-8"))
         c_dest_path = ctypes.create_string_buffer(bytes(destination_path, "utf-8"))
         
@@ -577,6 +582,7 @@ class MidasClient:
         Returns:
             str, the ODB path the link points to
         """
+        link_path = self._odb_strip_final_slash(link_path)
         c_dest_path = ctypes.create_string_buffer(256)
         c_size = ctypes.c_int(ctypes.sizeof(c_dest_path))
         hKey = self._odb_get_hkey(link_path, follow_link=False)
@@ -593,6 +599,7 @@ class MidasClient:
             * new_name (str) - The new name of the entry (do not include any
                 `/` characters; the directory cannot be changed).
         """
+        current_path = self._odb_strip_final_slash(current_path)
         hKey = self._odb_get_hkey(current_path)
         c_new_name = ctypes.create_string_buffer(bytes(new_name, "utf-8"))
         self.lib.c_db_rename_key(self.hDB, hKey, c_new_name)
@@ -607,6 +614,7 @@ class MidasClient:
         Returns:
             datetime.datetime
         """
+        path = self._odb_strip_final_slash(path)
         ts = self._odb_get_key(path).last_written
         return datetime.datetime.fromtimestamp(ts)
     
@@ -664,6 +672,7 @@ class MidasClient:
             my_client.communicate(100)
         ```
         """
+        path = self._odb_strip_final_slash(path)
         logger.debug("Registering callback function for watching %s" % path)
         hKey = self._odb_get_hkey(path)
         
@@ -682,6 +691,7 @@ class MidasClient:
         Args:
             * path (str) - The ODB path you no longer want to watch.
         """
+        path = self._odb_strip_final_slash(path)
         logger.debug("De-registering callback function that was watching %s" % path)
         hKey = self._odb_get_hkey(path)
         
@@ -1541,6 +1551,29 @@ class MidasClient:
         if our_max_string_size > key_metadata.item_size:
             self.lib.c_db_resize_string(self.hDB, 0, c_path, key_metadata.num_values, our_max_string_size)
     
+    def _odb_strip_final_slash(self, path):
+        """
+        Strip the final / from any ODB path, so midas C++ code doesn't get
+        confused and start searching for an empty key within the path we're
+        searching for.
+
+        E.g. 
+        * `/Experiment` => `/Experiment`
+        * `/Experiment/` => `/Experiment`
+        * `/Experiment/////` => `/Experiment`
+        * `/` => `/`
+
+        Args:
+            * path (str)
+
+        Returns:
+            str
+        """
+        while path.endswith("/") and path != "/":
+            path = path[:-1]
+        
+        return path
+
     def _odb_get_type(self, path):
         """
         Get the midas type of the ODB entry at the specified path.
