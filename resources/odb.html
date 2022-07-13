@@ -1184,6 +1184,13 @@
          td.style.width = "10px";
          tr.appendChild(td);
          td.innerHTML = '<img src="icons/menu.svg">';
+         td.addEventListener('click', drag_click, td);
+         td.addEventListener('mousedown', drag_start, td);
+         td.addEventListener('mousemove', drag_move, td);
+         td.addEventListener('mouseup', drag_end, td);
+         td.addEventListener('touchstart', drag_start, td);
+         td.addEventListener('touchmove', drag_move, td);
+         td.addEventListener('touchend', drag_end, td);
 
          // Key name
          td = document.createElement('TD');
@@ -1608,6 +1615,25 @@
          return true;
       }
 
+      function drag_click(event, td) {
+         event.stopPropagation();
+         console.log("Click: ", event, td);
+      }
+
+      function drag_start(event, td) {
+         event.stopPropagation();
+         console.log("Start: ", event, td);
+      }
+
+      function drag_move(event, td) {
+         event.stopPropagation();
+         console.log("Move: ", event, td);
+      }
+
+      function drag_end(event, td) {
+         event.stopPropagation();
+         console.log("End: ", event, td);
+      }
    </script>
 </head>
 
