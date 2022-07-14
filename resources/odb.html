@@ -74,6 +74,8 @@
             dataIndex: 0,
             handleColumn : false,
             detailsColumn: false,
+            dragRow: undefined,
+            dragRowContent : undefined,
             key: []
          };
 
@@ -1176,6 +1178,11 @@
          // create empty row
          let tr = document.createElement('TR');
 
+         tr.setAttribute('draggable', true);
+         tr.addEventListener('dragstart', drag_start);
+         tr.addEventListener('dragover', drag_move);
+         tr.addEventListener('dragend', drag_end);
+
          // Handle column
          let td = document.createElement('TD');
          td.className = 'odbKey';
@@ -1183,14 +1190,9 @@
          td.style.display = odb.handleColumn ? 'table-cell' : 'none';
          td.style.width = "10px";
          tr.appendChild(td);
-         td.innerHTML = '<img src="icons/menu.svg">';
-         td.addEventListener('click', drag_click, td);
-         td.addEventListener('mousedown', drag_start, td);
-         td.addEventListener('mousemove', drag_move, td);
-         td.addEventListener('mouseup', drag_end, td);
-         td.addEventListener('touchstart', drag_start, td);
-         td.addEventListener('touchmove', drag_move, td);
-         td.addEventListener('touchend', drag_end, td);
+         td.innerHTML = '<img style="cursor: all-scroll" src="icons/menu.svg">';
+
+         td.childNodes[0].setAttribute('draggable', false);
 
          // Key name
          td = document.createElement('TD');
@@ -1620,19 +1622,48 @@
          console.log("Click: ", event, td);
       }
 
-      function drag_start(event, td) {
-         event.stopPropagation();
-         console.log("Start: ", event, td);
+      function drag_start(event) {
+         let tr = event.target;
+         while (tr.tagName !== 'TR')
+            tr = tr.parentElement;
+         let tb = getOdbTb(tr);
+
+         tb.dragRow = Array.from(tb.children).indexOf(tr);
+         tb.dragRowContent = tr.cloneNode(true);
+
+         window.setTimeout(() => {
+                    window.clearTimeout(tb.odb.updateTimer);
+                    let w = window.getComputedStyle(tr).width;
+                    let h = window.getComputedStyle(tr).height;
+                    tr.innerHTML = '<td colspan="8" style="background-color:white; border: 2px dashed #6bb28c"></td>';
+                    tr.style.height = parseInt(h) + "px";
+                    tr.style.width = parseInt(w) + "px";
+                    }, 10);
+
       }
 
       function drag_move(event, td) {
-         event.stopPropagation();
-         console.log("Move: ", event, td);
+         event.preventDefault();
+
+         let tr = event.target;
+         while (tr.tagName !== 'TR')
+            tr = tr.parentElement;
+         let tb = getOdbTb(tr);
+         let children = Array.from(tb.children);
+
+         if (children.indexOf(tr) > tb.dragRow)
+            tr.after(tb.childNodes[tb.dragRow]);
+         else
+            tr.before(tb.childNodes[tb.dragRow]);
       }
 
       function drag_end(event, td) {
-         event.stopPropagation();
-         console.log("End: ", event, td);
+         let tr = event.target;
+         while (tr.tagName !== 'TR')
+            tr = tr.parentElement;
+         let tb = getOdbTb(tr);
+
+         tb.childNodes[tb.dragRow].innerHTML = tb.dragRowContent.innerHTML;
       }
    </script>
 </head>
