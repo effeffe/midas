@@ -16,7 +16,8 @@ public:
            DWORD flags,
            std::string submaster,
            std::string pwd = "",
-           int pause = 0) : mdevice(eq_name, dev_name, flags, mscbdev){
+           int pause = 0,
+           int retries = 10) : mdevice(eq_name, dev_name, flags, mscbdev){
 
       if (submaster.empty()) {
          char str[256];
@@ -51,6 +52,7 @@ public:
       dev["MSCB Device"] = submaster;
       dev["MSCB Pwd"]    = pwd;
       dev["MSCB Pause"]  = pause;
+      dev["MSCB Retries"]  = retries;
    }
 
    void define_var(int address, unsigned char var_index,
