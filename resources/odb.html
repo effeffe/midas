@@ -74,7 +74,9 @@
             dataIndex: 0,
             handleColumn : false,
             detailsColumn: false,
-            dragRow: undefined,
+            dragSource: undefined,
+            dragDestination: undefined,
+            dragTargetRow: undefined,
             dragRowContent : undefined,
             key: []
          };
@@ -185,7 +187,7 @@
          return true;
       }
 
-      function inline_edit_cancel(event, p) {
+      function inline_edit_cancel(p) {
          // cancel editing
          if (p.odbParam.inEdit) {
             p.odbParam.inEdit = false;
@@ -222,7 +224,7 @@
 
          p.innerHTML = "<input type='text' size='" + size + "' value='" + str +
                  "' onKeydown='return inline_edit_keydown(event, this.parentNode);'" +
-                 " onBlur='return inline_edit_cancel(event, this.parentNode);'>";
+                 " onBlur='return inline_edit_cancel(this.parentNode);'>";
 
          // needed for Firefox
          setTimeout(function () {
@@ -691,12 +693,54 @@
          odb.handleColumn = !odb.handleColumn;
 
          if (odb.handleColumn) {
-            for (const d of n)
+            for (const d of n) {
+               let tr = d.parentElement;
+               tr.setAttribute('draggable', true);
+               tr.addEventListener('dragstart', drag_start);
+               tr.addEventListener('dragover', drag_move);
+               tr.addEventListener('dragend', drag_end);
+
                d.style.display = 'table-cell';
+            }
          } else {
-            for (const d of n)
+            for (const d of n) {
+               let tr = d.parentElement;
+               tr.removeAttribute('draggable');
+               tr.removeEventListener('dragstart', drag_start);
+               tr.removeEventListener('dragover', drag_move);
+               tr.removeEventListener('dragend', drag_end);
+
                d.style.display = 'none';
+            }
          }
+      }
+
+      function toggle_expanded(e) {
+         let tr = e;
+         while (tr.tagName !== 'TR')
+            tr = tr.parentElement;
+         let tb = getOdbTb(e);
+         let odb = tb.odb;
+
+         // find key for current row
+         // let name = tr.childNodes[1].innerHTML;
+         // for (const key of odb.key) {
+         //    if (key.name === name) {
+         //       // toggle expand flag for key
+         //       key.expanded = !key.expanded;
+         //       break;
+         //    }
+         // }
+
+         if (tr.key.expanded === false)
+            tr.key.expanded = true;
+         else
+            tr.key.expanded = false;
+
+         console.log(tr.key);
+
+         let row = { i:4 };
+         odb_print(tb, row);
       }
 
       function odb_delete(e) {
@@ -1067,7 +1111,7 @@
 
          mjsonrpc_db_ls(paths).then(rpc => {
             odb_extract(odb, rpc.result.data);
-            odb_print(tb, row, odb);
+            odb_print(tb, row);
             odb.skip_yellow = false;
 
             // call timer in one second to update again
@@ -1107,12 +1151,16 @@
                key.access_mode = data[item + '/key'].access_mode;
             }
 
-            if (odb.key.length <= n)
+            if (odb.key.length <= n) {
+               key.expanded = (key.num_values > 1 && key.num_values <= 10);
                odb.key.push(key);
-            else {
+            } else {
                if (odb.key[n].subdir_open) {
                   key.subdir_open = true;
                   key.value = odb.key[n].value;
+               }
+               if (odb.key[n].expanded !== undefined) {
+                  key.expanded = odb.key[n].expanded;
                }
                odb.key[n] = key;
             }
@@ -1131,7 +1179,8 @@
          }
       }
 
-      function odb_print(tb, row, odb) {
+      function odb_print(tb, row) {
+         let odb = tb.odb;
          for (const key of odb.key) {
             // Print current key
             odb_print_key(tb, row, odb.path, key, odb.level);
@@ -1178,11 +1227,6 @@
          // create empty row
          let tr = document.createElement('TR');
 
-         tr.setAttribute('draggable', true);
-         tr.addEventListener('dragstart', drag_start);
-         tr.addEventListener('dragover', drag_move);
-         tr.addEventListener('dragend', drag_end);
-
          // Handle column
          let td = document.createElement('TD');
          td.className = 'odbKey';
@@ -1206,6 +1250,13 @@
 
          // Remember indent level for key rename
          tr.level = odb.level;
+
+         // Remember key (need to toggle expanded flag)
+         tr.key = key;
+
+         // Initialize expanded flag
+         if (tr.expanded === undefined)
+            tr.expanded = true;
 
          // Print subdir with open subdir handler
          if (key.type === TID_KEY) {
@@ -1269,13 +1320,29 @@
          if (Array.isArray(key.value)) {
             if (key.value.length > 4096)
                td.innerHTML = '... ' + key.value.length + ' values ...';
-            else
+            else {
                td.innerHTML =
-                    '<div><a href="#" ' +
-                    'onclick="inline_edit(event, this.parentNode, \'' +
-                    key.value[0] + '\', odb_setall, 10, \''+ keyPath +
-                    '\');return false;" ' +
-                    'title="Set array elements to same value">*</a></div>';
+                  '<div style="display: inline;"><a href="#" ' +
+                  'onclick="inline_edit(event, this.parentNode, \'' +
+                  key.value[0] + '\', odb_setall, 10, \'' + keyPath +
+                  '\');return false;" ' +
+                  'title="Set array elements to same value">*</a></div>';
+
+               if (key.expanded === false)
+                  td.innerHTML +=
+                     '<div style="display: inline;float: right">' +
+                     '<a href="#"' +
+                     'onclick="toggle_expanded(this.parentNode);return false;" ' +
+                     'title="Show array elements">\u25B8</a>' +
+                     '</div>';
+               else
+                  td.innerHTML +=
+                     '<div style="display: inline;float: right">' +
+                     '<a href="#"' +
+                     'onclick="toggle_expanded(this.parentNode);return false;" ' +
+                     'title="Hide array elements">\u25BE</a>' +
+                     '</div>';
+            }
          } else {
             let edit = '<a href="#" onclick="ODBInlineEdit(this.parentNode, \'' + keyPath + '\');return false;" ' +
                     'onfocus="ODBInlineEdit(this.parentNode, \'' + keyPath + '\')" title="Change value">';
@@ -1418,7 +1485,7 @@
                      e.innerHTML = tr.childNodes[i].innerHTML;
                      change_color(e, c);
 
-                     if (i == 1 && key.type !== TID_KEY)
+                     if (i === 1 && key.type !== TID_KEY)
                         e.addEventListener('click', rename_key_click);
 
                      if (yellowBg) {
@@ -1447,7 +1514,7 @@
 
          // Print array values
          if (Array.isArray(key.value)) {
-            if (key.value.length > 4096) {
+            if (key.expanded === false) {
                // do nothing
             } else for (let i=0 ; i<key.value.length ; i++) {
                row.i++;
@@ -1628,7 +1695,8 @@
             tr = tr.parentElement;
          let tb = getOdbTb(tr);
 
-         tb.dragRow = Array.from(tb.children).indexOf(tr);
+         tb.dragTargetRow = Array.from(tb.children).indexOf(tr);
+         tb.dragSource = tr.odbPath;
          tb.dragRowContent = tr.cloneNode(true);
 
          window.setTimeout(() => {
@@ -1651,10 +1719,12 @@
          let tb = getOdbTb(tr);
          let children = Array.from(tb.children);
 
-         if (children.indexOf(tr) > tb.dragRow)
-            tr.after(tb.childNodes[tb.dragRow]);
-         else
-            tr.before(tb.childNodes[tb.dragRow]);
+         if (children.indexOf(tr) > tb.dragTargetRow)
+            tr.after(tb.childNodes[tb.dragTargetRow]);
+         else if (children.indexOf(tr) < tb.dragTargetRow)
+            tr.before(tb.childNodes[tb.dragTargetRow]);
+
+         tb.dragTargetRow = children.indexOf(tr);
       }
 
       function drag_end(event, td) {
@@ -1663,7 +1733,16 @@
             tr = tr.parentElement;
          let tb = getOdbTb(tr);
 
-         tb.childNodes[tb.dragRow].innerHTML = tb.dragRowContent.innerHTML;
+         let ttr = tb.childNodes[tb.dragTargetRow];
+         ttr.innerHTML = tb.dragRowContent.innerHTML;
+         ttr.style.height = "";
+         ttr.style.width = "";
+
+         console.log(tb.dragSource, tb.dragTargetRow);
+
+         mjsonrpc_call("db_reorder", { "paths": [tb.dragSource], "indices": [tb.dragTargetRow-4]}).then(rpc => {
+            tb.odb.updateTimer = window.setTimeout(odb_update, 10, tb);
+         }).catch(error => mjsonrpc_error_alert(error));
       }
    </script>
 </head>
