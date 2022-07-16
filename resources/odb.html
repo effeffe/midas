@@ -689,7 +689,7 @@
       function clear_expanded(odb) {
          for (const key of odb.key) {
             if (key.type === TID_KEY)
-               clear_expanded(key.value);
+               key.subdir_open = false;
             else
                key.expanded = false;
          }
