@@ -686,8 +686,24 @@
          }
       }
 
+      function clear_expanded(odb) {
+         for (const key of odb.key) {
+            if (key.type === TID_KEY)
+               clear_expanded(key.value);
+            else
+               key.expanded = false;
+         }
+      }
+
       function toggle_handles(e) {
-         let odb = getOdbTb(e).odb;
+         let tb = getOdbTb(e);
+         let odb = tb.odb;
+
+         // clear all expanded flags
+         clear_expanded(odb);
+         let row = { i:4 };
+         odb.skip_yellow = true;
+         odb_print(tb, row, tb.odb);
 
          let n = document.getElementsByName('odbHandle');
          odb.handleColumn = !odb.handleColumn;
@@ -721,21 +737,20 @@
             tr = tr.parentElement;
          let tb = getOdbTb(e);
          let odb = tb.odb;
+         let path = tr.odbPath;
 
-         // find key for current row
-         // let name = tr.childNodes[1].innerHTML;
-         // for (const key of odb.key) {
-         //    if (key.name === name) {
-         //       // toggle expand flag for key
-         //       key.expanded = !key.expanded;
-         //       break;
-         //    }
-         // }
-
-         if (tr.key.expanded === false)
-            tr.key.expanded = true;
-         else
-            tr.key.expanded = false;
+         // find key belonging to 'path'
+         let dirs = path.split('/');
+         for (let l=1 ; l<dirs.length ; l++) {
+            for (let i = 0 ; i<odb.key.length ; i++)
+               if (odb.key[i].name === dirs[l]) {
+                  if (l === dirs.length-1)
+                     odb.key[i].expanded = !odb.key[i].expanded;
+                  else
+                     odb = odb.key[i].value; // recurse one level
+                  break;
+               }
+         }
 
          let row = { i:4 };
          odb.skip_yellow = true;
