@@ -715,7 +715,7 @@
          }
       }
 
-      function toggle_expanded(e) {
+      function toggle_expanded(e, key) {
          let tr = e;
          while (tr.tagName !== 'TR')
             tr = tr.parentElement;
@@ -737,10 +737,9 @@
          else
             tr.key.expanded = false;
 
-         console.log(tr.key);
-
          let row = { i:4 };
-         odb_print(tb, row);
+         odb.skip_yellow = true;
+         odb_print(tb, row, tb.odb);
       }
 
       function odb_delete(e) {
@@ -993,8 +992,8 @@
          let dirs = path.split('/');
          for (let l=1 ; l<dirs.length ; l++) {
             for (let i = 0 ; i<odb.key.length ; i++)
-               if (odb.key[i].name == dirs[l]) {
-                  if (l == dirs.length-1)
+               if (odb.key[i].name === dirs[l]) {
+                  if (l === dirs.length-1)
                      odb.key[i].subdir_open = !odb.key[i].subdir_open;
                   else
                      odb = odb.key[i].value; // recurse one level
@@ -1111,7 +1110,7 @@
 
          mjsonrpc_db_ls(paths).then(rpc => {
             odb_extract(odb, rpc.result.data);
-            odb_print(tb, row);
+            odb_print(tb, row, tb.odb);
             odb.skip_yellow = false;
 
             // call timer in one second to update again
@@ -1179,8 +1178,7 @@
          }
       }
 
-      function odb_print(tb, row) {
-         let odb = tb.odb;
+      function odb_print(tb, row, odb) {
          for (const key of odb.key) {
             // Print current key
             odb_print_key(tb, row, odb.path, key, odb.level);
@@ -1253,10 +1251,6 @@
 
          // Remember key (need to toggle expanded flag)
          tr.key = key;
-
-         // Initialize expanded flag
-         if (tr.expanded === undefined)
-            tr.expanded = true;
 
          // Print subdir with open subdir handler
          if (key.type === TID_KEY) {
@@ -1509,8 +1503,9 @@
          tb.childNodes[row.i].addEventListener('click', select_key);
          tb.childNodes[row.i].addEventListener('contextmenu', context_menu);
 
-         // Remember ODB path in row
+         // Remember ODB path and key in row
          tb.childNodes[row.i].odbPath = keyPath;
+         tb.childNodes[row.i].key = key;
 
          // Print array values
          if (Array.isArray(key.value)) {
