@@ -711,20 +711,24 @@
          if (odb.handleColumn) {
             for (const d of n) {
                let tr = d.parentElement;
-               tr.setAttribute('draggable', true);
-               tr.addEventListener('dragstart', drag_start);
-               tr.addEventListener('dragover', drag_move);
-               tr.addEventListener('dragend', drag_end);
+               if (tr.firstChild.className !== 'colHeader') {
+                  tr.setAttribute('draggable', true);
+                  tr.addEventListener('dragstart', drag_start);
+                  tr.addEventListener('dragover', drag_move);
+                  tr.addEventListener('dragend', drag_end);
+               }
 
                d.style.display = 'table-cell';
             }
          } else {
             for (const d of n) {
                let tr = d.parentElement;
-               tr.removeAttribute('draggable');
-               tr.removeEventListener('dragstart', drag_start);
-               tr.removeEventListener('dragover', drag_move);
-               tr.removeEventListener('dragend', drag_end);
+               if (tr.firstChild.className !== 'colHeader') {
+                  tr.removeAttribute('draggable');
+                  tr.removeEventListener('dragstart', drag_start);
+                  tr.removeEventListener('dragover', drag_move);
+                  tr.removeEventListener('dragend', drag_end);
+               }
 
                d.style.display = 'none';
             }
@@ -1306,7 +1310,7 @@
                   // check for edit mode
                   let inlineEdit = find_input_element(tb.childNodes[row.i]);
                   if (!inlineEdit)
-                     tb.childNodes[row.i].replaceWith(tr);
+                     tb.childNodes[row.i].innerHTML = tr.innerHTML;
                }
             } else
                tb.appendChild(tr);
@@ -1706,6 +1710,7 @@
          let tb = getOdbTb(tr);
 
          tb.dragTargetRow = Array.from(tb.children).indexOf(tr);
+         tb.dragSourceRow = tb.dragTargetRow;
          tb.dragSource = tr.odbPath;
          tb.dragRowContent = tr.cloneNode(true);
 
@@ -1748,11 +1753,12 @@
          ttr.style.height = "";
          ttr.style.width = "";
 
-         console.log(tb.dragSource, tb.dragTargetRow);
-
-         mjsonrpc_call("db_reorder", { "paths": [tb.dragSource], "indices": [tb.dragTargetRow-4]}).then(rpc => {
+         if (tb.dragSourceRow !== tb.dragTargetRow) {
+            mjsonrpc_call("db_reorder", {"paths": [tb.dragSource], "indices": [tb.dragTargetRow - 4]}).then(rpc => {
+               tb.odb.updateTimer = window.setTimeout(odb_update, 10, tb);
+            }).catch(error => mjsonrpc_error_alert(error));
+         } else
             tb.odb.updateTimer = window.setTimeout(odb_update, 10, tb);
-         }).catch(error => mjsonrpc_error_alert(error));
       }
    </script>
 </head>
