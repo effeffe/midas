@@ -16315,7 +16315,9 @@ INT rpc_check_channels(void)
    for (unsigned idx = 0; idx < _server_acceptions.size(); idx++) {
       if (_server_acceptions[idx] && _server_acceptions[idx]->recv_sock) {
          RPC_SERVER_ACCEPTION* sa = _server_acceptions[idx];
-
+         if (sa == NULL)
+            continue;
+         
          if (sa->watchdog_timeout == 0) {
             continue;
          }
@@ -16348,8 +16350,10 @@ INT rpc_check_channels(void)
                       i);
                
                /* disconnect from experiment */
-               if (rpc_is_mserver())
+               if (rpc_is_mserver()) {
                   cm_disconnect_experiment();
+                  return RPC_NET_ERROR;
+               }
                
                sa->close();
                return RPC_NET_ERROR;
@@ -16381,9 +16385,11 @@ INT rpc_check_channels(void)
                       sa->watchdog_timeout / 1000);
                
                /* disconnect from experiment */
-               if (rpc_is_mserver())
+               if (rpc_is_mserver()) {
                   cm_disconnect_experiment();
-               
+                  return RPC_NET_ERROR;
+               }               
+
                sa->close();
                return RPC_NET_ERROR;
             }
@@ -16399,8 +16405,10 @@ INT rpc_check_channels(void)
                          i);
                   
                   /* disconnect from experiment */
-                  if (rpc_is_mserver())
+                  if (rpc_is_mserver()) {
                      cm_disconnect_experiment();
+                     return RPC_NET_ERROR;
+                  }
                   
                   sa->close();
                   return RPC_NET_ERROR;
