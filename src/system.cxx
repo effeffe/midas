@@ -3916,6 +3916,17 @@ static INT ss_suspend_init_struct(SUSPEND_STRUCT* psuspend)
    getsockname(sock, (struct sockaddr *) &bind_addr, &size);
 #endif
 
+   // ipc receive socket must be set to non-blocking mode, see explanation
+   // in ss_suspend_process_ipc(). K.O. July 2022.
+
+   int flags = fcntl(sock, F_GETFL, 0);
+   status = fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+
+   if (status < 0) {
+      fprintf(stderr, "ss_suspend_init_struct: cannot set non-blocking mode of ipc receive socket, fcntl() returned %d, errno %d (%s)\n", status, errno, strerror(errno));
+      return SS_SOCKET_ERROR;
+   }
+
    psuspend->ipc_recv_socket = sock;
    psuspend->ipc_recv_port = ntohs(bind_addr.sin_port);
 
@@ -4186,11 +4197,34 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
    /* receive IPC message */
    struct sockaddr from_addr;
    socklen_t from_addr_size = sizeof(struct sockaddr);
-#ifdef OS_WINNT
-   ssize_t size = recvfrom(ipc_recv_socket, buffer, sizeof(buffer), 0, &from_addr, (int *) &from_addr_size);
-#else
+
+   // note: ipc_recv_socket must be set in non-blocking mode:
+   // it looks as if we come here from ss_suspend() only if select() said
+   // that our socket has data. but this is not true. after that select(),
+   // ss_suspend() reads other sockets, calls other handlers, which may call
+   // ss_suspend() recursively (i.e. via bm_receive_event() RPC call to "wait_for_more_data"
+   // call to ss_suspend()). the recursively called ss_suspend() will
+   // also so select() and call this function to read from this socket. then it eventually
+   // returns, all the handlers return back to the original ss_suspend(), which
+   // happily remembers that the original select() told us we have data. but this data
+   // was already read by the recursively call ss_suspend(), so the socket is empty
+   // and our recvfrom() will sleep forever. inside the mserver, this makes mserver
+   // stop (very bad!). with the socket set to non-blocking mode
+   // recvfrom() will never sleep and this problem is avoided. K.O. July 2022
+   // see bug report https://bitbucket.org/tmidas/midas/issues/346/rpc-timeout-in-bm_receive_event
+
+   // note2: in midas, there is never a situation where we wait for data
+   // from the ipc sockets. these sockets are used for "event buffer has data" and "odb has new data"
+   // notifications. we check them, but we do not wait for them. this setting
+   // the socket to non-blocking mode is safe. K.O. July 2022.
+
    ssize_t size = recvfrom(ipc_recv_socket, buffer, sizeof(buffer), 0, &from_addr, &from_addr_size);
-#endif
+
+   if (size <= 0) {
+      //fprintf(stderr, "ss_suspend_process_ipc: recvfrom() returned %zd, errno %d (%s)\n", size, errno, strerror(errno));
+      // return 0 means we did not do anyting. K.O.
+      return 0;
+   }
 
    // NB: ss_suspend(MSG_BM) (and ss_suspend(MSG_ODB)) are needed to break
    // recursive calls to the event handler (and db_watch() handler) if these
@@ -4215,48 +4249,36 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
    }
    
    time_t tstart = time(NULL);
-   int count = 0;
-
    int return_status = 0;
 
-   fd_set readfds;
-
    /* receive further messages to empty UDP queue */
-   do {
-      FD_ZERO(&readfds);
-      FD_SET(ipc_recv_socket, &readfds);
-      
-      struct timeval timeout;
+   for (int count=0; ; count++) {
+      char buffer_tmp[80];
+      buffer_tmp[0] = 0;
+      from_addr_size = sizeof(struct sockaddr);
 
-      timeout.tv_sec = 0;
-      timeout.tv_usec = 0;
-      
-      int status = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
-      
-      if (status != -1 && FD_ISSET(ipc_recv_socket, &readfds)) {
-         char buffer_tmp[80];
-         buffer_tmp[0] = 0;
-         from_addr_size = sizeof(struct sockaddr);
-#ifdef OS_WINNT
-         ssize_t size_tmp = recvfrom(ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, (int *) &from_addr_size);
-#else
-         ssize_t size_tmp = recvfrom(ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, &from_addr_size);
-#endif
+      // note: ipc_recv_socket must be in non-blocking mode, see comments above. K.O.
 
-         /* stop the loop if received requested message */
-         if (msg == MSG_BM && buffer_tmp[0] == 'B') {
-            return_status = SS_SUCCESS;
-            break;
-         }
-         if (msg == MSG_ODB && buffer_tmp[0] == 'O') {
-            return_status = SS_SUCCESS;
-            break;
-         }
-         
-         /* don't forward same MSG_BM as above */
-         if (buffer_tmp[0] != 'B' || strcmp(buffer_tmp, buffer) != 0) {
-            cm_dispatch_ipc(buffer_tmp, size_tmp, mserver_client_socket);
-         }
+      ssize_t size_tmp = recvfrom(ipc_recv_socket, buffer_tmp, sizeof(buffer_tmp), 0, &from_addr, &from_addr_size);
+
+      if (size_tmp <= 0) {
+         //fprintf(stderr, "ss_suspend_process_ipc: second recvfrom() returned %zd, errno %d (%s)\n", size, errno, strerror(errno));
+         break;
+      }
+      
+      /* stop the loop if received requested message */
+      if (msg == MSG_BM && buffer_tmp[0] == 'B') {
+         return_status = SS_SUCCESS;
+         break;
+      }
+      if (msg == MSG_ODB && buffer_tmp[0] == 'O') {
+         return_status = SS_SUCCESS;
+         break;
+      }
+      
+      /* don't forward same MSG_BM as above */
+      if (buffer_tmp[0] != 'B' || strcmp(buffer_tmp, buffer) != 0) {
+         cm_dispatch_ipc(buffer_tmp, size_tmp, mserver_client_socket);
       }
       
       if (millisec > 0) {
@@ -4267,9 +4289,7 @@ static int ss_suspend_process_ipc(INT millisec, INT msg, int ipc_recv_socket)
             break;
          }
       }
-      
-      count++;
-   } while (FD_ISSET(ipc_recv_socket, &readfds));
+   }
    
    /* call dispatcher */
    cm_dispatch_ipc(buffer, size, mserver_client_socket);
@@ -4509,15 +4529,17 @@ INT ss_suspend(INT millisec, INT msg)
       if (_ss_server_listen_socket && FD_ISSET(_ss_server_listen_socket, &readfds)) {
          //printf("ss_suspend: thread %s rpc_server_accept socket %d\n", ss_tid_to_string(thread_id).c_str(), _ss_server_listen_socket);
          status = rpc_server_accept(_ss_server_listen_socket);
-         if (status == RPC_SHUTDOWN)
+         if (status == RPC_SHUTDOWN) {
             return status;
+         }
       }
 
       if (_ss_client_listen_socket && FD_ISSET(_ss_client_listen_socket, &readfds)) {
          //printf("ss_suspend: thread %s rpc_client_accept socket %d\n", ss_tid_to_string(thread_id).c_str(), _ss_client_listen_socket);
          status = rpc_client_accept(_ss_client_listen_socket);
-         if (status == RPC_SHUTDOWN)
+         if (status == RPC_SHUTDOWN) {
             return status;
+         }
       }
 
       /* check server channels */
@@ -4542,8 +4564,9 @@ INT ss_suspend(INT millisec, INT msg)
                }
                (*_ss_server_acceptions)[i]->last_activity = ss_millitime();
 
-               if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
+               if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN) {
                   return status;
+               }
                
                return_status = SS_SERVER_RECV;
             }
@@ -4564,8 +4587,9 @@ INT ss_suspend(INT millisec, INT msg)
                }
                (*_ss_server_acceptions)[i]->last_activity = ss_millitime();
 
-               if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN)
+               if (status == SS_ABORT || status == SS_EXIT || status == RPC_SHUTDOWN) {
                   return status;
+               }
                
                return_status = SS_SERVER_RECV;
             }
@@ -4604,15 +4628,17 @@ INT ss_suspend(INT millisec, INT msg)
       /* check ODB IPC socket */
       if (_ss_suspend_odb && _ss_suspend_odb->ipc_recv_socket && FD_ISSET(_ss_suspend_odb->ipc_recv_socket, &readfds)) {
          status = ss_suspend_process_ipc(millisec, msg, _ss_suspend_odb->ipc_recv_socket);
-         if (status)
+         if (status) {
             return status;
+         }
       }
       
       /* check per-thread IPC socket */
       if (psuspend && psuspend->ipc_recv_socket && FD_ISSET(psuspend->ipc_recv_socket, &readfds)) {
          status = ss_suspend_process_ipc(millisec, msg, psuspend->ipc_recv_socket);
-         if (status)
+         if (status) {
             return status;
+         }
       }
 
 

@@ -642,8 +642,8 @@ int main(int argc, char **argv) {
       return 0;
    } else {
       /* check parameters */
-      if (evt_display < 1 || evt_display > 1000) {
-         printf("mdump-F- <-display arg> out of range (1:1000)\n");
+      if (evt_display < 1 || evt_display > 9999) {
+         printf("mdump-F- <-display arg> out of range (1:9999)\n");
          return -1;
       }
    }
