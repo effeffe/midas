@@ -116,6 +116,8 @@
                  'onclick="rename_key(this)">&nbsp;&nbsp;' +
                  '<img src="icons/shuffle.svg" title="Reorder keys" ' +
                  'onclick="toggle_handles(this)">&nbsp;&nbsp;' +
+                 '<img src="icons/copy.svg" title="Copy ODB" ' +
+                 'onclick="odb_copy(this)">&nbsp;&nbsp;' +
                  '<img src="icons/download.svg" title="Download ODB" ' +
                  'onclick="odb_download(this)">&nbsp;&nbsp;' +
                  '<img src="icons/upload.svg" title="Upload ODB" ' +
@@ -590,7 +592,7 @@
 
             let table = document.createElement("table");
 
-            // delete key ----------
+            // copy key ----------
 
             let trm = document.createElement("tr");
             let tdm = document.createElement("td");
@@ -598,8 +600,42 @@
 
             let a = document.createElement("a");
             a.href = "#";
+            a.innerHTML = "Copy key";
+            a.title = "Copy key";
+            a.onclick = function () {
+               d.style.display = 'none';
+               let path = tr.odbPath;
+               mjsonrpc_db_copy([path]).then(rpc => {
+                  let text = JSON.stringify(rpc.result.data[0]);
+                  console.log(text);
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                     try {
+                        navigator.clipboard.writeText(text);
+                     } catch(error) {
+                        dlgAlert(error);
+                     }
+                  }
+               }).catch(error => mjsonrpc_error_alert(error));
+            }
+
+            tdm.appendChild(a);
+            trm.appendChild(tdm);
+            table.appendChild(trm);
+
+            // delete key ----------
+
+            trm = document.createElement("tr");
+            tdm = document.createElement("td");
+            tdm.style.padding = "0";
+
+            a = document.createElement("a");
+            a.href = "#";
             a.innerHTML = "Delete key";
             a.title = "Delete key";
+            a.onclick = function () {
+               d.style.display = 'none';
+               odb_delete(tr);
+            }
 
             tdm.appendChild(a);
             trm.appendChild(tdm);
@@ -625,14 +661,8 @@
             document.body.appendChild(d);
          }
 
-         // set event handler for delete menu
-         d.childNodes[0].childNodes[0].childNodes[0].childNodes[0].onclick = function () {
-            d.style.display = 'none';
-            odb_delete(tr);
-         }
-
          // set event handler for rename menu
-         d.childNodes[0].childNodes[1].childNodes[0].childNodes[0].onclick = function () {
+         d.childNodes[0].childNodes[2].childNodes[0].childNodes[0].onclick = function () {
             d.style.display = 'none';
 
             let key = tr.childNodes[1].innerHTML;
@@ -899,6 +929,21 @@
       function do_search_key(str) {
          if (str !== false)
             window.location.href = "?cmd=Find&value=" + str;
+      }
+
+      function odb_copy(e) {
+         let tb = getOdbTb(e);
+         mjsonrpc_db_copy([tb.odb.path]).then(rpc => {
+            let text = JSON.stringify(rpc.result.data[0]);
+            console.log(text);
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+               try {
+                  navigator.clipboard.writeText(text);
+               } catch(error) {
+                  dlgAlert(error);
+               }
+            }
+         }).catch(error => mjsonrpc_error_alert(error));
       }
 
       function odb_download(e) {
@@ -1270,6 +1315,9 @@
 
          // Remember key (need to toggle expanded flag)
          tr.key = key;
+
+         // Remember key path
+         tr.odbPath = keyPath;
 
          // Print subdir with open subdir handler
          if (key.type === TID_KEY) {
