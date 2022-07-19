@@ -236,14 +236,11 @@
       }
 
       function odb_setall(p, value) {
-         // console.log(p.odb.param, value);
          let path = p.odbParam.param + '[*]';
          mjsonrpc_db_set_value(path, value);
       }
 
       function odb_setlink(p, value) {
-         console.log(p.odbParam.param, value);
-
          mjsonrpc_call("db_link", {"new_links":[p.odbParam.param],"target_paths":[value]}).then(rpc => {
          }).catch(error =>{ mjsonrpc_error_alert(error); });
       }
@@ -556,6 +553,110 @@
 
             tr.style.backgroundColor = tr.odbSelected ? '#004CBD' : '';
             change_color(tr, tr.odbSelected ? '#FFFFFF' : '');
+         }
+      }
+
+      function select_array_element(event) {
+         event.preventDefault();
+
+         let tr = event.target;
+         let tb = getOdbTb(tr);
+         if (tb === undefined)
+            return;
+
+         // don't select key when we are in edit mode
+         while (tr.tagName !== 'TR') {
+            tr = tr.parentElement;
+            if (tr === null)
+               return;
+         }
+         if (find_input_element(tr))
+            return;
+
+         let odb = tb.odb;
+
+         // hide submenu if visible
+         let m = document.getElementById('moreMenu');
+         if (m !== null && m.style.display === 'block')
+            m.style.display = 'none';
+
+         // hide context menu if visible
+         m = document.getElementById('contextMenu');
+         if (m !== null && m.style.display === 'block')
+            m.style.display = 'none';
+
+
+         // remove selection from all non-array keys
+         for (let i=0 ; i<tb.childNodes.length ; i++) {
+            if (tb.childNodes[i].childNodes.length > 1 &&
+                    tb.childNodes[i].childNodes[1].innerHTML !== "" &&
+                    tb.childNodes[i].odbSelected) {
+               tb.childNodes[i].odbSelected = false;
+               tb.childNodes[i].style.backgroundColor = '';
+               change_color(tb.childNodes[i], '');
+            }
+         }
+
+         // create array of all array elements
+         let atr = [];
+         let i;
+         for (i=0 ; i<tb.childNodes.length ; i++)
+            if (tb.childNodes[i] === tr)
+               break;
+         while (tb.childNodes[i].odbPath === undefined)
+            i--;
+         i++; // first element
+         do {
+            atr.push(tb.childNodes[i++]);
+         } while (i < tb.childNodes.length && tb.childNodes[i].odbPath === undefined);
+
+         if (event.shiftKey) {
+            // search last selected row
+            let i1;
+            for (i1=0 ; i1<atr.length ; i1++)
+               if (atr[i1].odbLastSelected)
+                  break;
+            if (i1 === atr.length)
+               i1 = 0; // non selected, so use first one
+
+            let i2;
+            for (i2=0 ; i2<atr.length ; i2++)
+               if (atr[i2] === tr)
+                  break;
+
+            if (i2 < atr.length) {
+               if (i1 > i2)
+                  [i1, i2] = [i2, i1];
+
+               for (let i=i1 ; i<=i2 ; i++)
+                  atr[i].odbSelected = true;
+            }
+
+         } else if (event.metaKey) {
+
+            // command key just toggles current selection
+            tr.odbSelected = !tr.odbSelected;
+
+            for (const tr of atr)
+               tr.odbLastSelected = false;
+            if (tr.odbSelected)
+               tr.odbLastSelected = true;
+
+         } else {
+
+            // no key pressed -> un-select all but current
+            for (const tr of atr) {
+               tr.odbSelected = false;
+               tr.odbLastSelected = false;
+            }
+            tr.odbSelected = true;
+            tr.odbLastSelected = true;
+         }
+
+         // change color of all rows according to selection
+         for (const e of atr) {
+            e.childNodes[2].style.backgroundColor = e.odbSelected ? '#004CBD' : '';
+            change_color(e.childNodes[2], e.odbSelected ? '#FFFFFF' : '');
          }
       }
 
@@ -1623,6 +1724,9 @@
                   v += " (0x" + key.value[i].toString(16).toUpperCase() + ')';
                td.innerHTML = '['+i+'] '+ edit + v + '</a>';
 
+               // Install mouse click handler
+               td.addEventListener('click', select_array_element);
+
                // Empty fill cells
                for (let i=0 ; i<5 ; i++) {
                   td = document.createElement('TD');
@@ -1639,30 +1743,40 @@
                      if (tr.childNodes.length === 1) { // Subdir
                         tb.childNodes[row.i].replaceWith(tr);
                      } else if (tr.childNodes.length === 8) { // Key
+                        let odbSelected = tb.childNodes[row.i].odbSelected;
+                        let odbLastSelected = tb.childNodes[row.i].odbLastSelected;
                         if (tb.childNodes[row.i].childNodes[1].colSpan !== 1)
                            tb.childNodes[row.i].childNodes[1].colSpan = "1";
                         for (let i = 0; i < 8; i++) {
                            let changed = false;
-
                            let oldValue;
-                           if (tb.childNodes[row.i].childNodes[i] !== undefined)
-                              oldValue = tb.childNodes[row.i].childNodes[i].innerHTML;
-                           let newValue = tr.childNodes[i].innerHTML;
+                           let newValue;
+
+                           if (i === 2) {
+                              if (tb.childNodes[row.i].childNodes[2] !== undefined)
+                                 oldValue = tb.childNodes[row.i].childNodes[2].childNodes[1].innerHTML;
+                              newValue = tr.childNodes[2].childNodes[1].innerHTML;
+                           }
 
                            if (oldValue !== undefined &&
-                                   oldValue !== newValue &&  // value changed
-                                   i === 2 &&                // we are in value column
-                                   !odb.skip_yellow &&       // skip if globally disabled
-                                   // skip if edit just finished
-                                   !(oldValue.indexOf('(') == -1 && newValue.indexOf('(') !== -1) &&
-                                   // skip '*' of arrays
-                                   newValue.indexOf('>*</a>') === -1)
+                                oldValue !== newValue &&  // value changed
+                                i === 2 &&                // we are in value column
+                                !odb.skip_yellow &&       // skip if globally disabled
+                                // skip if edit just finished
+                                !(oldValue.indexOf('(') == -1 && newValue.indexOf('(') !== -1) &&
+                                // skip '*' of arrays
+                                newValue.indexOf('>*</a>') === -1 &&
+                                tb.childNodes[row.i].odbSelected !== true)
                               changed = true;
 
                            if (tb.childNodes[row.i].childNodes[i] === undefined)
                               tb.childNodes[row.i].appendChild(tr.childNodes[i].cloneNode(true));
-                           else
+                           else {
+                              // preserve color if key is selected
+                              let c = tb.childNodes[row.i].childNodes[i].style.color;
                               tb.childNodes[row.i].childNodes[i].innerHTML = tr.childNodes[i].innerHTML;
+                              change_color(tb.childNodes[row.i].childNodes[i], c);
+                           }
 
                            let e = tb.childNodes[row.i].childNodes[i];
                            if (changed) {
@@ -1678,6 +1792,10 @@
                               e.style.backgroundColor = "";
                            }
                         }
+
+                        tb.childNodes[row.i].childNodes[2].addEventListener('click', select_array_element);
+                        tb.childNodes[row.i].odbSelected = odbSelected;
+                        tb.childNodes[row.i].odbLastSelected = odbLastSelected;
                      }
                   }
                }
@@ -1744,11 +1862,6 @@
          }
 
          return true;
-      }
-
-      function drag_click(event, td) {
-         event.stopPropagation();
-         console.log("Click: ", event, td);
       }
 
       function drag_start(event) {
