@@ -236,8 +236,33 @@
       }
 
       function odb_setall(p, value) {
-         let path = p.odbParam.param + '[*]';
-         mjsonrpc_db_set_value(path, value);
+         // obtain selected array elements
+         let tr = p.parentElement;
+         while (tr.tagName !== 'TR')
+            tr = tr.parentElement;
+         let tb = getOdbTb(tr);
+
+         let atr = getArrayTr(tr);
+
+         let n = 0;
+         for (const e of atr)
+            if (e.odbSelected)
+               n++;
+
+         if (n === 0) {
+            // set all values
+            let path = p.odbParam.param + '[*]';
+            mjsonrpc_db_set_value(path, value).then(() =>
+                    odb_update(tb)
+            ).catch(error => mjsonrpc_error_alert(error));
+         } else {
+            let path = p.odbParam.param;
+            let key = p.parentElement.parentElement.key;
+            for (let i=0 ; i<atr.length ; i++)
+               if (atr[i].odbSelected)
+                  key.value[i] = parseInt(value);
+            console.log(key);
+         }
       }
 
       function odb_setlink(p, value) {
@@ -453,10 +478,18 @@
       function unselect_all_keys(tb) {
          for (let i=4 ; i<tb.childNodes.length ; i++) {
             let tr = tb.childNodes[i];
+
+            // selected keys
             tr.odbSelected = false;
             tr.odbLastSelected = false;
             tr.style.backgroundColor = '';
             change_color(tr, '');
+
+            // selected array elements
+            if (tr.childNodes.length > 2) {
+               tr.childNodes[2].style.backgroundColor = '';
+               change_color(tr.childNodes[2], '');
+            }
          }
       }
 
@@ -479,6 +512,9 @@
          m = document.getElementById('contextMenu');
          if (m !== null && m.style.display === 'block')
             m.style.display = 'none';
+
+         // un-select all array elements
+         unselect_all_keys(tb);
 
          // don't select key when we are in edit mode
          while (tr.tagName !== 'TR') {
@@ -556,6 +592,23 @@
          }
       }
 
+      function getArrayTr(tr) {
+         // collect all rows belonging to "tr" in an array
+         let tb = getOdbTb(tr);
+         let atr = [];
+         let i;
+         for (i = 0; i < tb.childNodes.length; i++)
+            if (tb.childNodes[i] === tr)
+               break;
+         while (tb.childNodes[i].odbPath === undefined)
+            i--;
+         i++; // first element
+         do {
+            atr.push(tb.childNodes[i++]);
+         } while (i < tb.childNodes.length && tb.childNodes[i].odbPath === undefined);
+         return atr;
+      }
+
       function select_array_element(event) {
          event.preventDefault();
 
@@ -585,7 +638,6 @@
          if (m !== null && m.style.display === 'block')
             m.style.display = 'none';
 
-
          // remove selection from all non-array keys
          for (let i=0 ; i<tb.childNodes.length ; i++) {
             if (tb.childNodes[i].childNodes.length > 1 &&
@@ -598,17 +650,7 @@
          }
 
          // create array of all array elements
-         let atr = [];
-         let i;
-         for (i=0 ; i<tb.childNodes.length ; i++)
-            if (tb.childNodes[i] === tr)
-               break;
-         while (tb.childNodes[i].odbPath === undefined)
-            i--;
-         i++; // first element
-         do {
-            atr.push(tb.childNodes[i++]);
-         } while (i < tb.childNodes.length && tb.childNodes[i].odbPath === undefined);
+         let atr = getArrayTr(tr);
 
          if (event.shiftKey) {
             // search last selected row
@@ -832,9 +874,7 @@
 
          // clear all expanded flags
          clear_expanded(odb);
-         let row = { i:4 };
-         odb.skip_yellow = true;
-         odb_print(tb, row, tb.odb);
+         odb_print_all(tb);
 
          let n = document.getElementsByName('odbHandle');
          odb.handleColumn = !odb.handleColumn;
@@ -872,24 +912,12 @@
             tr = tr.parentElement;
          let tb = getOdbTb(e);
          let odb = tb.odb;
-         let path = tr.odbPath;
 
          // find key belonging to 'path'
-         let dirs = path.split('/');
-         for (let l=1 ; l<dirs.length ; l++) {
-            for (let i = 0 ; i<odb.key.length ; i++)
-               if (odb.key[i].name === dirs[l]) {
-                  if (l === dirs.length-1)
-                     odb.key[i].expanded = !odb.key[i].expanded;
-                  else
-                     odb = odb.key[i].value; // recurse one level
-                  break;
-               }
-         }
+         tr.key.expanded = !tr.key.expanded;
 
-         let row = { i:4 };
-         odb.skip_yellow = true;
-         odb_print(tb, row, tb.odb);
+         unselect_all_keys(tb);
+         odb_print_all(tb);
       }
 
       function odb_delete(e) {
@@ -1343,6 +1371,13 @@
          }
       }
 
+      function odb_print_all(tb) {
+         let odb = tb.odb;
+         let row = { i:4 };
+         odb.skip_yellow = true;
+         odb_print(tb, row, tb.odb);
+      }
+
       function odb_print(tb, row, odb) {
          for (const key of odb.key) {
             // Print current key
@@ -1480,31 +1515,27 @@
          tr.appendChild(td);
 
          if (Array.isArray(key.value)) {
-            if (key.value.length > 4096)
-               td.innerHTML = '... ' + key.value.length + ' values ...';
-            else {
-               td.innerHTML =
-                  '<div style="display: inline;"><a href="#" ' +
-                  'onclick="inline_edit(event, this.parentNode, \'' +
-                  key.value[0] + '\', odb_setall, 10, \'' + keyPath +
-                  '\');return false;" ' +
-                  'title="Set array elements to same value">*</a></div>';
+            td.innerHTML =
+               '<div style="display: inline;"><a href="#" ' +
+               'onclick="inline_edit(event, this.parentNode, \'' +
+               key.value[0] + '\', odb_setall, 10, \'' + keyPath +
+               '\');return false;" ' +
+               'title="Set array elements to same value">*</a></div>';
 
-               if (key.expanded === false)
-                  td.innerHTML +=
-                     '<div style="display: inline;float: right">' +
-                     '<a href="#"' +
-                     'onclick="toggle_expanded(this.parentNode);return false;" ' +
-                     'title="Show array elements">\u25B8</a>' +
-                     '</div>';
-               else
-                  td.innerHTML +=
-                     '<div style="display: inline;float: right">' +
-                     '<a href="#"' +
-                     'onclick="toggle_expanded(this.parentNode);return false;" ' +
-                     'title="Hide array elements">\u25BE</a>' +
-                     '</div>';
-            }
+            if (key.expanded === false)
+               td.innerHTML +=
+                  '<div style="display: inline;float: right">' +
+                  '<a href="#"' +
+                  'onclick="toggle_expanded(this.parentNode);return false;" ' +
+                  'title="Show array elements">\u25B8</a>' +
+                  '</div>';
+            else
+               td.innerHTML +=
+                  '<div style="display: inline;float: right">' +
+                  '<a href="#"' +
+                  'onclick="toggle_expanded(this.parentNode);return false;" ' +
+                  'title="Hide array elements">\u25BE</a>' +
+                  '</div>';
          } else {
             let edit = '<a href="#" onclick="ODBInlineEdit(this.parentNode, \'' + keyPath + '\');return false;" ' +
                     'onfocus="ODBInlineEdit(this.parentNode, \'' + keyPath + '\')" title="Change value">';
