@@ -38,7 +38,7 @@
          if (e === null)
             return;
          while (e.tagName !== 'TBODY') {
-            e = e.parentElement;
+            e = e.parentNode;
             if (e === null)
                return;
          }
@@ -235,11 +235,31 @@
          }, 10);
       }
 
+      function option_edit(event, e, flag) {
+         event.stopPropagation();
+         e.parentNode.inEdit = flag;
+      }
+
+      function odb_setoption(p) {
+         let tr = p.parentNode;
+         while (tr.tagName !== 'TR')
+            tr = tr.parentNode;
+         let tb = getOdbTb(tr);
+         let path = tr.odbPath;
+         let value = p.value;
+
+         mjsonrpc_db_set_value(path, value).then(() => {
+            tb.odb.skip_yellow = true;
+            p.parentNode.inEdit = false;
+            odb_update(tb);
+         }).catch(error => mjsonrpc_error_alert(error));
+      }
+
       function odb_setall(p, value) {
          // obtain selected array elements
-         let tr = p.parentElement;
+         let tr = p.parentNode;
          while (tr.tagName !== 'TR')
-            tr = tr.parentElement;
+            tr = tr.parentNode;
          let tb = getOdbTb(tr);
 
          let atr = getArrayTr(tr);
@@ -258,7 +278,7 @@
          } else {
             let path = p.odbParam.param;
             path = path.substring(0, path.lastIndexOf('/'));
-            let key = p.parentElement.parentElement.key;
+            let key = p.parentNode.parentNode.key;
             for (let i=0 ; i<atr.length ; i++)
                if (atr[i].odbSelected) {
                   if (key.type === TID_STRING || key.type === TID_LINK)
@@ -485,7 +505,8 @@
             e.style.color = color;
          if (e.childNodes && (e.odb === undefined || !e.odb.inEdit))
             for (const c of e.childNodes)
-               change_color(c, color);
+               if (c.tagName !== 'SELECT')
+                  change_color(c, color);
       }
 
       function unselect_all_keys(tb) {
@@ -497,6 +518,12 @@
             tr.odbLastSelected = false;
             tr.style.backgroundColor = '';
             change_color(tr, '');
+         }
+      }
+
+      function unselect_all_array_elements(tb) {
+         for (let i=4 ; i<tb.childNodes.length ; i++) {
+            let tr = tb.childNodes[i];
 
             // selected array elements
             if (tr.childNodes.length > 2) {
@@ -527,11 +554,11 @@
             m.style.display = 'none';
 
          // un-select all array elements
-         unselect_all_keys(tb);
+         unselect_all_array_elements(tb);
 
          // don't select key when we are in edit mode
          while (tr.tagName !== 'TR') {
-            tr = tr.parentElement;
+            tr = tr.parentNode;
             if (tr === null)
                return;
          }
@@ -632,7 +659,7 @@
 
          // don't select key when we are in edit mode
          while (tr.tagName !== 'TR') {
-            tr = tr.parentElement;
+            tr = tr.parentNode;
             if (tr === null)
                return;
          }
@@ -721,7 +748,7 @@
 
          let tr = event.target;
          while (tr.tagName !== 'TR')
-            tr = tr.parentElement;
+            tr = tr.parentNode;
          let tb = getOdbTb(tr);
          let odb = tb.odb;
          let path = tr.odbPath;
@@ -887,7 +914,7 @@
 
          if (odb.handleColumn) {
             for (const d of n) {
-               let tr = d.parentElement;
+               let tr = d.parentNode;
                if (tr.firstChild.className !== 'colHeader') {
                   tr.setAttribute('draggable', true);
                   tr.addEventListener('dragstart', drag_start);
@@ -899,7 +926,7 @@
             }
          } else {
             for (const d of n) {
-               let tr = d.parentElement;
+               let tr = d.parentNode;
                if (tr.firstChild.className !== 'colHeader') {
                   tr.removeAttribute('draggable');
                   tr.removeEventListener('dragstart', drag_start);
@@ -915,7 +942,7 @@
       function toggle_expanded(e) {
          let tr = e;
          while (tr.tagName !== 'TR')
-            tr = tr.parentElement;
+            tr = tr.parentNode;
 
          if (tr.key.num_values >= 5000 && !tr.key.expanded) {
             dlgConfirm("ODB key \""+ tr.key.name + "\" has " + tr.key.num_values +
@@ -929,6 +956,7 @@
             let tb = getOdbTb(tr);
             tr.key.expanded = !tr.key.expanded;
             unselect_all_keys(tb);
+            unselect_all_array_elements(tb);
             odb_print_all(tb);
          }
       }
@@ -971,7 +999,7 @@
       function rename_key_click(event) {
          let tr = event.target;
          while (tr.tagName !== 'TR')
-            tr = tr.parentElement;
+            tr = tr.parentNode;
          if (!tr.odbSelected)
             return;
          if (tr.childNodes[1].odbParam && tr.childNodes[1].odbParam.inEdit)
@@ -1059,7 +1087,7 @@
          mjsonrpc_call("db_rename", { "paths": [path], "new_names": [str]})
                  .then()
                  .catch(error => mjsonrpc_error_alert(error));
-         let old = p.parentElement.oldKey;
+         let old = p.parentNode.oldKey;
 
          p.innerHTML = p.innerHTML.replace(old, str);
       }
@@ -1238,6 +1266,7 @@
          let tb = getOdbTb(e);
          let odb = tb.odb;
          unselect_all_keys(tb);
+         unselect_all_array_elements(tb);
 
          // find key belonging to 'path'
          let dirs = path.split('/');
@@ -1261,6 +1290,7 @@
          let odb = tb.odb;
 
          unselect_all_keys(tb);
+         unselect_all_array_elements(tb);
 
          // kill old timer
          if (odb.updateTimer !== undefined)
@@ -1292,7 +1322,7 @@
 
          // travel from the <a> element up to the <tr> element which contains the path
          while (tr.tagName !== 'TR')
-            tr = tr.parentElement;
+            tr = tr.parentNode;
          let path = tr.odbPath;
 
          numClicks++;
@@ -1402,7 +1432,8 @@
             }
 
             if (odb.key.length <= n) {
-               key.expanded = (key.num_values > 1 && key.num_values <= 10);
+               key.expanded = (key.num_values > 1 && key.num_values <= 10 &&
+                       key.name.substring(0, 7) !== "Options");
                odb.key.push(key);
             } else {
                if (odb.key[n].subdir_open) {
@@ -1438,8 +1469,12 @@
 
       function odb_print(tb, row, odb) {
          for (const key of odb.key) {
+
+            // search for "Options <key>"
+            let options = odb.key.find(o => o.name === 'Options ' + key.name);
+
             // Print current key
-            odb_print_key(tb, row, odb.path, key, odb.level);
+            odb_print_key(tb, row, odb.path, key, odb.level, options ? options.value : undefined);
             row.i++;
 
             // Print whole subdirectory if open
@@ -1465,6 +1500,10 @@
          for (const c of e.childNodes) {
             if (c.tagName === 'INPUT')
                return true;
+            if (c.tagName === 'SELECT' && e.inEdit) {
+               console.log('inEdit');
+               return true;
+            }
             if (c.childNodes.length > 0)
                if (find_input_element(c))
                   return true;
@@ -1472,7 +1511,7 @@
          return false;
       }
 
-      function odb_print_key(tb, row, path, key, level) {
+      function odb_print_key(tb, row, path, key, level, options) {
          let odb = tb.odb;
 
          // ful path to key
@@ -1595,23 +1634,39 @@
                   'title="Hide array elements">\u25BE</a>' +
                   '</div>';
          } else {
-            let edit = '<a href="#" onclick="ODBInlineEdit(this.parentNode, \'' + keyPath + '\');return false;" ' +
-                    'onfocus="ODBInlineEdit(this.parentNode, \'' + keyPath + '\')" title="Change value">';
 
-            let v = key.value.toString();
-            if (key.type === TID_STRING && v === "")
-               v = "(empty)";
-            else if (key.type === TID_STRING && v.trim() === "")
-               v = "(spaces)";
-            else if (key.type === TID_LINK)
-               v = '<span style="color:red;background-color:yellow">(cannot resolve link)</span>';
-            else if (key.type === TID_BOOL)
-               v = (key.value ? 'y' : 'n') + ' (' + (key.value ? '1' : '0') + ')';
-            else if (v.substring(0, 2) === "0x")
-               v += " (" + parseInt(key.value) + ')';
-            else if (key.type !== TID_STRING && key.type !== TID_LINK && key.type !== TID_FLOAT && key.type !== TID_DOUBLE)
-               v += " (0x" + key.value.toString(16).toUpperCase() + ')';
-            td.innerHTML = edit + v + '</a>';
+            if (options) {
+               let h = "<select onchange='odb_setoption(this)' " +
+                       " onclick='option_edit(event, this, true)'" +
+                       " onblur='option_edit(event, this, false)'" +
+                       "'>\n";
+               for (const o of options) {
+                  if (key.value === o)
+                     h += "<option selected value='" + o + "'>" + o + "</option>";
+                  else
+                     h += "<option value='" + o + "'>" + o + "</option>";
+               }
+               h += "</select>\n";
+               td.innerHTML = h;
+            } else {
+               let edit = '<a href="#" onclick="ODBInlineEdit(this.parentNode, \'' + keyPath + '\');return false;" ' +
+                       'onfocus="ODBInlineEdit(this.parentNode, \'' + keyPath + '\')" title="Change value">';
+
+               let v = key.value.toString();
+               if (key.type === TID_STRING && v === "")
+                  v = "(empty)";
+               else if (key.type === TID_STRING && v.trim() === "")
+                  v = "(spaces)";
+               else if (key.type === TID_LINK)
+                  v = '<span style="color:red;background-color:yellow">(cannot resolve link)</span>';
+               else if (key.type === TID_BOOL)
+                  v = (key.value ? 'y' : 'n') + ' (' + (key.value ? '1' : '0') + ')';
+               else if (v.substring(0, 2) === "0x")
+                  v += " (" + parseInt(key.value) + ')';
+               else if (key.type !== TID_STRING && key.type !== TID_LINK && key.type !== TID_FLOAT && key.type !== TID_DOUBLE)
+                  v += " (0x" + key.value.toString(16).toUpperCase() + ')';
+               td.innerHTML = edit + v + '</a>';
+            }
          }
 
          // Type
@@ -1966,7 +2021,7 @@
       function drag_start(event) {
          let tr = event.target;
          while (tr.tagName !== 'TR')
-            tr = tr.parentElement;
+            tr = tr.parentNode;
          let tb = getOdbTb(tr);
 
          tb.dragTargetRow = Array.from(tb.children).indexOf(tr);
@@ -1990,7 +2045,7 @@
 
          let tr = event.target;
          while (tr.tagName !== 'TR')
-            tr = tr.parentElement;
+            tr = tr.parentNode;
          let tb = getOdbTb(tr);
          let children = Array.from(tb.children);
 
@@ -2005,7 +2060,7 @@
       function drag_end(event, td) {
          let tr = event.target;
          while (tr.tagName !== 'TR')
-            tr = tr.parentElement;
+            tr = tr.parentNode;
          let tb = getOdbTb(tr);
 
          let ttr = tb.childNodes[tb.dragTargetRow];
@@ -2114,7 +2169,7 @@
       <div class="dlgPanel">
          </br><div style="margin: auto;width:70%">
          <input type="file" id="fileSelector" accept=".json"></div></br></br>
-         <button class="dlgButton" onclick="loadFileFromSelector(this.parentElement.parentElement);dlgHide('dlgFileSelect');">Upload</button>
+         <button class="dlgButton" onclick="loadFileFromSelector(this.parentNode.parentNode);dlgHide('dlgFileSelect');">Upload</button>
          <button class="dlgButton" onclick="dlgHide('dlgFileSelect')">Cancel</button>
       </div>
    </div>
