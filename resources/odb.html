@@ -1500,10 +1500,8 @@
          for (const c of e.childNodes) {
             if (c.tagName === 'INPUT')
                return true;
-            if (c.tagName === 'SELECT' && e.inEdit) {
-               console.log('inEdit');
+            if (c.tagName === 'SELECT' && e.inEdit)
                return true;
-            }
             if (c.childNodes.length > 0)
                if (find_input_element(c))
                   return true;
