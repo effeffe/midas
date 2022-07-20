@@ -771,6 +771,7 @@
                if (navigator.clipboard && navigator.clipboard.writeText) {
                   try {
                      navigator.clipboard.writeText(text);
+                     dlgAlert("ODB directory \"" + path + "\" copied to clipboard");
                   } catch(error) {
                      dlgAlert(error);
                   }
@@ -787,6 +788,7 @@
                if (navigator.clipboard && navigator.clipboard.writeText) {
                   try {
                      navigator.clipboard.writeText(text);
+                     dlgAlert("ODB directory \"" + path + "\" copied to clipboard as plain text");
                   } catch(error) {
                      dlgAlert(error);
                   }
@@ -902,18 +904,25 @@
          }
       }
 
-      function toggle_expanded(e, key) {
+      function toggle_expanded(e) {
          let tr = e;
          while (tr.tagName !== 'TR')
             tr = tr.parentElement;
-         let tb = getOdbTb(e);
-         let odb = tb.odb;
 
-         // find key belonging to 'path'
-         tr.key.expanded = !tr.key.expanded;
+         if (tr.key.num_values >= 5000 && !tr.key.expanded) {
+            dlgConfirm("ODB key \""+ tr.key.name + "\" has " + tr.key.num_values +
+                    " array elements. This can take very long. Do you want to continue?", do_toggle_expanded, tr);
+         } else
+            do_toggle_expanded(true, tr);
+      }
 
-         unselect_all_keys(tb);
-         odb_print_all(tb);
+      function do_toggle_expanded(flag, tr) {
+         if (flag) {
+            let tb = getOdbTb(tr);
+            tr.key.expanded = !tr.key.expanded;
+            unselect_all_keys(tb);
+            odb_print_all(tb);
+         }
       }
 
       function odb_delete(e) {
@@ -1063,6 +1072,7 @@
             if (navigator.clipboard && navigator.clipboard.writeText) {
                try {
                   navigator.clipboard.writeText(text);
+                  dlgAlert("ODB directory \"" + tb.odb.path + "\" copied to clipboard");
                } catch(error) {
                   dlgAlert(error);
                }
