@@ -92,7 +92,7 @@ void print_help(char *command)
       printf("help/? [command]        - print this help [for a specific command]\n");
       printf("hi [analyzer] [id]      - tell analyzer to clear histos\n");
       printf("imp <filename> [key]    - import ASCII file into string key\n");
-      printf("json                    - print \"ODB save\" encoding of current directory\n");
+      printf("json <odb path>         - print \"ODB save\" encoding of current directory or given odb path\n");
       printf("jsls                    - print \"ls\" encoding of current directory\n");
       printf("jsvalues                - print \"get_values\" encoding of current directory\n");
       printf("ln <source> <linkname>  - create a link to <source> key\n");
@@ -1985,7 +1985,15 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
       /* json */
       else if (strncmp(param[0], "json", 8) == 0) {
-         db_find_key(hDB, 0, pwd, &hKey);
+
+         if (param[1][0] == '/') {
+            db_find_key(hDB, 0, param[1], &hKey);
+         } else if (strlen(param[1]) > 0) {
+            db_find_key(hDB, 0, pwd, &hKey);
+            db_find_key(hDB, hKey, param[1], &hKey);
+         } else {
+            db_find_key(hDB, 0, pwd, &hKey);
+         }
 
 	 char* buffer = NULL;
 	 int buffer_size = 0;
