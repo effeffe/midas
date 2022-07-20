@@ -718,8 +718,8 @@
 
          let d = document.getElementById('contextMenu');
          if (d === null) {
+            // create menu on the first call
 
-            // create menu
             d = document.createElement("div");
             d.id = "contextMenu";
             d.style.display = "none";
@@ -735,77 +735,70 @@
 
             let table = document.createElement("table");
 
-            // copy key ----------
+            let menu = ["Copy key", "Copy plain text", "Delete key", "Rename key"];
+            let trm;
+            let tdm;
+            let a;
 
-            let trm = document.createElement("tr");
-            let tdm = document.createElement("td");
-            tdm.style.padding = "0";
-
-            let a = document.createElement("a");
-            a.href = "#";
-            a.innerHTML = "Copy key";
-            a.title = "Copy key";
-            a.onclick = function () {
-               d.style.display = 'none';
-               let path = tr.odbPath;
-               mjsonrpc_db_copy([path]).then(rpc => {
-                  let text = JSON.stringify(rpc.result.data[0]);
-                  console.log(text);
-                  if (navigator.clipboard && navigator.clipboard.writeText) {
-                     try {
-                        navigator.clipboard.writeText(text);
-                     } catch(error) {
-                        dlgAlert(error);
-                     }
-                  }
-               }).catch(error => mjsonrpc_error_alert(error));
+            for (const m of menu) {
+               trm = document.createElement("tr");
+               tdm = document.createElement("td");
+               tdm.style.padding = "0";
+               a = document.createElement("a");
+               a.href = "#";
+               a.innerHTML = m;
+               a.title = m;
+               tdm.appendChild(a);
+               trm.appendChild(tdm);
+               table.appendChild(trm);
             }
-
-            tdm.appendChild(a);
-            trm.appendChild(tdm);
-            table.appendChild(trm);
-
-            // delete key ----------
-
-            trm = document.createElement("tr");
-            tdm = document.createElement("td");
-            tdm.style.padding = "0";
-
-            a = document.createElement("a");
-            a.href = "#";
-            a.innerHTML = "Delete key";
-            a.title = "Delete key";
-            a.onclick = function () {
-               d.style.display = 'none';
-               odb_delete(tr);
-            }
-
-            tdm.appendChild(a);
-            trm.appendChild(tdm);
-            table.appendChild(trm);
-
-            // rename key  ----------
-
-            trm = document.createElement("tr");
-            tdm = document.createElement("td");
-            tdm.style.padding = "0";
-
-            a = document.createElement("a");
-            a.href = "#";
-            a.innerHTML = "Rename key";
-            a.title = "Rename key";
-
-            tdm.appendChild(a);
-            trm.appendChild(tdm);
-            table.appendChild(trm);
 
             d.appendChild(table);
-
             document.body.appendChild(d);
          }
 
-         // set event handler for rename menu
+         // set event handler for copy menu
+         d.childNodes[0].childNodes[0].childNodes[0].childNodes[0].onclick = function () {
+            d.style.display = 'none';
+            let path = tr.odbPath;
+            mjsonrpc_db_copy([path]).then(rpc => {
+               let text = JSON.stringify(rpc.result.data[0]);
+               console.log(text);
+               if (navigator.clipboard && navigator.clipboard.writeText) {
+                  try {
+                     navigator.clipboard.writeText(text);
+                  } catch(error) {
+                     dlgAlert(error);
+                  }
+               }
+            }).catch(error => mjsonrpc_error_alert(error));
+         }
+
+         // set event handler for copy plain text menu
+         d.childNodes[0].childNodes[1].childNodes[0].childNodes[0].onclick = function () {
+            d.style.display = 'none';
+            let path = tr.odbPath;
+            mjsonrpc_db_copy([path]).then(rpc => {
+               let text = odbASCII(rpc.result.data[0], path);
+               console.log(text);
+               if (navigator.clipboard && navigator.clipboard.writeText) {
+                  try {
+                     navigator.clipboard.writeText(text);
+                  } catch(error) {
+                     dlgAlert(error);
+                  }
+               }
+            }).catch(error => mjsonrpc_error_alert(error));
+         }
+
+         // set event handler for delete key menu
          d.childNodes[0].childNodes[2].childNodes[0].childNodes[0].onclick = function () {
+            d.style.display = 'none';
+            odb_delete(tr);
+         }
+
+         // set event handler for rename menu
+         d.childNodes[0].childNodes[3].childNodes[0].childNodes[0].onclick = function () {
             d.style.display = 'none';
 
             let key = tr.childNodes[1].innerHTML;
@@ -1073,6 +1066,51 @@
                }
             }
          }).catch(error => mjsonrpc_error_alert(error));
+      }
+
+      function odbASCII(o, path) {
+         let t = "";
+         let need_path = true;
+         for (const key in o) {
+            if (key.indexOf('/') !== -1)
+               continue;
+
+            if (o[key+'/key'] === undefined) {
+               t += odbASCII(o[key], path + '/' + key);
+               need_path = true;
+               continue;
+            }
+
+            if (need_path) {
+               need_path = false;
+               t += '\n[' + path + ']\n';
+            }
+
+            let tid = o[key+'/key'].type;
+            let num_values = o[key+'/key'].num_values;
+            let item_size = o[key+'/key'].item_size;
+            t += key + " = ";
+            t += tid_name[tid];
+
+            if (num_values > 1) {
+               t += '[' + num_values + ']';
+               t += " :\n";
+               for (let i=0 ; i<num_values ; i++) {
+                  t += '[' + i + '] ';
+                  if (tid === TID_STRING || tid === TID_LINK)
+                     t += '[' + item_size + '] ';
+                  t += mie_to_string(tid, o[key][i]);
+                  t += '\n';
+               }
+            } else {
+               t += " : ";
+               if (tid === TID_STRING || tid === TID_LINK)
+                  t += '[' + item_size + '] ';
+               t += mie_to_string(tid, o[key]);
+               t += '\n';
+            }
+         }
+         return t;
       }
 
       function odb_download(e) {
@@ -1500,6 +1538,7 @@
                tb.appendChild(tr);
 
             // Install mouse click handler
+            tb.childNodes[row.i].removeEventListener('click', select_array_element);
             tb.childNodes[row.i].addEventListener('click', select_key);
             tb.childNodes[row.i].addEventListener('contextmenu', context_menu);
 
@@ -1699,6 +1738,7 @@
          }
 
          // Install mouse click handler
+         tb.childNodes[row.i].removeEventListener('click', select_array_element);
          tb.childNodes[row.i].addEventListener('click', select_key);
          tb.childNodes[row.i].addEventListener('contextmenu', context_menu);
 
@@ -1824,6 +1864,7 @@
                            }
                         }
 
+                        tb.childNodes[row.i].removeEventListener('click', select_key);
                         tb.childNodes[row.i].childNodes[2].addEventListener('click', select_array_element);
                         tb.childNodes[row.i].odbSelected = odbSelected;
                         tb.childNodes[row.i].odbLastSelected = odbLastSelected;
