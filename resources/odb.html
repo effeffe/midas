@@ -268,7 +268,10 @@
                }
             let req = {};
             req[key.name] = key.value;
-            req[key.type] = key.type;
+            req[key.name+'/key'] = {};
+            req[key.name+'/key'].type = key.type;
+            req[key.name+'/key'].num_values = key.num_values;
+            req[key.name+'/key'].item_size = key.item_size;
             mjsonrpc_db_paste([path], [req]).then(() =>
                     odb_update(tb)
             ).catch(error => mjsonrpc_error_alert(error));
