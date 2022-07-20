@@ -260,10 +260,15 @@
             path = path.substring(0, path.lastIndexOf('/'));
             let key = p.parentElement.parentElement.key;
             for (let i=0 ; i<atr.length ; i++)
-               if (atr[i].odbSelected)
-                  key.value[i] = parseInt(value);
+               if (atr[i].odbSelected) {
+                  if (key.type === TID_STRING || key.type === TID_LINK)
+                     key.value[i] = value;
+                  else
+                     key.value[i] = parseFloat(value);
+               }
             let req = {};
             req[key.name] = key.value;
+            req[key.type] = key.type;
             mjsonrpc_db_paste([path], [req]).then(() =>
                     odb_update(tb)
             ).catch(error => mjsonrpc_error_alert(error));
