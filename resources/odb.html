@@ -12,25 +12,25 @@
    <title>MIDAS ODB Browser</title>
 
    <style>
-      #odb .colHeader {
-         font-weight: bold;
-      }
-      #odb .mtable {
-         border-spacing: 0;
-      }
-      #odb td, th {
-         padding: 3px;
-         user-select: none;
-      }
-      #odb img {
-         cursor: pointer;
-         border: 5px solid #E0E0E0;
-         border-radius: 5px;
-      }
-      #odb img:hover {
-         border: 5px solid #C8C8C8;
-         background-color: #C8C8C8;
-      }
+       #odb .colHeader {
+           font-weight: bold;
+       }
+       #odb .mtable {
+           border-spacing: 0;
+       }
+       #odb td, th {
+           padding: 3px;
+           user-select: none;
+       }
+       #odb img {
+           cursor: pointer;
+           border: 5px solid #E0E0E0;
+           border-radius: 5px;
+       }
+       #odb img:hover {
+           border: 5px solid #C8C8C8;
+           background-color: #C8C8C8;
+       }
    </style>
    <script>
 
@@ -875,21 +875,24 @@
       }
 
       function expand(e) {
-         let odb = getOdbTb(e).odb;
+         let tb = getOdbTb(e);
+         let odb = tb.odb;
 
-         let rarr = document.getElementById('expRight'); // ## TBD
-         let n = document.getElementsByName('odbExt');   // ## TBD
+         let rarr = document.getElementById('expRight');
+         let cells = document.getElementsByName('odbExt');
          odb.detailsColumn = !odb.detailsColumn;
 
          if (odb.detailsColumn) {
-            for (const d of n)
+            for (const d of cells)
                d.style.display = 'table-cell';
             rarr.style.display = 'none';
          } else {
-            for (const d of n)
+            for (const d of cells)
                d.style.display = 'none';
             rarr.style.display = 'inline';
          }
+         odb.skip_yellow = true;
+         odb_update(tb);
       }
 
       function clear_expanded(odb) {
@@ -1430,10 +1433,10 @@
                key.last_written = data[item + '/key'].last_written;
                key.access_mode = data[item + '/key'].access_mode;
             }
+            key.options = (key.name.substring(0, 7) === "Options");
 
             if (odb.key.length <= n) {
-               key.expanded = (key.num_values > 1 && key.num_values <= 10 &&
-                       key.name.substring(0, 7) !== "Options");
+               key.expanded = (key.num_values > 1 && key.num_values <= 10);
                odb.key.push(key);
             } else {
                if (odb.key[n].subdir_open) {
@@ -1548,6 +1551,10 @@
          // Remember key path
          tr.odbPath = keyPath;
 
+         // Set special class for "Options ..." keys
+         if (key.options && !odb.detailsColumn)
+            tr.style.display = 'none';
+
          // Print subdir with open subdir handler
          if (key.type === TID_KEY) {
             let handler = "onclick=\"subdir_click(event, this);return false;\" ";
@@ -1600,6 +1607,10 @@
 
             // Remember ODB path in row
             tb.childNodes[row.i].odbPath = keyPath;
+
+            // Remove and odbOptions class or invisibility
+            tb.childNodes[row.i].className = "";
+            tb.childNodes[row.i].style.display = 'table-row';
 
             return;
          }
@@ -1819,6 +1830,9 @@
          tb.childNodes[row.i].odbPath = keyPath;
          tb.childNodes[row.i].key = key;
 
+         // Copy visibility for odbOptions
+         tb.childNodes[row.i].style.display = tr.style.display;
+
          // Print array values
          if (Array.isArray(key.value)) {
             if (key.expanded === false) {
@@ -1834,6 +1848,10 @@
 
                // create empty row
                let tr = document.createElement('TR');
+
+               // hide option keys if not in detailed column mode
+               if (key.options && !odb.detailsColumn)
+                  tr.style.display = 'none';
 
                // Handle column (empty for array values)
                let td = document.createElement('TD');
@@ -1951,6 +1969,8 @@
                tb.childNodes[row.i].removeEventListener('contextmenu', context_menu);
                tb.childNodes[row.i].childNodes[2].addEventListener('click', select_array_element);
                tb.childNodes[row.i].odbPath = undefined;
+
+               tb.childNodes[row.i].style.display = tr.style.display;
             }
          }
       }
