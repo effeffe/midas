@@ -10144,11 +10144,110 @@ INT db_copy_json_index(HNDLE hDB, HNDLE hKey, int index, char **buffer, int* buf
 
 static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int level, int must_be_subdir, int flags, time_t timestamp);
 
-static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int level, int flags, time_t timestamp)
+static int json_write_bare_key(HNDLE hDB, HNDLE hLink, const KEY& link, char **buffer, int *buffer_size, int *buffer_end, int level, int flags, time_t timestamp, bool need_comma)
 {
    int status;
-   int i;
+   char link_buf[MAX_ODB_PATH]; // link_path points to link_buf
+   char* link_path = NULL;
 
+   HNDLE hLinkTarget = hLink;
+
+   if (link.type == TID_LINK) {
+      int size = sizeof(link_buf);
+      status = db_get_link_data(hDB, hLink, link_buf, &size, TID_LINK);
+      if (status != DB_SUCCESS)
+         return status;
+      
+      //printf("link size %d, len %d, data [%s]\n", size, (int)strlen(link_buf), link_buf);
+      
+      if ((size > 0) && (strlen(link_buf) > 0)) {
+         link_path = link_buf;
+         
+         // resolve the link, unless it is a link to an array element
+         if ((flags & JSFLAG_FOLLOW_LINKS) && strchr(link_path, '[') == NULL) {
+            status = db_find_key(hDB, 0, link_path, &hLinkTarget);
+            if (status != DB_SUCCESS) {
+               // dangling link to nowhere
+                  hLinkTarget = hLink;
+            }
+         }
+      }
+   }
+   
+   KEY link_target;
+   status = db_get_key(hDB, hLinkTarget, &link_target);
+   if (status != DB_SUCCESS)
+      return status;
+   
+   if (flags & JSFLAG_OMIT_OLD) {
+      if (link_target.last_written) {
+         if (link_target.last_written < timestamp) {
+            // omit old data
+            return DB_SUCCESS;
+         }
+      }
+   }
+   
+   if (need_comma) {
+      json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
+   } else {
+      json_write(buffer, buffer_size, buffer_end, 0, "\n", 0);
+   }
+   
+   char link_name[MAX_ODB_PATH];
+
+   strlcpy(link_name, link.name, sizeof(link_name));
+   
+   if (flags & JSFLAG_LOWERCASE) {
+      for (int i=0; (i<(int)sizeof(link.name)) && link.name[i]; i++)
+         link_name[i] = tolower(link.name[i]);
+   }
+   
+   if ((flags & JSFLAG_LOWERCASE) && !(flags & JSFLAG_OMIT_NAMES)) {
+      char buf[MAX_ODB_PATH];
+      strlcpy(buf, link_name, sizeof(buf));
+      strlcat(buf, "/name", sizeof(buf));
+      json_write(buffer, buffer_size, buffer_end, level, buf, 1);
+      json_write(buffer, buffer_size, buffer_end, 0, " : " , 0);
+      json_write(buffer, buffer_size, buffer_end, 0, link.name, 1);
+      json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
+   }
+   
+   if (link.type != TID_KEY && (flags & JSFLAG_SAVE_KEYS)) {
+      char buf[MAX_ODB_PATH];
+      strlcpy(buf, link_name, sizeof(buf));
+      strlcat(buf, "/key", sizeof(buf));
+      json_write(buffer, buffer_size, buffer_end, level, buf, 1);
+      json_write(buffer, buffer_size, buffer_end, 0, " : " , 0);
+      json_write_key(hDB, hLink, &link_target, link_path, buffer, buffer_size, buffer_end);
+      json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
+   } else if ((link_target.type != TID_KEY) && !(flags & JSFLAG_OMIT_LAST_WRITTEN)) {
+      char buf[MAX_ODB_PATH];
+      strlcpy(buf, link_name, sizeof(buf));
+      strlcat(buf, "/last_written", sizeof(buf));
+      json_write(buffer, buffer_size, buffer_end, level, buf, 1);
+      json_write(buffer, buffer_size, buffer_end, 0, " : " , 0);
+      sprintf(buf, "%d", link_target.last_written);
+      json_write(buffer, buffer_size, buffer_end, 0, buf, 0);
+      json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
+   }
+   
+   json_write(buffer, buffer_size, buffer_end, level, link_name, 1);
+   json_write(buffer, buffer_size, buffer_end, 0, " : " , 0);
+   
+   if (link_target.type == TID_KEY && !(flags & JSFLAG_RECURSE)) {
+      json_write(buffer, buffer_size, buffer_end, 0, "{ }" , 0);
+   } else {
+      status = json_write_anything(hDB, hLinkTarget, buffer, buffer_size, buffer_end, level, 0, flags, timestamp);
+      if (status != DB_SUCCESS)
+         return status;
+   }
+
+   return DB_SUCCESS;
+}
+   
+static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer_size, int *buffer_end, int level, int flags, time_t timestamp)
+{
    if (level > MAX_ODB_PATH/2) {
       // max nesting level is limited by max odb path, where each subdirectory takes
       // at least 2 bytes - 1 byte directory name and 1 byte for "/"
@@ -10156,108 +10255,24 @@ static int json_write_bare_subdir(HNDLE hDB, HNDLE hKey, char **buffer, int *buf
       return DB_TRUNCATED;
    }
 
-   for (i=0; ; i++) {
-      HNDLE hLink, hLinkTarget;
-      KEY link, link_target;
-      char link_buf[MAX_ODB_PATH]; // link_path points to link_buf
-      char* link_path = NULL;
+   for (int i=0; ; i++) {
+      int status;
 
+      HNDLE hLink;
       status = db_enum_link(hDB, hKey, i, &hLink);
       if (status != DB_SUCCESS && !hLink)
          break;
 
+      KEY link;
       status = db_get_link(hDB, hLink, &link);
       if (status != DB_SUCCESS)
          return status;
 
-      hLinkTarget = hLink;
+      bool need_comma = (i!=0);
 
-      if (link.type == TID_LINK) {
-         int size = sizeof(link_buf);
-         status = db_get_link_data(hDB, hLink, link_buf, &size, TID_LINK);
-         if (status != DB_SUCCESS)
-            return status;
-
-         //printf("link size %d, len %d, data [%s]\n", size, (int)strlen(link_buf), link_buf);
-
-         if ((size > 0) && (strlen(link_buf) > 0)) {
-            link_path = link_buf;
-
-            // resolve the link, unless it is a link to an array element
-            if ((flags & JSFLAG_FOLLOW_LINKS) && strchr(link_path, '[') == NULL) {
-               status = db_find_key(hDB, 0, link_path, &hLinkTarget);
-               if (status != DB_SUCCESS) {
-                  // dangling link to nowhere
-                  hLinkTarget = hLink;
-               }
-            }
-         }
-      }
-
-      status = db_get_key(hDB, hLinkTarget, &link_target);
+      status = json_write_bare_key(hDB, hLink, link, buffer, buffer_size, buffer_end, level, flags, timestamp, need_comma);
       if (status != DB_SUCCESS)
          return status;
-
-      if (flags & JSFLAG_OMIT_OLD) {
-         if (link_target.last_written)
-            if (link_target.last_written < timestamp)
-               continue;
-      }
-
-      if (i != 0) {
-         json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
-      } else {
-         json_write(buffer, buffer_size, buffer_end, 0, "\n", 0);
-      }
-
-      char link_name[MAX_ODB_PATH];
-
-      strlcpy(link_name, link.name, sizeof(link_name));
-
-      if (flags & JSFLAG_LOWERCASE) {
-         for (int i=0; (i<(int)sizeof(link.name)) && link.name[i]; i++)
-            link_name[i] = tolower(link.name[i]);
-      }
-
-      if ((flags & JSFLAG_LOWERCASE) && !(flags & JSFLAG_OMIT_NAMES)) {
-         char buf[MAX_ODB_PATH];
-         strlcpy(buf, link_name, sizeof(buf));
-         strlcat(buf, "/name", sizeof(buf));
-         json_write(buffer, buffer_size, buffer_end, level, buf, 1);
-         json_write(buffer, buffer_size, buffer_end, 0, " : " , 0);
-         json_write(buffer, buffer_size, buffer_end, 0, link.name, 1);
-         json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
-      }
-
-      if (link.type != TID_KEY && (flags & JSFLAG_SAVE_KEYS)) {
-         char buf[MAX_ODB_PATH];
-         strlcpy(buf, link_name, sizeof(buf));
-         strlcat(buf, "/key", sizeof(buf));
-         json_write(buffer, buffer_size, buffer_end, level, buf, 1);
-         json_write(buffer, buffer_size, buffer_end, 0, " : " , 0);
-         json_write_key(hDB, hLink, &link_target, link_path, buffer, buffer_size, buffer_end);
-         json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
-      } else if ((link_target.type != TID_KEY) && !(flags & JSFLAG_OMIT_LAST_WRITTEN)) {
-         char buf[MAX_ODB_PATH];
-         strlcpy(buf, link_name, sizeof(buf));
-         strlcat(buf, "/last_written", sizeof(buf));
-         json_write(buffer, buffer_size, buffer_end, level, buf, 1);
-         json_write(buffer, buffer_size, buffer_end, 0, " : " , 0);
-         sprintf(buf, "%d", link_target.last_written);
-         json_write(buffer, buffer_size, buffer_end, 0, buf, 0);
-         json_write(buffer, buffer_size, buffer_end, 0, ",\n", 0);
-      }
-
-      json_write(buffer, buffer_size, buffer_end, level, link_name, 1);
-      json_write(buffer, buffer_size, buffer_end, 0, " : " , 0);
-
-      if (link_target.type == TID_KEY && !(flags & JSFLAG_RECURSE)) {
-         json_write(buffer, buffer_size, buffer_end, 0, "{ }" , 0);
-      } else {
-         status = json_write_anything(hDB, hLinkTarget, buffer, buffer_size, buffer_end, level, 0, flags, timestamp);
-         if (status != DB_SUCCESS)
-            return status;
-      }
    }
 
    return DB_SUCCESS;
@@ -10283,10 +10298,14 @@ static int json_write_anything(HNDLE hDB, HNDLE hKey, char **buffer, int *buffer
       json_write(buffer, buffer_size, buffer_end, 0, "\n", 0);
       json_write(buffer, buffer_size, buffer_end, level, "}", 0);
 
+   } else if (must_be_subdir) {
+      json_write(buffer, buffer_size, buffer_end, 0, "{", 0);
+      status = json_write_bare_key(hDB, hKey, key, buffer, buffer_size, buffer_end, level+1, flags, timestamp, false);
+      if (status != DB_SUCCESS)
+         return status;
+      json_write(buffer, buffer_size, buffer_end, 0, "\n", 0);
+      json_write(buffer, buffer_size, buffer_end, level, "}", 0);
    } else {
-      if (must_be_subdir)
-         return DB_TYPE_MISMATCH;
-
       status = db_copy_json_array(hDB, hKey, buffer, buffer_size, buffer_end);
 
       if (status != DB_SUCCESS)
