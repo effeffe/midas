@@ -34,18 +34,7 @@
    </style>
    <script>
 
-      function getOdbTb(e) {
-         if (e === null)
-            return;
-         while (e.tagName !== 'TBODY') {
-            e = e.parentNode;
-            if (e === null)
-               return;
-         }
-         return e;
-      }
-
-      function odb_init(id, path) {
+      function odb_init(id, path, picker) {
 
          if (path === undefined) {
             // get path from URL
@@ -63,10 +52,16 @@
          let table = document.createElement('TABLE');
          table.className = "mtable";
          let tb = document.createElement('TBODY');
+         if (picker) {
+            table.style.width = "100%";
+            table.style.marginTop = "0";
+            table.style.marginBottom = "0";
+         }
          table.appendChild(tb);
 
          // Attach ODB to table body
          tb.odb = {
+            picker: picker,
             id: id,
             updateTimer: 0,
             path: path,
@@ -88,6 +83,8 @@
          th.className = "mtableheader";
          th.colSpan = "8";
          th.appendChild(document.createTextNode("Online Database Browser"));
+         if (picker)
+            tr.style.display = 'none';
 
          // Dynamic ODB path
          tr = document.createElement('TR');
@@ -131,6 +128,8 @@
                  '';
 
          tr.addEventListener('click', select_key); // used to deselect any kay
+         if (picker)
+            tr.style.display = 'none';
 
          // Column header
          tr = document.createElement('TR');
@@ -154,10 +153,11 @@
             tr.appendChild(td);
          }
 
-         tr.childNodes[2].innerHTML +=
-                 "<div title='Show key details' style='display:inline;float:right'>" +
-                 "<a id='expRight' href='#' onclick='expand(this);return false;'>&#x21E5;</a>"+
-                 "</div>";
+         if (!picker)
+            tr.childNodes[2].innerHTML +=
+                    "<div title='Show key details' style='display:inline;float:right'>" +
+                    "<a id='expRight' href='#' onclick='expand(this);return false;'>&#x21E5;</a>"+
+                    "</div>";
 
          tr.childNodes[7].innerHTML +=
                  "&nbsp;<div title='Hide key details' style='display:inline;float:right'>" +
@@ -170,6 +170,54 @@
 
          odb_update(tb);
       }
+
+      function ODBPicker(path, callback, param) {
+         let d = document.createElement("div");
+         d.className = "dlgFrame";
+         d.style.zIndex = "31";
+         d.style.width = "400px";
+         d.callback = callback;
+         d.callbackParam = param;
+         d.shouldDestroy = true;
+
+         d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">" +
+                 "Please select ODB key</div>" +
+                 "<div class=\"dlgPanel\" style=\"padding: 2px;text-align: left;\">" +
+                    "<div id=\"dlgOdbPicker\"></div>" +
+                    "<div style='text-align: center;'>" +
+                       "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
+                       " onClick=\"pickerButton(this, true)\">OK</button>" +
+                       "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
+                       " onClick=\"pickerButton(this, false);\">Cancel</button>" +
+                    "</div>" +
+                 "</div>";
+
+         document.body.appendChild(d);
+
+         odb_init('dlgOdbPicker', '/', true);
+
+         dlgShow(d, true);
+         return d;
+      }
+
+      function pickerButton(e, flag) {
+         let d = e.parentElement.parentElement.parentElement;
+         let path = d.childNodes[1].childNodes[0].childNodes[0].childNodes[0].odb.selectedKey;
+         d.callback(flag, path);
+         dlgMessageDestroy(e.parentElement);
+      }
+
+      function getOdbTb(e) {
+         if (e === null)
+            return;
+         while (e.tagName !== 'TBODY') {
+            e = e.parentNode;
+            if (e === null)
+               return;
+         }
+         return e;
+      }
+
 
       function inline_edit_keydown(event, p) {
          let keyCode = ('which' in event) ? event.which : event.keyCode;
@@ -360,6 +408,15 @@
          dlgShow('dlgCreateLink', true);
          document.getElementById('odbCreateLinkName').focus();
          document.getElementById('odbCreateLinkName').select();
+      }
+
+      function pickLinkTarget() {
+         ODBPicker("/", setLinkTarget);
+      }
+
+      function setLinkTarget(flag, path) {
+         if (flag)
+            document.getElementById('odbCreateLinkTarget').value = path;
       }
 
       function do_new_link() {
@@ -565,61 +622,73 @@
          if (find_input_element(tr))
             return;
 
-         // check if click is on header row, if so remove selection further down
-         let headerRow = false;
-         for (let i=0 ; i<4 ; i++)
-            if (tb.childNodes[i] === tr) {
-               headerRow = true;
-               break;
-            }
-
-         if (event.shiftKey && !headerRow) {
-            // search last selected row
-            let i1;
-            for (i1=4 ; i1<tb.childNodes.length ; i1++)
-               if (tb.childNodes[i1].odbLastSelected)
-                  break;
-            if (i1 === tb.childNodes.length)
-               i1 = 4; // non selected, so use first one
-
-            let i2;
-            for (i2=4 ; i2<tb.childNodes.length ; i2++)
-               if (tb.childNodes[i2] === tr)
-                  break;
-
-            if (i2 < tb.childNodes.length) {
-               if (i1 > i2)
-                  [i1, i2] = [i2, i1];
-
-               for (let i=i1 ; i<=i2 ; i++) {
-                  // don't select arrays
-                  if (tb.childNodes[i].childNodes[1].innerHTML !== "")
-                     tb.childNodes[i].odbSelected = true;
-               }
-            }
-
-         } else if (event.metaKey && !headerRow) {
-
-            // command key just toggles current selection
-            tr.odbSelected = !tr.odbSelected;
-
-            for (let i=4 ; i<tb.childNodes.length ; i++)
-               tb.childNodes[i].odbLastSelected = false;
-            if (tr.odbSelected)
-               tr.odbLastSelected = true;
-
-         } else {
-
-            // no key pressed -> un-select all but current
-            for (let i=4 ; i<tb.childNodes.length ; i++) {
+         if (odb.picker) {
+            // unselect all keys
+            for (let i = 4; i < tb.childNodes.length; i++)
                tb.childNodes[i].odbSelected = false;
-               tb.childNodes[i].odbLastSelected = false;
-            }
 
-            // don't select header row and array values
-            if (!headerRow && tr.childNodes[1].innerHTML !== "") {
+            // don't select array values
+            if (tr.childNodes[1].innerHTML !== "")
                tr.odbSelected = true;
-               tr.odbLastSelected = true;
+
+            odb.selectedKey = tr.odbPath;
+         } else {
+            // check if click is on header row, if so remove selection further down
+            let headerRow = false;
+            for (let i = 0; i < 4; i++)
+               if (tb.childNodes[i] === tr) {
+                  headerRow = true;
+                  break;
+               }
+
+            if (event.shiftKey && !headerRow) {
+               // search last selected row
+               let i1;
+               for (i1 = 4; i1 < tb.childNodes.length; i1++)
+                  if (tb.childNodes[i1].odbLastSelected)
+                     break;
+               if (i1 === tb.childNodes.length)
+                  i1 = 4; // non selected, so use first one
+
+               let i2;
+               for (i2 = 4; i2 < tb.childNodes.length; i2++)
+                  if (tb.childNodes[i2] === tr)
+                     break;
+
+               if (i2 < tb.childNodes.length) {
+                  if (i1 > i2)
+                     [i1, i2] = [i2, i1];
+
+                  for (let i = i1; i <= i2; i++) {
+                     // don't select arrays
+                     if (tb.childNodes[i].childNodes[1].innerHTML !== "")
+                        tb.childNodes[i].odbSelected = true;
+                  }
+               }
+
+            } else if (event.metaKey && !headerRow) {
+
+               // command key just toggles current selection
+               tr.odbSelected = !tr.odbSelected;
+
+               for (let i = 4; i < tb.childNodes.length; i++)
+                  tb.childNodes[i].odbLastSelected = false;
+               if (tr.odbSelected)
+                  tr.odbLastSelected = true;
+
+            } else {
+
+               // no key pressed -> un-select all but current
+               for (let i = 4; i < tb.childNodes.length; i++) {
+                  tb.childNodes[i].odbSelected = false;
+                  tb.childNodes[i].odbLastSelected = false;
+               }
+
+               // don't select header row and array values
+               if (!headerRow && tr.childNodes[1].innerHTML !== "") {
+                  tr.odbSelected = true;
+                  tr.odbLastSelected = true;
+               }
             }
          }
 
@@ -1568,10 +1637,14 @@
                        "> \u25B8 " + key.name + "</a>";
          } else if (key.link === undefined) {
             td.innerHTML = indent + key.name;
-            td.addEventListener('click', rename_key_click);
+            if (!odb.picker)
+               td.addEventListener('click', rename_key_click);
          } else {
             td.innerHTML = indent + '<span>' + key.name + '</span>';
-            td.innerHTML += ' &rarr; <span>'+ '<a href="#" ' +
+            if (odb.picker)
+               td.innerHTML += ' &rarr; <span>' + key.link + '</span>';
+            else
+               td.innerHTML += ' &rarr; <span>'+ '<a href="#" ' +
                     'onclick="inline_edit(event, this.parentNode, \'' +
                     key.link + '\', odb_setlink, undefined, \'' + keyPath +
                     '\'); return false;" ' +
@@ -1603,7 +1676,8 @@
             if (tb.childNodes[row.i].childNodes[2] !== undefined)
                tb.childNodes[row.i].childNodes[2].removeEventListener('click', select_array_element);
             tb.childNodes[row.i].addEventListener('click', select_key);
-            tb.childNodes[row.i].addEventListener('contextmenu', context_menu);
+            if (!odb.picker)
+               tb.childNodes[row.i].addEventListener('contextmenu', context_menu);
 
             // Remember ODB path in row
             tb.childNodes[row.i].odbPath = keyPath;
@@ -1621,12 +1695,16 @@
          tr.appendChild(td);
 
          if (Array.isArray(key.value)) {
-            td.innerHTML =
-               '<div style="display: inline;"><a href="#" ' +
-               'onclick="inline_edit(event, this.parentNode, \'' +
-               key.value[0] + '\', odb_setall, 10, \'' + keyPath +
-               '\');return false;" ' +
-               'title="Set array elements to same value">*</a></div>';
+            if (odb.picker)
+               td.innerHTML =
+                       '<div style="display: inline;"></div>';
+            else
+               td.innerHTML =
+                       '<div style="display: inline;"><a href="#" ' +
+                       'onclick="inline_edit(event, this.parentNode, \'' +
+                       key.value[0] + '\', odb_setall, 10, \'' + keyPath +
+                       '\');return false;" ' +
+                       'title="Set array elements to same value">*</a></div>';
 
             if (key.expanded === false)
                td.innerHTML +=
@@ -1674,7 +1752,10 @@
                   v += " (" + parseInt(key.value) + ')';
                else if (key.type !== TID_STRING && key.type !== TID_LINK && key.type !== TID_FLOAT && key.type !== TID_DOUBLE)
                   v += " (0x" + key.value.toString(16).toUpperCase() + ')';
-               td.innerHTML = edit + v + '</a>';
+               if (odb.picker)
+                  td.innerHTML = v;
+               else
+                  td.innerHTML = edit + v + '</a>';
             }
          }
 
@@ -1800,7 +1881,7 @@
                      e.innerHTML = tr.childNodes[i].innerHTML;
                      change_color(e, c);
 
-                     if (i === 1 && key.type !== TID_KEY)
+                     if (i === 1 && key.type !== TID_KEY && !odb.picker)
                         e.addEventListener('click', rename_key_click);
 
                      if (yellowBg) {
@@ -1824,7 +1905,9 @@
          if (tb.childNodes[row.i].childNodes[2] !== undefined)
             tb.childNodes[row.i].childNodes[2].removeEventListener('click', select_array_element);
          tb.childNodes[row.i].addEventListener('click', select_key);
-         tb.childNodes[row.i].addEventListener('contextmenu', context_menu);
+
+         if (!odb.picker)
+            tb.childNodes[row.i].addEventListener('contextmenu', context_menu);
 
          // Remember ODB path and key in row
          tb.childNodes[row.i].odbPath = keyPath;
@@ -1966,7 +2049,8 @@
 
                // remove/install mouse click handlers
                tb.childNodes[row.i].removeEventListener('click', select_key);
-               tb.childNodes[row.i].removeEventListener('contextmenu', context_menu);
+               if (!odb.picker)
+                  tb.childNodes[row.i].removeEventListener('contextmenu', context_menu);
                tb.childNodes[row.i].childNodes[2].addEventListener('click', select_array_element);
                tb.childNodes[row.i].odbPath = undefined;
 
@@ -2172,8 +2256,12 @@
 
             <tr>
                <td style="text-align: right">Link target:</td>
-               <td style="text-align: left"><input type="text" size="20" maxlength="31"
-                                                   id="odbCreateLinkTarget" onkeydown="return dlgCreateLinkKeyDown(event, this)"></td>
+               <td style="text-align: left">
+                  <input type="text" size="50" maxlength="31"
+                         id="odbCreateLinkTarget"
+                         onkeydown="return dlgCreateLinkKeyDown(event, this)">
+                  <button onclick="pickLinkTarget()">...</button>
+               </td>
             </tr>
          </table>
          <button class="dlgButton" onclick="if(do_new_link(this))dlgHide('dlgCreateLink');">Create</button>

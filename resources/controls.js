@@ -544,7 +544,7 @@ function dlgShow(dlg, modal, param) {
    let t;
    if (d.childNodes[0].className === "dlgTitlebar")
       t = d.childNodes[0];
-   if (d.childNodes[1].className === "dlgTitlebar")
+   if (d.childNodes[1] && d.childNodes[1].className === "dlgTitlebar")
       t = d.childNodes[1];
    if (t !== undefined) {
       let ttext = t.innerHTML;
