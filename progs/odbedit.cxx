@@ -2030,7 +2030,15 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
       /* jsls */
       else if (strncmp(param[0], "jsls", 4) == 0) {
-         db_find_key(hDB, 0, pwd, &hKey);
+
+         if (param[1][0] == '/') {
+            db_find_key(hDB, 0, param[1], &hKey);
+         } else if (strlen(param[1]) > 0) {
+            db_find_key(hDB, 0, pwd, &hKey);
+            db_find_key(hDB, hKey, param[1], &hKey);
+         } else {
+            db_find_key(hDB, 0, pwd, &hKey);
+         }
 
 	 char* buffer = NULL;
 	 int buffer_size = 0;
