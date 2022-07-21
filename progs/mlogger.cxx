@@ -120,9 +120,33 @@ static std::string TimeToString(time_t t)
 "Subdir format = STRING : [32]",\
 "Current filename = STRING : [256]",\
 "Data checksum = STRING : [256] CRC32C",\
+"Options Data checksum = STRING[5] :",\
+"[32] NONE",\
+"[32] CRC32C",\
+"[32] SHA256",\
+"[32] SHA512",\
+"[32] ZLIB",\
 "File checksum = STRING : [256] CRC32C",\
+"Options File checksum = STRING[5] :",\
+"[32] NONE",\
+"[32] CRC32C",\
+"[32] SHA256",\
+"[32] SHA512",\
+"[32] ZLIB",\
 "Compress = STRING : [256] lz4",\
+"Options Compress = STRING[5] :",\
+"[32] none",\
+"[32] gzip",\
+"[32] lz4",\
+"[32] bzip2",\
+"[32] pbzip2",\
 "Output = STRING : [256] FILE",\
+"Options Output = STRING[5] :",\
+"[32] NULL",\
+"[32] FILE",\
+"[32] FTP",\
+"[32] ROOT",\
+"[32] PIPE",\
 "Gzip compression = UINT32 : 0",\
 "Bzip2 compression = UINT32 : 0",\
 "Pbzip2 num cpu = UINT32 : 0",\
@@ -159,9 +183,13 @@ typedef struct {
    char subdir_format[32];
    char current_filename[256];
    char data_checksum[256];
+   char options_data_checksum[5][32];
    char file_checksum[256];
+   char options_file_checksum[5][32];
    char compress[256];
+   char options_compress[5][32];
    char output[256];
+   char options_output[5][32];
    uint32_t gzip_compression;
    uint32_t bzip2_compression;
    uint32_t pbzip2_num_cpu;
