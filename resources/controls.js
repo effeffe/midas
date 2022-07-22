@@ -160,6 +160,15 @@ document.write("<style>" +
    "   padding: 4px 10px;" +
    "   margin: 3px;" +
    "}\n" +
+   ".dlgButtonDefault {" +
+   "   font-size: 1em;" +
+   "   background-color: #4187F7;" +
+   "   color: #FFFFFF;" +
+   "   border: 1px solid #808080;" +
+   "   border-radius: 6px;" +
+   "   padding: 4px 10px;" +
+   "   margin: 3px;" +
+   "}\n" +
    ".dlgButton:hover {" +
    "   background-color: #F0F0F0;" +
    "}\n" +
@@ -833,15 +842,16 @@ function dlgConfirm(string, confirmCallback, param) {
       "<div class=\"dlgPanel\" style=\"padding: 30px;\">" +
       "<div id=\"dlgMessageString\">" + string + "</div>" +
       "<br /><br />" +
-      "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
+      "<button class=\"dlgButtonDefault\" id=\"dlgMessageButtonOk\" type=\"button\" " +
       " onClick=\"let d=this.parentElement.parentElement;d.callback(true,d.callbackParam);dlgMessageDestroy(this);\">OK</button>" +
-      "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
+      "<button class=\"dlgButton\" id=\"dlgMessageButtonCancel\" type=\"button\" " +
       " onClick=\"let d=this.parentElement.parentElement;d.callback(false,d.callbackParam);dlgMessageDestroy(this);\">Cancel</button>" +
       "</div>";
 
    document.body.appendChild(d);
 
    dlgShow(d, true);
+   document.getElementById('dlgMessageButtonOk').focus();
    return d;
 }
 

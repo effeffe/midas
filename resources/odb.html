@@ -907,18 +907,10 @@
          // set event handler for copy menu
          d.childNodes[0].childNodes[0].childNodes[0].childNodes[0].onclick = function () {
             d.style.display = 'none';
-            let path = tr.odbPath;
-            mjsonrpc_db_copy([path]).then(rpc => {
-               let text = JSON.stringify(rpc.result.data[0]);
-               if (navigator.clipboard && navigator.clipboard.writeText) {
-                  try {
-                     navigator.clipboard.writeText(text);
-                     dlgAlert("ODB directory \"" + path + "\" copied to clipboard");
-                  } catch(error) {
-                     dlgAlert(error);
-                  }
-               }
-            }).catch(error => mjsonrpc_error_alert(error));
+            unselect_all_keys(tb);
+            tr.odbSelected = true;
+            odb_copy(tb);
+            tr.odbSelected = false;
          }
 
          // set event handler for copy plain text menu
@@ -1227,7 +1219,9 @@
             let text = '';
             for (const [i,d] of rpc.result.data.entries()) {
                if (i === 0) {
-                  if (selKeys[i].key.type === TID_KEY) {
+                  if (dirFlag) {
+                     text += '{ \"'+ tb.odb.path.substring(tb.odb.path.lastIndexOf('/')+1) +'\": '+JSON.stringify(d)+'}';
+                  } else if (selKeys[i].key.type === TID_KEY) {
                      text += '{ \"'+ selKeys[i].key.name +'\": '+JSON.stringify(d)+'}';
                   } else
                      text += JSON.stringify(d);
@@ -1483,6 +1477,7 @@
          }
          odb.skip_yellow = true;
          odb_update(tb);
+         document.body.style.overflow = "scroll";
       }
 
       // after a double click open the subdirectory as top level
@@ -1576,7 +1571,7 @@
          else
             dirs = odb.path.split('/');
          let path = '';
-         let s = "<a href='#' onclick=\"subdir_goto(this, '/');return false;\">/</a>&nbsp;";
+         let s = "<a href='#' onclick=\"subdir_goto(this, '/');return false;\" title='Root directory'>&#9830</a>&nbsp;/&nbsp;";
          for (let i=1 ; i<dirs.length ; i++) {
             path += "/" + dirs[i];
             s += "<a href='#' onclick=\"subdir_goto(this, '" + path + "');return false;\">"+dirs[i]+"</a>";
@@ -1810,6 +1805,7 @@
 
             // Remember ODB path in row
             tb.childNodes[row.i].odbPath = keyPath;
+            tb.childNodes[row.i].key = key;
 
             // Remove and odbOptions class or invisibility
             tb.childNodes[row.i].className = "";
@@ -2182,6 +2178,7 @@
                   tb.childNodes[row.i].removeEventListener('contextmenu', context_menu);
                tb.childNodes[row.i].childNodes[2].addEventListener('click', select_array_element);
                tb.childNodes[row.i].odbPath = undefined;
+               tb.childNodes[row.i].key = undefined;
 
                tb.childNodes[row.i].style.display = tr.style.display;
             }
@@ -2363,7 +2360,7 @@
                <td style="text-align: left"><input type="text" size="6" value="32" id="odbCreateStrLen"></td>
             </tr>
          </table>
-         <button class="dlgButton" onclick="if(do_new_key(this))dlgHide('dlgCreate');">Create</button>
+         <button class="dlgButtonDefault" onclick="if(do_new_key(this))dlgHide('dlgCreate');">Create</button>
          <button class="dlgButton" onclick="dlgHide('dlgCreate')">Cancel</button>
       </div>
    </div>
