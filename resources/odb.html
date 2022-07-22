@@ -46,7 +46,6 @@
                path = '/' + path;
          }
 
-
          // crate table header
          let d = document.getElementById(id);
          let table = document.createElement('TABLE');
@@ -113,9 +112,9 @@
                  'onclick="rename_key(this)">&nbsp;&nbsp;' +
                  '<img src="icons/shuffle.svg" title="Reorder keys" ' +
                  'onclick="toggle_handles(this)">&nbsp;&nbsp;' +
-                 '<img src="icons/copy.svg" title="Copy from ODB" ' +
+                 '<img src="icons/copy.svg" title="Copy from ODB  Ctrl+C" ' +
                  'onclick="odb_copy(this)">&nbsp;&nbsp;' +
-                 '<img src="icons/clipboard.svg" title="Paste to ODB" ' +
+                 '<img src="icons/clipboard.svg" title="Paste to ODB  Ctrl+V" ' +
                  'onclick="odb_paste(this)">&nbsp;&nbsp;' +
                  '<img src="icons/download.svg" title="Download ODB" ' +
                  'onclick="odb_download(this)">&nbsp;&nbsp;' +
@@ -170,7 +169,30 @@
 
          d.appendChild(table);
 
+         // install shortcut key handler
+         window.addEventListener('keydown', event => {
+            global_keydown(event, tb);
+         });
          odb_update(tb);
+      }
+
+      function global_keydown(event, tb) {
+         if (event.target.tagName === 'INPUT')
+            return true;
+
+         // Ctrl+C
+         if ((event.ctrlKey || event.metaKey) && event.keyCode === 67) {
+            odb_copy(tb);
+            return false;
+         }
+
+         // Ctrl+V
+         if ((event.ctrlKey || event.metaKey) && event.keyCode === 86) {
+            odb_paste(tb);
+            return false;
+         }
+
+         return true;
       }
 
       function ODBPicker(path, callback, param) {
