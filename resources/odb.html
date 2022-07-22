@@ -113,8 +113,10 @@
                  'onclick="rename_key(this)">&nbsp;&nbsp;' +
                  '<img src="icons/shuffle.svg" title="Reorder keys" ' +
                  'onclick="toggle_handles(this)">&nbsp;&nbsp;' +
-                 '<img src="icons/copy.svg" title="Copy ODB" ' +
+                 '<img src="icons/copy.svg" title="Copy from ODB" ' +
                  'onclick="odb_copy(this)">&nbsp;&nbsp;' +
+                 '<img src="icons/clipboard.svg" title="Paste to ODB" ' +
+                 'onclick="odb_paste(this)">&nbsp;&nbsp;' +
                  '<img src="icons/download.svg" title="Download ODB" ' +
                  'onclick="odb_download(this)">&nbsp;&nbsp;' +
                  '<img src="icons/upload.svg" title="Upload ODB" ' +
@@ -197,6 +199,10 @@
          odb_init('dlgOdbPicker', '/', true);
 
          dlgShow(d, true);
+
+         d.style.top = "100px";
+         document.body.style.overflow = "scroll";
+
          return d;
       }
 
@@ -576,6 +582,16 @@
             tr.style.backgroundColor = '';
             change_color(tr, '');
          }
+      }
+
+      function get_selected_keys(tb) {
+         let paths = [];
+         for (let i=4 ; i<tb.childNodes.length ; i++) {
+            let tr = tb.childNodes[i];
+            if (tr.odbSelected)
+               paths.push({"path": tr.odbPath, "key": tr.key});
+         }
+         return paths;
       }
 
       function unselect_all_array_elements(tb) {
@@ -1175,17 +1191,108 @@
 
       function odb_copy(e) {
          let tb = getOdbTb(e);
-         mjsonrpc_db_copy([tb.odb.path]).then(rpc => {
-            let text = JSON.stringify(rpc.result.data[0]);
+         let selKeys = get_selected_keys(tb);
+         let paths = [];
+         let dirFlag = false;
+         if (selKeys.length === 0) {
+            paths.push(tb.odb.path);
+            dirFlag = true;
+         } else {
+            for (const k of selKeys)
+               paths.push(k.path);
+         }
+         mjsonrpc_db_copy(paths).then(rpc => {
+            let text = '';
+            for (const [i,d] of rpc.result.data.entries()) {
+               if (i === 0) {
+                  if (selKeys[i].key.type === TID_KEY) {
+                     text += '{ \"'+ selKeys[i].key.name +'\": '+JSON.stringify(d)+'}';
+                  } else
+                     text += JSON.stringify(d);
+               } else
+                  text += JSON.stringify(d).substring(1); // strip first '{'
+               if (i < rpc.result.data.length - 1)
+                  text = text.substring(0, text.lastIndexOf('}')) + ','; // replace last '}' by ','
+            }
             if (navigator.clipboard && navigator.clipboard.writeText) {
                try {
                   navigator.clipboard.writeText(text);
-                  dlgAlert("ODB directory \"" + tb.odb.path + "\" copied to clipboard");
+                  if (dirFlag)
+                     dlgAlert("ODB directory \"" + paths + "\" copied to clipboard");
+                  else {
+                     if (paths.length === 1)
+                        dlgAlert("ODB key \"" + paths + "\" copied to clipboard");
+                     else
+                        dlgAlert("ODB keys \"" + paths + "\" copied to clipboard");
+                  }
                } catch(error) {
                   dlgAlert(error);
                }
             }
          }).catch(error => mjsonrpc_error_alert(error));
+      }
+
+      function odb_paste(e) {
+         let tb = getOdbTb(e);
+         let odb = tb.odb;
+         if (navigator.clipboard && navigator.clipboard.readText) {
+            try {
+               navigator.clipboard.readText().then(text => {
+                  try {
+                     let newKeys = JSON.parse(text);
+                     for (const key in newKeys) {
+                        if (key.indexOf('/') !== -1)
+                           continue;
+
+                        // check for existing key in current keys
+                        let cKeyMaxIndex = 0;
+                        let cKeyIndex = 0;
+                        let cKeyBare = "";
+                        let found = false;
+                        for (const cKey of odb.key) {
+                           if (cKey.name.indexOf(' copy') === -1)
+                              cKeyBare = cKey.name;
+                           else
+                              cKeyBare = cKey.name.substring(0, cKey.name.indexOf(' copy'));
+
+                           if (cKeyBare === key) {
+                              found = true;
+                              if (cKey.name.indexOf(' copy') !== -1) {
+                                 cKeyIndex = parseInt(cKey.name.substring(cKey.name.indexOf(' copy')+5));
+                                 if (isNaN(cKeyIndex))
+                                    cKeyIndex = 1;
+                                 if (cKeyIndex > cKeyMaxIndex)
+                                    cKeyMaxIndex = cKeyIndex;
+                              }
+                           }
+                        }
+
+                        // rename new key if name exists
+                        if (found) {
+                           let newName = cKeyBare + ' copy';
+                           if (cKeyIndex > 0)
+                              newName += ' ' + (cKeyIndex+1).toString();
+
+                           newKeys[newName] = newKeys[key];
+                           delete newKeys[key];
+
+                           newKeys[newName + '/key'] = newKeys[key + '/key'];
+                           delete newKeys[key + '/key'];
+                        }
+                     }
+
+                     mjsonrpc_db_paste([odb.path], [newKeys]).then(rpc =>
+                        odb_update(tb)).catch(error =>
+                        dlgAlert(error));
+
+                  }catch (error) {
+                     dlgAlert("Invalid JSON format in clipboard:<br /><br />" + error);
+                  }
+               });
+            } catch (error) {
+               dlgAlert(error);
+            }
+         }
       }
 
       function odbASCII(o, path) {
