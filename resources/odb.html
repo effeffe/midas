@@ -102,7 +102,7 @@
          td.colSpan = "8";
          tr.appendChild(td);
          td.innerHTML =
-                 '<img src="icons/file-plus.svg" title="Create key" ' +
+                 '<img src="icons/file-plus.svg" title="Create key  CTRL+N" ' +
                  'onclick="new_key(this)">&nbsp;&nbsp;' +
                  '<img src="icons/folder-plus.svg" title="Create subdirectory" ' +
                  'onclick="new_subdir(this)">&nbsp;&nbsp;' +
@@ -189,6 +189,19 @@
          // Ctrl+V
          if ((event.ctrlKey || event.metaKey) && event.keyCode === 86) {
             odb_paste(tb);
+            return false;
+         }
+
+         // Ctrl+N
+         if ((event.ctrlKey || event.metaKey) && event.keyCode === 78) {
+            event.preventDefault();
+            new_key(tb);
+            return false;
+         }
+
+         // Backspace
+         if (event.key === 'Backspace') {
+            odb_delete(tb);
             return false;
          }
 
