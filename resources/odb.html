@@ -1552,6 +1552,11 @@
          while (tr.tagName !== 'TR')
             tr = tr.parentNode;
          let path = tr.odbPath;
+         let tb = getOdbTb(tr);
+
+         // stop current update time not to interfere with
+         if (odb.updateTimer !== undefined)
+            window.clearTimeout(odb.updateTimer);
 
          numClicks++;
          if (numClicks === 1) {
