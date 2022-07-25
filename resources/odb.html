@@ -1251,13 +1251,14 @@
             for (const [i,d] of rpc.result.data.entries()) {
                if (i === 0) {
                   if (dirFlag) {
-                     text += '{ \"'+ tb.odb.path.substring(tb.odb.path.lastIndexOf('/')+1) +'\": '+JSON.stringify(d)+'}';
+                     text += '{ \"'+ tb.odb.path.substring(tb.odb.path.lastIndexOf('/')+1) +
+                             '\": '+JSON.stringify(d, null, '   ')+'}';
                   } else if (selKeys[i].key.type === TID_KEY) {
-                     text += '{ \"'+ selKeys[i].key.name +'\": '+JSON.stringify(d)+'}';
+                     text += '{ \"'+ selKeys[i].key.name +'\": '+JSON.stringify(d, null, '   ')+'}';
                   } else
-                     text += JSON.stringify(d);
+                     text += JSON.stringify(d, null, '   ');
                } else
-                  text += JSON.stringify(d).substring(1); // strip first '{'
+                  text += JSON.stringify(d, null, '   ').substring(1); // strip first '{'
                if (i < rpc.result.data.length - 1)
                   text = text.substring(0, text.lastIndexOf('}')) + ','; // replace last '}' by ','
             }
@@ -1402,10 +1403,10 @@
                "/filename": filename,
                "/ODB path": tb.odb.path
             }
-            header = JSON.stringify(header);
-            header = header.substring(0, header.length-1) + ','; // strip trailing '}'
+            header = JSON.stringify(header, null, '   ');
+            header = header.substring(0, header.length-2) + ','; // strip trailing '}'
 
-            let odbJson = JSON.stringify(rpc.result.data[0]);
+            let odbJson = JSON.stringify(rpc.result.data[0], null, '   ');
             if (odbJson.indexOf('{') === 0)
                odbJson = odbJson.substring(1); // strip leading '{'
 
