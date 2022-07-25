@@ -758,12 +758,12 @@
          for (i = 0; i < tb.childNodes.length; i++)
             if (tb.childNodes[i] === tr)
                break;
-         while (tb.childNodes[i].odbPath === undefined)
+         while (tb.childNodes[i].odbPath.indexOf('[') !== -1)
             i--;
          i++; // first element
          do {
             atr.push(tb.childNodes[i++]);
-         } while (i < tb.childNodes.length && tb.childNodes[i].odbPath === undefined);
+         } while (i < tb.childNodes.length && tb.childNodes[i].odbPath.indexOf('[') !== undefined);
          return atr;
       }
 
@@ -810,53 +810,68 @@
          // create array of all array elements
          let atr = getArrayTr(tr);
 
-         if (event.shiftKey) {
-            // search last selected row
-            let i1;
-            for (i1=0 ; i1<atr.length ; i1++)
-               if (atr[i1].odbLastSelected)
-                  break;
-            if (i1 === atr.length)
-               i1 = 0; // non selected, so use first one
-
-            let i2;
-            for (i2=0 ; i2<atr.length ; i2++)
-               if (atr[i2] === tr)
-                  break;
-
-            if (i2 < atr.length) {
-               if (i1 > i2)
-                  [i1, i2] = [i2, i1];
-
-               for (let i=i1 ; i<=i2 ; i++)
-                  atr[i].odbSelected = true;
-            }
-
-         } else if (event.metaKey) {
-
-            // command key just toggles current selection
-            tr.odbSelected = !tr.odbSelected;
-
-            for (const tr of atr)
-               tr.odbLastSelected = false;
-            if (tr.odbSelected)
-               tr.odbLastSelected = true;
-
-         } else {
-
-            // no key pressed -> un-select all but current
+         if (odb.picker) {
+            // un-select all but current
             for (const tr of atr) {
                tr.odbSelected = false;
                tr.odbLastSelected = false;
             }
             tr.odbSelected = true;
             tr.odbLastSelected = true;
+            odb.selectedKey = tr.odbPath;
+
+         } else {
+
+            if (event.shiftKey) {
+               // search last selected row
+               let i1;
+               for (i1 = 0; i1 < atr.length; i1++)
+                  if (atr[i1].odbLastSelected)
+                     break;
+               if (i1 === atr.length)
+                  i1 = 0; // non selected, so use first one
+
+               let i2;
+               for (i2 = 0; i2 < atr.length; i2++)
+                  if (atr[i2] === tr)
+                     break;
+
+               if (i2 < atr.length) {
+                  if (i1 > i2)
+                     [i1, i2] = [i2, i1];
+
+                  for (let i = i1; i <= i2; i++)
+                     atr[i].odbSelected = true;
+               }
+
+            } else if (event.metaKey) {
+
+               // command key just toggles current selection
+               tr.odbSelected = !tr.odbSelected;
+
+               for (const tr of atr)
+                  tr.odbLastSelected = false;
+               if (tr.odbSelected)
+                  tr.odbLastSelected = true;
+
+            } else {
+
+               // no key pressed -> un-select all but current
+               for (const tr of atr) {
+                  tr.odbSelected = false;
+                  tr.odbLastSelected = false;
+               }
+               tr.odbSelected = true;
+               tr.odbLastSelected = true;
+            }
          }
 
          // change color of all rows according to selection
          for (const e of atr) {
-            e.childNodes[2].style.backgroundColor = e.odbSelected ? '#004CBD' : '';
-            change_color(e.childNodes[2], e.odbSelected ? '#FFFFFF' : '');
+            if (e.childNodes.length >= 3) {
+               e.childNodes[2].style.backgroundColor = e.odbSelected ? '#004CBD' : '';
+               change_color(e.childNodes[2], e.odbSelected ? '#FFFFFF' : '');
+            }
          }
       }
 
@@ -1050,6 +1065,8 @@
                d.style.display = 'none';
             }
          }
+
+         odb_update(tb);
       }
 
       function toggle_expanded(e) {
@@ -1471,6 +1488,11 @@
       function subdir_open(e, path) {
          let tb = getOdbTb(e);
          let odb = tb.odb;
+
+         // don't open subdirs if in reorder mode
+         if (odb.handleColumn)
+            return;
+
          unselect_all_keys(tb);
          unselect_all_array_elements(tb);
 
@@ -1486,7 +1508,7 @@
                   break;
                }
          }
-         odb.skip_yellow = true;
+         tb.odb.skip_yellow = true;
          odb_update(tb);
       }
 
@@ -1640,6 +1662,8 @@
 
             if (odb.key.length <= n) {
                key.expanded = (key.num_values > 1 && key.num_values <= 10);
+               if (odb.picker)
+                  key.expanded = false;
                odb.key.push(key);
             } else {
                if (odb.key[n].subdir_open) {
@@ -1655,6 +1679,7 @@
 
             // if current key is a subdirectory, call us recursively
             if (key.type === TID_KEY && key.subdir_open) {
+               odb.key[n-1].value.picker = odb.picker;
                odb_extract(odb.key[n-1].value, dataArray);
             }
          }
@@ -1761,7 +1786,9 @@
          // Print subdir with open subdir handler
          if (key.type === TID_KEY) {
             let handler = "onclick=\"subdir_click(event, this);return false;\" ";
-            if (key.subdir_open)
+            if (odb.handleColumn)
+               td.innerHTML = indent + key.name;
+            else if (key.subdir_open)
                td.innerHTML = indent + "<a href='#' " +
                        handler +
                        "> \u25BE " + key.name + "</a>";
@@ -1887,7 +1914,7 @@
                   v += " (" + parseInt(key.value) + ')';
                else if (key.type !== TID_STRING && key.type !== TID_LINK && key.type !== TID_FLOAT && key.type !== TID_DOUBLE)
                   v += " (0x" + key.value.toString(16).toUpperCase() + ')';
-               if (odb.picker)
+               if (odb.picker || odb.handleColumn)
                   td.innerHTML = v;
                else
                   td.innerHTML = edit + v + '</a>';
@@ -1980,7 +2007,8 @@
                      if (oldElem === undefined)
                         oldElem = "";
                      else {
-                        while (oldElem.tagName === 'TD' || oldElem.tagName === 'A' || oldElem.tagName === 'DIV')
+                        while (oldElem.childNodes[0] !== undefined &&
+                                 (oldElem.tagName === 'TD' || oldElem.tagName === 'A' || oldElem.tagName === 'DIV'))
                            oldElem = oldElem.childNodes[0]; // get into <td> <a> <div> elements
                         oldElem = oldElem.parentNode.innerHTML;
                      }
@@ -1988,7 +2016,8 @@
                      if (newElem === undefined)
                         newElem = "";
                      else {
-                        while (newElem.tagName === 'TD' || newElem.tagName === 'A' || newElem.tagName === 'DIV')
+                        while (newElem.childNodes[0] !== undefined &&
+                                 (newElem.tagName === 'TD' || newElem.tagName === 'A' || newElem.tagName === 'DIV'))
                            newElem = newElem.childNodes[0]; // get into <td> <a> <div> elements
                         newElem = newElem.parentNode.innerHTML;
                      }
@@ -2066,6 +2095,9 @@
 
                // create empty row
                let tr = document.createElement('TR');
+
+               // store key path
+               tr.odbPath = keyPath + '[' + i + ']';
 
                // hide option keys if not in detailed column mode
                if (key.options && !odb.detailsColumn)
@@ -2187,10 +2219,11 @@
                if (!odb.picker)
                   tb.childNodes[row.i].removeEventListener('contextmenu', context_menu);
                tb.childNodes[row.i].childNodes[2].addEventListener('click', select_array_element);
-               tb.childNodes[row.i].odbPath = undefined;
+               tb.childNodes[row.i].odbPath = tr.odbPath;
                tb.childNodes[row.i].key = undefined;
 
                tb.childNodes[row.i].style.display = tr.style.display;
+
             }
          }
       }
