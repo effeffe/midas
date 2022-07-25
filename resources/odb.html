@@ -560,7 +560,8 @@
             a.title = "Show ODB keys which are open by other programs";
             a.onclick = function () {
                d.style.display = 'none';
-               window.location.href = "?cmd=odb_sor&odb_path=" + odb.path;
+               // window.location.href = "?cmd=odb_sor&odb_path=" + odb.path;
+               show_open_records(event.target);
                return false;
             }
             td.appendChild(a);
@@ -2352,6 +2353,60 @@
             }).catch(error => mjsonrpc_error_alert(error));
          } else
             tb.odb.updateTimer = window.setTimeout(odb_update, 10, tb);
+      }
+
+      function show_open_records(e) {
+         let odb = getOdbTb(e).odb;
+         let title = "ODB open records under \"" + odb.path + "\"";
+
+         let d = document.createElement("div");
+         d.className = "dlgFrame";
+         d.style.zIndex = "30";
+         d.style.minWidth = "400px";
+         d.shouldDestroy = true;
+
+         d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">" + title + "</div>" +
+                 "<div class=\"dlgPanel\" style=\"padding: 2px;\">" +
+                 "<div id=\"dlgSOR\"></div>" +
+                 "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" " +
+                 " onClick=\"dlgMessageDestroy(this)\">Close</button>" +
+                 "</div>";
+
+         document.body.appendChild(d);
+
+         update_open_records(odb);
+         dlgShow(d, false);
+      }
+
+      function update_open_records(odb) {
+         let path = odb.path;
+         mjsonrpc_call("db_sor", {"path": path}).then (rpc => {
+            let sor = rpc.result.sor;
+            let paths = {};
+            for (const s of sor) {
+               if (paths[s.path])
+                  paths[s.path] += ', ' + s.name;
+               else
+                  paths[s.path] = s.name;
+            }
+            let sorted_paths = Object.keys(paths).sort();
+            let html = '<table class="mtable" style="width: 100%;margin-top: 0;margin-bottom:0"><tbody>';
+            html += '<tr><th>ODB Path</th><th>Open by</th></tr>';
+            for (const p of sorted_paths)
+               html += '<tr><td style="padding: 8px"><nobr>' + p + '</nobr></td>' +
+                       '<td style="padding: 8px"><nobr>' + paths[p] + '</nobr></td></tr>';
+            html += '</tbody></table>';
+
+            let d = document.getElementById('dlgSOR');
+            if (d === null)
+               return; // dialog has been closed
+            if (d.innerHTML !== html) {
+               d.innerHTML = html;
+               dlgCenter(d.parentElement.parentElement);
+            }
+            window.setTimeout(update_open_records, 1000, odb);
+
+         }).catch( error => mjsonrpc_error_alert(error));
       }
    </script>
 </head>

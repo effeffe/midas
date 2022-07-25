@@ -534,6 +534,27 @@ function drawCloseButton(c, mark) {
    }
 }
 
+function dlgCenter(dlg) {
+   let d;
+   if (typeof dlg === "string")
+      d = document.getElementById(dlg);
+   else
+      d = dlg;
+
+   if (d === null) {
+      dlgAlert("Dialog '" + dlg + "' does not exist");
+      return;
+   }
+
+   d.style.left = Math.round(document.documentElement.clientWidth / 2 - d.offsetWidth / 2) + "px";
+   if (document.documentElement.clientHeight / 2 - d.offsetHeight / 2 < 0)
+      d.style.top = "0px";
+   else
+      d.style.top = Math.round(document.documentElement.clientHeight / 2 - d.offsetHeight / 2) + "px";
+   if (d.offsetHeight > document.documentElement.clientHeight)
+      d.style.position = "absolute";
+}
+
 function dlgShow(dlg, modal, param) {
    let d;
    if (typeof dlg === "string")
@@ -574,13 +595,7 @@ function dlgShow(dlg, modal, param) {
    d.modal = (modal === true);
 
    d.style.display = "block";
-   d.style.left = Math.round(document.documentElement.clientWidth / 2 - d.offsetWidth / 2) + "px";
-   if (document.documentElement.clientHeight / 2 - d.offsetHeight / 2 < 0)
-      d.style.top = "0px";
-   else
-      d.style.top = Math.round(document.documentElement.clientHeight / 2 - d.offsetHeight / 2) + "px";
-   if (d.offsetHeight > document.documentElement.clientHeight)
-      d.style.position = "absolute";
+   dlgCenter(d);
 
    // put dialog on top of all other dialogs
    let dlgs = document.getElementsByClassName("dlgFrame");
