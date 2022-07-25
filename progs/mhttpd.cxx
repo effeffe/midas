@@ -2806,10 +2806,14 @@ void show_eqtable_page(Param* pp, Return* r, int refresh)
          if (strlen(name) < 1)
             sprintf(name, "[%d]", i);
 
+         std::string n(name);
+         while (n.find(" ") != std::string::npos)
+            n.replace(n.find(" "), 1, "&nbsp;");
+
          if (i % 2 == 0)
-            r->rsprintf("<tr class=\"ODBtableEven\"><td colspan=%d>%s", colspan, name);
+            r->rsprintf("<tr class=\"ODBtableEven\"><td colspan=%d>%s", colspan, n.c_str());
          else
-            r->rsprintf("<tr class=\"ODBtableOdd\"><td colspan=%d>%s", colspan, name);
+            r->rsprintf("<tr class=\"ODBtableOdd\"><td colspan=%d>%s", colspan, n.c_str());
 
          for (int j = 0;; j++) {
             HNDLE hkey;
