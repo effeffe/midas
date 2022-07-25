@@ -527,6 +527,8 @@
 
          event.stopPropagation(); // don't send click to select_key()
 
+         let odb = getOdbTb(event.target).odb;
+
          let d = document.getElementById('moreMenu');
          if (d === null) {
 
@@ -715,7 +717,7 @@
                   }
                }
 
-            } else if (event.metaKey && !headerRow) {
+            } else if ((event.metaKey || event.ctrlKey) && !headerRow) {
 
                // command key just toggles current selection
                tr.odbSelected = !tr.odbSelected;
@@ -844,7 +846,7 @@
                      atr[i].odbSelected = true;
                }
 
-            } else if (event.metaKey) {
+            } else if (event.metaKey || event.ctrlKey) {
 
                // command key just toggles current selection
                tr.odbSelected = !tr.odbSelected;
