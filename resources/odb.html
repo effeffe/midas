@@ -46,6 +46,11 @@
                path = '/' + path;
          }
 
+         // install event handler for browser history popstate events
+         window.addEventListener('popstate', (event) => {
+            window.location.href = "?cmd=ODB&odb_path=" + event.state.path;
+         });
+
          // crate table header
          let d = document.getElementById(id);
          let table = document.createElement('TABLE');
@@ -203,6 +208,26 @@
          if (event.key === 'Backspace') {
             odb_delete(tb);
             return false;
+         }
+
+         // Escape
+         if (event.keyCode === 27) {
+            let flag = false;
+            // hide submenu if visible
+            let m = document.getElementById('moreMenu');
+            if (m !== null && m.style.display === 'block') {
+               m.style.display = 'none';
+               flag = true;
+            }
+
+            // hide context menu if visible
+            m = document.getElementById('contextMenu');
+            if (m !== null && m.style.display === 'block') {
+               m.style.display = 'none';
+               flag = true;
+            }
+
+            return flag;
          }
 
          return true;
@@ -1534,7 +1559,7 @@
             url = url.slice(0, url.search("&odb_path"));
          url += "&odb_path=" + path;
          if (url !== window.location.href)
-            window.history.replaceState({}, "MIDAS ODB Browser", url);
+            window.history.pushState({ 'path': path}, '', url);
 
          // update ODB object
          odb.path = path;
@@ -1612,14 +1637,16 @@
          else
             dirs = odb.path.split('/');
          let path = '';
-         let s = "<a href='#' onclick=\"subdir_goto(this, '/');return false;\" title='Root directory'>&#9830</a>&nbsp;/&nbsp;";
+         let s = "<a href=\"#\" onclick=\"subdir_goto(this, '/');return false;\" title=\"Root directory\">" +
+            "<img src=\"icons/home.svg\" style=\"height: 15ps; border:none; vertical-align: middle;\">" +
+            "</a>&nbsp;/&nbsp;";
          for (let i=1 ; i<dirs.length ; i++) {
             path += "/" + dirs[i];
-            s += "<a href='#' onclick=\"subdir_goto(this, '" + path + "');return false;\">"+dirs[i]+"</a>";
+            s += "<a href=\"#\" onclick=\"subdir_goto(this, '" + path + "');return false;\">"+dirs[i]+"</a>";
             if (i < dirs.length - 1)
                s += "&nbsp;/&nbsp;";
          }
-         if (s != tb.childNodes[1].firstChild.innerHTML)
+         if (s !== tb.childNodes[1].firstChild.innerHTML)
             tb.childNodes[1].firstChild.innerHTML = s;
 
          // request ODB data
