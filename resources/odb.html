@@ -1700,7 +1700,8 @@
             let key = {};
             key.name = item;
             key.value = data[item];
-            if (typeof key.value === 'object' && Object.keys(key.value).length === 0) {
+            let linkFlag = data[item + '/key'] !== undefined && data[item + '/key'].link !== undefined;
+            if (!linkFlag && typeof key.value === 'object' && Object.keys(key.value).length === 0) {
                key.type = TID_KEY;
                key.subdir_open = false;
                key.num_values = 1;
@@ -1867,6 +1868,17 @@
                td.innerHTML += "<a href='#' " + handler + "> " + key.name + " </a>";
             }
 
+            if (key.link) {
+               if (odb.picker)
+                  td.innerHTML +=  ' &rarr; <span>' + key.link + '</span>';
+               else
+                  td.innerHTML += ' &rarr; <span>'+ '<a href="#" ' +
+                     'onclick="inline_edit(event, this.parentNode, \'' +
+                     key.link + '\', odb_setlink, undefined, \'' + keyPath +
+                     '\'); return false;" ' +
+                     ' title="Change value">' + key.link +
+                     '</a></span>';
+            }
 
          } else if (key.link === undefined) {
             td.innerHTML = indent + '<span>' + key.name + '</span>';
