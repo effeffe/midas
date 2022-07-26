@@ -1333,7 +1333,7 @@
          let tb = getOdbTb(e);
          let odb = tb.odb;
          try {
-            let text = sessionStorage.getItem('odbxclip');
+            let text = sessionStorage.getItem('odbclip');
             if (text) {
                let keys = JSON.parse(text);
                odb_paste_keys(tb, keys);
