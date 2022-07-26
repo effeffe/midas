@@ -48,7 +48,8 @@
 
          // install event handler for browser history popstate events
          window.addEventListener('popstate', (event) => {
-            window.location.href = "?cmd=ODB&odb_path=" + event.state.path;
+            if (event.state)
+               window.location.href = "?cmd=ODB&odb_path=" + event.state.path;
          });
 
          // crate table header
@@ -1038,6 +1039,8 @@
          d.style.display = 'block';
          d.style.left = (event.offsetX + rect.left + window.scrollX) + 'px';
          d.style.top = (event.offsetY+rect.top + window.scrollY) + 'px';
+
+         return false;
       }
 
       function expand(e) {
@@ -1286,6 +1289,8 @@
          }
          mjsonrpc_db_copy(paths).then(rpc => {
             let text = '';
+
+            // generate text from objects, add top directoy which is missing from db_copy
             for (const [i,d] of rpc.result.data.entries()) {
                if (i === 0) {
                   if (dirFlag) {
@@ -1300,6 +1305,8 @@
                if (i < rpc.result.data.length - 1)
                   text = text.substring(0, text.lastIndexOf('}')) + ','; // replace last '}' by ','
             }
+
+            // put text to clipboard of possible
             if (navigator.clipboard && navigator.clipboard.writeText) {
                try {
                   navigator.clipboard.writeText(text);
@@ -1315,70 +1322,94 @@
                   dlgAlert(error);
                }
             }
+
+            // store text locally as a backup
+            sessionStorage.setItem('odbclip', text);
+
          }).catch(error => mjsonrpc_error_alert(error));
       }
 
       function odb_paste(e) {
          let tb = getOdbTb(e);
          let odb = tb.odb;
+         try {
+            let text = sessionStorage.getItem('odbxclip');
+            if (text) {
+               let keys = JSON.parse(text);
+               odb_paste_keys(tb, keys);
+               return;
+            }
+         } catch (error) {
+            dlgAlert("Invalid JSON format in clipboard:<br /><br />" + error);
+            return;
+         }
+
          if (navigator.clipboard && navigator.clipboard.readText) {
             try {
                navigator.clipboard.readText().then(text => {
-                  try {
-                     let newKeys = JSON.parse(text);
-                     for (const key in newKeys) {
-                        if (key.indexOf('/') !== -1)
-                           continue;
-
-                        // check for existing key in current keys
-                        let cKeyMaxIndex = 0;
-                        let cKeyIndex = 0;
-                        let cKeyBare = "";
-                        let found = false;
-                        for (const cKey of odb.key) {
-                           if (cKey.name.indexOf(' copy') === -1)
-                              cKeyBare = cKey.name;
-                           else
-                              cKeyBare = cKey.name.substring(0, cKey.name.indexOf(' copy'));
-
-                           if (cKeyBare === key) {
-                              found = true;
-                              if (cKey.name.indexOf(' copy') !== -1) {
-                                 cKeyIndex = parseInt(cKey.name.substring(cKey.name.indexOf(' copy')+5));
-                                 if (isNaN(cKeyIndex))
-                                    cKeyIndex = 1;
-                                 if (cKeyIndex > cKeyMaxIndex)
-                                    cKeyMaxIndex = cKeyIndex;
-                              }
-                           }
-                        }
-
-                        // rename new key if name exists
-                        if (found) {
-                           let newName = cKeyBare + ' copy';
-                           if (cKeyIndex > 0)
-                              newName += ' ' + (cKeyIndex+1).toString();
-
-                           newKeys[newName] = newKeys[key];
-                           delete newKeys[key];
-
-                           newKeys[newName + '/key'] = newKeys[key + '/key'];
-                           delete newKeys[key + '/key'];
-                        }
-                     }
-
-                     mjsonrpc_db_paste([odb.path], [newKeys]).then(rpc =>
-                        odb_update(tb)).catch(error =>
-                        dlgAlert(error));
-
-                  }catch (error) {
-                     dlgAlert("Invalid JSON format in clipboard:<br /><br />" + error);
+                  if (text) {
+                     let keys = JSON.parse(text);
+                     odb_paste_keys(tb, keys);
+                     return;
                   }
                });
             } catch (error) {
-               dlgAlert(error);
+               dlgAlert("Invalid JSON format in clipboard:<br /><br />" + error);
+            }
+         } else
+            dlgAlert("Paste not possible in this browser");
+      }
+
+      function odb_paste_keys(tb, newKeys) {
+         let odb = tb.odb;
+
+         for (const key in newKeys) {
+            if (key.indexOf('/') !== -1)
+               continue;
+
+            // check for existing key in current keys
+            let cKeyMaxIndex = 0;
+            let cKeyIndex = 0;
+            let cKeyBare = "";
+            let ckb = "";
+            let found = false;
+            for (const cKey of odb.key) {
+               if (cKey.name.indexOf(' copy') === -1)
+                  ckb = cKey.name;
+               else
+                  ckb = cKey.name.substring(0, cKey.name.indexOf(' copy'));
+
+               if (ckb === key) {
+                  found = true;
+                  cKeyBare = ckb;
+                  if (cKey.name.indexOf(' copy') !== -1) {
+                     cKeyIndex = parseInt(cKey.name.substring(cKey.name.indexOf(' copy')+5));
+                     if (isNaN(cKeyIndex))
+                        cKeyIndex = 1;
+                     if (cKeyIndex > cKeyMaxIndex)
+                        cKeyMaxIndex = cKeyIndex;
+                  }
+               }
+            }
+
+            // rename new key if name exists
+            if (found) {
+               let newName = cKeyBare + ' copy';
+               if (cKeyIndex > 0)
+                  newName += ' ' + (cKeyIndex+1).toString();
+
+               newKeys[newName] = newKeys[key];
+               delete newKeys[key];
+
+               newKeys[newName + '/key'] = newKeys[key + '/key'];
+               delete newKeys[key + '/key'];
             }
          }
+
+         mjsonrpc_db_paste([odb.path], [newKeys]).then(rpc =>
+            odb_update(tb)).catch(error =>
+            dlgAlert(error));
+
       }
 
       function odbASCII(o, path) {
@@ -1537,8 +1568,10 @@
       }
 
       // user clicks on subdirectory, so open it
-      function subdir_open(e, path) {
-         let tb = getOdbTb(e);
+      function subdir_open(tr, path) {
+         while (tr.tagName !== 'TR')
+            tr = tr.parentNode;
+         let tb = getOdbTb(tr);
          let odb = tb.odb;
 
          // don't open subdirs if in reorder mode
@@ -1549,17 +1582,7 @@
          unselect_all_array_elements(tb);
 
          // find key belonging to 'path'
-         let dirs = path.split('/');
-         for (let l=1 ; l<dirs.length ; l++) {
-            for (let i = 0 ; i<odb.key.length ; i++)
-               if (odb.key[i].name === dirs[l]) {
-                  if (l === dirs.length-1)
-                     odb.key[i].subdir_open = !odb.key[i].subdir_open;
-                  else
-                     odb = odb.key[i].value; // recurse one level
-                  break;
-               }
-         }
+         tr.key.subdir_open = !tr.key.subdir_open;
          tb.odb.skip_yellow = true;
          odb_update(tb);
       }
@@ -1843,9 +1866,11 @@
 
 
          } else if (key.link === undefined) {
-            td.innerHTML = indent + key.name;
-            if (!odb.picker)
-               td.addEventListener('click', rename_key_click);
+            td.innerHTML = indent + '<span>' + key.name + '</span>';
+            if (!odb.picker) {
+               td.firstChild.addEventListener('click', rename_key_click);
+               td.firstChild.style.cursor = "pointer";
+            }
          } else {
             td.innerHTML = indent + '<span>' + key.name + '</span>';
             if (odb.picker)
@@ -1873,8 +1898,10 @@
                if (!tb.childNodes[row.i].isEqualNode(tr)) {
                   // check for edit mode
                   let inlineEdit = find_input_element(tb.childNodes[row.i]);
-                  if (!inlineEdit)
-                     tb.childNodes[row.i].innerHTML = tr.innerHTML;
+                  if (!inlineEdit) {
+                     if (tb.childNodes[row.i].innerHTML != tr.innerHTML)
+                        tb.childNodes[row.i].innerHTML = tr.innerHTML;
+                  }
                }
             } else
                tb.appendChild(tr);
@@ -2036,6 +2063,15 @@
             m += "W";
          td.appendChild(document.createTextNode(m));
 
+         // invert color if selected
+         if (tb.childNodes.length > row.i) {
+            let selected = tb.childNodes[row.i].odbSelected;
+            if (selected) {
+               tr.style.backgroundColor = '#004CBD';
+               change_color(tr, '#FFFFFF');
+            }
+         }
+
          if (row.i >= tb.childNodes.length) {
             // append new row if nothing exists
             tb.appendChild(tr);
@@ -2087,12 +2123,11 @@
                   else if (!inlineEdit) {
                      let e = tb.childNodes[row.i].childNodes[i];
 
-                     let c = e.style.color; // preserve color if key is selected
-                     e.innerHTML = tr.childNodes[i].innerHTML;
-                     change_color(e, c);
+                     if (tb.childNodes[row.i].childNodes[i].innerHTML !== tr.childNodes[i].innerHTML)
+                        tb.childNodes[row.i].childNodes[i].innerHTML = tr.childNodes[i].innerHTML;
 
                      if (i === 1 && key.type !== TID_KEY && !odb.picker)
-                        e.addEventListener('click', rename_key_click);
+                        e.firstChild.addEventListener('click', rename_key_click);
 
                      if (yellowBg) {
                         e.style.backgroundColor = 'var(--myellow)';
