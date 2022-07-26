@@ -436,7 +436,11 @@
       }
 
       function do_new_key(e) {
-         e = e.parentElement.parentElement.param;
+         if (e.parentElement.parentElement.param)
+            e = e.parentElement.parentElement.param;
+         else
+            e = e.parentElement.parentElement.parentElement.parentElement.parentElement.parentElement.param;
+
          let tb = getOdbTb(e);
          let path = document.getElementById('odbCreateDir').innerHTML;
          if (path === '/') path = "";
@@ -1197,8 +1201,8 @@
          event.stopPropagation(); // don't select key again
 
          let key;
-         if (tr.childNodes[1].childNodes[0].tagName === 'SPAN')
-            key = tr.childNodes[1].childNodes[0].innerHTML;
+         if (tr.childNodes[1].childNodes[1].tagName === 'SPAN')
+            key = tr.childNodes[1].childNodes[1].innerHTML;
          else
             key = tr.childNodes[1].innerHTML;
          while (key.indexOf("&nbsp;") !== -1)
@@ -1207,7 +1211,7 @@
          tr.oldKey = key;
 
          inline_edit(event,
-                 tr.childNodes[1],
+                 tr.childNodes[1].childNodes[1],
                  key,
                  do_rename_key,
                  key.length,
@@ -1234,33 +1238,16 @@
             tr.style.backgroundColor = '';
             change_color(tr, '');
 
-            let key;
-            if (tr.childNodes[1].childNodes[0].tagName === 'SPAN')
-               key = tr.childNodes[1].childNodes[0].innerHTML;
-            else
-               key = tr.childNodes[1].innerHTML;
-            while (key.indexOf("&nbsp;") !== -1)
-               key = key.substring(key.indexOf("&nbsp;")+6);
+            let elem =  tr.childNodes[1].childNodes[2] ?
+               tr.childNodes[1].childNodes[2] :
+               tr.childNodes[1].childNodes[1];
+            let key = elem.innerHTML;
+            key = key.trim();
             
-            if (key.indexOf('<a href=') !== -1) {
-               for (const c of tr.childNodes[1].childNodes)
-                  if (c.tagName === 'A') {
-                     key = c.innerHTML;
-                     break;
-                  }
-               if (key.indexOf('\u25BE') !== -1)
-                  key = key.substring(key.indexOf('\u25BE') + 2);
-               if (key.indexOf('\u25B8') !== -1)
-                  key = key.substring(key.indexOf('\u25B8') + 2);
-            }
-
-            while (key.indexOf("&nbsp;") !== -1)
-               key = key.substring(key.indexOf("&nbsp;")+6);
-
             tr.oldKey = key;
 
             inline_edit(undefined,
-                    tr.childNodes[1],
+                    elem,
                     key,
                     do_rename_key,
                     key.length,
@@ -1841,9 +1828,10 @@
          tr.appendChild(td);
 
          // Add three spaces of indent for each level
-         let indent = "";
+         let indent = "<span>";
          for (let i = 0; i < level; i++)
             indent += "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+         indent += "</span>";
 
          // Remember indent level for key rename
          tr.level = odb.level;
@@ -1883,11 +1871,15 @@
          } else if (key.link === undefined) {
             td.innerHTML = indent + '<span>' + key.name + '</span>';
             if (!odb.picker) {
-               td.firstChild.addEventListener('click', rename_key_click);
-               td.firstChild.style.cursor = "pointer";
+               td.childNodes[1].addEventListener('click', rename_key_click);
+               td.childNodes[1].style.cursor = "pointer";
             }
          } else {
             td.innerHTML = indent + '<span>' + key.name + '</span>';
+            if (!odb.picker) {
+               td.childNodes[1].addEventListener('click', rename_key_click);
+               td.childNodes[1].style.cursor = "pointer";
+            }
             if (odb.picker)
                td.innerHTML += ' &rarr; <span>' + key.link + '</span>';
             else
@@ -2141,9 +2133,6 @@
                      if (tb.childNodes[row.i].childNodes[i].innerHTML !== tr.childNodes[i].innerHTML)
                         tb.childNodes[row.i].childNodes[i].innerHTML = tr.childNodes[i].innerHTML;
 
-                     if (i === 1 && key.type !== TID_KEY && !odb.picker)
-                        e.firstChild.addEventListener('click', rename_key_click);
-
                      if (yellowBg) {
                         e.style.backgroundColor = 'var(--myellow)';
                         e.style.setProperty("-webkit-transition", "", "");
@@ -2168,6 +2157,9 @@
 
          if (!odb.picker)
             tb.childNodes[row.i].addEventListener('contextmenu', context_menu);
+
+         if (!odb.picer && key.type !== TID_KEY)
+            tb.childNodes[row.i].childNodes[1].childNodes[1].addEventListener('click', rename_key_click);
 
          // Remember ODB path and key in row
          tb.childNodes[row.i].odbPath = keyPath;
@@ -2358,7 +2350,7 @@
 
          if (keyCode === 13) {
             // finish editing
-            if (do_new_key(this))
+            if (do_new_key(event.target))
                dlgHide('dlgCreate');
             return false;
          }
