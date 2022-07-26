@@ -430,12 +430,14 @@
       function new_key(e) {
          let tb = getOdbTb(e);
          document.getElementById('odbCreateDir').innerHTML = tb.odb.path;
-         dlgShow('dlgCreate', true);
+         dlgShow('dlgCreate', true, e);
          document.getElementById('odbCreateName').focus();
          document.getElementById('odbCreateName').select();
       }
 
-      function do_new_key() {
+      function do_new_key(e) {
+         e = e.parentElement.parentElement.param;
+         let tb = getOdbTb(e);
          let path = document.getElementById('odbCreateDir').innerHTML;
          if (path === '/') path = "";
          let name = document.getElementById('odbCreateName').value;
@@ -473,6 +475,8 @@
             } else if (status !== 1) {
                dlgMessage("Error", "db_create_key() error " + status + ", see MIDAS messages");
             }
+            let tb = getOdbTb(e);
+            odb_update(tb);
          }).catch(error => mjsonrpc_error_alert(error));
 
          return true;
@@ -481,7 +485,7 @@
       function new_link(e) {
          let tb = getOdbTb(e);
          document.getElementById('odbCreateLinkDir').innerHTML = tb.odb.path;
-         dlgShow('dlgCreateLink', true);
+         dlgShow('dlgCreateLink', true, e);
          document.getElementById('odbCreateLinkName').focus();
          document.getElementById('odbCreateLinkName').select();
       }
@@ -495,7 +499,10 @@
             document.getElementById('odbCreateLinkTarget').value = path;
       }
 
-      function do_new_link() {
+      function do_new_link(e) {
+         e = e.parentElement.parentElement.param;
+         let tb = getOdbTb(e);
+
          let path = document.getElementById('odbCreateLinkDir').innerHTML;
          if (path === '/') path = "";
          let name = document.getElementById('odbCreateLinkName').value;
@@ -525,6 +532,8 @@
             } else if (status !== 1) {
                dlgMessage("Error", "db_create_key() error " + status + ", see MIDAS messages");
             }
+
+            odb_update(tb);
          }).catch(error => mjsonrpc_error_alert(error));
 
          return true;
@@ -543,7 +552,8 @@
             return;
          }
 
-         let path = getOdbTb(e).odb.path;
+         let tb = getOdbTb(e);
+         let path = tb.odb.path;
          if (path === '/')
             path = "";
          let param = {};
@@ -557,6 +567,7 @@
             } else if (status !== 1) {
                dlgMessage("Error", "db_create_key() error " + status + ", see MIDAS messages");
             }
+            odb_update(tb);
          }).catch(error => mjsonrpc_error_alert(error));
       }
 
@@ -1167,6 +1178,10 @@
             mjsonrpc_db_delete(param.paths).then().catch(error => mjsonrpc_error_alert(error));
             if (param.newPath)
                subdir_goto(param.e, param.newPath);
+            else {
+               let tb = getOdbTb(param.e);
+               odb_update(tb);
+            }
          }
       }
 
