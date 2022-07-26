@@ -1677,7 +1677,7 @@
             dirs = odb.path.split('/');
          let path = '';
          let s = "<a href=\"#\" onclick=\"subdir_goto(this, '/');return false;\" title=\"Root directory\">" +
-            "<img src=\"icons/home.svg\" style=\"height: 15ps; border:none; vertical-align: middle;\">" +
+            "<img src=\"icons/home.svg\" style=\"border:none; vertical-align: middle;\">" +
             "</a>&nbsp;/&nbsp;";
          for (let i=1 ; i<dirs.length ; i++) {
             path += "/" + dirs[i];
@@ -1831,7 +1831,7 @@
          td.style.display = odb.handleColumn ? 'table-cell' : 'none';
          td.style.width = "10px";
          tr.appendChild(td);
-         td.innerHTML = '<img style="cursor: all-scroll" src="icons/menu.svg">';
+         td.innerHTML = '<img style="cursor: all-scroll; height: 15px; padding: 0; border: 0" src="icons/menu.svg">';
 
          td.childNodes[0].setAttribute('draggable', false);
 
