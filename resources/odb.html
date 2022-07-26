@@ -178,6 +178,14 @@
          window.addEventListener('keydown', event => {
             global_keydown(event, tb);
          });
+
+         // install global click handler to unselect submenus
+         document.getElementById(id).addEventListener('click', () => {
+            close_submenus();
+            unselect_all_keys(tb);
+            unselect_all_array_elements(tb);
+         });
+
          odb_update(tb);
       }
 
@@ -211,26 +219,29 @@
          }
 
          // Escape
-         if (event.keyCode === 27) {
-            let flag = false;
-            // hide submenu if visible
-            let m = document.getElementById('moreMenu');
-            if (m !== null && m.style.display === 'block') {
-               m.style.display = 'none';
-               flag = true;
-            }
-
-            // hide context menu if visible
-            m = document.getElementById('contextMenu');
-            if (m !== null && m.style.display === 'block') {
-               m.style.display = 'none';
-               flag = true;
-            }
-
-            return flag;
-         }
+         if (event.keyCode === 27)
+            return close_submenus();
 
          return true;
+      }
+
+      function close_submenus() {
+         let flag = false;
+         // hide submenu if visible
+         let m = document.getElementById('moreMenu');
+         if (m !== null && m.style.display === 'block') {
+            m.style.display = 'none';
+            flag = true;
+         }
+
+         // hide context menu if visible
+         m = document.getElementById('contextMenu');
+         if (m !== null && m.style.display === 'block') {
+            m.style.display = 'none';
+            flag = true;
+         }
+
+         return flag;
       }
 
       function ODBPicker(path, callback, param) {
@@ -669,6 +680,7 @@
 
       function select_key(event) {
          event.preventDefault();
+         event.stopPropagation();
 
          let tr = event.target;
          let tb = getOdbTb(tr);
@@ -797,6 +809,7 @@
 
       function select_array_element(event) {
          event.preventDefault();
+         event.stopPropagation();
 
          let tr = event.target;
          let tb = getOdbTb(tr);
@@ -1513,6 +1526,16 @@
                  mjsonrpc_error_alert(error));
       }
 
+      function subdir_open_click(event, e) {
+         event.stopPropagation();
+         let tr = e.parentNode;
+         while (tr.tagName !== 'TR')
+            tr = tr.parentNode;
+         let path = tr.odbPath;
+
+         subdir_open(event.target, path);
+      }
+
       // user clicks on subdirectory, so open it
       function subdir_open(e, path) {
          let tb = getOdbTb(e);
@@ -1541,7 +1564,16 @@
          odb_update(tb);
       }
 
-      // after a double click open the subdirectory as top level
+      function subdir_goto_click(event, e) {
+         event.stopPropagation();
+         let tr = e.parentNode;
+         while (tr.tagName !== 'TR')
+            tr = tr.parentNode;
+         let path = tr.odbPath;
+
+         subdir_goto(event.target, path);
+      }
+
       function subdir_goto(e, path) {
          let tb = getOdbTb(e);
          let odb = tb.odb;
@@ -1569,37 +1601,6 @@
          odb.skip_yellow = true;
 
          odb_update(tb);
-      }
-
-      let numClicks = 0;
-      let singleClickTimer;
-      function subdir_click(event, tr) {
-
-         event.stopPropagation(); // don't pass event to not select row
-
-         // travel from the <a> element up to the <tr> element which contains the path
-         while (tr.tagName !== 'TR')
-            tr = tr.parentNode;
-         let path = tr.odbPath;
-         let tb = getOdbTb(tr);
-
-         // stop current update time not to interfere with
-         if (odb.updateTimer !== undefined)
-            window.clearTimeout(odb.updateTimer);
-
-         numClicks++;
-         if (numClicks === 1) {
-            // if no second click in the next 200ms, we have a single click
-            singleClickTimer = setTimeout(() => {
-               numClicks = 0;
-               subdir_open(tr, path);
-            }, 200);
-         } else if (numClicks === 2) {
-            // we have a double click
-            clearTimeout(singleClickTimer);
-            numClicks = 0;
-            subdir_goto(tr, path);
-         }
       }
 
       // push all paths of open subdirectories recursively for a following db_ls
@@ -1821,17 +1822,26 @@
 
          // Print subdir with open subdir handler
          if (key.type === TID_KEY) {
-            let handler = "onclick=\"subdir_click(event, this);return false;\" ";
             if (odb.handleColumn)
+               // do not show any links in re-order mode
                td.innerHTML = indent + key.name;
-            else if (key.subdir_open)
-               td.innerHTML = indent + "<a href='#' " +
-                       handler +
-                       "> \u25BE " + key.name + "</a>";
-            else
-               td.innerHTML = indent + "<a href='#' " +
-                       handler +
-                       "> \u25B8 " + key.name + "</a>";
+            else {
+               let handler = "onclick=\"subdir_open_click(event, this);return false;\" ";
+
+               if (key.subdir_open)
+                  td.innerHTML = indent + "<a href='#' " +
+                     handler +
+                     ">&nbsp;\u25BE&nbsp;</a>";
+               else
+                  td.innerHTML = indent + "<a href='#' " +
+                     handler +
+                     ">&nbsp;\u25B8&nbsp;</a>";
+
+               handler = "onclick=\"subdir_goto_click(event, this);return false;\" ";
+               td.innerHTML += "<a href='#' " + handler + "> " + key.name + " </a>";
+            }
+
+
          } else if (key.link === undefined) {
             td.innerHTML = indent + key.name;
             if (!odb.picker)
