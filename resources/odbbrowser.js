@@ -236,7 +236,7 @@ function odb_browser(id, path, picker) {
    td.colSpan = "8";
    tr.appendChild(td);
    td.innerHTML =
-      '<img src="icons/file-plus.svg" title="Create key  CTRL+N" ' +
+      '<img src="icons/file-plus.svg" title="Create key  CTRL+K" ' +
       'onclick="new_key(this)">&nbsp;&nbsp;' +
       '<img src="icons/folder-plus.svg" title="Create subdirectory" ' +
       'onclick="new_subdir(this)">&nbsp;&nbsp;' +
@@ -325,19 +325,19 @@ function global_keydown(event, tb) {
       return true;
 
    // Ctrl+C
-   if ((event.ctrlKey || event.metaKey) && event.keyCode === 67) {
+   if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
       odb_copy(tb);
       return false;
    }
 
    // Ctrl+V
-   if ((event.ctrlKey || event.metaKey) && event.keyCode === 86) {
+   if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
       odb_paste(tb);
       return false;
    }
 
-   // Ctrl+N
-   if ((event.ctrlKey || event.metaKey) && event.keyCode === 78) {
+   // Ctrl+K
+   if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
       event.preventDefault();
       new_key(tb);
       return false;
@@ -1427,7 +1427,10 @@ function odb_copy(e) {
       for (const [i,d] of rpc.result.data.entries()) {
          if (i === 0) {
             if (dirFlag) {
-               text += '{ \"'+ tb.odb.path.substring(tb.odb.path.lastIndexOf('/')+1) +
+               let dir = tb.odb.path.substring(tb.odb.path.lastIndexOf('/')+1);
+               if (dir === '')
+                  dir = 'root';
+               text += '{ \"'+ dir +
                   '\": '+JSON.stringify(d, null, '   ')+'}';
             } else if (selKeys[i].key.type === TID_KEY) {
                text += '{ \"'+ selKeys[i].key.name +'\": '+JSON.stringify(d, null, '   ')+'}';
@@ -1439,7 +1442,7 @@ function odb_copy(e) {
             text = text.substring(0, text.lastIndexOf('}')) + ','; // replace last '}' by ','
       }
 
-      // put text to clipboard of possible
+      // put text to clipboard if possible
       if (navigator.clipboard && navigator.clipboard.writeText) {
          try {
             navigator.clipboard.writeText(text);
@@ -1457,7 +1460,11 @@ function odb_copy(e) {
       }
 
       // store text locally as a backup
-      sessionStorage.setItem('odbclip', text);
+      try {
+         sessionStorage.setItem('odbclip', text);
+      } catch (error) {
+         dlgAlert(error);
+      }
 
    }).catch(error => mjsonrpc_error_alert(error));
 }
@@ -1478,17 +1485,19 @@ function odb_paste(e) {
    }
 
    if (navigator.clipboard && navigator.clipboard.readText) {
-      try {
-         navigator.clipboard.readText().then(text => {
+      navigator.clipboard.readText().then(text => {
+         try {
             if (text) {
                let keys = JSON.parse(text);
                odb_paste_keys(tb, keys);
                return;
+            } else {
+               dlgAlert("Nothing stored in clipboard");
             }
-         });
-      } catch (error) {
-         dlgAlert("Invalid JSON format in clipboard:<br /><br />" + error);
-      }
+         } catch (error) {
+            dlgAlert("Invalid JSON format in clipboard:<br /><br />" + error);
+         }
+      });
    } else
       dlgAlert("Paste not possible in this browser");
 }
