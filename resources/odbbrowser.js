@@ -1814,7 +1814,7 @@ function odb_update(tb) {
       dirs = odb.path.split('/');
    let path = '';
    let s = "<a href=\"#\" onclick=\"subdir_goto(this, '/');return false;\" title=\"Root directory\">" +
-      "<img src=\"icons/home.svg\" style=\"border:none; vertical-align: middle;\">" +
+      "<img src=\"icons/home.svg\" style=\"border:none; height: 16px; vertical-align: middle;margin-bottom: 2px;\">" +
       "</a>&nbsp;/&nbsp;";
    for (let i=1 ; i<dirs.length ; i++) {
       path += "/" + dirs[i];
