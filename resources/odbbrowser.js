@@ -2619,7 +2619,8 @@ function show_open_records(e) {
    d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">" + title + "</div>" +
       "<div class=\"dlgPanel\" style=\"padding: 2px;\">" +
       "<div id=\"dlgSOR\"></div>" +
-      "<button class=\"dlgButton\" id=\"dlgMessageButton\" style=\"background-color:#F8F8F8\" type=\"button\" " +
+      "<button class=\"dlgButton\" id=\"dlgMessageButton\" +" +
+      "type=\"button\" " +
       " onClick=\"dlgMessageDestroy(this)\">Close</button>" +
       "</div>";
 

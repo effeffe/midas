@@ -146,27 +146,27 @@ document.write("<style>" +
    "   background-color: #C0C0C0;" +
    "   border-top-left-radius: 6px;" +
    "   border-top-right-radius: 6px;" +
-   "   font-size: 12pt;" +
+   "   font-size: 10pt;" +
    "   padding: 2px;" +
    "}\n" +
    ".dlgTitlebar:hover {" +
    "   cursor: pointer;" +
    "}\n" +
    ".dlgButton {" +
-   "   font-size: 1em;" +
-   "   background-color: #D0D0D0;" +
+   "   font-size: 10pt;" +
+   "   background-color: #F8F8F8;" +
    "   border: 1px solid #808080;" +
    "   border-radius: 6px;" +
-   "   padding: 4px 10px;" +
+   "   padding: 2px 4px;" +
    "   margin: 3px;" +
    "}\n" +
    ".dlgButtonDefault {" +
-   "   font-size: 1em;" +
+   "   font-size: 10pt;" +
    "   background-color: #4187F7;" +
    "   color: #FFFFFF;" +
    "   border: 1px solid #808080;" +
    "   border-radius: 6px;" +
-   "   padding: 4px 10px;" +
+   "   padding: 2px 4px;" +
    "   margin: 3px;" +
    "}\n" +
    ".dlgButton:hover {" +
