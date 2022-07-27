@@ -162,6 +162,24 @@ function odb_browser(id, path, picker) {
          window.location.href = "?cmd=ODB&odb_path=" + event.state.path;
    });
 
+   if (!picker) {
+      // modify title
+      if (document.title.indexOf("ODB") !== -1) {
+         if (path === '/')
+            document.title = "ODB";
+         else
+            document.title = "ODB " + path;
+      }
+
+      // push current path to history
+      let url = window.location.href;
+      if (url.search("&odb_path") !== -1)
+         url = url.slice(0, url.search("&odb_path"));
+      if (path !== '/')
+         url += "&odb_path=" + path;
+      window.history.pushState({'path': path}, '', url);
+   }
+
    // crate table header
    d = document.getElementById(id);
    let table = document.createElement('TABLE');
@@ -260,7 +278,7 @@ function odb_browser(id, path, picker) {
          td.style.display = tb.odb.handleColumn ? 'table-cell' : 'none';
          td.style.width = "10px";
       } else if (t === "Value") {
-         td.id = "valueHeader";
+         td.setAttribute('name', 'valueHeader');
          td.innerHTML = t;
       } else if (t !== "Key" && t !== "Value") {
          td.innerHTML = t;
@@ -1724,12 +1742,22 @@ function subdir_goto(e, path) {
       window.clearTimeout(odb.updateTimer);
 
    // update URL
-   let url = window.location.href;
-   if (url.search("&odb_path") !== -1)
-      url = url.slice(0, url.search("&odb_path"));
-   url += "&odb_path=" + path;
-   if (url !== window.location.href)
-      window.history.pushState({ 'path': path}, '', url);
+   if (!odb.picker) {
+      let url = window.location.href;
+      if (url.search("&odb_path") !== -1)
+         url = url.slice(0, url.search("&odb_path"));
+      url += "&odb_path=" + path;
+      if (url !== window.location.href)
+         window.history.pushState({'path': path}, '', url);
+   }
+
+   // modify title
+   if (document.title.indexOf("ODB") !== -1) {
+      if (path === '/')
+         document.title = "ODB";
+      else
+         document.title = "ODB " + path;
+   }
 
    // update ODB object
    odb.path = path;
@@ -1899,7 +1927,10 @@ function odb_print(tb, row, odb) {
    }
 
    // Hide 'value' if only directories are listed
-   document.getElementById('valueHeader').style.display = row.nvk > 0 ? 'table-cell' : 'none';
+   let ds = document.getElementsByName('valueHeader');
+   for (d of ds)
+      if (tb.contains(d))
+         d.style.display = row.nvk > 0 ? 'table-cell' : 'none';
 
    // At the end, remove old rows if subdirectory has been closed
    if (odb.level === 0)
