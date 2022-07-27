@@ -259,8 +259,10 @@ function odb_browser(id, path, picker) {
          td.setAttribute('name', 'odbHandle');
          td.style.display = tb.odb.handleColumn ? 'table-cell' : 'none';
          td.style.width = "10px";
-      }
-      else if (t !== "Key" && t !== "Value") {
+      } else if (t === "Value") {
+         td.id = "valueHeader";
+         td.innerHTML = t;
+      } else if (t !== "Key" && t !== "Value") {
          td.innerHTML = t;
          td.setAttribute('name', 'odbExt');
          td.style.display = tb.odb.detailColumn ? 'table-cell' : 'none';
@@ -1765,7 +1767,7 @@ function odb_update(tb) {
 
    if (odb.updateTimer !== undefined)
       window.clearTimeout(odb.updateTimer);
-   let row = { i:4 };
+   let row = { i:4, nvk:0 };
 
    // show clickable ODB path in top row
    let dirs;
@@ -1867,7 +1869,8 @@ function odb_extract(odb, dataArray) {
 
 function odb_print_all(tb) {
    let odb = tb.odb;
-   let row = { i:4 };
+   let row = { i:4, nvk:0 };
+   let nValueKeys = 0;
    odb.skip_yellow = true;
    odb_print(tb, row, tb.odb);
 }
@@ -1881,6 +1884,8 @@ function odb_print(tb, row, odb) {
       // Print current key
       odb_print_key(tb, row, odb.path, key, odb.level, options ? options.value : undefined);
       row.i++;
+      if (key.type !== TID_KEY)
+         row.nvk++;
 
       // Print whole subdirectory if open
       if (key.type === TID_KEY && key.subdir_open) {
@@ -1892,6 +1897,9 @@ function odb_print(tb, row, odb) {
          odb_print(tb, row, key.value);
       }
    }
+
+   // Hide 'value' if only directories are listed
+   document.getElementById('valueHeader').style.display = row.nvk > 0 ? 'table-cell' : 'none';
 
    // At the end, remove old rows if subdirectory has been closed
    if (odb.level === 0)
