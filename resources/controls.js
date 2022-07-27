@@ -903,7 +903,7 @@ function dlgQuery(string, value, queryCallback, param) {
        "<div class=\"dlgPanel\" style=\"padding: 20px;\">" +
        "<div id=\"dlgMessageString\">" + string + "&nbsp;&nbsp;<input type='text' size='30' id='dlgQueryInput' onkeydown='return dlgQueryKeyDown(event, this);' value='" + value + "'></input></div>" +
        "<br /><br />" +
-       "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
+       "<button class=\"dlgButtonDefault\" id=\"dlgMessageButton\" type=\"button\" " +
        " onClick=\"let d=this.parentElement.parentElement;d.callback(document.getElementById('dlgQueryInput').value,d.callbackParam);dlgMessageDestroy(this);\">OK</button>" +
        "<button class=\"dlgButton\" id=\"dlgMessageButton\" type=\"button\" " +
        " onClick=\"let d=this.parentElement.parentElement;d.callback(false,d.callbackParam);dlgMessageDestroy(this);\">Cancel</button>" +
