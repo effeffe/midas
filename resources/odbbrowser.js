@@ -311,7 +311,7 @@ function odb_browser(id, path, picker) {
    });
 
    // install global click handler to unselect submenus
-   document.getElementById(id).addEventListener('click', () => {
+   window.addEventListener('click', () => {
       close_submenus();
       unselect_all_keys(tb);
       unselect_all_array_elements(tb);
