@@ -2645,8 +2645,8 @@ function update_open_records(odb) {
       let html = '<table class="mtable" style="width: 100%;margin-top: 0;margin-bottom:0"><tbody>';
       html += '<tr><th>ODB Path</th><th>Open by</th></tr>';
       for (const p of sorted_paths)
-         html += '<tr><td style="padding: 8px"><nobr>' + p + '</nobr></td>' +
-            '<td style="padding: 8px"><nobr>' + paths[p] + '</nobr></td></tr>';
+         html += '<tr><td style="padding: 8px">' + p + '</td>' +
+            '<td style="padding: 8px">' + paths[p] + '</td></tr>';
       html += '</tbody></table>';
 
       let d = document.getElementById('dlgSOR');
