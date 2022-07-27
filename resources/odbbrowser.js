@@ -1836,7 +1836,7 @@ function odb_update(tb) {
 
       // call timer in one second to update again
       odb.updateTimer = window.setTimeout(odb_update, 1000, tb);
-   }).catch(error => mjsonrpc_error_alert(error));
+   }).catch();
 }
 
 // extract keys and put them into odb tree from db_ls result in dataArray
