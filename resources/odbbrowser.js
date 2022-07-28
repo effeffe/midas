@@ -156,12 +156,6 @@ function odb_browser(id, path, picker) {
    d.innerHTML = odb_dialogs;
    document.body.appendChild(d);
 
-   // install event handler for browser history popstate events
-   window.addEventListener('popstate', (event) => {
-      if (event.state)
-         window.location.href = "?cmd=ODB&odb_path=" + event.state.path;
-   });
-
    if (!picker) {
       // modify title
       if (document.title.indexOf("ODB") !== -1) {
@@ -177,6 +171,7 @@ function odb_browser(id, path, picker) {
          url = url.slice(0, url.search("&odb_path"));
       if (path !== '/')
          url += "&odb_path=" + path;
+      url = encodeURI(url);
       window.history.pushState({'path': path}, '', url);
    }
 
@@ -318,6 +313,14 @@ function odb_browser(id, path, picker) {
    });
 
    odb_update(tb);
+
+   // install event handler for browser history popstate events
+   window.addEventListener('popstate', (event) => {
+      if (event.state) {
+         subdir_goto(tb, event.state.path);
+      }
+   });
+
 }
 
 function global_keydown(event, tb) {
@@ -1756,7 +1759,15 @@ function subdir_goto(e, path) {
       if (url.search("&odb_path") !== -1)
          url = url.slice(0, url.search("&odb_path"));
       url += "&odb_path=" + path;
-      if (url !== window.location.href)
+      url = encodeURI(url); // convert spaces to %20 etc
+      let skip = false;
+
+      // "cmd=ODB" vs. "cmd=ODB&odb_path=/"
+      if (window.location.href.indexOf('&') === -1 &&
+          path === '/')
+         skip = true;
+
+      if (url !== window.location.href && !skip)
          window.history.pushState({'path': path}, '', url);
    }
 
@@ -1978,7 +1989,7 @@ function odb_print_key(tb, row, path, key, level, options) {
    td.style.display = odb.handleColumn ? 'table-cell' : 'none';
    td.style.width = "10px";
    tr.appendChild(td);
-   td.innerHTML = '<img style="cursor: all-scroll; height: 15px; padding: 0; border: 0" src="icons/menu.svg">';
+   td.innerHTML = '<img style="cursor: all-scroll; height: 13px; padding: 0; border: 0" src="icons/menu.svg">';
 
    td.childNodes[0].setAttribute('draggable', false);
 
