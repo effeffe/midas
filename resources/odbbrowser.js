@@ -19,22 +19,22 @@
 */
 
 let odb_css = `<style>
-       #odb .colHeader {
+       .odbBrowser .colHeader {
            font-weight: bold;
        }
-       #odb .mtable {
+       .odbBrowser .mtable {
            border-spacing: 0;
        }
-       #odb td, th {
+       .odbBrowser td, th {
            padding: 3px;
            user-select: none;
        }
-       #odb img {
+       .odbBrowser img {
            cursor: pointer;
            border: 5px solid #E0E0E0;
            border-radius: 5px;
        }
-       #odb img:hover {
+       .odbBrowser img:hover {
            border: 5px solid #C8C8C8;
        }
    </style>`;
@@ -177,6 +177,7 @@ function odb_browser(id, path, picker) {
 
    // crate table header
    d = document.getElementById(id);
+   d.classList.add("odbBrowser");
    let table = document.createElement('TABLE');
    table.className = "mtable";
    let tb = document.createElement('TBODY');
@@ -380,7 +381,7 @@ function close_submenus() {
 
 function odb_picker(path, callback, param) {
    let d = document.createElement("div");
-   d.className = "dlgFrame";
+   d.className = "dlgFrame odbBrowser";
    d.style.zIndex = "31";
    d.style.width = "400px";
    d.callback = callback;
@@ -412,6 +413,8 @@ function odb_picker(path, callback, param) {
 function pickerButton(e, flag) {
    let d = e.parentElement.parentElement.parentElement;
    let path = d.childNodes[1].childNodes[0].childNodes[0].childNodes[0].odb.selectedKey;
+   if (!path)
+      path = d.childNodes[1].childNodes[0].childNodes[0].childNodes[0].odb.path;
    d.callback(flag, path);
    dlgMessageDestroy(e.parentElement);
 }
