@@ -1859,7 +1859,7 @@ void ctime_to_datetime(char *date)
 
 /*---- mySQL debugging output --------------------------------------*/
 
-int mysql_query_debug(MYSQL * db, char *query)
+int mysql_query_debug(MYSQL * db, const char *query)
 {
    int status, size, fh;
    char filename[256], path[256], dir[256];
@@ -2018,26 +2018,25 @@ int sql_get_columns(HNDLE hKeyRoot, SQL_LIST ** sql_list)
 
 BOOL sql_create_table(MYSQL * db, char *database, char *table, HNDLE hKeyRoot)
 {
-   char str[256], query[5000];
-   int i, n_col;
    SQL_LIST *sql_list;
 
-   sprintf(query, "CREATE TABLE `%s`.`%s` (", database, table);
+   std::string query = msprintf("CREATE TABLE `%s`.`%s` (", database, table);
 
-   n_col = sql_get_columns(hKeyRoot, &sql_list);
+   int n_col = sql_get_columns(hKeyRoot, &sql_list);
    if (n_col == 0) {
-      db_get_path(hDB, hKeyRoot, str, sizeof(str));
-      cm_msg(MERROR, "sql_create_database", "ODB tree \"%s\" contains no variables", str);
+      std::string path = db_get_path(hDB, hKeyRoot);
+      cm_msg(MERROR, "sql_create_database", "ODB tree \"%s\" contains no variables", path.c_str());
       return FALSE;
    }
 
-   for (i = 0; i < n_col; i++)
-      sprintf(query + strlen(query), "`%s` %s  NOT NULL, ", sql_list[i].column_name, sql_list[i].column_type);
+   for (int i = 0; i < n_col; i++) {
+      query += msprintf("`%s` %s  NOT NULL, ", sql_list[i].column_name, sql_list[i].column_type);
+   }
 
-   sprintf(query + strlen(query), "PRIMARY KEY (`%s`))", sql_list[0].column_name);
+   query += msprintf("PRIMARY KEY (`%s`))", sql_list[0].column_name);
    free(sql_list);
 
-   if (mysql_query_debug(db, query)) {
+   if (mysql_query_debug(db, query.c_str())) {
       cm_msg(MERROR, "sql_create_table", "Failed to create table: Error: %s", mysql_error(db));
       return FALSE;
    }
@@ -2049,36 +2048,36 @@ BOOL sql_create_table(MYSQL * db, char *database, char *table, HNDLE hKeyRoot)
 
 BOOL sql_modify_table(MYSQL * db, char *database, char *table, HNDLE hKeyRoot)
 {
-   char str[256], query[5000];
-   int i, n_col;
    SQL_LIST *sql_list;
 
-   n_col = sql_get_columns(hKeyRoot, &sql_list);
+   int n_col = sql_get_columns(hKeyRoot, &sql_list);
    if (n_col == 0) {
-      db_get_path(hDB, hKeyRoot, str, sizeof(str));
-      cm_msg(MERROR, "sql_modify_table", "ODB tree \"%s\" contains no variables", str);
+      std::string path = db_get_path(hDB, hKeyRoot);
+      cm_msg(MERROR, "sql_modify_table", "ODB tree \"%s\" contains no variables", path.c_str());
       return FALSE;
    }
 
-   for (i = 0; i < n_col; i++) {
+   for (int i = 0; i < n_col; i++) {
+      std::string query;
 
       /* try to add column */
-      if (i == 0)
-         sprintf(query, "ALTER TABLE `%s`.`%s` ADD `%s` %s",
-                 database, table, sql_list[i].column_name, sql_list[i].column_type);
-      else
-         sprintf(query, "ALTER TABLE `%s`.`%s` ADD `%s` %s AFTER `%s`",
-                 database, table, sql_list[i].column_name, sql_list[i].column_type,
-                 sql_list[i - 1].column_name);
+      if (i == 0) {
+         query = msprintf("ALTER TABLE `%s`.`%s` ADD `%s` %s", database, table, sql_list[i].column_name, sql_list[i].column_type);
+      } else {
+         query = msprintf("ALTER TABLE `%s`.`%s` ADD `%s` %s AFTER `%s`",
+                          database, table,
+                          sql_list[i].column_name,
+                          sql_list[i].column_type,
+                          sql_list[i - 1].column_name);
+      }
 
-      if (mysql_query_debug(db, query)) {
+      if (mysql_query_debug(db, query.c_str())) {
          if (mysql_errno(db) == ER_DUP_FIELDNAME) {
 
             /* try to modify column */
-            sprintf(query, "ALTER TABLE `%s`.`%s` MODIFY `%s` %s",
-                    database, table, sql_list[i].column_name, sql_list[i].column_type);
+            query = msprintf("ALTER TABLE `%s`.`%s` MODIFY `%s` %s", database, table, sql_list[i].column_name, sql_list[i].column_type);
 
-            if (mysql_query_debug(db, query)) {
+            if (mysql_query_debug(db, query.c_str())) {
                free(sql_list);
                cm_msg(MERROR, "sql_modify_table", "Failed to modify column: Error: %s", mysql_error(db));
                return FALSE;
@@ -2099,19 +2098,17 @@ BOOL sql_modify_table(MYSQL * db, char *database, char *table, HNDLE hKeyRoot)
 
 /*---- Create mySQL database ---------------------------------------*/
 
-BOOL sql_create_database(MYSQL * db, char *database)
+BOOL sql_create_database(MYSQL * db, const char *database)
 {
-   char query[256];
-
-   sprintf(query, "CREATE DATABASE `%s`", database);
-   if (mysql_query_debug(db, query)) {
+   std::string query = msprintf("CREATE DATABASE `%s`", database);
+   if (mysql_query_debug(db, query.c_str())) {
       cm_msg(MERROR, "sql_create_database", "Failed to create database: Error: %s", mysql_error(db));
       return FALSE;
    }
 
    /* select database */
-   sprintf(query, "USE `%s`", database);
-   if (mysql_query_debug(db, query)) {
+   query = msprintf("USE `%s`", database);
+   if (mysql_query_debug(db, query.c_str())) {
       cm_msg(MERROR, "sql_create_database", "Failed to select database: Error: %s", mysql_error(db));
       return FALSE;
    }
@@ -2123,42 +2120,44 @@ BOOL sql_create_database(MYSQL * db, char *database)
 
 int sql_insert(MYSQL * db, char *database, char *table, HNDLE hKeyRoot, BOOL create_flag)
 {
-   char query[5000], str[5000];
-   int status, i, n_col;
    SQL_LIST *sql_list;
 
    /* 
       build SQL query in the form 
       "INSERT INTO `<table>` (`<name>`, <name`,..) VALUES (`<value>`, `value`, ...) 
     */
-   sprintf(query, "INSERT INTO `%s`.`%s` (", database, table);
-   n_col = sql_get_columns(hKeyRoot, &sql_list);
+   std::string query = msprintf("INSERT INTO `%s`.`%s` (", database, table);
+   int n_col = sql_get_columns(hKeyRoot, &sql_list);
    if (n_col == 0)
       return DB_SUCCESS;
 
-   for (i = 0; i < n_col; i++) {
-      sprintf(query + strlen(query), "`%s`", sql_list[i].column_name);
-      if (i < n_col - 1)
-         strcat(query, ", ");
+   for (int i = 0; i < n_col; i++) {
+      query += msprintf("`%s`", sql_list[i].column_name);
+      if (i < n_col - 1) {
+         query += ", ";
+      }
    }
 
-   strlcat(query, ") VALUES (", sizeof(query));
+   query += ") VALUES (";
 
-   for (i = 0; i < n_col; i++) {
-      strlcat(query, "'", sizeof(query));
+   for (int i = 0; i < n_col; i++) {
+      query += "'";
 
-      mysql_escape_string(str, sql_list[i].data, strlen(sql_list[i].data));
-      strlcat(query, str, sizeof(query));
-      strlcat(query, "'", sizeof(query));
+      size_t len = strlen(sql_list[i].data);
+      char str[len*2+1];
+      mysql_escape_string(str, sql_list[i].data, len);
+      query += str;
+      query += "'";
 
-      if (i < n_col - 1)
-         strlcat(query, ", ", sizeof(query));
+      if (i < n_col - 1) {
+         query += ", ";
+      }
    }
 
    free(sql_list);
    sql_list = NULL;
-   strlcat(query, ")", sizeof(query));
-   if (mysql_query_debug(db, query)) {
+   query += ")";
+   if (mysql_query_debug(db, query.c_str())) {
 
       /* if entry for this run exists alreay return */
       if (mysql_errno(db) == ER_DUP_ENTRY) {
@@ -2169,7 +2168,7 @@ int sql_insert(MYSQL * db, char *database, char *table, HNDLE hKeyRoot, BOOL cre
 
          /* if table does not exist, creat it and try again */
          sql_create_table(db, database, table, hKeyRoot);
-         if (mysql_query_debug(db, query)) {
+         if (mysql_query_debug(db, query.c_str())) {
             cm_msg(MERROR, "sql_insert", "Failed to update database: Error: %s", mysql_error(db));
             return mysql_errno(db);
          }
@@ -2179,13 +2178,13 @@ int sql_insert(MYSQL * db, char *database, char *table, HNDLE hKeyRoot, BOOL cre
 
          /* if table structure is different, adjust it and try again */
          sql_modify_table(db, database, table, hKeyRoot);
-         if (mysql_query_debug(db, query)) {
+         if (mysql_query_debug(db, query.c_str())) {
             cm_msg(MERROR, "sql_insert", "Failed to update database: Error: %s", mysql_error(db));
             return mysql_errno(db);
          }
 
       } else {
-         status = mysql_errno(db);
+         int status = mysql_errno(db);
          cm_msg(MERROR, "sql_insert", "Failed to update database: Errno: %d, Error: %s", status, mysql_error(db));
          return mysql_errno(db);
       }
@@ -2198,8 +2197,6 @@ int sql_insert(MYSQL * db, char *database, char *table, HNDLE hKeyRoot, BOOL cre
 
 int sql_update(MYSQL * db, char *database, char *table, HNDLE hKeyRoot, BOOL create_flag, char *where)
 {
-   char query[5000], str[10000];
-   int i, n_col;
    SQL_LIST *sql_list;
 
    /* 
@@ -2207,22 +2204,25 @@ int sql_update(MYSQL * db, char *database, char *table, HNDLE hKeyRoot, BOOL cre
       "UPDATE `<database`.`<table>` SET `<name>`='<value', ... WHERE `<name>`='value' 
     */
 
-   sprintf(query, "UPDATE `%s`.`%s` SET ", database, table);
-   n_col = sql_get_columns(hKeyRoot, &sql_list);
+   std::string query = msprintf("UPDATE `%s`.`%s` SET ", database, table);
+   int n_col = sql_get_columns(hKeyRoot, &sql_list);
    if (n_col == 0)
       return DB_SUCCESS;
 
-   for (i = 0; i < n_col; i++) {
-      mysql_escape_string(str, sql_list[i].data, strlen(sql_list[i].data));
-      sprintf(query + strlen(query), "`%s`='%s'", sql_list[i].column_name, str);
-      if (i < n_col - 1)
-         strcat(query, ", ");
+   for (int i = 0; i < n_col; i++) {
+      size_t len = strlen(sql_list[i].data);
+      char str[2*len+1]; // see https://dev.mysql.com/doc/c-api/8.0/en/mysql-real-escape-string.html
+      mysql_escape_string(str, sql_list[i].data, len);
+      query += msprintf("`%s`='%s'", sql_list[i].column_name, str);
+      if (i < n_col - 1) {
+         query += ", ";
+      }
    }
    free(sql_list);
    sql_list = NULL;
 
-   sprintf(query + strlen(query), " %s", where);
-   if (mysql_query_debug(db, query)) {
+   query += msprintf(" %s", where);
+   if (mysql_query_debug(db, query.c_str())) {
       if (mysql_errno(db) == ER_NO_SUCH_TABLE && create_flag) {
 
          /* if table does not exist, creat it and try again */
@@ -2233,7 +2233,7 @@ int sql_update(MYSQL * db, char *database, char *table, HNDLE hKeyRoot, BOOL cre
 
          /* if table structure is different, adjust it and try again */
          sql_modify_table(db, database, table, hKeyRoot);
-         if (mysql_query_debug(db, query)) {
+         if (mysql_query_debug(db, query.c_str())) {
             cm_msg(MERROR, "sql_update", "Failed to update database: Error: %s", mysql_error(db));
             return mysql_errno(db);
          }
