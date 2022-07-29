@@ -531,23 +531,22 @@ function odb_setall(p, value) {
       ).catch(error => mjsonrpc_error_alert(error));
    } else {
       let path = p.odbParam.param;
-      path = path.substring(0, path.lastIndexOf('/'));
       let key = p.parentNode.parentNode.key;
+      path = path.substring(0, path.lastIndexOf('/'));
+      path += '/' + key.name + '[';
+      let values =  [];
       for (let i=0 ; i<atr.length ; i++)
          if (atr[i].odbSelected) {
+            path += i + ',';
             if (key.type === TID_STRING || key.type === TID_LINK)
-               key.value[i] = value;
+               values.push(value);
             else
-               key.value[i] = parseFloat(value);
+               values.push(parseFloat(value));
          }
-      let req = {};
-      req[key.name] = key.value;
-      req[key.name+'/key'] = {};
-      req[key.name+'/key'].type = key.type;
-      req[key.name+'/key'].num_values = key.num_values;
-      req[key.name+'/key'].item_size = key.item_size;
-      mjsonrpc_db_paste([path], [req]).then(() =>
-         odb_update(tb)
+      path = path.slice(0, -1) + ']';
+
+      mjsonrpc_db_set_value(path, values).then(() =>
+          odb_update(tb)
       ).catch(error => mjsonrpc_error_alert(error));
    }
 }
