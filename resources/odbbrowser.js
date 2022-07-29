@@ -2659,8 +2659,8 @@ function update_open_records(odb) {
       let html = '<table class="mtable" style="width: 100%;margin-top: 0;margin-bottom:0"><tbody>';
       html += '<tr><th>ODB Path</th><th>Open by</th></tr>';
       for (const p of sorted_paths)
-         html += '<tr><td style="padding: 8px">' + p + '</td>' +
-            '<td style="padding: 8px">' + paths[p] + '</td></tr>';
+         html += '<tr><td style="padding: 4px">' + p + '</td>' +
+            '<td style="padding: 4px">' + paths[p] + '</td></tr>';
       html += '</tbody></table>';
 
       let d = document.getElementById('dlgSOR');
@@ -2705,15 +2705,15 @@ function update_open_clients(odb) {
       let scl = rpc.result.scl.clients;
 
       let html = '<table class="mtable" style="width: 100%;margin-top: 0;margin-bottom:0"><tbody>';
-      html += '<tr><th>Name</th><th>Host</th><th>Slot</th><th>PID</th><th>Timout</th><th>Active</th></tr>';
+      html += '<tr><th>Name</th><th>Host</th><th>Slot</th><th>PID</th><th>Timeout</th><th>Last active [ms]</th></tr>';
       for (const s of scl) {
-         html += '<tr><td style="padding: 8px"><a href="?cmd=odb&odb_path=/System/Clients/"'
+         html += '<tr><td style="padding: 4px"><a href="?cmd=odb&odb_path=/System/Clients/"'
              + s.pid + '">' + s.name + '</td>';
-         html += '<td>'+ s.host + '</td>';
-         html += '<td>'+ s.slot + '</td>';
-         html += '<td>'+ s.pid + '</td>';
-         html += '<td>'+ s.watchdog_timeout_millisec + '</td>';
-         html += '<td>'+ s.last_activity_millisec + '</td>';
+         html += '<td style="padding: 4px">'+ s.host + '</td>';
+         html += '<td style="padding: 4px">'+ s.slot + '</td>';
+         html += '<td style="padding: 4px">'+ s.pid + '</td>';
+         html += '<td style="padding: 4px">'+ s.watchdog_timeout_millisec + '</td>';
+         html += '<td style="padding: 4px">'+ s.last_activity_millisec + '</td>';
          html += '</tr>';
       }
       html += '</tbody></table>';
