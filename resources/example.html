@@ -86,6 +86,8 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
       <h2>mjsonrpc_db_create()</h2>
 
       <p>
+         <input type=button value='Delete /Example'
+                onClick='var paths = mjsonrpc_db_delete(["/Example"]).then(function(rpc){mjsonrpc_debug_alert(rpc);}).catch(function(error){mjsonrpc_error_alert(error);});'>
          <input type=button value='Create /Example & co'
                 onClick='var paths = [
              { "path" : "/Example/int", "type" : TID_INT },
@@ -97,6 +99,7 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
              { "path" : "/Example/string2", "type" : TID_STRING, "string_length": 10 },
              { "path" : "/Example/int_array", "type" : TID_INT, "array_length": 5 },
              { "path" : "/Example/double_array", "type" : TID_DOUBLE, "array_length": 5 },
+             { "path" : "/Example/string_array", "type" : TID_STRING, "array_length": 5, "string_length": 256 },
              { "path" : "/Example/test_nan", "type" : TID_DOUBLE },
              { "path" : "/Example/test_plusinf", "type" : TID_DOUBLE },
              { "path" : "/Example/test_minusinf", "type" : TID_DOUBLE },
@@ -218,18 +221,45 @@ ODBGetAlarms(); ---- use mjsonrpc_call("get_alarms")
       <h2>mjsonrpc_db_paste()</h2>
 
       <p>
-         <input type=button value='Push me'
+         <input type=button value='paste to /Example'
                 onClick='var paths = [
-                 "/Example/int",
-	              "/Example/int_array[2]",
-	              "/Example/int_array[3,4]",
-	              "/Example/int_array[invalid index]", // error: invalid array index
-	              "/does-not-exist-test-db-paste", // error: does not exist
-	              ];
-	              var values = [ 1, 2, [ 3, 4], 110, 120 ];
-	              mjsonrpc_db_paste(paths, values).then(function(rpc) {
-                 mjsonrpc_debug_alert(rpc);
-	              }).catch(function(error) { mjsonrpc_error_alert(error); });'>
+              "/Example/int",
+              "/Example/int_array[2]",
+              "/Example/int_array[3,4]",
+              "/Example/int_array[invalid index]", // error: invalid array index
+              "/does-not-exist-test-db-paste", // error: does not exist
+              "/Example/string",
+              "/Example/string_array",
+              "/Example/string_array[1]",
+              ];
+              var values = [ 1, 2, [ 3, 4], 110, 120, "test string", ["element0","element1","element2"],"another element1"];
+              mjsonrpc_db_paste(paths, values).then(function(rpc) {
+              mjsonrpc_debug_alert(rpc);
+              }).catch(function(error) { mjsonrpc_error_alert(error); });'>
+         <input type=button value='paste /Example/string_array'
+                onClick='var paths = [
+              "/Example/string_array",
+              ];
+              var values = [ ["array element0","array element1","array element2"] ];
+              mjsonrpc_db_paste(paths, values).then(function(rpc) {
+              mjsonrpc_debug_alert(rpc);
+              }).catch(function(error) { mjsonrpc_error_alert(error); });'>
+         <input type=button value='extend /Example/string_array'
+                onClick='var paths = [
+              "/Example/string_array",
+              ];
+              var values = [ ["s0","s1","s2","s3","s4","s5","s6"] ];
+              mjsonrpc_db_paste(paths, values).then(function(rpc) {
+              mjsonrpc_debug_alert(rpc);
+              }).catch(function(error) { mjsonrpc_error_alert(error); });'>
+         <input type=button value='paste string array element /Example/string_array'
+                onClick='var paths = [
+              "/Example/string_array[3]",
+              ];
+              var values = [ "paste element3" ];
+              mjsonrpc_db_paste(paths, values).then(function(rpc) {
+              mjsonrpc_debug_alert(rpc);
+              }).catch(function(error) { mjsonrpc_error_alert(error); });'>
       </p>
 
       <h2>mjsonrpc_db_save()</h2>

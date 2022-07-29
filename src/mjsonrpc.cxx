@@ -1092,6 +1092,9 @@ static MJsonNode* js_db_create(const MJsonNode* params)
 
       //printf("create odb [%s], type %d, array %d, string %d\n", path.c_str(), type, array_length, string_length);
 
+      if (string_length == 0)
+         string_length = NAME_LENGTH;
+
       int status = db_create_key(hDB, 0, path.c_str(), type);
 
       if (status == DB_SUCCESS && string_length > 0 && type == TID_STRING) {
