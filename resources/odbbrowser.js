@@ -767,7 +767,8 @@ function more_menu(event) {
       a.title = "Show clients currently attached to ODB";
       a.onclick = function () {
          d.style.display = 'none';
-         window.location.href = "?cmd=odb_scl";
+         // window.location.href = "?cmd=odb_scl";
+         show_open_clients(event.target);
          return false;
       }
       td.appendChild(a);
@@ -2670,6 +2671,61 @@ function update_open_records(odb) {
          dlgCenter(d.parentElement.parentElement);
       }
       window.setTimeout(update_open_records, 1000, odb);
+
+   }).catch( error => mjsonrpc_error_alert(error));
+}
+
+function show_open_clients(e) {
+   let odb = getOdbTb(e).odb;
+   let title = "ODB clients";
+
+   let d = document.createElement("div");
+   d.className = "dlgFrame";
+   d.style.zIndex = "30";
+   d.style.minWidth = "400px";
+   d.shouldDestroy = true;
+
+   d.innerHTML = "<div class=\"dlgTitlebar\" id=\"dlgMessageTitle\">" + title + "</div>" +
+       "<div class=\"dlgPanel\" style=\"padding: 2px;\">" +
+       "<div id=\"dlgSCL\"></div>" +
+       "<button class=\"dlgButton\" id=\"dlgMessageButton\" +" +
+       "type=\"button\" " +
+       " onClick=\"dlgMessageDestroy(this)\">Close</button>" +
+       "</div>";
+
+   document.body.appendChild(d);
+
+   update_open_clients(odb);
+   dlgShow(d, false);
+}
+
+function update_open_clients(odb) {
+   let path = odb.path;
+   mjsonrpc_call("db_scl").then (rpc => {
+      let scl = rpc.result.scl.clients;
+
+      let html = '<table class="mtable" style="width: 100%;margin-top: 0;margin-bottom:0"><tbody>';
+      html += '<tr><th>Name</th><th>Host</th><th>Slot</th><th>PID</th><th>Timout</th><th>Active</th></tr>';
+      for (const s of scl) {
+         html += '<tr><td style="padding: 8px"><a href="?cmd=odb&odb_path=/System/Clients/"'
+             + s.pid + '">' + s.name + '</td>';
+         html += '<td>'+ s.host + '</td>';
+         html += '<td>'+ s.slot + '</td>';
+         html += '<td>'+ s.pid + '</td>';
+         html += '<td>'+ s.watchdog_timeout_millisec + '</td>';
+         html += '<td>'+ s.last_activity_millisec + '</td>';
+         html += '</tr>';
+      }
+      html += '</tbody></table>';
+
+      let d = document.getElementById('dlgSCL');
+      if (d === null)
+         return; // dialog has been closed
+      if (d.innerHTML !== html) {
+         d.innerHTML = html;
+         dlgCenter(d.parentElement.parentElement);
+      }
+      window.setTimeout(update_open_clients, 1000, odb);
 
    }).catch( error => mjsonrpc_error_alert(error));
 }
