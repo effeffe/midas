@@ -569,7 +569,7 @@ int main(int argc, char *argv[])
       path1 += odb_path;
       path1 += ".";
       path1 += to_string(now);
-      printf("Preserving old ODB save file \%s\" to \"%s\"\n", odb_path.c_str(), path1.c_str());
+      printf("Preserving old ODB save file \"%s\" to \"%s\"\n", odb_path.c_str(), path1.c_str());
       if (!dry_run) {
          status = rename(odb_path.c_str(), path1.c_str());
          if (status != 0) {
