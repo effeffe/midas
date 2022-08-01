@@ -170,8 +170,7 @@ function odb_browser(id, path, picker) {
       if (url.search("&odb_path") !== -1)
          url = url.slice(0, url.search("&odb_path"));
       if (path !== '/')
-         url += "&odb_path=" + path;
-      url = encodeURI(url);
+         url += "&odb_path=" + encodeURIComponent(path);
       window.history.pushState({'path': path}, '', url);
    }
 
@@ -747,7 +746,7 @@ function more_menu(event) {
       a.title = "Show ODB keys which are open by other programs";
       a.onclick = function () {
          d.style.display = 'none';
-         // window.location.href = "?cmd=odb_sor&odb_path=" + odb.path;
+         // window.location.href = "?cmd=odb_sor&odb_path=" + encodeURIComponent(odb.path);
          show_open_records(event.target);
          return false;
       }
@@ -1761,8 +1760,7 @@ function subdir_goto(e, path) {
       let url = window.location.href;
       if (url.search("&odb_path") !== -1)
          url = url.slice(0, url.search("&odb_path"));
-      url += "&odb_path=" + path;
-      url = encodeURI(url); // convert spaces to %20 etc
+      url += "&odb_path=" + encodeURIComponent(path); // convert spaces to %20 etc
       let skip = false;
 
       // "cmd=ODB" vs. "cmd=ODB&odb_path=/"
