@@ -15404,11 +15404,8 @@ INT rpc_server_accept(int lsock)
                   *strchr(strchr(str, '.') + 1, '.') = 0;
 
             if (strcmp(v1, str) != 0) {
-               sprintf(str, "client MIDAS version %s differs from local version %s", version, cm_get_version());
-               cm_msg(MERROR, "rpc_server_accept", "%s", str);
-
-               sprintf(str, "received string: %s", net_buffer + 2);
-               cm_msg(MERROR, "rpc_server_accept", "%s", str);
+               cm_msg(MERROR, "rpc_server_accept", "client MIDAS version %s differs from local version %s", version, cm_get_version());
+               cm_msg(MERROR, "rpc_server_accept", "received string: %s", net_buffer + 2);
             }
 
             callback.host_port1 = (short) port1;

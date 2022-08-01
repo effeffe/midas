@@ -2410,7 +2410,7 @@ INT db_lock_database(HNDLE hDB)
    /* obtain access mutex in multi-thread applications */
    status = ss_mutex_wait_for(_database[hDB - 1].mutex, _database[hDB - 1].timeout);
    if (status != SS_SUCCESS) {
-      cm_msg(MERROR, "db_lock_database", "internal error: cannot obtain access mutex, aborting...");
+      cm_msg(MERROR, "db_lock_database", "cannot lock ODB mutex, timeout %d ms, status %d, aborting...", _database[hDB - 1].timeout, status);
       abort();
    }
 
@@ -2442,11 +2442,11 @@ INT db_lock_database(HNDLE hDB)
       /* wait max. 5 minutes for semaphore (required if locking process is being debugged) */
       status = ss_semaphore_wait_for(_database[hDB - 1].semaphore, _database[hDB - 1].timeout);
       if (status == SS_TIMEOUT) {
-         cm_msg(MERROR, "db_lock_database", "timeout obtaining lock for database, exiting...");
-         abort();
+         cm_msg(MERROR, "db_lock_database", "cannot lock ODB semaphore, timeout %d ms, exiting...", _database[hDB - 1].timeout);
+         exit(1);
       }
       if (status != SS_SUCCESS) {
-         cm_msg(MERROR, "db_lock_database", "cannot lock database, ss_semaphore_wait_for() status %d, aborting...", status);
+         cm_msg(MERROR, "db_lock_database", "cannot lock ODB semaphore, timeout %d ms, ss_semaphore_wait_for() status %d, aborting...", _database[hDB - 1].timeout, status);
          abort();
       }
    } else {
@@ -2469,7 +2469,7 @@ INT db_lock_database(HNDLE hDB)
          assert(!_database[hDB - 1].protect_write);
          status = ss_shm_unprotect(_database[hDB - 1].shm_handle, &_database[hDB - 1].shm_adr, _database[hDB - 1].shm_size, TRUE, FALSE, "db_lock_database");
          if (status != SS_SUCCESS) {
-            cm_msg(MERROR, "db_lock_database", "ss_shm_unprotect(TRUE,FALSE) failed with status %d, aborting...", status);
+            cm_msg(MERROR, "db_lock_database", "cannot lock ODB, ss_shm_unprotect(TRUE,FALSE) failed with status %d, aborting...", status);
             cm_msg_flush_buffer();
             abort();
          }
@@ -2497,7 +2497,7 @@ INT db_allow_write_locked(DATABASE* p, const char* caller_name)
       assert(p->protect_read);
       status = ss_shm_unprotect(p->shm_handle, &p->shm_adr, p->shm_size, TRUE, TRUE, caller_name);
       if (status != SS_SUCCESS) {
-         cm_msg(MERROR, "db_allow_write_locked", "ss_shm_unprotect(TRUE,TRUE) failed with status %d, aborting...", status);
+         cm_msg(MERROR, "db_allow_write_locked", "cannot write to ODB, ss_shm_unprotect(TRUE,TRUE) failed with status %d, aborting...", status);
          cm_msg_flush_buffer();
          abort();
       }
@@ -2557,7 +2557,7 @@ INT db_unlock_database(HNDLE hDB)
          _database[hDB - 1].database_header = NULL;
          status = ss_shm_protect(_database[hDB - 1].shm_handle, _database[hDB - 1].shm_adr, _database[hDB - 1].shm_size);
          if (status != SS_SUCCESS) {
-            cm_msg(MERROR, "db_unlock_database", "ss_shm_protect() failed with status %d, aborting...", status);
+            cm_msg(MERROR, "db_unlock_database", "cannot unlock ODB, ss_shm_protect() failed with status %d, aborting...", status);
             cm_msg_flush_buffer();
             abort();
          }
