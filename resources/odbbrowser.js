@@ -928,6 +928,7 @@ function select_key(event) {
          if (!headerRow && tr.childNodes[1].innerHTML !== "") {
             tr.odbSelected = true;
             tr.odbLastSelected = true;
+            tr.odbSelectTime = new Date().getTime();
          }
       }
    }
@@ -1158,26 +1159,17 @@ function context_menu(event) {
    d.childNodes[0].childNodes[3].childNodes[0].childNodes[0].onclick = function () {
       d.style.display = 'none';
 
-      let key = tr.childNodes[1].innerHTML;
-      if (key.indexOf('<a href=') !== -1) {
-         for (const c of tr.childNodes[1].childNodes)
-            if (c.tagName === 'A') {
-               key = c.innerHTML;
-               break;
-            }
-         if (key.indexOf('\u25BE') !== -1)
-            key = key.substring(key.indexOf('\u25BE') + 2);
-         if (key.indexOf('\u25B8') !== -1)
-            key = key.substring(key.indexOf('\u25B8') + 2);
-      }
+      let elem;
+      if (tr.key.type === TID_KEY)
+         elem = tr.childNodes[1].childNodes[2];
+      else
+         elem = tr.childNodes[1].childNodes[1];
 
-      while (key.indexOf("&nbsp;") !== -1)
-         key = key.substring(key.indexOf("&nbsp;")+6);
-
+      let key = elem.innerHTML.trim();
       tr.oldKey = key;
 
       inline_edit(event,
-         tr.childNodes[1],
+         elem,
          key,
          do_rename_key,
          key.length,
@@ -1325,35 +1317,6 @@ function do_odb_delete(flag, param) {
    }
 }
 
-function rename_key_click(event) {
-   let tr = event.target;
-   while (tr.tagName !== 'TR')
-      tr = tr.parentNode;
-   if (!tr.odbSelected)
-      return;
-   if (tr.childNodes[1].odbParam && tr.childNodes[1].odbParam.inEdit)
-      return;
-
-   event.stopPropagation(); // don't select key again
-
-   let key;
-   if (tr.childNodes[1].childNodes[1].tagName === 'SPAN')
-      key = tr.childNodes[1].childNodes[1].innerHTML;
-   else
-      key = tr.childNodes[1].innerHTML;
-   while (key.indexOf("&nbsp;") !== -1)
-      key = key.substring(key.indexOf("&nbsp;")+6);
-
-   tr.oldKey = key;
-
-   inline_edit(event,
-      tr.childNodes[1].childNodes[1],
-      key,
-      do_rename_key,
-      key.length,
-      tr.odbPath);
-}
-
 function rename_key(element) {
    let tb = getOdbTb(element);
    let n = 0;
@@ -1399,7 +1362,8 @@ function do_rename_key(p, str, path) {
    mjsonrpc_call("db_rename", { "paths": [path], "new_names": [str]})
       .then()
       .catch(error => mjsonrpc_error_alert(error));
-   let old = p.parentNode.oldKey;
+
+   let old = p.parentElement.parentElement.oldKey;
 
    p.innerHTML = p.innerHTML.replace(old, str);
 }
@@ -1741,6 +1705,11 @@ function subdir_goto_click(event, e) {
       tr = tr.parentNode;
    let path = tr.odbPath;
 
+   // don't open subdir if we are in rename mode
+   if (tr.childNodes[1].childNodes[2].odbParam &&
+      tr.childNodes[1].childNodes[2].odbParam.inEdit)
+      return;
+
    subdir_goto(event.target, path);
 }
 
@@ -2053,16 +2022,8 @@ function odb_print_key(tb, row, path, key, level, options) {
 
    } else if (key.link === undefined) {
       td.innerHTML = indent + '<span>' + key.name + '</span>';
-      if (!odb.picker) {
-         td.childNodes[1].addEventListener('click', rename_key_click);
-         td.childNodes[1].style.cursor = "pointer";
-      }
    } else {
       td.innerHTML = indent + '<span>' + key.name + '</span>';
-      if (!odb.picker) {
-         td.childNodes[1].addEventListener('click', rename_key_click);
-         td.childNodes[1].style.cursor = "pointer";
-      }
       if (odb.picker)
          td.innerHTML += ' &rarr; <span>' + key.link + '</span>';
       else
@@ -2152,7 +2113,7 @@ function odb_print_key(tb, row, path, key, level, options) {
             " onclick='option_edit(event, this, true)'" +
             " onblur='option_edit(event, this, false)'" +
             "'>\n";
-         
+
          // check if current value is in options, add it if not
          if (!options.includes(key.value))
             options.unshift(key.value);
@@ -2345,9 +2306,6 @@ function odb_print_key(tb, row, path, key, level, options) {
 
    if (!odb.picker)
       tb.childNodes[row.i].addEventListener('contextmenu', context_menu);
-
-   if (!odb.picer && key.type !== TID_KEY)
-      tb.childNodes[row.i].childNodes[1].childNodes[1].addEventListener('click', rename_key_click);
 
    // Remember ODB path and key in row
    tb.childNodes[row.i].odbPath = keyPath;
