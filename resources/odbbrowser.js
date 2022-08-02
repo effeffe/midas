@@ -1090,41 +1090,31 @@ function context_menu(event) {
       d.id = "contextMenu";
       d.style.display = "none";
       d.style.position = "absolute";
-      d.className = "mtable";
+      d.className = "msidenav";
       d.style.borderRadius = "0";
       d.style.border = "2px solid #808080";
       d.style.margin = "0";
-      d.style.padding = "0";
+      d.style.backgroundColor = "#F0F0F0";
 
-      d.style.left = "100px";
-      d.style.top = "100px";
-
-      let table = document.createElement("table");
+      let cm = document.createElement("div");
 
       let menu = ["Copy key", "Copy plain text", "Delete key", "Rename key"];
-      let trm;
-      let tdm;
-      let a;
+      let mDiv;
 
       for (const m of menu) {
-         trm = document.createElement("tr");
-         tdm = document.createElement("td");
-         tdm.style.padding = "0";
-         a = document.createElement("a");
-         a.href = "#";
-         a.innerHTML = m;
-         a.title = m;
-         tdm.appendChild(a);
-         trm.appendChild(tdm);
-         table.appendChild(trm);
+         mDiv = document.createElement("div");
+         mDiv.className = 'mmenuitem mmenulink';
+         mDiv.innerHTML = '<nobr>' + m + '</nobr>';
+         mDiv.title = m;
+         cm.appendChild(mDiv);
       }
 
-      d.appendChild(table);
+      d.appendChild(cm);
       document.body.appendChild(d);
    }
 
    // set event handler for copy menu
-   d.childNodes[0].childNodes[0].childNodes[0].childNodes[0].onclick = function () {
+   d.childNodes[0].childNodes[0].onclick = function () {
       d.style.display = 'none';
       unselect_all_keys(tb);
       tr.odbSelected = true;
@@ -1133,7 +1123,7 @@ function context_menu(event) {
    }
 
    // set event handler for copy plain text menu
-   d.childNodes[0].childNodes[1].childNodes[0].childNodes[0].onclick = function () {
+   d.childNodes[0].childNodes[1].onclick = function () {
       d.style.display = 'none';
       let path = tr.odbPath;
       mjsonrpc_db_copy([path]).then(rpc => {
@@ -1150,13 +1140,13 @@ function context_menu(event) {
    }
 
    // set event handler for delete key menu
-   d.childNodes[0].childNodes[2].childNodes[0].childNodes[0].onclick = function () {
+   d.childNodes[0].childNodes[2].onclick = function () {
       d.style.display = 'none';
       odb_delete(tr);
    }
 
    // set event handler for rename menu
-   d.childNodes[0].childNodes[3].childNodes[0].childNodes[0].onclick = function () {
+   d.childNodes[0].childNodes[3].onclick = function () {
       d.style.display = 'none';
 
       let elem;
@@ -1181,6 +1171,9 @@ function context_menu(event) {
    d.style.display = 'block';
    d.style.left = (event.offsetX + rect.left + window.scrollX) + 'px';
    d.style.top = (event.offsetY+rect.top + window.scrollY) + 'px';
+
+   if (parseInt(d.style.left) + d.offsetWidth > document.body.clientWidth)
+      d.style.left = (document.body.clientWidth - d.offsetWidth) + 'px';
 
    return false;
 }
