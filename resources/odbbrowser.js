@@ -2152,6 +2152,11 @@ function odb_print_key(tb, row, path, key, level, options) {
             " onclick='option_edit(event, this, true)'" +
             " onblur='option_edit(event, this, false)'" +
             "'>\n";
+         
+         // check if current value is in options, add it if not
+         if (!options.includes(key.value))
+            options.unshift(key.value);
+
          for (const o of options) {
             if (key.value === o)
                h += "<option selected value='" + o + "'>" + o + "</option>";
