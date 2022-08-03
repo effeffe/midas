@@ -1624,6 +1624,10 @@ void logger_init()
 
    strcpy(str, "");
    size = sizeof(str);
+   db_get_value(hDB, 0, "/Logger/History dir", str, &size, TID_STRING, TRUE);
+
+   strcpy(str, "");
+   size = sizeof(str);
    db_get_value(hDB, 0, "/Logger/Message file date format", str, &size, TID_STRING, TRUE);
 
    size = sizeof(BOOL);
