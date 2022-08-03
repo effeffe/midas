@@ -1288,13 +1288,13 @@ function odb_delete(e) {
       if (newPath === "")
          newPath = '/';
 
-      dlgConfirm('Are you sure to delete odb directory ' + currentPath + '?',
+      dlgConfirm('Are you sure to delete odb directory \"' + currentPath + '\" ?',
          do_odb_delete, {"e": e, "paths": [currentPath], "newPath": newPath} );
    } else if (paths.length == 1)
-      dlgConfirm('Are you sure to delete odb key ' + paths[0] + '?',
+      dlgConfirm('Are you sure to delete odb key \"' + paths[0] + '\" ?',
          do_odb_delete, {"e": e, "paths": paths});
    else
-      dlgConfirm('Are you sure to delete ' + paths.length + ' keys?',
+      dlgConfirm('Are you sure to delete ' + paths.length + ' keys ?',
          do_odb_delete, {"e": e, "paths": paths});
 }
 
@@ -1330,12 +1330,14 @@ function rename_key(element) {
       tr.style.backgroundColor = '';
       change_color(tr, '');
 
-      let elem =  tr.childNodes[1].childNodes[2] ?
-         tr.childNodes[1].childNodes[2] :
-         tr.childNodes[1].childNodes[1];
-      let key = elem.innerHTML;
-      key = key.trim();
+      let elem;
 
+      if (tr.key.type === TID_KEY)
+         elem = tr.childNodes[1].childNodes[2];
+      else
+         elem =  tr.childNodes[1].childNodes[1];
+
+      let key = elem.innerHTML;
       tr.oldKey = key;
 
       inline_edit(undefined,
