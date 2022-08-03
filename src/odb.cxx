@@ -8977,6 +8977,10 @@ Copy an ODB subtree in XML format to a buffer
 */
 INT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size)
 {
+
+   if (rpc_is_remote())
+      return rpc_call(RPC_DB_COPY_XML, hDB, hKey, buffer, buffer_size);
+
 #ifdef LOCAL_ROUTINES
    {
       INT len;

@@ -467,7 +467,7 @@ namespace midas {
 
       odb &get_subkey(std::string str);
       int get_subkeys(std::vector<std::string> &name);
-      bool read_key(std::string &path);
+      bool read_key(const std::string &path);
       bool write_key(std::string &path, bool write_defaults);
 
       void set_hkey(HNDLE hKey) { m_hKey = hKey; }
@@ -598,6 +598,28 @@ namespace midas {
       // Constructor for std::string
       odb(const std::string &str) : odb() {
          odb_from_string(str);
+      }
+
+      // Constructor with ODB path and quick construction
+      odb(const std::string &str, bool flag) : odb() {
+         init_hdb();
+
+         int status = db_find_link(m_hDB, 0, str.c_str(), &m_hKey);
+         if (status != DB_SUCCESS)
+            mthrow("ODB key \"" + str + "\" not found in ODB");
+
+         int size = 1000000;
+         char *buffer = (char *)malloc(size);
+         do {
+            status = db_copy_xml(m_hDB, m_hKey, buffer, &size);
+            if (status == DB_TRUNCATED) {
+               size *= 2;
+               buffer = (char *)realloc(buffer, size);
+            }
+         } while (status == DB_TRUNCATED);
+
+         std::cout << buffer << std::endl;
+         free(buffer);
       }
 
       // Constructor for C strings

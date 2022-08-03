@@ -120,9 +120,8 @@ namespace midas {
 
    void odb::odb_from_string(const std::string &str) {
       if (str[0] == '/') {
-         std::string s(str);
-         if (!read_key(s))
-            mthrow("ODB key \"" + s + "\" not found in ODB");
+         if (!read_key(str))
+            mthrow("ODB key \"" + str + "\" not found in ODB");
 
          if (m_tid != TID_KEY)
             read();
@@ -442,7 +441,7 @@ namespace midas {
    }
 
    // obtain key definition from ODB and allocate local data array
-   bool odb::read_key(std::string &path) {
+   bool odb::read_key(const std::string &path) {
       init_hdb();
 
       int status = db_find_link(m_hDB, 0, path.c_str(), &m_hKey);
@@ -458,7 +457,7 @@ namespace midas {
       // check for correct type if given as parameter
       if (m_tid > 0 && m_tid != (int) key.type)
          mthrow("ODB key \"" + get_full_path() +
-                "\" has differnt type than specified");
+                "\" has different type than specified");
 
       if (m_debug)
          std::cout << "Get definition for ODB key \"" + get_full_path() + "\"" << std::endl;

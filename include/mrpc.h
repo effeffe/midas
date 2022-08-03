@@ -95,6 +95,7 @@ routine IDs for RPC calls
 #define RPC_DB_SET_DATA1                11246 /**< - */
 #define RPC_DB_NOTIFY_CLIENTS_ARRAY     11247 /**< - */
 #define RPC_DB_GET_PARENT               11248 /**< - */
+#define RPC_DB_COPY_XML                 11249 /**< - */
 
 //#define RPC_HS_SET_PATH                 11300 /**< - */
 //#define RPC_HS_DEFINE_EVENT             11301 /**< - */
