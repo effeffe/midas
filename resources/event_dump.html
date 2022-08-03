@@ -213,7 +213,7 @@
             d += "<tr>";
 
             // address part
-            d += "<td style='width: 5%'>";
+            d += "<td>";
             if (o.banks_16bit)
                d += "0x" + (row*16).toString(16).padStart(4, "0");
             else
@@ -221,7 +221,7 @@
             d += "</td>";
 
             // hex part
-            d += "<td style='width: 60%'>";
+            d += "<td>";
             for (let i = 0; i < 16 && row*16 + i < b.hexdata.length; i++)
                d += "0x" + b.hexdata[row*16 + i].toString(16).padStart(2, "0") + " ";
             d += "</td>";
