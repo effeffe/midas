@@ -1473,37 +1473,34 @@ function mhttpd_gauge_draw() {
    ctx.fillStyle = "#FFFFFF";
    ctx.lineWidth = 1;
 
+   // outer ring
    ctx.beginPath();
    ctx.arc(w / 2, y, w / 2 - 1, Math.PI, 0);
-   ctx.lineTo(w - w / 5, y);
-   ctx.arc(w / 2, y, w / 2 - w / 5, 0, Math.PI, true);
-   ctx.lineTo(1, y);
-   if (this.dataset.backgroundColor !== undefined) {
-      ctx.fillStyle = this.dataset.backgroundColor;
-      ctx.fill();
-   }
-   ctx.stroke();
+   ctx.lineTo(w - 4, y);
+   ctx.arc(w / 2, y, w / 2 - 4, 0, Math.PI, true);
+   ctx.lineTo(4, y);
+   ctx.fillStyle = this.dataset.color;
+   ctx.fill();
 
-   // inner bar
+   // value bar
    ctx.beginPath();
    ctx.fillStyle = this.dataset.color;
    ctx.strokeStyle = this.dataset.color;
-   ctx.arc(w / 2, y, w / 2 - 1, Math.PI, (1 + v) * Math.PI);
+   ctx.arc(w / 2, y, w / 2 - 6, Math.PI, (1 + v) * Math.PI);
    ctx.arc(w / 2, y, w / 2 - w / 5, (1 + v) * Math.PI, Math.PI, true);
-   ctx.lineTo(1, y);
-   ctx.stroke();
    ctx.fill();
 
-   // redraw outer frame
-   ctx.strokeStyle = "#000000";
-   ctx.fillStyle = "#FFFFFF";
-   ctx.lineWidth = 1;
-   ctx.beginPath();
-   ctx.arc(w / 2, y, w / 2 - 1, Math.PI, 0);
-   ctx.lineTo(w - w / 5, y);
-   ctx.arc(w / 2, y, w / 2 - w / 5, 0, Math.PI, true);
-   ctx.lineTo(1, y);
-   ctx.stroke();
+   // black frame
+   if (this.dataset.frame) {
+      ctx.strokeStyle = "#000000";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(w / 2, y, w / 2 - 6, Math.PI, 0);
+      ctx.lineTo(w - w / 5, y);
+      ctx.arc(w / 2, y, w / 2 - w / 5, 0, Math.PI, true);
+      ctx.lineTo(6, y);
+      ctx.stroke();
+   }
 
    // optional value display
    if (this.dataset.printValue === "1") {
