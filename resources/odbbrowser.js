@@ -323,6 +323,12 @@ function odb_browser(id, path, picker) {
 
 }
 
+function escapeHTML(text) {
+   let div = document.createElement('div');
+   div.innerText = text;
+   return div.innerHTML;
+}
+
 function global_keydown(event, tb) {
    if (event.target.tagName === 'INPUT')
       return true;
@@ -2020,7 +2026,7 @@ function odb_print_key(tb, row, path, key, level, options) {
    if (key.type === TID_KEY) {
       if (odb.handleColumn)
          // do not show any links in re-order mode
-         td.innerHTML = indent + key.name;
+         td.innerHTML = indent + escapeHTML(key.name);
       else {
          let handler = "onclick=\"subdir_open_click(event, this);return false;\" ";
 
@@ -2034,7 +2040,7 @@ function odb_print_key(tb, row, path, key, level, options) {
                ">&nbsp;\u25B8&nbsp;</a>";
 
          handler = "onclick=\"subdir_goto_click(event, this);return false;\" ";
-         td.innerHTML += "<a href='#' " + handler + "> " + key.name + " </a>";
+         td.innerHTML += "<a href='#' " + handler + "> " + escapeHTML(key.name) + " </a>";
       }
 
       if (key.link) {
@@ -2050,17 +2056,17 @@ function odb_print_key(tb, row, path, key, level, options) {
       }
 
    } else if (key.link === undefined) {
-      td.innerHTML = indent + '<span>' + key.name + '</span>';
+      td.innerHTML = indent + '<span>' + escapeHTML(key.name) + '</span>';
    } else {
-      td.innerHTML = indent + '<span>' + key.name + '</span>';
+      td.innerHTML = indent + '<span>' + escapeHTML(key.name) + '</span>';
       if (odb.picker)
-         td.innerHTML += ' &rarr; <span>' + key.link + '</span>';
+         td.innerHTML += ' &rarr; <span>' + escapeHTML(key.link) + '</span>';
       else
          td.innerHTML += ' &rarr; <span>'+ '<a href="#" ' +
             'onclick="inline_edit(event, this.parentNode, \'' +
             key.link + '\', odb_setlink, undefined, \'' + keyPath +
             '\'); return false;" ' +
-            ' title="Change value">' + key.link +
+            ' title="Change value">' + escapeHTML(key.link) +
             '</a></span>';
    }
 
@@ -2173,11 +2179,13 @@ function odb_print_key(tb, row, path, key, level, options) {
          }
          h += "</select>\n";
          td.innerHTML = h;
+
       } else {
+
          let edit = '<a href="#" onclick="ODBInlineEdit(this.parentNode, \'' + keyPath + '\');return false;" ' +
             'onfocus="ODBInlineEdit(this.parentNode, \'' + keyPath + '\')" title="Change value">';
 
-         let v = key.value.toString();
+         let v = escapeHTML(key.value.toString());
          if (key.type === TID_STRING && v === "")
             v = "(empty)";
          else if (key.type === TID_STRING && v.trim() === "")
@@ -2406,7 +2414,7 @@ function odb_print_key(tb, row, path, key, level, options) {
          let edit = '<a href="#" onclick="ODBInlineEdit(this.parentNode, \''+p+'\');return false;"  '+
             'onfocus="ODBInlineEdit(this.parentNode, \''+p+'\')" title="Change array element">';
 
-         let v = key.value[i].toString();
+         let v = escapeHTML(key.value[i].toString());
          if (key.type === TID_STRING && v === "")
             v = "(empty)";
          else if (key.type === TID_BOOL)
