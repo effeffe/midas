@@ -128,95 +128,97 @@
 */
 
 // default styles for dialog boxes
-document.write("<style>" +
-   ".dlgFrame {" +
-   "   font-family: verdana,tahoma,sans-serif;" +
-   "   border: 1px solid black;" +
-   "   box-shadow: 6px 6px 10px 4px rgba(0,0,0,0.2);" +
-   "   border-radius: 6px;" +
-   "   position: absolute;" +
-   "   top: 0;" +
-   "   left: 0;" +
-   "   z-index: 10;" +
-   "   display: none; /* pre-hidden */" +
-   "}\n" +
-   ".dlgTitlebar {" +
-   "   user-select: none;" +
-   "   text-align: center;" +
-   "   background-color: #C0C0C0;" +
-   "   border-top-left-radius: 6px;" +
-   "   border-top-right-radius: 6px;" +
-   "   font-size: 10pt;" +
-   "   padding: 2px;" +
-   "}\n" +
-   ".dlgTitlebar:hover {" +
-   "   cursor: pointer;" +
-   "}\n" +
-   ".dlgButton {" +
-   "   font-size: 10pt;" +
-   "   background-color: #F8F8F8;" +
-   "   border: 1px solid #808080;" +
-   "   border-radius: 6px;" +
-   "   padding: 2px 4px;" +
-   "   margin: 3px;" +
-   "}\n" +
-   ".dlgButtonDefault {" +
-   "   font-size: 10pt;" +
-   "   background-color: #4187F7;" +
-   "   color: #FFFFFF;" +
-   "   border: 1px solid #808080;" +
-   "   border-radius: 6px;" +
-   "   padding: 2px 4px;" +
-   "   margin: 3px;" +
-   "}\n" +
-   ".dlgButton:hover {" +
-   "   background-color: #F0F0F0;" +
-   "}\n" +
-   ".dlgPanel {" +
-   "   background-color: #F0F0F0;" +
-   "   text-align: center;" +
-   "   padding: 4px;" +
-   "   border-bottom-left-radius: 6px;" +
-   "   border-bottom-right-radius: 6px;" +
-   "}\n" +
-   ".dlgBlackout {" +
-   "   background: rgba(0,0,0,.5);" +
-   "   position: fixed;" +
-   "   top: 0;" +
-   "   left: 0;" +
-   "   bottom: 0;" +
-   "   right: 0;" +
-   "   z-index: 20;" +
-   "}\n" +
-   ".ctrlHSlider {" +
-   "   width: 200px;" +
-   "   height: 30px;" +
-   "   border-radius: 5px;" +
-   "   padding: 0;" +
-   "}\n" +
-   ".ctrlVSlider {" +
-   "   width: 20px;" +
-   "   height: 200px;" +
-   "   border-radius: 5px;" +
-   "   padding: 0;" +
-   "}\n" +
-   ".ctrlProgress {" +
-   "   border: 1px solid #A0A0A0;" +
-   "   border-radius: 5px;" +
-   "   width: 500px;" +
-   "   height: 5px;" +
-   "   background-color: #E0E0E0;" +
-   "   margin-left: 6px;" +
-   "   margin-top: 5px;" +
-   "}\n" +
-   ".ctrlProgressInd {" +
-   "   border-radius: 5px;" +
-   "   width: 0;" +
-   "   height: 5px;" +
-   "   background-color: #419bf9;" +
-   "   margin: 0;" +
-   "}\n" +
-   "</style>");
+let controls_css = `<style>
+   .dlgFrame {
+      font-family: verdana,tahoma,sans-serif;
+      border: 1px solid black;
+      box-shadow: 6px 6px 10px 4px rgba(0,0,0,0.2);
+      border-radius: 6px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 10;
+      display: none; /* pre-hidden */
+   }
+   .dlgTitlebar {
+      user-select: none;
+      text-align: center;
+      background-color: #C0C0C0;
+      border-top-left-radius: 6px;
+      border-top-right-radius: 6px;
+      font-size: 10pt;
+      padding: 2px;
+      padding-left: 30px;
+      padding-right: 30px;
+   }
+   .dlgTitlebar:hover {
+      cursor: pointer;
+   }
+   .dlgButton {
+      font-size: 10pt;
+      background-color: #F8F8F8;
+      border: 1px solid #808080;
+      border-radius: 6px;
+      padding: 2px 4px;
+      margin: 3px;
+   }
+   .dlgButtonDefault {
+      font-size: 10pt;
+      background-color: #4187F7;
+      color: #FFFFFF;
+      border: 1px solid #808080;
+      border-radius: 6px;
+      padding: 2px 4px;
+      margin: 3px;
+   }
+   .dlgButton:hover {
+      background-color: #F0F0F0;
+   }
+   .dlgPanel {
+      background-color: #F0F0F0;
+      text-align: center;
+      padding: 4px;
+      border-bottom-left-radius: 6px;
+      border-bottom-right-radius: 6px;
+   }
+   .dlgBlackout {
+      background: rgba(0,0,0,.5);
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      right: 0;
+      z-index: 20;
+   }
+   .ctrlHSlider {
+      width: 200px;
+      height: 30px;
+      border-radius: 5px;
+      padding: 0;
+   }
+   .ctrlVSlider {
+      width: 20px;
+      height: 200px;
+      border-radius: 5px;
+      padding: 0;
+   }
+   .ctrlProgress {
+      border: 1px solid #A0A0A0;
+      border-radius: 5px;
+      width: 500px;
+      height: 5px;
+      background-color: #E0E0E0;
+      margin-left: 6px;
+      margin-top: 5px;
+   }
+   .ctrlProgressInd {
+      border-radius: 5px;
+      width: 0;
+     height: 5px;
+      background-color: #419bf9;
+      margin: 0;
+   }
+   </style>`;
 
 (function (window) { // anonymous global function
    window.addEventListener("load", ctlInit, false);
@@ -233,6 +235,9 @@ function Controls() // constructor
 
 Controls.prototype.init = function () // scan DOM
 {
+   // add special style
+   document.head.insertAdjacentHTML("beforeend", controls_css);
+   
    // scan DOM for controls
    this.ctrlButton = document.getElementsByName("ctrlButton");
    this.ctrlVSlider = document.getElementsByName("ctrlVSlider");
