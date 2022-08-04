@@ -1791,7 +1791,7 @@ function odb_update(tb) {
    let path = '';
    let s = "<a href=\"#\" onclick=\"subdir_goto(this, '/');return false;\" title=\"Root directory\">" +
       "<img src=\"icons/slash-square.svg\" style=\"border:none; height: 16px; vertical-align: middle;margin-bottom: 2px;\">" +
-      "</a>&nbsp;/&nbsp;";
+      "</a>&nbsp;";
    for (let i=1 ; i<dirs.length ; i++) {
       path += "/" + dirs[i];
       s += "<a href=\"#\" onclick=\"subdir_goto(this, '" + path + "');return false;\">"+dirs[i]+"</a>";
@@ -1889,7 +1889,31 @@ function odb_print_all(tb) {
 }
 
 function odb_print(tb, row, odb) {
+
+   // first print all directories
    for (const key of odb.key) {
+      if (key.type !== TID_KEY)
+         continue;
+
+      // Print current key
+      odb_print_key(tb, row, odb.path, key, odb.level);
+      row.i++;
+
+      // Print whole subdirectory if open
+      if (key.subdir_open) {
+
+         // Propagate skip_yellow flag (directory just opened) to all subkeys
+         key.value.skip_yellow = odb.skip_yellow;
+
+         // Print whole subdirectory
+         odb_print(tb, row, key.value);
+      }
+   }
+
+   // now print all keys
+   for (const key of odb.key) {
+      if (key.type === TID_KEY)
+         continue;
 
       // search for "Options <key>"
       let options = odb.key.find(o => o.name === 'Options ' + key.name);
@@ -1897,18 +1921,7 @@ function odb_print(tb, row, odb) {
       // Print current key
       odb_print_key(tb, row, odb.path, key, odb.level, options ? options.value : undefined);
       row.i++;
-      if (key.type !== TID_KEY)
-         row.nvk++;
-
-      // Print whole subdirectory if open
-      if (key.type === TID_KEY && key.subdir_open) {
-
-         // Propagate skip_yellow flag (dirctory just opened) to all subkeys
-         key.value.skip_yellow = odb.skip_yellow;
-
-         // Print whole subdirectory
-         odb_print(tb, row, key.value);
-      }
+      row.nvk++;
    }
 
    // Hide 'value' if only directories are listed
@@ -2103,7 +2116,25 @@ function odb_print_key(tb, row, path, key, level, options) {
             '</div>';
    } else {
 
-      if (options) {
+      if (key.type === TID_BOOL) {
+
+         let h = "<select onchange='odb_setoption(this)' " +
+            " onclick='option_edit(event, this, true)'" +
+            " onblur='option_edit(event, this, false)'" +
+            "'>\n";
+
+            if (key.value === false) {
+               h += "<option selected value='" + 0 + "'>No</option>";
+               h += "<option value='" + 1 + "'>Yes</option>";
+            } else {
+               h += "<option value='" + 0 + "'>No</option>";
+               h += "<option selected value='" + 1 + "'>Yes</option>";
+            }
+         h += "</select>\n";
+         td.innerHTML = h;
+
+      } else if (options) {
+
          let h = "<select onchange='odb_setoption(this)' " +
             " onclick='option_edit(event, this, true)'" +
             " onblur='option_edit(event, this, false)'" +
