@@ -584,7 +584,7 @@ function do_new_key(e) {
    let tb = getOdbTb(e);
    let path = document.getElementById('odbCreateDir').innerText;
    if (path === '/') path = "";
-   let name = document.getElementById('odbCreateName').value;
+   let name = document.getElementById('odbCreateName').value.trim();
    let type = parseInt(document.getElementById('odbCreateType').value);
    let size = parseInt(document.getElementById('odbCreateSize').value);
    let strlen = parseInt(document.getElementById('odbCreateStrLen').value);
@@ -1378,6 +1378,7 @@ function do_rename_key(p, str, path) {
       dlgAlert("Empty name not allowed");
       return;
    }
+   str = str.trim();
    mjsonrpc_call("db_rename", { "paths": [path], "new_names": [str]})
       .then()
       .catch(error => mjsonrpc_error_alert(error));
