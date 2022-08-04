@@ -1116,22 +1116,40 @@ function context_menu(event) {
    // set event handler for copy menu
    d.childNodes[0].childNodes[0].onclick = function () {
       d.style.display = 'none';
-      unselect_all_keys(tb);
-      tr.odbSelected = true;
       odb_copy(tb);
-      tr.odbSelected = false;
    }
 
    // set event handler for copy plain text menu
    d.childNodes[0].childNodes[1].onclick = function () {
       d.style.display = 'none';
-      let path = tr.odbPath;
-      mjsonrpc_db_copy([path]).then(rpc => {
-         let text = odbASCII(rpc.result.data[0], path);
+      let selKeys = get_selected_keys(tb);
+      let paths = [];
+      for (const k of selKeys)
+         paths.push(k.path);
+
+      mjsonrpc_db_copy(paths).then(rpc => {
+         let text = '';
+         let needPath = false;
+         for (let i=0 ; i<rpc.result.data.length ; i++) {
+            if (selKeys[i].key.type === TID_KEY) {
+               text += odbASCII(rpc.result.data[i], paths[i]);
+               needPath = true;
+            } else {
+               if (needPath)
+                  text += odbASCII(rpc.result.data[i], tb.odb.path);
+               else
+                  text += odbASCII(rpc.result.data[i]);
+               needPath = false;
+            }
+         }
          if (navigator.clipboard && navigator.clipboard.writeText) {
             try {
-               navigator.clipboard.writeText(text);
-               dlgAlert("ODB directory \"" + path + "\" copied to clipboard as plain text");
+               navigator.clipboard.writeText(text).then( () => {
+                  if (paths.length === 1)
+                     dlgAlert("ODB key \"" + paths + "\" copied to clipboard as plain text");
+                  else
+                     dlgAlert(paths.length + " ODB keys copied to clipboard as plain text");
+               }).catch(e => dlgAlert(e));
             } catch(error) {
                dlgAlert(error);
             }
@@ -1519,13 +1537,16 @@ function odb_paste_keys(tb, newKeys) {
 }
 
 function odbASCII(o, path) {
+   // convert ODB keys to plain ASCII representation
    let t = "";
    let need_path = true;
+   if (path === undefined)
+      need_path = false;
    for (const key in o) {
       if (key.indexOf('/') !== -1)
          continue;
 
-      if (o[key+'/key'] === undefined) {
+      if (o[key+'/key'] === undefined && path) {
          t += odbASCII(o[key], path + '/' + key);
          need_path = true;
          continue;
