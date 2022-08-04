@@ -36,7 +36,7 @@ INT nlocal;
 HNDLE hKeynlocal, hKeychktime;
 BOOL active_flag, esc_flag;
 INT loop, cur_max_line;
-char ststr[MAX_LINE][LINE_LENGTH];
+std::string xststr[MAX_LINE];
 
 /*------------------------------------------------------------------*/
 INT open_log_midstat(INT file_mode, INT runn, char *svpath)
@@ -74,17 +74,18 @@ INT open_log_midstat(INT file_mode, INT runn, char *svpath)
 void compose_status(HNDLE hDB, HNDLE hKey)
 {
    BOOL atleastone_active;
-   INT savej, j, ii, i, size;
+   INT i, size;
    char str[80], path[256];
    KEY key;
    HNDLE hSubkey;
    char strtmp[256];
 
    /* Clear string page */
-   memset(ststr, ' ', sizeof(ststr));
+   for (int jj = 0; jj < MAX_LINE; jj++) {
+      xststr[jj].clear();
+   }
 
-   for (j = 0; j < MAX_LINE; j++)
-      ststr[j][LINE_LENGTH - 1] = '\0';
+   int j = 0;
 
 /* --------------------- Run info -------------------------------- */
    {
@@ -118,7 +119,6 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       size = sizeof(ex);
       db_get_value(hDB, 0, "/experiment/name", ex, &size, TID_STRING, TRUE);
 
-      j = 0;
       {
          time_t full_time;
          time(&full_time);
@@ -133,29 +133,32 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       {
          sprintf(rev1, "%s", cm_get_revision());
          strcpy(rev, strstr(rev1, "midas"));
-         sprintf(&(ststr[j++][0]), "*- MIDAS Status Page  -%s ----------------------------*", str);
-         sprintf(&(ststr[j++][0]), "*- Revision  -%s---------*", rev);
+         xststr[j++] = msprintf("*- MIDAS Status Page  -%s ----------------------------*", str);
+         xststr[j++] = msprintf("*- Revision  -%s---------*", rev);
       }  
-      sprintf(&(ststr[j][0]), "Experiment:%s", ex);
-      sprintf(&(ststr[j][20]), "Run#:%d", rn);
+
+      xststr[j] = msprintf("Experiment: %s, ", ex);
+      xststr[j] += msprintf("Run: %d, ", rn);
 
       /* PAA revisit the /Runinfo for run time display */
       /* state */
       if (rs == STATE_RUNNING) {
          if (rt == TR_STOP)
-            sprintf(&(ststr[j][35]), "Deferred_Stop");
+            xststr[j] += msprintf(" Deferred_Stop");
          else {
             if (esc_flag)
-               sprintf(&(ststr[j][33]), "State:\033[1m%s\033[m", cs);
+               xststr[j] += msprintf("State: \033[1m%s\033[m", cs);
             else
-               sprintf(&(ststr[j][34]), "State:%s", cs);
+               xststr[j] += msprintf("State: %s", cs);
          }
       } else {
          if (rt == TR_START)
-            sprintf(&(ststr[j][34]), "Deferred_Start");
+            xststr[j] += msprintf("Deferred_Start");
          else
-            sprintf(&(ststr[j][34]), "State:%s", cs);
+            xststr[j] += msprintf("State: %s", cs);
       }
+
+      j++;
 
       /* time */
       if (rs != STATE_STOPPED) {
@@ -163,11 +166,11 @@ void compose_status(HNDLE hDB, HNDLE hKey)
          cm_time(&full_time);
          DWORD difftime = (DWORD) full_time - tb;
          if (esc_flag)
-            sprintf(&(ststr[j++][60]), "Run time :%02d:%02d:%02d",
-                    difftime / 3600, difftime % 3600 / 60, difftime % 60);
+            xststr[j++] = msprintf("Run time: %02d:%02d:%02d", difftime / 3600, difftime % 3600 / 60, difftime % 60);
          else
-            sprintf(&(ststr[j++][48]), "     Run time :%02d:%02d:%02d",
-                    difftime / 3600, difftime % 3600 / 60, difftime % 60);
+            xststr[j++] = msprintf("Run time: %02d:%02d:%02d", difftime / 3600, difftime % 3600 / 60, difftime % 60);
+
+         xststr[j++] = msprintf("Start time: %s", stt);
       } else if (rs == STATE_STOPPED) {
          DWORD difftime;
          if (tsb < tb)
@@ -175,19 +178,14 @@ void compose_status(HNDLE hDB, HNDLE hKey)
          else
             difftime = tsb - tb;
          if (esc_flag)
-            sprintf(&(ststr[j++][53]), "Full Run time :%02d:%02d:%02d",
-                    difftime / 3600, difftime % 3600 / 60, difftime % 60);
+            xststr[j++] = msprintf("Full Run time: %02d:%02d:%02d", difftime / 3600, difftime % 3600 / 60, difftime % 60);
          else
-            sprintf(&(ststr[j++][54]), "Full Run time :%02d:%02d:%02d",
-                    difftime / 3600, difftime % 3600 / 60, difftime % 60);
+            xststr[j++] = msprintf("Full Run time: %02d:%02d:%02d", difftime / 3600, difftime % 3600 / 60, difftime % 60);
 
-         sprintf(&(ststr[j][42]), " Stop time:%s", spt);
+         xststr[j++] = msprintf("Start time: %s", stt);
+         xststr[j++] += msprintf("Stop time:  %s", spt);
       }
-
-      /* Start Stop time */
-      sprintf(&(ststr[j][0]), "Start time:%s", stt);
-      ststr[++j][0] = '\0';
-      ststr[++j][0] = '\0';
+      xststr[j++] = "";
    }  /* --- run info --- */
 
 /* --------------------- Equipment tree -------------------------- */
@@ -200,15 +198,10 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       BOOL equenabled;
 
       size = sizeof(str);
-      savej = j;
       atleastone_active = FALSE;
       /* check if dir exists */
       if (db_find_key(hDB, 0, "/equipment", &hKey) == DB_SUCCESS) {
-         sprintf(&(ststr[j][0]), "FE Equip.");
-         sprintf(&(ststr[j][12]), "Node");
-         sprintf(&(ststr[j][30]), "Evts Taken");
-         sprintf(&(ststr[j][45]), "Evt Rate[/s]");
-         sprintf(&(ststr[j++][60]), "Data Rate[Kb/s]");
+         xststr[j++] = "FE Equip.   Node              Evts Taken     Evt Rate[/s]   Data Rate[Kb/s]";
          for (i = 0;; i++) {
             db_enum_key(hDB, hKey, i, &hSubkey);
             if (!hSubkey)
@@ -248,34 +241,38 @@ void compose_status(HNDLE hDB, HNDLE hKey)
                   {
                      char *pp, sdummy[257];
                      memset(sdummy, 0, 64);
-                     sprintf(&(ststr[j][0]), "%s ", key.name);
+                     xststr[j] = msprintf("%-11s ", key.name);
                      pp = strchr(equnode, '.');
                      if (pp != NULL)
-                        sprintf(&(ststr[j][12]), "%s",
-                                strncpy(sdummy, equnode, pp - equnode));
+                        xststr[j] += msprintf("%-18s", strncpy(sdummy, equnode, pp - equnode));
                      else
-                        sprintf(&(ststr[j][12]), "%s",
-                                strncpy(sdummy, equnode, sizeof(sdummy)-1));
+                        xststr[j] += msprintf("%-18s", strncpy(sdummy, equnode, sizeof(sdummy)-1));
 
                      if (equevtsend > 1E9)
-                        sprintf(&(ststr[j][30]), "%1.3lfG", equevtsend / 1E9);
+                        xststr[j] += msprintf("%10.3lfG", equevtsend / 1E9);
                      else if (equevtsend > 1E6)
-                        sprintf(&(ststr[j][30]), "%1.3lfM", equevtsend / 1E6);
+                        xststr[j] += msprintf("%10.3lfM", equevtsend / 1E6);
                      else
-                        sprintf(&(ststr[j][30]), "%1.0lf", equevtsend);
+                        xststr[j] += msprintf("%10.0lf", equevtsend);
 
+                     xststr[j] += "     ";
+                     
                      if (equenabled) {
                         if (esc_flag) {
-                           sprintf(&(ststr[j][45]), "\033[7m%1.1lf\033[m", equevtpsec);
-                           sprintf(&(ststr[j++][67]), "%1.1lf", equkbpsec);
+                           xststr[j] += msprintf("\033[7m%12.1lf\033[m", equevtpsec);
+                           xststr[j] += "      ";
+                           xststr[j] += msprintf("%12.1lf", equkbpsec);
                         } else {
-                           sprintf(&(ststr[j][45]), "%1.1lf", equevtpsec);
-                           sprintf(&(ststr[j++][60]), "%1.1lf", equkbpsec);
+                           xststr[j] += msprintf("%12.1lf", equevtpsec);
+                           xststr[j] += "      ";
+                           xststr[j] += msprintf("%12.1lf", equkbpsec);
                         }
                      } else {
-                        sprintf(&(ststr[j][45]), "%1.1lf", equevtpsec);
-                        sprintf(&(ststr[j++][60]), "%1.1lf", equkbpsec);
+                        xststr[j] += msprintf("%12.1lf", equevtpsec);
+                        xststr[j] += "      ";
+                        xststr[j] += msprintf("%12.1lf", equkbpsec);
                      }
+                     j++;
                   }             /* get value */
                }                /* active */
             }                   /* eor==NULL */
@@ -283,8 +280,7 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       }
       /* Front-End message */
       if (!atleastone_active) {
-         memset(&(ststr[savej][0]), 0, LINE_LENGTH);
-         sprintf(&(ststr[savej][0]), "... No Front-End currently running...");
+         xststr[j++] = "... No Front-End currently running...";
       }
    }                            /* --- Equipment tree --- */
 
@@ -301,35 +297,21 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       double lbyt;
 
       /* logger */
-      ststr[j++][0] = '\0';
+      xststr[j++] = "";
       size = sizeof(datadir);
       db_get_value(hDB, 0, "/logger/data dir", datadir, &size, TID_STRING, TRUE);
       std::string mesfile;
       cm_msg_get_logfile(NULL, 0, &mesfile, NULL, NULL);
       size = sizeof(wd);
       db_get_value(hDB, 0, "/logger/write data", &wd, &size, TID_BOOL, TRUE);
-      if (strlen(datadir) < 20) {
-         sprintf(&ststr[j][0], "Logger Data dir: %s", datadir);
-      } else {
-         sprintf(&ststr[j][0], "Logger Data dir: %s", &datadir[strlen(datadir)-20]);
-      }
+      xststr[j] = msprintf("Logger Data dir: %s", datadir);
+      j++;
+      xststr[j] = msprintf("Msg File: %s", mesfile.c_str());
+      j++;
 
-      if (mesfile.length() > 20) {
-         std::stringstream tmp;
-         tmp << "..."+mesfile.substr(mesfile.length()-17);
-         std::string f = tmp.str();
-         sprintf(&ststr[j++][43], "Msg File: %s", f.c_str());
-      } else {
-         sprintf(&ststr[j++][43], "Msg File: %s", mesfile.c_str());
-      }
       /* check if dir exists */
       if (db_find_key(hDB, 0, "/logger/channels", &hKey) == DB_SUCCESS) {
-         sprintf(&(ststr[j][0]), "Chan.");
-         sprintf(&(ststr[j][8]), "Active");
-         sprintf(&(ststr[j][15]), "Type");
-         sprintf(&(ststr[j][23]), "Filename");
-         sprintf(&(ststr[j][43]), "Events Taken");
-         sprintf(&(ststr[j++][60]), "KBytes Taken");
+         xststr[j++] = "Chan.   Active Type    Filename            Events Taken     KBytes Taken";
          for (i = 0;; i++) {
             db_enum_key(hDB, hKey, i, &hSubkey);
             if (!hSubkey)
@@ -369,46 +351,45 @@ void compose_status(HNDLE hDB, HNDLE hKey)
                lbyt /= 1024;
                if (lactive) {
                   if (esc_flag) {
-                     sprintf(&(ststr[j][0]), "  \033[7m%s\033[m", key.name);
-                     if (wd == 1)
-                        sprintf(&(ststr[j][15]), "%s", lstate);
-                     else
-                        sprintf(&(ststr[j][15]), "(%s)", lstate);
-                     sprintf(&(ststr[j][22]), "%s", ltype);
-                     sprintf(&(ststr[j][30]), "%s", lpath);
-                     sprintf(&(ststr[j][50]), "%.0f", levt);
-                     sprintf(&(ststr[j++][66]), "%9.2e", lbyt);
+                     xststr[j] = msprintf("  \033[7m%-3s\033[m", key.name);
                   } else {      /* no esc */
-
-                     sprintf(&(ststr[j][0]), "  %s", key.name);
-                     if (wd == 1)
-                        sprintf(&(ststr[j][8]), "%s", lstate);
-                     else
-                        sprintf(&(ststr[j][8]), "(%s)", lstate);
-                     sprintf(&(ststr[j][15]), "%s", ltype);
-                     sprintf(&(ststr[j][23]), "%s", lpath);
-                     sprintf(&(ststr[j][48]), "%.0f", levt);
-                     sprintf(&(ststr[j++][63]), "%9.2e", lbyt);
+                     xststr[j] = msprintf("  %-3s", key.name);
                   }
-               } else {         /* not active */
-
-                  sprintf(&(ststr[j][0]), "  %s", key.name);
+                  xststr[j] += "   ";
                   if (wd == 1)
-                     sprintf(&(ststr[j][8]), "%s", lstate);
+                     xststr[j] += msprintf("%-6s", lstate);
                   else
-                     sprintf(&(ststr[j][8]), "(%s)", lstate);
-                  sprintf(&(ststr[j][15]), "%s", ltype);
-                  sprintf(&(ststr[j][25]), "%s", lpath);
-                  sprintf(&(ststr[j][45]), "%.0f", levt);
-                  sprintf(&(ststr[j++][60]), "%9.2e", lbyt);
+                     xststr[j] += msprintf("(%-4s)", lstate);
+                  xststr[j] += " ";
+                  xststr[j] += msprintf("%-7s", ltype);
+                  xststr[j] += " ";
+                  xststr[j] += msprintf("%-15s", lpath);
+                  xststr[j] += "     ";
+                  xststr[j] += msprintf("%12.0f", levt);
+                  xststr[j] += "     ";
+                  xststr[j] += msprintf("%12.2e", lbyt);
+               } else {         /* not active */
+                  xststr[j] = msprintf("  %-3s", key.name);
+                  xststr[j] += "   ";
+                  if (wd == 1)
+                     xststr[j] += msprintf("%-6s", lstate);
+                  else
+                     xststr[j] += msprintf("(%-4s)", lstate);
+                  xststr[j] += " ";
+                  xststr[j] += msprintf("%-7s", ltype);
+                  xststr[j] += " ";
+                  xststr[j] += msprintf("%-15s", lpath);
+                  xststr[j] += "     ";
+                  xststr[j] += msprintf("%12.0f", levt);
+                  xststr[j] += "     ";
+                  xststr[j] += msprintf("%12.2e", lbyt);
                }
+               j++;
             }                   /* key */
          }                      /* for */
       }                         /* exists */
    } else {
-      ststr[j++][0] = '\0';
-//-PAA  sprintf(&(ststr[j++][0]),"");
-      sprintf(&(ststr[j++][0]), "... Logger currently not running...");
+      xststr[j++] = msprintf("... Logger currently not running...");
    }
 
 /* --------------------- Lazy logger tree ------------------------ */
@@ -442,37 +423,24 @@ void compose_status(HNDLE hDB, HNDLE hKey)
                status = db_find_key(hDB, 0, str, &hlKey);
                if (status == DB_SUCCESS) {
                   size = sizeof(tl);
-                  db_get_value(hDB, hlKey, "/Settings/List label", tl, &size, TID_STRING,
-                               TRUE);
+                  db_get_value(hDB, hlKey, "/Settings/List label", tl, &size, TID_STRING, TRUE);
                   if (*tl == '\0')
                      sprintf(tl, "<empty>");
                   size = sizeof(cr);
-                  db_get_value(hDB, hlKey, "statistics/Copy progress (%)", &cr, &size,
-                               TID_DOUBLE, TRUE);
+                  db_get_value(hDB, hlKey, "statistics/Copy progress (%)", &cr, &size, TID_DOUBLE, TRUE);
                   size = sizeof(nf);
-                  db_get_value(hDB, hlKey, "statistics/Number of Files", &nf, &size,
-                               TID_INT, TRUE);
+                  db_get_value(hDB, hlKey, "statistics/Number of Files", &nf, &size, TID_INT, TRUE);
                   size = sizeof(bs);
-                  db_get_value(hDB, hlKey, "statistics/Backup status (%)", &bs, &size,
-                               TID_DOUBLE, TRUE);
+                  db_get_value(hDB, hlKey, "statistics/Backup status (%)", &bs, &size, TID_DOUBLE, TRUE);
                   size = sizeof(bn);
-                  db_get_value(hDB, hlKey, "statistics/Backup file", bn, &size,
-                               TID_STRING, TRUE);
+                  db_get_value(hDB, hlKey, "statistics/Backup file", bn, &size, TID_STRING, TRUE);
 
                   if (k == 0) {
-                     ststr[j++][0] = '\0';
-//              sprintf(ststr[j++],"");
-                     sprintf(&(ststr[j][0]), "Lazy Label");
-                     sprintf(&(ststr[j][15]), "Progress");
-                     sprintf(&(ststr[j][25]), "File name");
-                     sprintf(&(ststr[j][45]), "#files");
-                     sprintf(&(ststr[j++][60]), "Total");
+                     xststr[j++] = "";
+                     //sprintf(ststr[j++],"");
+                     xststr[j] = msprintf("%s %15s %25s %45s %60s", "Lazy Label", "Progress", "File name", "#files", "Total"); // FIXME
                   }
-                  sprintf(&(ststr[j][0]), "%s", tl);
-                  sprintf(&(ststr[j][15]), "%.0f[%%]", cr);
-                  sprintf(&(ststr[j][25]), "%s", bn);
-                  sprintf(&(ststr[j][45]), "%i", nf);
-                  sprintf(&(ststr[j++][60]), "%.1f[%%]", bs);
+                  xststr[j] = msprintf("%15s %.0f[%%] %s %i %.1f[%%]", tl, cr, bn, nf, bs); // FIXME
                   k++;
                }
             }
@@ -480,7 +448,7 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       }
    }
 
-   ststr[j++][0] = '\0';
+   xststr[j++] = "";
 
 /* --------------------- System client list ---------------------- */
 /* Get current Client listing */
@@ -488,10 +456,8 @@ void compose_status(HNDLE hDB, HNDLE hKey)
       char clientn[256], clienth[256];
       char *pp, sdummy[64];
 
-      ii = 0;
-
-      sprintf(&(ststr[j][0]), "Clients:");
-      for (i = 0;; i++) {
+      xststr[j] = "Clients:";
+      for (int i = 0;; i++) {
          db_enum_key(hDB, hKey, i, &hSubkey);
          if (!hSubkey)
             break;
@@ -505,36 +471,28 @@ void compose_status(HNDLE hDB, HNDLE hKey)
          size = sizeof(clienth);
          sprintf(strtmp, "host");
          db_get_value(hDB, hSubkey, strtmp, clienth, &size, TID_STRING, TRUE);
-         if (ii > 1) {
-            ii = 0;
-            ststr[++j][0] = '\0';
-         }
          memset(sdummy, 0, 64);
          pp = strchr(clienth, '.');
          if (pp != NULL)
-            sprintf(&(ststr[j][10 + 35 * ii]), "%s/%s", clientn,
-                    strncpy(sdummy, clienth, pp - clienth));
+            xststr[j] += msprintf(" %s/%s", clientn, strncpy(sdummy, clienth, pp - clienth));
          else
-            sprintf(&(ststr[j][10 + 35 * ii]), "%s/%s", clientn, clienth);
-         ii++;
+            xststr[j] += msprintf(" %s/%s", clientn, clienth);
       }
       j++;
    }
 
-   if (loop == 1)
-      sprintf(ststr[j++],
-              "*- [!] to Exit ------- [R] to Refresh ---------------------- Delay:%2.i [sec]-*",
-              delta_time / 1000);
-   else
-      sprintf(ststr[j++],
-              "*---------------------------------------------------------------------------*");
+   if (loop == 1) {
+      xststr[j++] = msprintf("*- [!] to Exit ------- [R] to Refresh ---------------------- Delay:%2.i [sec]-*", delta_time / 1000);
+   } else {
+      xststr[j++] = "*---------------------------------------------------------------------------*";
+   }
 
    cur_max_line = j;
 
-   /* remove '/0' */
-   for (j = 0; j < MAX_LINE; j++)
-      while (strlen(ststr[j]) < (LINE_LENGTH - 1))
-         ststr[j][strlen(ststr[j])] = ' ';
+   ///* remove '/0' */
+   //for (int j = 0; j < MAX_LINE; j++)
+   //   while (strlen(ststr[j]) < (LINE_LENGTH - 1))
+   //      ststr[j][strlen(ststr[j])] = ' ';
    return;
 }
 
@@ -603,9 +561,6 @@ int main(int argc, char **argv)
    cm_set_watchdog_params(TRUE, 0);
 #endif
 
-   /* reset page */
-   memset(ststr, '\0', sizeof(ststr));
-
    /* turn off message display, turn on message logging */
    cm_set_msg_print(MT_ALL, 0, NULL);
 
@@ -620,31 +575,31 @@ int main(int argc, char **argv)
          fHandle = open_log_midstat(file_mode, rn, svpath);
          esc_flag = 0;
          compose_status(hDB, hKey);
-         while ((j < cur_max_line) && (ststr[j][0] != '\0')) {
+         while ((j < cur_max_line) && (xststr[j][0] != '\0')) {
             int wr;
-            strncpy(svpath, ststr[j], 80);
+            strncpy(svpath, xststr[j].c_str(), 80);
             svpath[80] = '\0';
             printf("%s\n", svpath);
             wr = write(fHandle, "\n", 1);
             assert(wr == 1);
-            wr = write(fHandle, ststr[j], strlen(ststr[j]));
-            assert(wr == (int)strlen(ststr[j]));
+            wr = write(fHandle, xststr[j].c_str(), xststr[j].length());
+            assert(wr == (int)xststr[j].length());
             j++;
          }
          close(fHandle);
       } else {
          esc_flag = 0;
          compose_status(hDB, hKey);
-         while ((j < cur_max_line) && (ststr[j][0] != '\0')) {
-            strncpy(svpath, ststr[j++], 80);
-            svpath[80] = '\0';
-            printf("%s\n", svpath);
+         for (int k=0; k<cur_max_line; k++) {
+            printf("%s\n", xststr[k].c_str());
          }
       }
    } else {
 
       /* initialize ss_getchar() */
       ss_getchar(0);
+
+      ss_clear_screen();
 
       do {
          if ((ss_millitime() - last_time) > delta_time) {
@@ -654,11 +609,9 @@ int main(int argc, char **argv)
                ss_clear_screen();
             last_max_line = cur_max_line;
 
-            j = 0;
-            while ((j < cur_max_line) && (ststr[j][0] != '\0')) {
-               strlcpy(strdis, ststr[j], sizeof(strdis));
-               ss_printf(0, j, "%s", strdis);
-               j++;
+            for (int j=0; j<cur_max_line; j++) {
+               strlcpy(strdis, xststr[j].c_str(), sizeof(strdis));
+               ss_printf(0, j, "%s", xststr[j].c_str());
             }
          }
          ch = 0;
