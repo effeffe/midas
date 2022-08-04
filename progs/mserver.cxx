@@ -824,6 +824,10 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       status = db_get_open_records(CHNDLE(0), CHNDLE(1), CSTRING(2), CINT(3), CBOOL(4));
       break;
 
+   case RPC_DB_COPY_XML:
+      status = db_copy_xml(CHNDLE(0), CHNDLE(1), CSTRING(2), CPINT(3));
+      break;
+
    case RPC_EL_SUBMIT:
       status = el_submit(CINT(0), CSTRING(1), CSTRING(2), CSTRING(3), CSTRING(4),
                          CSTRING(5), CSTRING(6), CSTRING(7),

@@ -8975,7 +8975,7 @@ Copy an ODB subtree in XML format to a buffer
 @param buffer_size Size of buffer, returns remaining space in buffer.
 @return DB_SUCCESS, DB_TRUNCATED, DB_NO_MEMORY
 */
-INT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, INT * buffer_size)
+INT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, int *buffer_size)
 {
 
    if (rpc_is_remote())

@@ -28,6 +28,7 @@
 
 #include "midas.h"
 #include "mexcept.h"
+#include "mxml.h"
 // #include "mleak.h" // un-comment for memory leak debugging
 
 
@@ -618,8 +619,15 @@ namespace midas {
             }
          } while (status == DB_TRUNCATED);
 
-         std::cout << buffer << std::endl;
-         free(buffer);
+         char error[256];
+         PMXML_NODE node = mxml_parse_buffer(buffer, error, sizeof(error), NULL);
+
+
+         char b[1000000];
+         int s = sizeof(b);
+         mxml_print_tree(b, &s, node);
+         std::cout << b << std::endl;
+
       }
 
       // Constructor for C strings
