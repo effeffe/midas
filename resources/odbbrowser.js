@@ -582,7 +582,7 @@ function do_new_key(e) {
       e = e.parentElement.parentElement.parentElement.parentElement.parentElement.parentElement.param;
 
    let tb = getOdbTb(e);
-   let path = document.getElementById('odbCreateDir').innerHTML;
+   let path = document.getElementById('odbCreateDir').innerText;
    if (path === '/') path = "";
    let name = document.getElementById('odbCreateName').value;
    let type = parseInt(document.getElementById('odbCreateType').value);
@@ -1821,7 +1821,7 @@ function odb_update(tb) {
       "</a>&nbsp;";
    for (let i=1 ; i<dirs.length ; i++) {
       path += "/" + dirs[i];
-      s += "<a href=\"#\" onclick=\"subdir_goto(this, '" + path + "');return false;\">"+dirs[i]+"</a>";
+      s += "<a href=\"#\" onclick=\"subdir_goto(this, '" + escapeHTML(path) + "');return false;\">"+escapeHTML(dirs[i])+"</a>";
       if (i < dirs.length - 1)
          s += "&nbsp;/&nbsp;";
    }
