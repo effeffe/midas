@@ -1569,24 +1569,17 @@ function odbASCII(o, path) {
 
       let tid = o[key+'/key'].type;
       let num_values = o[key+'/key'].num_values;
-      let item_size = o[key+'/key'].item_size;
-      t += key + " = ";
-      t += tid_name[tid];
+      t += key;
 
       if (num_values > 1) {
-         t += '[' + num_values + ']';
-         t += " :\n";
+         t += ":\n";
          for (let i=0 ; i<num_values ; i++) {
-            t += '[' + i + '] ';
-            if (tid === TID_STRING || tid === TID_LINK)
-               t += '[' + item_size + '] ';
+            t += '[' + i + ']\t';
             t += mie_to_string(tid, o[key][i]);
             t += '\n';
          }
       } else {
-         t += " : ";
-         if (tid === TID_STRING || tid === TID_LINK)
-            t += '[' + item_size + '] ';
+         t += ":\t";
          t += mie_to_string(tid, o[key]);
          t += '\n';
       }
