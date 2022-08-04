@@ -649,8 +649,8 @@ function do_new_link(e) {
 
    let path = document.getElementById('odbCreateLinkDir').innerHTML;
    if (path === '/') path = "";
-   let name = document.getElementById('odbCreateLinkName').value;
-   let target = document.getElementById('odbCreateLinkTarget').value;
+   let name = document.getElementById('odbCreateLinkName').value.trim();
+   let target = document.getElementById('odbCreateLinkTarget').value.trim();
 
    if (name.length < 1) {
       dlgAlert("No name specified");
@@ -690,6 +690,9 @@ function new_subdir(e) {
 function do_new_subdir(subdir, e) {
    if (subdir === false)
       return;
+
+   // remove any leading or trailing spaces
+   subdir = subdir.trim();
 
    if (subdir.length < 1) {
       dlgAlert("No name specified");
@@ -2041,7 +2044,7 @@ function odb_print_key(tb, row, path, key, level, options) {
                ">&nbsp;\u25B8&nbsp;</a>";
 
          handler = "onclick=\"subdir_goto_click(event, this);return false;\" ";
-         td.innerHTML += "<a href='#' " + handler + "> " + escapeHTML(key.name) + " </a>";
+         td.innerHTML += "<a href='#' " + handler + ">" + escapeHTML(key.name) + "</a>";
       }
 
       if (key.link) {
