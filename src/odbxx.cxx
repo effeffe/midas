@@ -212,7 +212,7 @@ namespace midas {
       if (m_parent)
          return m_parent->get_full_path() + "/" + m_name;
 
-      if (!is_connected_odb())
+      if (!is_connected_odb() || m_hKey == -1)
          return m_name;
 
       char str[256];
@@ -419,7 +419,7 @@ namespace midas {
    int odb::get_subkeys(std::vector<std::string> &name) {
       if (m_tid != TID_KEY)
          return 0;
-      if (m_hKey == 0)
+      if (m_hKey == 0 || m_hKey == -1)
          mthrow("get_subkeys called with invalid m_hKey for ODB key \"" + m_name + "\"");
 
       // count number of subkeys in ODB
@@ -602,6 +602,15 @@ namespace midas {
       if (m_tid == 0)
          mthrow("Read of invalid ODB key \"" + m_name + "\"");
 
+      if (m_hKey == -1) {
+         // connect un-connected object (crated via XML)
+         std::string path = get_full_path();
+
+         int status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
+         if (status != DB_SUCCESS)
+            mthrow("Cannot connect key \"" + path + "\" to ODB");
+      }
+
       int status{};
       if (m_tid == TID_STRING || m_tid == TID_LINK) {
          KEY key;
@@ -717,7 +726,7 @@ namespace midas {
       if (!is_connected_odb())
          return;
 
-      if (m_hKey == 0)
+      if (m_hKey == 0 || m_hKey == -1)
          return; // needed to print un-connected objects
 
       if (m_tid == 0)
@@ -788,7 +797,15 @@ namespace midas {
       if (!is_connected_odb())
          return;
 
-      if (m_hKey == 0) {
+      if (m_hKey == -1) {
+         // connect un-connected object (crated via XML)
+         std::string path = get_full_path();
+
+         int status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
+         if (status != DB_SUCCESS)
+            mthrow("Cannot connect key \"" + path + "\" to ODB");
+
+      } else if (m_hKey == 0) {
          if (is_auto_create()) {
             int status = db_create_key(m_hDB, 0, m_name.c_str(), m_tid);
             if (status != DB_SUCCESS && status != DB_CREATED && status != DB_KEY_EXIST)
@@ -892,7 +909,7 @@ namespace midas {
       if (m_tid < 1 || m_tid >= TID_LAST)
          mthrow("Invalid TID for ODB key \"" + get_full_path() + "\"");
 
-      if (m_hKey == 0 && !is_auto_create())
+      if ((m_hKey == 0  || m_hKey == -1) && !is_auto_create())
          mthrow("Writing ODB key \"" + m_name +
                 "\" is not possible because of invalid key handle");
 
@@ -908,7 +925,15 @@ namespace midas {
          return;
       }
 
-      if (m_hKey == 0) {
+      if (m_hKey == -1) {
+         // connect un-connected object (crated via XML)
+         std::string path = get_full_path();
+
+         int status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
+         if (status != DB_SUCCESS)
+            mthrow("Cannot connect key \"" + path + "\" to ODB");
+
+      } else if (m_hKey == 0) {
          if (is_auto_create()) {
             int status = db_create_key(m_hDB, 0, m_name.c_str(), m_tid);
             if (status != DB_SUCCESS && status != DB_CREATED && status != DB_KEY_EXIST)
@@ -1268,7 +1293,7 @@ namespace midas {
    }
 
    void odb::watch(std::function<void(midas::odb &)> f) {
-      if (m_hKey == 0)
+      if (m_hKey == 0 || m_hKey == -1)
          mthrow("watch() called for ODB key \"" + m_name +
                 "\" which is not connected to ODB");
 
@@ -1302,6 +1327,39 @@ namespace midas {
          delete m_watchlist[i];
       }
       m_watchlist.clear();
+   }
+
+   void odb::set(std::string s)
+   {
+      if (m_tid == TID_BOOL)
+         s = (s == "y" || s == "1") ? "1" : "0";
+
+      m_num_values = 1;
+      m_data = new u_odb[1];
+      m_data[0].set_parent(this);
+      m_data[0].set_tid(m_tid);
+      m_data[0].set(s);
+   }
+
+   void odb::set(std::string s, int i)
+   {
+      if (m_tid == TID_BOOL)
+         s = (s == "y" || s == "1") ? "1" : "0";
+
+      if (m_data == nullptr)
+         m_data = new u_odb[m_num_values];
+      m_data[i].set_parent(this);
+      m_data[i].set_tid(m_tid);
+      m_data[i].set(s);
+   }
+
+   void odb::set_odb(odb *o, int i)
+   {
+      if (m_data == nullptr)
+         m_data = new u_odb[m_num_values];
+      m_data[i].set_parent(this);
+      m_data[i].set_tid(m_tid);
+      m_data[i].set_odb(o);
    }
 
    //-----------------------------------------------
