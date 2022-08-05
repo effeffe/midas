@@ -279,6 +279,13 @@ static RPC_LIST rpc_list_library[] = {
       {TID_INT32, RPC_OUT},
       {0}}},
 
+   {RPC_DB_COPY_XML, "db_copy_xml",
+    {{TID_INT32, RPC_IN},
+     {TID_INT32, RPC_IN},
+     {TID_ARRAY, RPC_OUT | RPC_VARARRAY},
+     {TID_INT32, RPC_IN | RPC_OUT},
+     {0}}},
+
    {RPC_DB_GET_PATH, "db_get_path",
     {{TID_INT32, RPC_IN},
      {TID_INT32, RPC_IN},

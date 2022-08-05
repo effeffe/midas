@@ -620,6 +620,9 @@ namespace midas {
             }
          } while (status == DB_TRUNCATED);
 
+         if (status != DB_SUCCESS)
+            mthrow("Cannot retrieve XML data, status = " + std::to_string(status));
+
          if (m_debug)
             std::cout << "Retrieved XML tree for \"" + str + "\"" << std::endl;
 

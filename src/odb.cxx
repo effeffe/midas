@@ -9005,18 +9005,18 @@ INT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, int *buffer_size)
       db_save_xml_key(hDB, hKey, 0, writer);
 
       mxml_end_element(writer); // "odb"
-      p = mxml_close_buffer(writer);
 
-      strlcpy(buffer, p, *buffer_size);
-      len = strlen(p);
-      free(p);
-      p = NULL;
+      p = mxml_close_buffer(writer);
+      len = strlen(p) + 1;
       if (len > *buffer_size) {
+         free(p);
          *buffer_size = 0;
          return DB_TRUNCATED;
       }
 
-      *buffer_size -= len;
+      strlcpy(buffer, p, len);
+      free(p);
+      *buffer_size = len;
    }
 #endif                          /* LOCAL_ROUTINES */
 

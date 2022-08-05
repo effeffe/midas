@@ -42,7 +42,7 @@ namespace midas {
       if (m_hDB == 0)
          cm_get_experiment_database(&m_hDB, nullptr);
       if (m_hDB == 0)
-         mthrow("Please call cm_connect_experiment() befor accessing the ODB");
+         mthrow("Please call cm_connect_experiment() before accessing the ODB");
       m_connected_odb = true;
    }
 
@@ -217,6 +217,8 @@ namespace midas {
 
       char str[256];
       db_get_path(m_hDB, m_hKey, str, sizeof(str));
+      if (equal_ustring(str, "/")) // change "/" to ""
+         str[0] = 0;
       return str;
    }
 
