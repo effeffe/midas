@@ -490,6 +490,7 @@ set(libsrc
    src/ftplib.cxx
    src/mdsupport.cxx
    mxml/mxml.cxx
+   mscb/src/strlcpy.cxx
    ${GIT_REVISION}
    )
 
