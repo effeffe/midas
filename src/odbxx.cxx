@@ -422,7 +422,7 @@ namespace midas {
       if (m_tid != TID_KEY)
          return 0;
       if (m_hKey == 0 || m_hKey == -1)
-         mthrow("get_subkeys called with invalid m_hKey for ODB key \"" + m_name + "\"");
+         mthrow("get_sub-keys called with invalid m_hKey for ODB key \"" + m_name + "\"");
 
       // count number of subkeys in ODB
       std::vector<HNDLE> hlist;
@@ -608,7 +608,7 @@ namespace midas {
          // connect un-connected object (crated via XML)
          std::string path = get_full_path();
 
-         int status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
+         int status = db_find_link(m_hDB, 0, path.c_str(), &m_hKey);
          if (status != DB_SUCCESS)
             mthrow("Cannot connect key \"" + path + "\" to ODB");
       }
@@ -803,7 +803,7 @@ namespace midas {
          // connect un-connected object (crated via XML)
          std::string path = get_full_path();
 
-         int status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
+         int status = db_find_link(m_hDB, 0, path.c_str(), &m_hKey);
          if (status != DB_SUCCESS)
             mthrow("Cannot connect key \"" + path + "\" to ODB");
 
@@ -931,7 +931,7 @@ namespace midas {
          // connect un-connected object (crated via XML)
          std::string path = get_full_path();
 
-         int status = db_find_key(m_hDB, 0, path.c_str(), &m_hKey);
+         int status = db_find_link(m_hDB, 0, path.c_str(), &m_hKey);
          if (status != DB_SUCCESS)
             mthrow("Cannot connect key \"" + path + "\" to ODB");
 
