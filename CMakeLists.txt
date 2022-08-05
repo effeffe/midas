@@ -52,7 +52,7 @@ set(CMAKE_C_FLAGS_COVERAGE "-g -O0 -fprofile-arcs -ftest-coverage")
 # Directories
 #
 
-set(BUILD_INC_DIR include mxml mjson mvodb midasio)
+set(BUILD_INC_DIR include mxml mscb/include mjson mvodb midasio)
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
    # in standalone mode, install under <midas>/bin
@@ -490,7 +490,6 @@ set(libsrc
    src/ftplib.cxx
    src/mdsupport.cxx
    mxml/mxml.cxx
-   mxml/strlcpy.cxx
    ${GIT_REVISION}
    )
 
@@ -622,7 +621,6 @@ else()
       include/tmfe.h
       include/tmfe_rev0.h
       mxml/mxml.h
-      mxml/strlcpy.h
       mjson/mjson.h
       mvodb/mvodb.h
       midasio/midasio.h
