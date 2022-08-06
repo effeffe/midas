@@ -10568,21 +10568,31 @@ void show_hist_config_page(MVOdb* odb, Param* p, Return* r, const char *hgroup, 
    url += hpanel;
    url += "&hcmd=Cancel";
    if (p->getparam("redir")) {
-      char enc[256];
-      strlcpy(enc, p->getparam("redir"), sizeof(enc));
-      urlEncode(enc, sizeof(enc));
       url += "&redir=";
-      url += enc;
+      url += urlEncode(p->getparam("redir"));
    }
    r->rsprintf("onclick=\"window.location.search='%s'\">\n", url.c_str());
-   r->rsprintf("<input type=button value=\"Edit in ODB\"");
    }
    {
+   r->rsprintf("<input type=button value=\"Edit in ODB\"");
    std::string url = "?cmd=odb&odb_path=";
    url += "/History/Display/";
    url += urlEncode(hgroup);
    url += "/";
    url += urlEncode(hpanel);
+   r->rsprintf("onclick=\"window.location.search='%s'\">\n", url.c_str());
+   }
+   {
+   r->rsprintf("<input type=button value=\"Edit in new editor\"");
+   std::string url = "?cmd=hs_edit";
+   url += "&group=";
+   url += urlEncode(hgroup);
+   url += "&panel=";
+   url += urlEncode(hpanel);
+   if (p->getparam("redir")) {
+      url += "&redir=";
+      url += urlEncode(p->getparam("redir"));
+   }
    r->rsprintf("onclick=\"window.location.search='%s'\">\n", url.c_str());
    }
    r->rsprintf("<input type=button value=\"Clear history cache\"");
