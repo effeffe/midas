@@ -225,29 +225,30 @@
       set_value("text_maximum", config, "maximum");
 
       var num = 0;
-      num = Math.max(num, config.variables.length);
-      num = Math.max(num, config.label.length);
-      num = Math.max(num, config.colour.length);
-      num = Math.max(num, config.formula.length);
-      num = Math.max(num, config.factor.length);
-      num = Math.max(num, config.offset.length);
-      num = Math.max(num, config.voffset.length);
-      num = Math.max(num, config["show raw value"].length);
+      num = Math.max(num, xlength(config.variables));
+      num = Math.max(num, xlength(config.label));
+      num = Math.max(num, xlength(config.colour));
+      num = Math.max(num, xlength(config.formula));
+      num = Math.max(num, xlength(config.factor));
+      num = Math.max(num, xlength(config.offset));
+      num = Math.max(num, xlength(config.voffset));
+      num = Math.max(num, xlength(config["show raw value"]));
 
       console.log("num: " + num);
 
       for (var i=0; i<num; i++) {
-          var v = config.variables[i].split(":");
+          var vi = xelement(config.variables, i, "<empty>:<empty>");
+          var v = vi.split(":");
           var event_name = v[0];
           var var_name = v[1];
           
           var tr = add_to_table(i);
-          set_e_text(tr.childNodes[0], config.colour[i]);
+          set_e_text(tr.childNodes[0], xelement(config.colour, i, "black"));
           set_e_text(tr.childNodes[1], event_name);
           set_e_text(tr.childNodes[2], var_name);
-          set_ec_value(tr.childNodes[3], config.formula[i]);
-          set_ec_value(tr.childNodes[4], config.colour[i]);
-          set_ec_value(tr.childNodes[5], config.label[i]);
+          set_ec_value(tr.childNodes[3], xelement(config.formula, i, ""));
+          set_ec_value(tr.childNodes[4], xelement(config.colour, i, "black"));
+          set_ec_value(tr.childNodes[5], xelement(config.label, i, ""));
       }
   }
 
@@ -310,12 +311,50 @@
 
   function save_panel()
   {
-      throw "save_panel() not implemented!";
+      var def = {};
+      def["zero ylow"]        = get_cb("cb_zero_ylow");
+      def["log axis"]         = get_cb("cb_log_axis");
+      def["show run markers"] = get_cb("cb_show_run_markers");
+      def["show values"]      = get_cb("cb_show_values");
+      def["show fill"]        = get_cb("cb_show_fill");
+
+      def["timescale"]        = get_value("text_timescale");
+
+      def["minimum/key"] = { "type" : 10 };
+      def["minimum"]          = xnumber(get_value("text_minimum"));
+
+      def["maximum/key"] = { "type" : 10 };
+      def["maximum"]          = xnumber(get_value("text_maximum"));
+
+      console.log("history panel:");
+      console.dir(def);
+
+      mjsonrpc_call("db_paste", {"paths": [g_odb_path], "values": [def]}).then(function(rpc) {
+          if (rpc.result.status[0] != 1) {
+              throw "Cannot save panel, internal error, see midas.log!";
+          }
+      }).catch(function(error) {
+          mjsonrpc_error_alert(error);
+      });
   }
 
   function delete_panel()
   {
       throw "delete_panel() not implemented!";
+  }
+
+  function get_cb(id)
+  {
+      var e = document.getElementById(id);
+      if (!e) throw "cannot find HTML id " + id;
+      return e.checked;
+  }
+  
+  function get_value(id)
+  {
+      var e = document.getElementById(id);
+      if (!e) throw "cannot find HTML id " + id;
+      return e.value;
   }
 
   function set_cb(id, config, name)
@@ -365,6 +404,34 @@
   {
       e.innerHTML = text;
   }
+
+  function xlength(a)
+  {
+      if (a && a.length) {
+         return a.length;
+      } else {
+         return 0;
+      }
+  }
+
+  function xelement(a, i, d)
+  {
+      if (a && a.length && a[i]) {
+         return a[i];
+      } else {
+         return d;
+      }
+  }
+
+  function xnumber(v)
+  {
+     if (v === "inf") return "Infinity";
+     if (v === "-inf") return "-Infinity";
+     if (v == "Infinity") return "Infinity";
+     if (v == "-Infinity") return "-Infinity";
+     return Number(v);
+  }
+                           
 </script>
 </body>
 </html>
