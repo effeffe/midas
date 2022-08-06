@@ -182,19 +182,19 @@ namespace midas {
          else if (m_tid == TID_INT8)
             m_int8 = std::stoi(v);
          else if (m_tid == TID_UINT16)
-            m_uint16 = std::stoi(v);
+            m_uint16 = std::stoul(v);
          else if (m_tid == TID_INT16)
             m_int16 = std::stoi(v);
          else if (m_tid == TID_UINT32)
-            m_uint32 = std::stoi(v);
+            m_uint32 = std::stoul(v);
          else if (m_tid == TID_INT32)
             m_int32 = std::stoi(v);
          else if (m_tid == TID_BOOL)
             m_bool = std::stoi(v);
          else if (m_tid == TID_FLOAT)
-            m_float = std::stof(v);
+            m_float = std::stod(v);
          else if (m_tid == TID_DOUBLE)
-            m_double = std::stof(v);
+            m_double = std::stod(v);
          else if (m_tid == TID_STRING) {
             delete m_string;
             m_string = new std::string(v);
