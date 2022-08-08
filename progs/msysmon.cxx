@@ -878,7 +878,9 @@ INT frontend_init()
    int Ncpus = -1;
    do {
       Ncpus++;
-      fgets(buffer, 255, file);
+      const char*s = fgets(buffer, 255, file);
+      if (!s) // EOF
+         break;
    } while (String_startsWith(buffer, "cpu"));
    fclose(file);
    cpuCount = MAX(Ncpus - 1, 1);
@@ -1041,7 +1043,9 @@ void ReadCPUData()
       // Dependending on your kernel version,
       // 5, 7, 8 or 9 of these fields will be set.
       // The rest will remain at zero.
-      fgets(buffer, 255, file);
+      const  char*s = fgets(buffer, 255, file);
+      if (!s) // EOF
+         break;
       if (i == 0)
          sscanf(buffer, "cpu  %16llu %16llu %16llu %16llu %16llu %16llu %16llu %16llu %16llu %16llu", &usertime, &nicetime, &systemtime, &idletime, &ioWait, &irq, &softIrq, &steal, &guest, &guestnice);
       else {
@@ -1106,7 +1110,9 @@ void ReadNetData()
       // Dependending on your kernel version,
       // 5, 7, 8 or 9 of these fields will be set.
       // The rest will remain at zero.
-      fgets(buffer, 255, file);
+      const char*s = fgets(buffer, 255, file);
+      if (!s) // EOF
+         break;
       if (i < 2)
          continue; //Title lines
       else
