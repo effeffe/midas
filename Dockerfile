@@ -17,9 +17,8 @@ RUN mkdir /midas
 ENV MIDASSYS /midas
 ENV MIDAS_DIR /midas
 WORKDIR /
-RUN git clone --quiet https://bitbucket.org/tmidas/midas.git
+RUN git clone --recursive --quiet https://bitbucket.org/tmidas/midas.git
 WORKDIR /midas
-RUN git submodule update --init
 
 # build midas
 RUN mkdir build
