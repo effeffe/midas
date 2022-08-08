@@ -838,7 +838,9 @@ static int db_validate_name(const char* name, int maybe_path, const char* caller
       return DB_INVALID_NAME;
    }
 
-   if (strlen(name) < 1) {
+   size_t len = strlen(name);
+
+   if (len < 1) {
       db_msg(msg, MERROR, "db_validate_name", "Invalid name passed to %s: should not be an empty string", caller_name);
       return DB_INVALID_NAME;
    }
@@ -848,6 +850,16 @@ static int db_validate_name(const char* name, int maybe_path, const char* caller
       return DB_INVALID_NAME;
    }
    
+   if (name[0] == ' ') {
+      db_msg(msg, MERROR, "db_validate_name", "Invalid name \"%s\" passed to %s: should not start with a space", name, caller_name);
+      return DB_INVALID_NAME;
+   }
+
+   if (name[len-1] == ' ') {
+      db_msg(msg, MERROR, "db_validate_name", "Invalid name \"%s\" passed to %s: should not end with a space", name, caller_name);
+      return DB_INVALID_NAME;
+   }
+
    if (strchr(name, ']')) {
       db_msg(msg, MERROR, "db_validate_name", "Invalid name \"%s\" passed to %s: should not contain \"[\"", name, caller_name);
       return DB_INVALID_NAME;
