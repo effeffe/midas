@@ -8320,6 +8320,7 @@ static int mg_http_handle_forwarding(struct mg_connection *nc,
 }
 #endif /* MG_ENABLE_FILESYSTEM */
 
+#if 0
 MG_INTERNAL int mg_uri_to_local_path(struct http_message *hm,
                                      const struct mg_serve_http_opts *opts,
                                      char **local_path,
@@ -8477,6 +8478,7 @@ out:
        *local_path ? *local_path : "", (int) remainder->len, remainder->p));
   return ok;
 }
+#endif
 
 static int mg_get_month_index(const char *s) {
   static const char *month_names[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -8672,6 +8674,7 @@ MG_INTERNAL void mg_send_http_file(struct mg_connection *nc, char *path,
   MG_FREE(index_file);
 }
 
+#if 0
 void mg_serve_http(struct mg_connection *nc, struct http_message *hm,
                    struct mg_serve_http_opts opts) {
   char *path = NULL;
@@ -8736,6 +8739,7 @@ void mg_serve_http(struct mg_connection *nc, struct http_message *hm,
 #endif
   }
 }
+#endif
 
 #if MG_ENABLE_HTTP_STREAMING_MULTIPART
 void mg_file_upload_handler(struct mg_connection *nc, int ev, void *ev_data,
