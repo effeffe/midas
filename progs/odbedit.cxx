@@ -2838,10 +2838,14 @@ int command_loop(char *host_name, char *exp_name, char *cmd, char *start_dir)
 
       /* test 3 */
       else if (param[0][0] == 't' && param[0][1] == '3') {
+#if 0
          // test address sanitizer
          int *a = (int *)malloc(sizeof(int) * 10);
          i = a[11];
          free(a);
+#else
+         printf("test address sanitizer is disabled!\n");
+#endif
       }
 
       /* exit/quit */
