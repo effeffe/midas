@@ -53,7 +53,7 @@ int main() {
    o.connect("/Test/Settings");
 
    // alternatively, a structure can be created from an existing ODB subtree
-   midas::odb o2("/Test/Settings", true);
+   midas::odb o2("/Test/Settings");
    std::cout << o2 << std::endl;
 
    // set, retrieve, and change ODB value

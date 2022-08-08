@@ -118,20 +118,41 @@ namespace midas {
       }
    }
 
-   void odb::odb_from_string(const std::string &str) {
-      if (str[0] == '/') {
-         if (!read_key(str))
-            mthrow("ODB key \"" + str + "\" not found in ODB");
+   void odb::odb_from_xml(const std::string &str) {
+      init_hdb();
 
-         if (m_tid != TID_KEY)
-            read();
-      } else {
-         // Construct object from initializer_list
-         m_num_values = 1;
-         m_data = new u_odb[1]{new std::string{str}};
-         m_tid = m_data[0].get_tid();
-         m_data[0].set_parent(this);
-      }
+      HNDLE hKey;
+      int status = db_find_link(m_hDB, 0, str.c_str(), &hKey);
+      if (status != DB_SUCCESS)
+         mthrow("ODB key \"" + str + "\" not found in ODB");
+
+      int bsize = 1000000;
+      char *buffer = (char *)malloc(bsize);
+      do {
+         int size = bsize;
+         status = db_copy_xml(m_hDB, hKey, buffer, &size);
+         if (status == DB_TRUNCATED) {
+            bsize *= 2;
+            buffer = (char *)realloc(buffer, bsize);
+         }
+      } while (status == DB_TRUNCATED);
+
+      if (status != DB_SUCCESS)
+         mthrow("Cannot retrieve XML data, status = " + std::to_string(status));
+
+      if (m_debug)
+         std::cout << "Retrieved XML tree for \"" + str + "\"" << std::endl;
+
+      char error[256] = "";
+      PMXML_NODE tree = mxml_parse_buffer(buffer, error, sizeof(error), NULL);
+      free(buffer);
+      if (error[0])
+         mthrow("MXML error: " + std::string(error));
+
+      odb_from_xml(&tree->child[2], this);
+      m_hKey = hKey;
+
+      mxml_free_tree(tree);
    }
 
    // resize internal m_data array, keeping old values
@@ -203,6 +224,32 @@ namespace midas {
          } else {
             // simply pass basic types
             m_data[i] = o.m_data[i];
+         }
+      }
+   }
+
+   void odb::deep_copy(odb &d, const odb &s) {
+      d.m_tid = s.m_tid;
+      d.m_name = s.m_name;
+      d.m_num_values = s.m_num_values;
+      d.m_hKey = s.m_hKey;
+      d.m_watch_callback = s.m_watch_callback;
+      d.m_data = new midas::u_odb[d.m_num_values]{};
+      for (int i = 0; i < d.m_num_values; i++) {
+         d.m_data[i].set_tid(m_tid);
+         d.m_data[i].set_parent(&d);
+         if (d.m_tid == TID_STRING || d.m_tid == TID_LINK) {
+            // set_string() creates a copy of our string
+            d.m_data[i].set_string(s.m_data[i]);
+         } else if (d.m_tid == TID_KEY) {
+            // recursive call to create a copy of the odb object
+            midas::odb *po = s.m_data[i].get_podb();
+            midas::odb *pc = new midas::odb(*po);
+            pc->set_parent(&d);
+            d.m_data[i].set(pc);
+         } else {
+            // simply pass basic types
+            d.m_data[i] = s.m_data[i];
          }
       }
    }

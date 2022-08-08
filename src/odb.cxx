@@ -8984,7 +8984,7 @@ INT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, int *buffer_size)
 #ifdef LOCAL_ROUTINES
    {
       INT len;
-      char *p, str[256];
+      char *p;
       MXML_WRITER *writer;
 
       /* open file */
@@ -8994,17 +8994,12 @@ INT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, int *buffer_size)
          return DB_NO_MEMORY;
       }
 
-      db_get_path(hDB, hKey, str, sizeof(str));
+      KEY key;
+      int status = db_get_key(hDB, hKey, &key);
+      if (status != DB_SUCCESS)
+         return status;
 
-      /* write XML header */
-      mxml_start_element(writer, "odb");
-      mxml_write_attribute(writer, "root", str);
-      mxml_write_attribute(writer, "xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
-      mxml_write_attribute(writer, "xsi:noNamespaceSchemaLocation", "http://midas.psi.ch/odb.xsd");
-
-      db_save_xml_key(hDB, hKey, 0, writer);
-
-      mxml_end_element(writer); // "odb"
+      db_save_xml_key(hDB, hKey, 1, writer);
 
       p = mxml_close_buffer(writer);
       len = strlen(p) + 1;

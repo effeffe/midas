@@ -21,7 +21,7 @@
 /*------------------------------------------------------------------*/
 
 // exceptions with line number and file name
-#define mthrow(arg) throw mexception(arg, __FILE__, __LINE__);
+#define mthrow(arg) (throw mexception(arg, __FILE__, __LINE__))
 
 class mexception : public std::runtime_error  {
    std::string msg;

@@ -598,66 +598,30 @@ namespace midas {
 
       // Constructor for std::string
       odb(const std::string &str) : odb() {
-         odb_from_string(str);
-      }
+         if (str[0] == '/') {
+            // ODB path
+            if (rpc_is_remote())
+               odb_from_xml(str);
+            else {
+               if (!read_key(str))
+                  mthrow("ODB key \"" + str + "\" not found in ODB");
 
-      // Constructor with ODB path and quick construction
-      odb(const std::string &str, bool flag) : odb() {
-         init_hdb();
-
-         int status = db_find_link(m_hDB, 0, str.c_str(), &m_hKey);
-         if (status != DB_SUCCESS)
-            mthrow("ODB key \"" + str + "\" not found in ODB");
-
-         int bsize = 1000000;
-         char *buffer = (char *)malloc(bsize);
-         do {
-            int size = bsize;
-            status = db_copy_xml(m_hDB, m_hKey, buffer, &size);
-            if (status == DB_TRUNCATED) {
-               bsize *= 2;
-               buffer = (char *)realloc(buffer, bsize);
+               if (m_tid != TID_KEY)
+                  read();
             }
-         } while (status == DB_TRUNCATED);
+         } else {
+            // simple string
 
-         if (status != DB_SUCCESS)
-            mthrow("Cannot retrieve XML data, status = " + std::to_string(status));
-
-         if (m_debug)
-            std::cout << "Retrieved XML tree for \"" + str + "\"" << std::endl;
-
-         char error[256] = "";
-         PMXML_NODE tree = mxml_parse_buffer(buffer, error, sizeof(error), NULL);
-         free(buffer);
-         if (error[0])
-            mthrow("MXML error: " + std::string(error));
-
-         PMXML_NODE node = mxml_find_node(tree, "odb");
-         if (node == nullptr)
-            mthrow("Cannot find element \"odb\" in XML data");
-
-         m_tid = TID_KEY;
-         std::string s(mxml_get_attribute(node, "root"));
-         s = s.substr(s.find_last_of('/') + 1);
-         m_name = s;
-         m_num_values = mxml_get_number_of_children(node);
-         delete[] m_data;
-         m_data = new midas::u_odb[m_num_values]{};
-         for (int i = 0; i < m_num_values; i++) {
-            midas::odb *o = odb_from_xml(mxml_subnode(node, i));
-            o->set_parent(this);
-            o->set_hkey(-1);
-            m_data[i].set_tid(TID_KEY);
-            m_data[i].set_parent(this);
-            m_data[i].set_odb(o);
+            // Construct object from initializer_list
+            m_num_values = 1;
+            m_data = new u_odb[1]{new std::string{str}};
+            m_tid = m_data[0].get_tid();
+            m_data[0].set_parent(this);
          }
-
-         mxml_free_tree(tree);
       }
 
-      // Constructor for C strings
-      odb(const char *v) : odb() {
-         odb_from_string(std::string(v));
+      // Constructor for C string
+      odb(const char *s) : odb(std::string(s)) {
       }
 
       // Constructor with const char * array
@@ -1104,7 +1068,7 @@ namespace midas {
       friend bool operator>=(const T &d, const midas::odb &o);
 
       // create midas::odb object form MXML node
-      midas::odb *odb_from_xml(PMXML_NODE node) {
+      midas::odb *odb_from_xml(PMXML_NODE node, odb *o) {
          std::string type(mxml_get_name(node));
 
          unsigned int tid = 0;
@@ -1119,7 +1083,8 @@ namespace midas {
          if (tid == TID_LAST)
             mthrow("Wrong key type in XML file");
 
-         midas::odb *o = new midas::odb();
+         if (o == nullptr)
+            o = new midas::odb();
          o->set_tid(tid);
          o->set_name(mxml_get_attribute(node, "name"));
          o->set_hkey(-1); // m_hkey == -1 means "unconnected"
@@ -1138,7 +1103,7 @@ namespace midas {
             int n = mxml_get_number_of_children(node);
             o->set_num_values(n);
             for (int i = 0; i < n; i++) {
-               midas::odb *os = odb_from_xml(mxml_subnode(node, i));
+               midas::odb *os = odb_from_xml(mxml_subnode(node, i), nullptr);
                os->set_parent(o);
                os->set_hkey(-1);
                o->set_odb(os, i);
@@ -1148,6 +1113,9 @@ namespace midas {
 
          return o;
       };
+
+      // Deep copy
+      void deep_copy(odb &d, const odb &s);
 
       // Setters and Getters
       bool is_preserve_string_size() const { return m_flags[odb_flags::PRESERVE_STRING_SIZE]; }
@@ -1190,7 +1158,8 @@ namespace midas {
       static bool exists(const std::string &name);
       static int delete_key(const std::string &name);
 
-      void odb_from_string(const std::string &s);
+      void odb_from_scan(const std::string &s);
+      void odb_from_xml(const std::string &str);
       void connect(const std::string &path, const std::string &name, bool write_defaults, bool delete_keys_not_in_defaults = false);
       void connect(std::string str, bool write_defaults = false, bool delete_keys_not_in_defaults = false);
       void connect_and_fix_structure(std::string path);
