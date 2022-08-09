@@ -203,7 +203,7 @@ NEED_STRLCPY=1
 #
 CC  = false ### C compiler is not used
 CXX = g++ -std=c++11 $(USERFLAGS)
-CFLAGS = -g -O2 -Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Iinclude -Imxml -Imjson -Imvodb -Imidasio -Imanalyzer
+CFLAGS = -g -O2 -Wall -Wformat=2 -Wno-format-nonliteral -Wno-strict-aliasing -Wuninitialized -Iinclude -Imxml -Imscb/include -Imjson -Imvodb -Imidasio -Imanalyzer
 
 #-----------------------
 # Cross-compilation, change GCC_PREFIX
