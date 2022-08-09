@@ -70,7 +70,7 @@ pipelines:
             - DEBIAN_FRONTEND=noninteractive apt-get -y install gcc g++ cmake git libssl-dev libz-dev libcurl4-gnutls-dev sqlite3 libsqlite3-dev
             - gcc -v
             - cmake --version
-            - git submodule update --init --recurse
+            - git submodule update --init --recursive
             - make cmake
             - make remoteonly
             - make test
