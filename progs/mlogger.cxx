@@ -109,6 +109,10 @@ static std::string TimeToString(time_t t)
 "Compression = INT32 : 0",\
 "ODB dump = BOOL : 1",\
 "ODB dump format = STRING : [32] json",\
+"Options ODB dump format = STRING[3] :",\
+"[32] odb",\
+"[32] xml",\
+"[32] json",\
 "Log messages = UINT32 : 0",\
 "Buffer = STRING : [32] SYSTEM",\
 "Event ID = INT32 : -1",\
@@ -172,6 +176,7 @@ typedef struct {
    INT compression;
    BOOL odb_dump;
    char odb_dump_format[32];
+   char options_odb_dump_format[3][32];
    DWORD log_messages;
    char buffer[32];
    INT event_id;
