@@ -732,59 +732,42 @@ function more_menu(event) {
       d.id = "moreMenu";
       d.style.display = "none";
       d.style.position = "absolute";
-      d.className = "mtable";
+      d.className = "msidenav";
       d.style.borderRadius = "0";
       d.style.border = "2px solid #808080";
       d.style.margin = "0";
-      d.style.padding = "0";
+      d.style.backgroundColor = "#F0F0F0";
 
-      d.style.left = "100px";
-      d.style.top = "100px";
-
-      let table = document.createElement("table");
+      let cm = document.createElement("div");
 
       // Show open records ----------
 
-      let tr = document.createElement("tr");
-      let td = document.createElement("td");
-      td.style.padding = "0";
-
-      let a = document.createElement("a");
-      a.href = "" + odb.path;
-      a.innerHTML = "Show open record";
-      a.title = "Show ODB keys which are open by other programs";
-      a.onclick = function () {
+      let mDiv = document.createElement("div");
+      mDiv.className = 'mmenuitem mmenulink';
+      mDiv.innerHTML = "<nobr>Show open records...</nobr>";
+      mDiv.title = "Show ODB keys which are open by other programs";
+      mDiv.onclick = function () {
          d.style.display = 'none';
          // window.location.href = "?cmd=odb_sor&odb_path=" + encodeURIComponent(odb.path);
          show_open_records(event.target);
          return false;
       }
-      td.appendChild(a);
-      tr.appendChild(td);
-      table.appendChild(tr);
+      cm.appendChild(mDiv);
 
       // Show ODB clients  ----------
 
-      tr = document.createElement("tr");
-      td = document.createElement("td");
-      td.style.padding = "0";
-
-      a = document.createElement("a");
-      a.href = "" + odb.path;
-      a.innerHTML = "Show ODB clients";
-      a.title = "Show clients currently attached to ODB";
-      a.onclick = function () {
+      mDiv = document.createElement("div");
+      mDiv.className = 'mmenuitem mmenulink';
+      mDiv.innerHTML = "<nobr>Show ODB clients...</nobr>";
+      mDiv.title = "Show clients currently attached to ODB";
+      mDiv.onclick = function () {
          d.style.display = 'none';
          // window.location.href = "?cmd=odb_scl";
          show_open_clients(event.target);
          return false;
       }
-      td.appendChild(a);
-      tr.appendChild(td);
-      table.appendChild(tr);
-
-      d.appendChild(table);
-
+      cm.appendChild(mDiv);
+      d.appendChild(cm);
       document.body.appendChild(d);
    }
 
@@ -793,6 +776,9 @@ function more_menu(event) {
    d.style.display = 'block';
    d.style.left = (rect.left + window.scrollX) + 'px';
    d.style.top = (rect.bottom + 4 + window.scrollY) + 'px';
+
+   if (parseInt(d.style.left) + d.offsetWidth > document.body.clientWidth)
+      d.style.left = (document.body.clientWidth - d.offsetWidth) + 'px';
 }
 
 function change_color(e, color) {
@@ -1107,7 +1093,8 @@ function context_menu(event) {
 
       let cm = document.createElement("div");
 
-      let menu = ["Copy key", "Copy plain text", "Delete key", "Rename key"];
+      let menu = ["Copy key", "Copy plain text", "Delete key", "Rename key...",
+         "Open in new tab...", "Open in new window..."];
       let mDiv;
 
       for (const m of menu) {
@@ -1191,6 +1178,30 @@ function context_menu(event) {
          do_rename_key,
          key.length,
          tr.odbPath);
+   }
+
+   // set event handler for open in new tab
+   d.childNodes[0].childNodes[4].onclick = function () {
+      d.style.display = 'none';
+
+      let url = window.location.href;
+      if (url.search("&odb_path") !== -1)
+         url = url.slice(0, url.search("&odb_path"));
+      url += "&odb_path=" + encodeURIComponent(tr.odbPath); // convert spaces to %20 etc
+
+      window.open(url, '_blank').focus();
+   }
+
+   // set event handler for open in new window
+   d.childNodes[0].childNodes[5].onclick = function () {
+      d.style.display = 'none';
+
+      let url = window.location.href;
+      if (url.search("&odb_path") !== -1)
+         url = url.slice(0, url.search("&odb_path"));
+      url += "&odb_path=" + encodeURIComponent(tr.odbPath); // convert spaces to %20 etc
+
+      window.open(url, "", "menubar=yes,location=yes,status=yes");
    }
 
    let rect = event.target.getBoundingClientRect();
