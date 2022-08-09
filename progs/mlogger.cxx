@@ -133,7 +133,7 @@ static std::string TimeToString(time_t t)
 "[32] SHA256",\
 "[32] SHA512",\
 "[32] ZLIB",\
-"Compress = STRING : [256] lz4",\
+"Compress = STRING : [256] gzip",\
 "Options Compress = STRING[5] :",\
 "[32] none",\
 "[32] gzip",\
@@ -3844,7 +3844,7 @@ int select_checksum_module(HNDLE hDB, HNDLE hSet, const char* name)
    s = check_add(s, CHECKSUM_ZLIB,   val, "ZLIB",   false, &def, &sel);
    if (sel == "")
       sel = "NONE";
-   set_value(hDB, hSet, name, sel, def);
+   //set_value(hDB, hSet, name, sel, def);
    return s;
 }
 
@@ -3861,7 +3861,7 @@ int select_compression_module(HNDLE hDB, HNDLE hSet, const char* name)
    s = check_add(s, COMPRESS_PBZIP2, val, "pbzip2", false, &def, &sel);
    if (sel == "")
       sel = "none";
-   set_value(hDB, hSet, name, sel, def);
+   //set_value(hDB, hSet, name, sel, def);
    return s;
 }
 
@@ -3878,7 +3878,7 @@ int select_output_module(HNDLE hDB, HNDLE hSet, const char* name)
    s = check_add(s, OUTPUT_PIPE, val, "PIPE", false, &def, &sel);
    if (sel == "")
       sel = "FILE";
-   set_value(hDB, hSet, name, sel, def);
+   //set_value(hDB, hSet, name, sel, def);
    return s;
 }
 
