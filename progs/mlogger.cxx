@@ -137,7 +137,7 @@ static std::string TimeToString(time_t t)
 "[32] SHA256",\
 "[32] SHA512",\
 "[32] ZLIB",\
-"Compress = STRING : [256] gzip",\
+"Compress = STRING : [256] lz4",\
 "Options Compress = STRING[5] :",\
 "[32] none",\
 "[32] gzip",\
