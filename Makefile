@@ -515,6 +515,9 @@ $(LIB_DIR)/%.o: src/%.cxx
 $(LIB_DIR)/%.o: mxml/%.cxx
 	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 
+$(LIB_DIR)/%.o: mscb/src/%.cxx
+	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
+
 $(LIB_DIR)/%.o: mjson/%.cxx
 	$(CXX) -c $(CFLAGS) $(OSFLAGS) -o $@ $<
 
