@@ -849,7 +849,7 @@ function mhttpd_init(current_page, interval, callback) {
       "</div>";
 
    mhttpd_resize_sidenav();
-   window.addEventListener('resize', mhttpd_resize_event_call_resize_sidenav);
+   window.addEventListener('resize', mhttpd_resize_sidenav);
 
    // put error header in front of header
    let d = document.createElement('div');
@@ -1973,11 +1973,6 @@ function vaxisDraw(ctx, x1, y1, height, line, minor, major, text, label, grid, y
          y_act = 0;
 
    } while (1);
-}
-
-function mhttpd_resize_event_call_resize_sidenav() {
-   //console.log("mhttpd_resize_event_call_resize_sidenav!");
-   mhttpd_resize_sidenav();
 }
 
 function mhttpd_resize_sidenav() {

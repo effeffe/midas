@@ -116,7 +116,7 @@
          fs.value = config.fontSize;
       fs.addEventListener('change', function() {
          mhttpdConfigSet('fontSize', this.value);
-         document.body.style.fontSize = this.value + "pt";
+         window.location.reload();
       });
 
       if (speechSynthesis.getVoices().length > 0)
