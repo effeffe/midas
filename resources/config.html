@@ -109,6 +109,16 @@
          document.getElementById('timezoneServer').checked = false;
       });
 
+      let fs = document.getElementById('fontSize');
+      if (config.fontSize === undefined)
+         fs.value = 10;
+      else
+         fs.value = config.fontSize;
+      fs.addEventListener('change', function() {
+         mhttpdConfigSet('fontSize', this.value);
+         document.body.style.fontSize = this.value + "pt";
+      });
+
       if (speechSynthesis.getVoices().length > 0)
          load_voices();
       else
@@ -365,6 +375,25 @@
 
       <tr>
          <td colspan="4" style="background-color: #A0A0A0; height:0; padding: 0;"></td>
+      </tr>
+
+      <tr>
+         <td>
+            Font size:
+         </td>
+         <td colspan="3">
+            <select id="fontSize">
+               <option value="8">8 Pt</option>
+               <option value="9">9 Pt</option>
+               <option value="10">10 Pt</option>
+               <option value="11">11 Pt</option>
+               <option value="12">12 Pt</option>
+               <option value="13">13 Pt</option>
+               <option value="14">14 Pt</option>
+               <option value="15">15 Pt</option>
+               <option value="16">16 Pt</option>
+            </select>
+         </td>
       </tr>
 
       <tr>

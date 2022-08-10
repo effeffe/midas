@@ -86,7 +86,6 @@ body.mcss {
    z-index: 2; /* above side navigation */
    width: 100%;
    box-sizing: border-box;
-   height: 32px;
    background-color: #f2f2f2;
    border-bottom: 1px solid #D0D0D0;
    color: #404040;
@@ -97,7 +96,6 @@ body.mcss {
    padding-left: 0;
    display: block;
    line-height: 1;
-   /* total height = 19+1+2*6 = 32 */
 }
 
 #mheader_error {
@@ -119,7 +117,6 @@ body.mcss {
 
 #mheader_message {
    display: none;
-   height: 16px;
    color: #404040;
    background-color: #D0D0D0;
    border-radius: 10px;
@@ -130,7 +127,6 @@ body.mcss {
 
 #mheader_alarm {
    display: inline-block;
-   height: 16px;
    margin-right: 20px;
    border-radius: 10px;
    padding: 2px;
@@ -194,7 +190,6 @@ body.mcss {
 
 .mnav td{
    border: 0;
-   height: 34px;
 }
 
 .mnav input{

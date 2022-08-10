@@ -828,6 +828,10 @@ function mhttpd_init(current_page, interval, callback) {
       return;
    }
 
+   // set global font size
+   let config = mhttpdConfig();
+   document.body.style.fontSize = config.fontSize + "pt";
+
    h.style.display = "flex";
    h.innerHTML =
       "<div style='display:inline-block; flex:none;'>" +
@@ -3071,7 +3075,9 @@ let mhttpd_config_defaults = {
    'suppressMessageBefore': 0,
    'showMenu': true,
 
-   'facility': 'midas'
+   'facility': 'midas',
+
+   'fontSize': '10'
 };
 
 function mhttpdConfigODB(callback) {
