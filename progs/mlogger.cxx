@@ -1742,7 +1742,7 @@ void log_odb_dump_xml(LOG_CHN * log_chn, short int event_id, INT run_number)
       /* following line would dump ODB in old ASCII format instead of XML */
       //status = db_copy(hDB, 0, (char *) (pevent + 1), &size, "");
       if (status != DB_TRUNCATED) {
-         bm_compose_event(pevent, event_id, MIDAS_MAGIC, buffer_size - sizeof(EVENT_HEADER) - size + 1, run_number);
+         bm_compose_event(pevent, event_id, MIDAS_MAGIC, size, run_number);
          log_write(log_chn, pevent);
          free(pevent);
          break;
