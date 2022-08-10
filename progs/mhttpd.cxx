@@ -4709,7 +4709,7 @@ void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
             char* buf = (char *)malloc(bufsize);
 
             if (fmt_xml)
-               db_copy_xml(hDB, hkey, buf, &bufsize);
+               db_copy_xml(hDB, hkey, buf, &bufsize, true);
             else if (fmt_json)
                db_copy_json_obsolete(hDB, hkey, &buf, &bufsize, &end, save_keys, follow_links, recurse);
             else
@@ -4776,7 +4776,7 @@ void javascript_commands(Param* p, Return* r, const char *cookie_cpwd)
             char* buf = (char *)malloc(bufsize);
 
             if (fmt_xml) {
-               db_copy_xml(hDB, hkey, buf, &bufsize);
+               db_copy_xml(hDB, hkey, buf, &bufsize, true);
                const char* s = strstr(buf, "-->");
                if (s)
                   s+=4;

@@ -825,7 +825,7 @@ INT rpc_server_dispatch(INT index, void *prpc_param[])
       break;
 
    case RPC_DB_COPY_XML:
-      status = db_copy_xml(CHNDLE(0), CHNDLE(1), CSTRING(2), CPINT(3));
+      status = db_copy_xml(CHNDLE(0), CHNDLE(1), CSTRING(2), CPINT(3), CBOOL(4));
       break;
 
    case RPC_EL_SUBMIT:

@@ -1737,7 +1737,7 @@ void log_odb_dump_xml(LOG_CHN * log_chn, short int event_id, INT run_number)
       }
 
       int size = buffer_size - sizeof(EVENT_HEADER);
-      int status = db_copy_xml(hDB, 0, (char *) (pevent + 1), &size);
+      int status = db_copy_xml(hDB, 0, (char *) (pevent + 1), &size, true);
 
       /* following line would dump ODB in old ASCII format instead of XML */
       //status = db_copy(hDB, 0, (char *) (pevent + 1), &size, "");

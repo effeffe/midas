@@ -130,7 +130,7 @@ namespace midas {
       char *buffer = (char *)malloc(bsize);
       do {
          int size = bsize;
-         status = db_copy_xml(m_hDB, hKey, buffer, &size);
+         status = db_copy_xml(m_hDB, hKey, buffer, &size, false);
          if (status == DB_TRUNCATED) {
             bsize *= 2;
             buffer = (char *)realloc(buffer, bsize);

@@ -1945,7 +1945,7 @@ flags for db_json_save() */
    INT EXPRT db_save_struct(HNDLE hDB, HNDLE hKey, const char *file_name, const char *struct_name, BOOL append);
    INT EXPRT db_save_string(HNDLE hDB, HNDLE hKey, const char *file_name, const char *string_name, BOOL append);
    INT EXPRT db_save_xml(HNDLE hDB, HNDLE hKey, const char *file_name);
-   INT EXPRT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, int *buffer_size);
+   INT EXPRT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, int *buffer_size, bool header);
 
    INT EXPRT db_save_json(HNDLE hDB, HNDLE hKey, const char *file_name, int flags=JSFLAG_SAVE_KEYS|JSFLAG_RECURSE);
    INT EXPRT db_load_json(HNDLE hdb, HNDLE key_handle, const char *filename);

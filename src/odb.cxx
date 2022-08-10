@@ -8987,7 +8987,7 @@ Copy an ODB subtree in XML format to a buffer
 @param buffer_size Size of buffer, returns remaining space in buffer.
 @return DB_SUCCESS, DB_TRUNCATED, DB_NO_MEMORY
 */
-INT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, int *buffer_size)
+INT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, int *buffer_size, bool header)
 {
 
    if (rpc_is_remote())
@@ -9006,12 +9006,26 @@ INT db_copy_xml(HNDLE hDB, HNDLE hKey, char *buffer, int *buffer_size)
          return DB_NO_MEMORY;
       }
 
-      KEY key;
-      int status = db_get_key(hDB, hKey, &key);
-      if (status != DB_SUCCESS)
-         return status;
+      if (header) {
+         char str[256];
+         db_get_path(hDB, hKey, str, sizeof(str));
 
-      db_save_xml_key(hDB, hKey, 1, writer);
+         /* write XML header */
+         mxml_start_element(writer, "odb");
+         mxml_write_attribute(writer, "root", str);
+         mxml_write_attribute(writer, "xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
+         mxml_write_attribute(writer, "xsi:noNamespaceSchemaLocation", "http://midas.psi.ch/odb.xsd");
+
+         db_save_xml_key(hDB, hKey, 0, writer);
+         mxml_end_element(writer); // "odb"
+      } else {
+         KEY key;
+         int status = db_get_key(hDB, hKey, &key);
+         if (status != DB_SUCCESS)
+            return status;
+
+         db_save_xml_key(hDB, hKey, 1, writer);
+      }
 
       p = mxml_close_buffer(writer);
       len = strlen(p) + 1;
