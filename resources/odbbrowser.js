@@ -505,12 +505,14 @@ function option_edit(event, e, flag) {
    e.parentNode.inEdit = flag;
 }
 
-function odb_setoption(p) {
+function odb_setoption(p, index) {
    let tr = p.parentNode;
    while (tr.tagName !== 'TR')
       tr = tr.parentNode;
    let tb = getOdbTb(tr);
    let path = tr.odbPath;
+   if (index)
+      path += '[' + index + ']';
    let value = p.value;
 
    mjsonrpc_db_set_value(path, value).then(() => {
@@ -2170,16 +2172,18 @@ function odb_print_key(tb, row, path, key, level, options) {
 
       } else if (options) {
 
+         let oc = options.slice(); // make copy of all elements
+
          let h = "<select onchange='odb_setoption(this)' " +
             " onclick='option_edit(event, this, true)'" +
             " onblur='option_edit(event, this, false)'" +
             "'>\n";
 
          // check if current value is in options, add it if not
-         if (!options.includes(key.value))
-            options.unshift(key.value);
+         if (!oc.includes(key.value))
+            oc.unshift(key.value);
 
-         for (const o of options) {
+         for (const o of oc) {
             if (key.value === o)
                h += "<option selected value='" + o + "'>" + o + "</option>";
             else
@@ -2200,8 +2204,6 @@ function odb_print_key(tb, row, path, key, level, options) {
             v = "(spaces)";
          else if (key.type === TID_LINK)
             v = '<span style="color:red;background-color:yellow">(cannot resolve link)</span>';
-         else if (key.type === TID_BOOL)
-            v = (key.value ? 'y' : 'n') + ' (' + (key.value ? '1' : '0') + ')';
          else if (v.substring(0, 2) === "0x")
             v += " (" + parseInt(key.value) + ')';
          else if (key.type !== TID_STRING && key.type !== TID_LINK && key.type !== TID_FLOAT && key.type !== TID_DOUBLE)
@@ -2419,19 +2421,65 @@ function odb_print_key(tb, row, path, key, level, options) {
          tr.appendChild(td);
          let p = (path === '/' ? '/' + key.name : path + '/' + key.name);
          p += '['+i+']';
-         let edit = '<a href="#" onclick="ODBInlineEdit(this.parentNode, \''+p+'\');return false;"  '+
-            'onfocus="ODBInlineEdit(this.parentNode, \''+p+'\')" title="Change array element">';
 
-         let v = escapeHTML(key.value[i].toString());
-         if (key.type === TID_STRING && v === "")
-            v = "(empty)";
-         else if (key.type === TID_BOOL)
-            v = (key.value[i] ? 'y' : 'n') + ' (' + (key.value[i] ? '1' : '0') +')';
-         else if (v.substring(0, 2) === "0x")
-            v += " (" + parseInt(key.value[i]) + ')';
-         else if (key.type !== TID_STRING && key.type !== TID_LINK && key.type !== TID_FLOAT && key.type !== TID_DOUBLE)
-            v += " (0x" + key.value[i].toString(16).toUpperCase() + ')';
-         td.innerHTML = '['+i+'] '+ edit + v + '</a>';
+         if (key.type === TID_BOOL) {
+
+            let h = "<select onchange='odb_setoption(this," + i + ")' " +
+               " onclick='option_edit(event, this, true)'" +
+               " onblur='option_edit(event, this, false)'" +
+               "'>\n";
+
+            if (key.value[i] === false) {
+               h += "<option selected value='" + 0 + "'>No</option>";
+               h += "<option value='" + 1 + "'>Yes</option>";
+            } else {
+               h += "<option value='" + 0 + "'>No</option>";
+               h += "<option selected value='" + 1 + "'>Yes</option>";
+            }
+            h += "</select>\n";
+            td.innerHTML = h;
+
+         } else if (options) {
+
+            let oc = options.slice(); // make copy of all elements
+
+            let h = "<select onchange='odb_setoption(this," + i + ")' " +
+               " onclick='option_edit(event, this, true)'" +
+               " onblur='option_edit(event, this, false)'" +
+               "'>\n";
+
+            // check if current value is in options, add it if not
+            if (!oc.includes(key.value[i]))
+               oc.unshift(key.value[i]);
+
+            for (const o of oc) {
+               if (key.value[i] === o)
+                  h += "<option selected value='" + o + "'>" + o + "</option>";
+               else
+                  h += "<option value='" + o + "'>" + o + "</option>";
+            }
+            h += "</select>\n";
+            td.innerHTML = h;
+
+         } else {
+            let edit = '<a href="#" onclick="ODBInlineEdit(this.parentNode, \'' + p + '\');return false;"  ' +
+               'onfocus="ODBInlineEdit(this.parentNode, \'' + p + '\')" title="Change array element">';
+
+            let v = escapeHTML(key.value[i].toString());
+            if (key.type === TID_STRING && v === "")
+               v = "(empty)";
+            else if (key.type === TID_STRING && v.trim() === "")
+               v = "(spaces)";
+            else if (v.substring(0, 2) === "0x")
+               v += " (" + parseInt(key.value[i]) + ')';
+            else if (key.type !== TID_STRING && key.type !== TID_LINK && key.type !== TID_FLOAT && key.type !== TID_DOUBLE)
+               v += " (0x" + key.value[i].toString(16).toUpperCase() + ')';
+
+            if (odb.picker || odb.handlecolumn)
+               td.innerHTML = v;
+            else
+               td.innerHTML = '[' + i + '] ' + edit + v + '</a>';
+         }
 
          // Empty fill cells
          for (let i=0 ; i<5 ; i++) {
@@ -2459,15 +2507,23 @@ function odb_print_key(tb, row, path, key, level, options) {
                      let newValue;
 
                      if (i === 2) {
+                        let select = (tr.childNodes[2].childNodes[0] &&
+                           tr.childNodes[2].childNodes[0].tagName == 'SELECT');
+
                         if (tb.childNodes[row.i].childNodes[2] !== undefined) {
-                           if (tb.childNodes[row.i].childNodes[2].childNodes[1] !== undefined)
+                           if (select)
+                              oldValue = tb.childNodes[row.i].childNodes[2].childNodes[0].value;
+                           else if (tb.childNodes[row.i].childNodes[2].childNodes[1] !== undefined)
                               oldValue = tb.childNodes[row.i].childNodes[2].childNodes[1].innerHTML;
                            else if (tb.childNodes[row.i].childNodes[2].childNodes[0] !== undefined)
                               oldValue = tb.childNodes[row.i].childNodes[2].childNodes[0].innerHTML
                            else
                               oldValue = tb.childNodes[row.i].childNodes[2].innerHTML;
                         }
-                        newValue = tr.childNodes[2].childNodes[1].innerHTML;
+                        if (select)
+                           newValue = tr.childNodes[2].childNodes[0].value;
+                        else
+                           newValue = tr.childNodes[2].childNodes[1].innerHTML;
                      }
 
                      if (oldValue !== undefined &&
