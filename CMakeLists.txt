@@ -97,7 +97,7 @@ endif()
 #
 if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mxml/mxml.cxx)
    message(FATAL_ERROR "\nError: 'mxml' submodule not found. Please install via\n"
-      "'git submodule update --init'\n"
+      "'git submodule update --init --recursive'\n"
       "in midas root directory."
    )
 endif()
@@ -107,7 +107,7 @@ endif()
 #
 if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mjson/mjson.cxx)
    message(FATAL_ERROR "\nError: 'mjson' submodule not found. Please install via\n"
-      "'git submodule update --init'\n"
+      "'git submodule update --init --recursive'\n"
       "in midas root directory."
    )
 endif()
@@ -117,7 +117,7 @@ endif()
 #
 if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mvodb/mvodb.cxx)
    message(FATAL_ERROR "\nError: 'mvodb' submodule not found. Please install via\n"
-      "'git submodule update --init'\n"
+      "'git submodule update --init --recursive'\n"
       "in midas root directory."
    )
 endif()
@@ -127,7 +127,7 @@ endif()
 #
 if (NOT EXISTS ${PROJECT_SOURCE_DIR}/midasio/midasio.cxx)
    message(FATAL_ERROR "\nError: 'midasio' submodule not found. Please install via\n"
-      "'git submodule update --init'\n"
+      "'git submodule update --init --recursive'\n"
       "in midas root directory."
    )
 endif()
@@ -137,7 +137,7 @@ endif()
 #
 if (NOT EXISTS ${PROJECT_SOURCE_DIR}/manalyzer/manalyzer.cxx)
    message(FATAL_ERROR "\nError: 'manalyzer' submodule not found. Please install via\n"
-      "'git submodule update --init'\n"
+      "'git submodule update --init --recursive'\n"
       "in midas root directory."
    )
 endif()
@@ -147,7 +147,7 @@ endif()
 #
 if (NOT EXISTS ${PROJECT_SOURCE_DIR}/mscb/src/mscb.cxx)
    message(FATAL_ERROR "\nError: 'mscb' submodule not found. Please install via\n"
-      "'git submodule update --init'\n"
+      "'git submodule update --init --recursive'\n"
       "in midas root directory."
    )
 endif()
