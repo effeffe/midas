@@ -417,7 +417,7 @@ struct HsSchema
                                  time_t* last_written) = 0;
    virtual int read_data(const time_t start_time,
                          const time_t end_time,
-                         const int num_var, const int var_schema_index[], const int var_index[],
+                         const int num_var, const std::vector<int>& var_schema_index, const int var_index[],
                          const int debug,
                          std::vector<time_t>& last_time,
                          MidasHistoryBufferInterface* buffer[]) = 0;
@@ -671,7 +671,7 @@ struct HsSqlSchema : public HsSchema {
                          time_t* last_written);
    int read_data(const time_t start_time,
                  const time_t end_time,
-                 const int num_var, const int var_schema_index[], const int var_index[],
+                 const int num_var, const std::vector<int>& var_schema_index, const int var_index[],
                  const int debug,
                  std::vector<time_t>& last_time,
                  MidasHistoryBufferInterface* buffer[]);
@@ -720,7 +720,7 @@ struct HsFileSchema : public HsSchema {
                          time_t* last_written);
    int read_data(const time_t start_time,
                  const time_t end_time,
-                 const int num_var, const int var_schema_index[], const int var_index[],
+                 const int num_var, const std::vector<int>& var_schema_index, const int var_index[],
                  const int debug,
                  std::vector<time_t>& last_time,
                  MidasHistoryBufferInterface* buffer[]);
@@ -1977,16 +1977,33 @@ static int ReadRecord(const char* file_name, int fd, int offset, int recsize, in
    return HS_SUCCESS;
 }
 
-static int FindTime(const char* file_name, int fd, int offset, int recsize, int nrec, time_t timestamp, int* irecp, time_t* trecp, time_t* trecp2, int debug)
+static int FindTime(const char* file_name, int fd, int offset, int recsize, int nrec, time_t timestamp, int* i1p, time_t* t1p, int* i2p, time_t* t2p, time_t* tstart, time_t* tend, int debug)
 {
+   //
+   // purpose: find location time timestamp inside given file.
+   // uses binary search
+   // returns:
+   // tstart, tend - time of first and last data in a file
+   // i1p,t1p - data just before timestamp, used as "last_written"
+   // i2p,t2p - data at timestamp or after timestamp, used as starting point to read data from file
+   // assertions:
+   // tstart <= t1p < t2p <= tend
+   // i1p+1==i2p
+   // t1p < timestamp <= t2p
+   //
+   // special cases:
+   // 1) timestamp <= tstart - all data is in the future, return i1p==-1, t1p==-1, i2p==0, t2p==tstart
+   // 2) tend < timestamp - all the data is in the past, return i1p = nrec-1, t1p = tend, i2p = nrec, t2p = 0;
+   // 3) nrec == 1 only one record in this file and it is older than the timestamp (tstart == tend < timestamp)
+   //
+
    int status;
    char* buf = new char[recsize];
 
-   int rec1, rec2;
-   time_t t1, t2;
+   assert(nrec > 0);
 
-   rec1 = 0;
-   rec2 = nrec-1;
+   int rec1 = 0;
+   int rec2 = nrec-1;
 
    status = ReadRecord(file_name, fd, offset, recsize, rec1, buf);
    if (status != HS_SUCCESS) {
@@ -1994,13 +2011,29 @@ static int FindTime(const char* file_name, int fd, int offset, int recsize, int 
       return HS_FILE_ERROR;
    }
 
-   t1 = *(DWORD*)buf;
+   time_t t1 = *(DWORD*)buf;
+
+   *tstart = t1;
 
    // timestamp is older than any data in this file
    if (timestamp <= t1) {
-      *irecp = -1;
-      *trecp = 0;
-      *trecp2 = t1;
+      *i1p    = -1;
+      *t1p    =  0;
+      *i2p    = 0;
+      *t2p    = t1;
+      *tend   = 0;
+      delete[] buf;
+      return HS_SUCCESS;
+   }
+
+   assert(t1 < timestamp);
+
+   if (nrec == 1) {
+      *i1p    = 0;
+      *t1p    = t1;
+      *i2p    = nrec; // == 1
+      *t2p    = 0;
+      *tend   = t1;
       delete[] buf;
       return HS_SUCCESS;
    }
@@ -2011,18 +2044,21 @@ static int FindTime(const char* file_name, int fd, int offset, int recsize, int 
       return HS_FILE_ERROR;
    }
 
-   t2 = *(DWORD*)buf;
+   time_t t2 = *(DWORD*)buf;
 
-   // timestamp is newer than any data in this file
-   if (timestamp > t2) {
-      *irecp = nrec;
-      *trecp = 0;
-      *trecp2 = 0;
+   *tend = t2;
+
+   // all the data is in the past
+   if (t2 < timestamp) {
+      *i1p = rec2;
+      *t1p = t2;
+      *i2p = nrec;
+      *t2p = 0;
       delete[] buf;
       return HS_SUCCESS;
    }
 
-   assert(timestamp > t1);
+   assert(t1 < timestamp);
    assert(timestamp <= t2);
 
    if (debug)
@@ -2032,6 +2068,9 @@ static int FindTime(const char* file_name, int fd, int offset, int recsize, int 
 
    do {
       int rec = (rec1+rec2)/2;
+
+      assert(rec >= 0);
+      assert(rec < nrec);
 
       status = ReadRecord(file_name, fd, offset, recsize, rec, buf);
       if (status != HS_SUCCESS) {
@@ -2057,15 +2096,17 @@ static int FindTime(const char* file_name, int fd, int offset, int recsize, int 
    } while (rec2 - rec1 > 1);
 
    assert(rec1+1 == rec2);
-   assert(t1 <= timestamp);
-   assert(t2 >= timestamp);
+   assert(t1 < timestamp);
+   assert(timestamp <= t2);
 
    if (debug)
       printf("FindTime: rec %d..(x)..%d, time %s..(%s)..%s, this is the result.\n", rec1, rec2, TimeToString(t1).c_str(), TimeToString(timestamp).c_str(), TimeToString(t2).c_str());
 
-   *irecp = rec1;
-   *trecp = t1;
-   *trecp2 = t2;
+   *i1p = rec1;
+   *t1p = t1;
+
+   *i2p = rec2;
+   *t2p = t2;
 
    delete[] buf;
    return HS_SUCCESS;
@@ -2122,13 +2163,18 @@ int HsFileSchema::read_last_written(const time_t timestamp,
    if (lw >= timestamp) {
       int irec = 0;
       time_t trec = 0;
-      time_t trec2 = 0;
+      int iunused = 0;
+      time_t tunused = 0;
+      time_t tstart = 0; // not used
+      time_t tend   = 0; // not used
 
-      status = FindTime(s->file_name.c_str(), fd, s->data_offset, s->record_size, nrec, timestamp, &irec, &trec, &trec2, 0*debug);
+      status = FindTime(s->file_name.c_str(), fd, s->data_offset, s->record_size, nrec, timestamp, &irec, &trec, &iunused, &tunused, &tstart, &tend, 0*debug);
       if (status != HS_SUCCESS) {
          ::close(fd);
          return HS_FILE_ERROR;
       }
+
+      assert(trec < timestamp);
 
       lw = trec;
    }
@@ -2148,25 +2194,45 @@ int HsFileSchema::read_last_written(const time_t timestamp,
 
 int HsFileSchema::read_data(const time_t start_time,
                             const time_t end_time,
-                            const int num_var, const int var_schema_index[], const int var_index[],
+                            const int num_var, const std::vector<int>& var_schema_index, const int var_index[],
                             const int debug,
                             std::vector<time_t>& last_time,
                             MidasHistoryBufferInterface* buffer[])
 {
-   int status;
-   bool bad_last_time = false;
    HsFileSchema* s = this;
 
    if (debug)
       printf("FileHistory::read_data: file %s, schema time %s..%s, read time %s..%s, %d vars\n", s->file_name.c_str(), TimeToString(s->time_from).c_str(), TimeToString(s->time_to).c_str(), TimeToString(start_time).c_str(), TimeToString(end_time).c_str(), num_var);
 
-   int fd = open(s->file_name.c_str(), O_RDONLY);
+   //if (1) {
+   //   printf("Last time: ");
+   //   for (int i=0; i<num_var; i++) {
+   //      printf(" %s", TimeToString(last_time[i]).c_str());
+   //   }
+   //   printf("\n");
+   //}
+
+   if (debug) {
+      printf("FileHistory::read_data: file %s map", s->file_name.c_str());
+      for (size_t i=0; i<var_schema_index.size(); i++) {
+         printf(" %2d", var_schema_index[i]);
+      }
+      printf("\n");
+   }
+
+   int fd = ::open(s->file_name.c_str(), O_RDONLY);
    if (fd < 0) {
       cm_msg(MERROR, "FileHistory::read_data", "Cannot read \'%s\', open() errno %d (%s)", s->file_name.c_str(), errno, strerror(errno));
       return HS_FILE_ERROR;
    }
 
-   int file_size = ::lseek(fd, 0, SEEK_END);
+   off_t file_size = ::lseek(fd, 0, SEEK_END);
+
+   if (file_size == (off_t)-1) {
+      cm_msg(MERROR, "FileHistory::read_data", "Cannot read \'%s\', fseek(SEEK_END) errno %d (%s)", s->file_name.c_str(), errno, strerror(errno));
+      ::close(fd);
+      return HS_FILE_ERROR;
+   }
 
    int nrec = (file_size - s->data_offset)/s->record_size;
    if (nrec < 0)
@@ -2177,132 +2243,189 @@ int HsFileSchema::read_data(const time_t start_time,
       return HS_SUCCESS;
    }
 
+   int iunused = 0;
+   time_t tunused = 0;
    int irec = 0;
-   time_t trec = 0;
-   time_t trec2 = 0;
+   time_t trec   = 0;
+   time_t tstart = 0;
+   time_t tend   = 0;
 
-   status = FindTime(s->file_name.c_str(), fd, s->data_offset, s->record_size, nrec, start_time, &irec, &trec, &trec2, 0*debug);
+   int status = FindTime(s->file_name.c_str(), fd, s->data_offset, s->record_size, nrec, start_time, &iunused, &tunused, &irec, &trec, &tstart, &tend, 0*debug);
+
    if (status != HS_SUCCESS) {
       ::close(fd);
       return HS_FILE_ERROR;
    }
 
-   // irec points to the entry right before "start_time",
-   // so we need to increment it. "begin of file" is irec==-1, becomes irec=0
-   if (irec < 0)
-      irec = 0;
-   else
-      irec += 1;
+   if (debug) {
+      printf("FindTime %d, nrec %d, (%d, %s) (%d, %s), tstart %s, tend %s, want %s\n", status, nrec, iunused, TimeToString(tunused).c_str(), irec, TimeToString(trec).c_str(), TimeToString(tstart).c_str(), TimeToString(tend).c_str(), TimeToString(start_time).c_str());
+   }
+
+   if (irec < 0 || irec >= nrec) {
+      // all data in this file is older than start_time
+
+      ::close(fd);
+
+      if (debug)
+         printf("FileHistory::read: file %s, schema time %s..%s, read time %s..%s, file time %s..%s, data in this file is too old\n", s->file_name.c_str(), TimeToString(s->time_from).c_str(), TimeToString(s->time_to).c_str(), TimeToString(start_time).c_str(), TimeToString(end_time).c_str(), TimeToString(tstart).c_str(), TimeToString(tend).c_str());
+
+      return HS_SUCCESS;
+   }
+
+   if (tstart < s->time_from) {
+      // data starts before time declared in schema
+
+      ::close(fd);
+
+      cm_msg(MERROR, "FileHistory::read_data", "Bad history file \'%s\': timestamp of first data %s is before schema start time %s", s->file_name.c_str(), TimeToString(tstart).c_str(), TimeToString(s->time_from).c_str());
+
+      return HS_FILE_ERROR;
+   }
+
+   if (tend && s->time_to && tend > s->time_to) {
+      // data ends after time declared in schema (overlaps with next file)
+
+      ::close(fd);
+
+      cm_msg(MERROR, "FileHistory::read_data", "Bad history file \'%s\': timestamp of last data %s is after schema end time %s", s->file_name.c_str(), TimeToString(tend).c_str(), TimeToString(s->time_to).c_str());
+
+      return HS_FILE_ERROR;
+   }
+
+   for (int i=0; i<num_var; i++) {
+      int si = var_schema_index[i];
+      if (si < 0)
+         continue;
+         
+      if (trec < last_time[i]) { // protect against duplicate and non-monotonous data
+         ::close(fd);
+
+         cm_msg(MERROR, "FileHistory::read_data", "Internal history error at file \'%s\': variable %d data timestamp %s is before last timestamp %s", s->file_name.c_str(), i, TimeToString(trec).c_str(), TimeToString(last_time[i]).c_str());
+         
+         return HS_FILE_ERROR;
+      }
+   }
 
    int count = 0;
 
-   if (irec < nrec) {
-      if (trec)
-         assert(trec < start_time);
-      assert(trec2 >= start_time);
-
-      int fpos = s->data_offset + irec*s->record_size;
-
-      status = ::lseek(fd, fpos, SEEK_SET);
-      if (status == -1) {
-         cm_msg(MERROR, "FileHistory::read_data", "Cannot read \'%s\', lseek(%d) errno %d (%s)", s->file_name.c_str(), fpos, errno, strerror(errno));
+   off_t fpos = s->data_offset + irec*s->record_size;
+   
+   off_t xpos = ::lseek(fd, fpos, SEEK_SET);
+   if (xpos == (off_t)-1) {
+      cm_msg(MERROR, "FileHistory::read_data", "Cannot read \'%s\', lseek(%zu) errno %d (%s)", s->file_name.c_str(), (size_t)fpos, errno, strerror(errno));
+      ::close(fd);
+      return HS_FILE_ERROR;
+   }
+   
+   char* buf = new char[s->record_size];
+   
+   while (1) {
+      status = ::read(fd, buf, s->record_size);
+      if (status == 0) // EOF
+         break;
+      if (status != s->record_size) {
+         cm_msg(MERROR, "FileHistory::read_data", "Cannot read \'%s\', read() errno %d (%s)", s->file_name.c_str(), errno, strerror(errno));
+         break;
+      }
+      
+      time_t t = *(DWORD*)buf;
+      
+      if (debug > 1)
+         printf("FileHistory::read: file %s, schema time %s..%s, read time %s..%s, row time %s\n", s->file_name.c_str(), TimeToString(s->time_from).c_str(), TimeToString(s->time_to).c_str(), TimeToString(start_time).c_str(), TimeToString(end_time).c_str(), TimeToString(t).c_str());
+      
+      if (t < trec) {
+         delete buf;
          ::close(fd);
+         cm_msg(MERROR, "FileHistory::read_data", "Bad history file \'%s\': record %d timestamp %s is before start time %s", s->file_name.c_str(), irec + count, TimeToString(t).c_str(), TimeToString(trec).c_str());
          return HS_FILE_ERROR;
       }
-
-      char* buf = new char[s->record_size];
-
-      while (1) {
-         status = ::read(fd, buf, s->record_size);
-         if (status == 0) // EOF
-            break;
-         if (status != s->record_size) {
-            cm_msg(MERROR, "FileHistory::read_data", "Cannot read \'%s\', read() errno %d (%s)", s->file_name.c_str(), errno, strerror(errno));
-            break;
-         }
-
-         time_t t = *(DWORD*)buf;
-
-         if (debug > 1)
-            printf("FileHistory::read: file %s, schema time %s..%s, read time %s..%s, row time %s\n", s->file_name.c_str(), TimeToString(s->time_from).c_str(), TimeToString(s->time_to).c_str(), TimeToString(start_time).c_str(), TimeToString(end_time).c_str(), TimeToString(t).c_str());
-
-         if (t < start_time) {
-            cm_msg(MERROR, "FileHistory::read_data", "Bad timestamp in history file \'%s\', time 0x%08x less then start_time 0x%08x, irec %d, nrec %d, fpos %d", s->file_name.c_str(), (DWORD)t, (DWORD)start_time, irec, nrec, fpos);
-            break;
-         }
-
-         if (t > end_time)
-            break;
-
-         char* data = buf + 4;
-
-         count++;
-         for (int i=0; i<num_var; i++) {
-            int si = var_schema_index[i];
-            if (si < 0)
-               continue;
-
-            if (t < last_time[i]) { // protect against duplicate and non-monotonous data
-               bad_last_time = true;
-               continue;
-            }
-
-            double v = 0;
-            void* ptr = data + s->offsets[si];
-
-            int ii = var_index[i];
-            assert(ii >= 0);
-            assert(ii < s->variables[si].n_data);
-
-            switch (s->variables[si].type) {
-            default:
-               // unknown data type
-               v = 0;
-               break;
-            case TID_BYTE:
-               v = ((unsigned char*)ptr)[ii];
-               break;
-            case TID_SBYTE:
-               v = ((signed char *)ptr)[ii];
-               break;
-            case TID_CHAR:
-               v = ((char*)ptr)[ii];
-               break;
-            case TID_WORD:
-               v = ((unsigned short *)ptr)[ii];
-               break;
-            case TID_SHORT:
-               v = ((signed short *)ptr)[ii];
-               break;
-            case TID_DWORD:
-               v = ((unsigned int *)ptr)[ii];
-               break;
-            case TID_INT:
-               v = ((int *)ptr)[ii];
-               break;
-            case TID_BOOL:
-               v = ((unsigned int *)ptr)[ii];
-               break;
-            case TID_FLOAT:
-               v = ((float*)ptr)[ii];
-               break;
-            case TID_DOUBLE:
-               v = ((double*)ptr)[ii];
-               break;
-            }
-
-            buffer[i]->Add(t, v);
-            last_time[i] = t;
-         }
+      
+      if (tend && (t > tend)) {
+         delete buf;
+         ::close(fd);
+         cm_msg(MERROR, "FileHistory::read_data", "Bad history file \'%s\': record %d timestamp %s is after last timestamp %s", s->file_name.c_str(), irec + count, TimeToString(t).c_str(), TimeToString(tend).c_str());
+         return HS_FILE_ERROR;
       }
+      
+      if (t > end_time)
+         break;
+      
+      char* data = buf + 4;
+      
+      for (int i=0; i<num_var; i++) {
+         int si = var_schema_index[i];
+         if (si < 0)
+            continue;
+         
+         if (t < last_time[i]) { // protect against duplicate and non-monotonous data
+            delete buf;
+            ::close(fd);
 
-      delete[] buf;
+            cm_msg(MERROR, "FileHistory::read_data", "Bad history file \'%s\': record %d timestamp %s is before timestamp %s of variable %d", s->file_name.c_str(), irec + count, TimeToString(t).c_str(), TimeToString(last_time[i]).c_str(), i);
+
+            return HS_FILE_ERROR;
+         }
+         
+         double v = 0;
+         void* ptr = data + s->offsets[si];
+         
+         int ii = var_index[i];
+         assert(ii >= 0);
+         assert(ii < s->variables[si].n_data);
+         
+         switch (s->variables[si].type) {
+         default:
+            // unknown data type
+            v = 0;
+            break;
+         case TID_BYTE:
+            v = ((unsigned char*)ptr)[ii];
+            break;
+         case TID_SBYTE:
+            v = ((signed char *)ptr)[ii];
+            break;
+         case TID_CHAR:
+            v = ((char*)ptr)[ii];
+            break;
+         case TID_WORD:
+            v = ((unsigned short *)ptr)[ii];
+            break;
+         case TID_SHORT:
+            v = ((signed short *)ptr)[ii];
+            break;
+         case TID_DWORD:
+            v = ((unsigned int *)ptr)[ii];
+            break;
+         case TID_INT:
+            v = ((int *)ptr)[ii];
+            break;
+         case TID_BOOL:
+            v = ((unsigned int *)ptr)[ii];
+            break;
+         case TID_FLOAT:
+            v = ((float*)ptr)[ii];
+            break;
+         case TID_DOUBLE:
+            v = ((double*)ptr)[ii];
+            break;
+         }
+         
+         buffer[i]->Add(t, v);
+         last_time[i] = t;
+      }
+      count++;
    }
+
+   delete[] buf;
 
    ::close(fd);
 
-   if (bad_last_time) {
-      cm_msg(MERROR, "FileHistory::read_data", "Detected duplicated or non-monotonous data in history file \'%s\'", s->file_name.c_str());
+   if (debug) {
+      printf("FileHistory::read_data: file %s map", s->file_name.c_str());
+      for (size_t i=0; i<var_schema_index.size(); i++) {
+         printf(" %2d", var_schema_index[i]);
+      }
+      printf(" read %d rows\n", count);
    }
 
    if (debug)
@@ -3011,55 +3134,76 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
       hs_status[i] = HS_UNDEFINED_VAR;
    }
 
-   typedef std::map<HsSchema*, int*> SchemaIndexMap;
-   SchemaIndexMap smap;
+   //for (unsigned ss=0; ss<fSchema.size(); ss++) {
+   //   HsSchema* s = fSchema[ss];
+   //   HsFileSchema* fs = dynamic_cast<HsFileSchema*>(s);
+   //   assert(fs != NULL);
+   //   printf("schema %d from %s to %s, filename %s\n", ss, TimeToString(fs->time_from).c_str(),  TimeToString(fs->time_to).c_str(), fs->file_name.c_str());
+   //}
+
    std::vector<HsSchema*> slist;
+   std::vector<std::vector<int>> smap;
 
-   for (int i=0; i<num_var; i++) {
+   for (size_t ss=0; ss<fSchema.size(); ss++) {
+      HsSchema* s = fSchema[ss];
+      // schema is too new?
+      if (s->time_from && s->time_from > end_time)
+         continue;
+      // schema is too old
+      if (s->time_to && s->time_to < start_time)
+         continue;
 
-      for (unsigned ss=0; ss<fSchema.size(); ss++) {
-         HsSchema* s = fSchema[ss];
-         // schema is too new?
-         if (s->time_from && s->time_from > end_time)
-            continue;
-         // schema is too old
-         if (s->time_to && s->time_to < start_time)
-            continue;
+      std::vector<int> sm;
+
+      for (int i=0; i<num_var; i++) {
          // schema for the variables we want?
          int sindex = s->match_event_var(event_name[i], var_name[i], var_index[i]);
          if (sindex < 0)
             continue;
 
-         int* ia = smap[s];
-
-         if (!ia) {
-            ia = new int[num_var];
-            for (int k=0; k<num_var; k++)
-               ia[k] = -1;
-
-            slist.push_back(s);
-            smap[s] = ia;
+         if (sm.empty()) {
+            for (int i=0; i<num_var; i++) {
+               sm.push_back(-1);
+            }
          }
 
-         ia[i] = sindex;
+         sm[i] = sindex;
+      }
 
-#if 0
-         if (fDebug) {
-            printf("For event [%s] tag [%s] index [%d] found schema: ", event_name[i], var_name[i], var_index[i]);
-            s->print();
-         }
-#endif
+      if (!sm.empty()) {
+         slist.push_back(s);
+         smap.push_back(sm);
       }
    }
 
    if (0||fDebug) {
       printf("Found %d matching schema:\n", (int)slist.size());
 
-      for (unsigned i=0; i<slist.size(); i++) {
+      for (size_t i=0; i<slist.size(); i++) {
          HsSchema* s = slist[i];
          s->print();
          for (int k=0; k<num_var; k++)
-            printf("  tag %s[%d] sindex %d\n", var_name[k], var_index[k], smap[s][k]);
+            printf("  tag %s[%d] sindex %d\n", var_name[k], var_index[k], smap[i][k]);
+      }
+   }
+
+   //for (size_t ss=0; ss<slist.size(); ss++) {
+   //   HsSchema* s = slist[ss];
+   //   HsFileSchema* fs = dynamic_cast<HsFileSchema*>(s);
+   //   assert(fs != NULL);
+   //   printf("schema %zu from %s to %s, filename %s", ss, TimeToString(fs->time_from).c_str(),  TimeToString(fs->time_to).c_str(), fs->file_name.c_str());
+   //   printf(" smap ");
+   //   for (int k=0; k<num_var; k++)
+   //      printf(" %2d", smap[ss][k]);
+   //   printf("\n");
+   //}
+
+   for (size_t ss=1; ss<slist.size(); ss++) {
+      if ((slist[ss-1]->time_from >= slist[ss]->time_to) && (slist[ss-1]->time_from > slist[ss]->time_from)) {
+         // good
+      } else {
+         cm_msg(MERROR, "SchemaHistoryBase::hs_read_buffer", "History internal error, schema is not ordered by time. Please report this error to the midas forum.");
+         return HS_FILE_ERROR;
       }
    }
 
@@ -3072,26 +3216,14 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
    for (int i=slist.size()-1; i>=0; i--) {
       HsSchema* s = slist[i];
 
-#if 0
-      if (0) {
-         printf("slist %d, read data %d -> %d from ", i, start_time, end_time);
-         s->print();
-         printf("\n");
-      }
-#endif
+      int status = s->read_data(start_time, end_time, num_var, smap[i], var_index, fDebug, last_time, buffer);
 
-      int status = s->read_data(start_time, end_time, num_var, smap[s], var_index, fDebug, last_time, buffer);
-
-      if (status == HS_SUCCESS)
+      if (status == HS_SUCCESS) {
          for (int j=0; j<num_var; j++) {
-            int* si = smap[s];
-            assert(si);
-            if (si[j] >= 0)
+            if (smap[i][j] >= 0)
                hs_status[j] = HS_SUCCESS;
          }
-
-      delete[] smap[s];
-      smap[s] = NULL;
+      }
    }
 
    return HS_SUCCESS;
@@ -3489,7 +3621,7 @@ int HsSqlSchema::read_last_written(const time_t timestamp,
 
 int HsSqlSchema::read_data(const time_t start_time,
                            const time_t end_time,
-                           const int num_var, const int var_schema_index[], const int var_index[],
+                           const int num_var, const std::vector<int>& var_schema_index, const int var_index[],
                            const int debug,
                            std::vector<time_t>& last_time,
                            MidasHistoryBufferInterface* buffer[])
@@ -3567,7 +3699,7 @@ int HsSqlSchema::read_data(const time_t start_time,
    sql->Finalize();
 
    if (bad_last_time) {
-//      cm_msg(MERROR, "SqlHistory::read_data", "Detected duplicate or non-monotonous data in table \"%s\"", table_name.c_str());
+      cm_msg(MERROR, "SqlHistory::read_data", "Detected duplicate or non-monotonous data in table \"%s\" for start time %s and end time %s", table_name.c_str(), TimeToString(start_time).c_str(), TimeToString(end_time).c_str());
    }
 
    if (debug)
