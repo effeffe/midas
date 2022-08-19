@@ -416,9 +416,114 @@ int readHst(const char* name)
    return 0;
 }
 
+std::string readString(FILE* f)
+{
+   char buf[1024];
+   memset(buf, 0, sizeof(buf));
+   const char* s = fgets(buf, sizeof(buf)-1, f);
+   if (!s)
+      return "";
+   // NUL-teminated by memset(0)
+   size_t len = strlen(buf);
+   if (len > 0) {
+      // remove trailing newline
+      if (buf[len-1] == '\n')
+         buf[len-1] = 0;
+   }
+   return buf;
+}
+
+std::string tagValue(const char* tag, const std::string& s)
+{
+   size_t len = strlen(tag);
+   if (strncmp(s.c_str(), tag, len) == 0) {
+      const char* sptr = s.c_str() + len;
+      while (sptr[0] == ' ')
+         sptr++;
+      return sptr;
+   }
+   return "";
+}
+
+int readMhfFileV2(const char* filename, FILE*f)
+{
+   std::string event_name = tagValue("event_name:", readString(f));
+   std::string time       = tagValue("time:", readString(f));
+   printf("event name: [%s], time [%s]\n", event_name.c_str(), time.c_str());
+   std::string s;
+   while (1) {
+      s = readString(f);
+      if (strncmp(s.c_str(), "tag:", 4) != 0)
+         break;
+      printf("tag: %s\n", s.c_str());
+   }
+   std::string s_record_size = tagValue("record_size:", s);
+   std::string s_data_offset = tagValue("data_offset:", readString(f));
+   size_t record_size = atoi(s_record_size.c_str());
+   size_t data_offset = atoi(s_data_offset.c_str());
+   //record_size += 4; // 4 bytes of timestamp
+   printf("record size: %zu, data offset: %zu\n", record_size, data_offset);
+   int status = fseek(f, data_offset, SEEK_SET);
+   if (status != 0) {
+      fprintf(stderr, "%s: cannot seek to %zu, fseek() returned %d, errno %d (%s)\n", filename, data_offset, status, errno, strerror(errno));
+      return -1;
+   }
+   char buf[record_size];
+   int count = 0;
+   uint32_t last_time = atoi(time.c_str());
+   while (!feof(f)) {
+      size_t rd = fread(buf, 1, record_size, f);
+      //printf("read %zu\n", rd);
+      if (rd == 0) {
+         // EOF
+         break;
+      } else if (rd != record_size) {
+         // short read
+         fprintf(stderr, "%s: short read at the end of file, last data record is truncated from %zu to %zu bytes\n", filename, record_size, rd);
+         break;
+      }
+      const uint32_t t = *(uint32_t*)&buf[0];
+      printf("record %d, time %lu, incr %lu\n", count, (long unsigned int)t, (long unsigned int)(t-last_time));
+      count++;
+      if (t == last_time) {
+         printf("duplicate time %lu -> %lu\n", (long unsigned int)last_time, (long unsigned int)t);
+      } else if (t < last_time) {
+         printf("non-monotonic time %lu -> %lu\n", (long unsigned int)last_time, (long unsigned int)t);
+      }
+      last_time = t;
+   }
+   fprintf(stderr, "%s: read %d records\n", filename, count);
+   return 0;
+}
+
+int readMhfFile(const char* filename, FILE*f)
+{
+   std::string version = readString(f);
+   if (version == "version: 2.0") {
+      return readMhfFileV2(filename, f);
+   }
+
+   fprintf(stderr, "%s: unexpected file version: %s\n", filename, version.c_str());
+   return -1;
+}
+
+int readMhf(const char* name)
+{
+   FILE* f = fopen(name,"r");
+   if (!f) {
+      fprintf(stderr,"Error: Cannot open \'%s\', errno %d (%s)\n", name, errno, strerror(errno));
+      exit(1);
+   }
+
+   readMhfFile(name, f);
+   fclose(f);
+   return 0;
+}
+
 void help()
 {
    fprintf(stderr,"Usage: mhdump [-h] [-L] [-n] [-t] [-E event_id] [-T tag_name] file1.hst file2.hst ...\n");
+   fprintf(stderr,"Usage: mhdump [-L] [-n] [-t] [-T tag_name] mhf_file1.dat mhf_file2.dat ...\n");
    fprintf(stderr,"\n");
    fprintf(stderr,"Switches:\n");
    fprintf(stderr,"  -h --- print this help message\n");
@@ -491,12 +596,17 @@ int main(int argc,char*argv[])
          doAll = true;
       else if (strcmp(argv[iarg], "-n")==0)
          doPrintNames = false;
-      else
-         {
-            if (gTags.size() == 0)
-               doAll = true;
-            readHst(argv[iarg]);
-         }
+      else if (strncmp(argv[iarg], "mhf_", 4) == 0 || strstr(argv[iarg], "/mhf_")) {
+         // read mhf_xxx.dat files
+         if (gTags.size() == 0)
+            doAll = true;
+         readMhf(argv[iarg]);
+      } else {
+         // read xxx.hst files
+         if (gTags.size() == 0)
+            doAll = true;
+         readHst(argv[iarg]);
+      }
 
    // make leak sanitizer happy, delete everything we allocated.
    for (auto& ei: gTags) {
