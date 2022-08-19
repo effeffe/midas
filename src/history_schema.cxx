@@ -2334,14 +2334,14 @@ int HsFileSchema::read_data(const time_t start_time,
          printf("FileHistory::read: file %s, schema time %s..%s, read time %s..%s, row time %s\n", s->file_name.c_str(), TimeToString(s->time_from).c_str(), TimeToString(s->time_to).c_str(), TimeToString(start_time).c_str(), TimeToString(end_time).c_str(), TimeToString(t).c_str());
       
       if (t < trec) {
-         delete buf;
+         delete[] buf;
          ::close(fd);
          cm_msg(MERROR, "FileHistory::read_data", "Bad history file \'%s\': record %d timestamp %s is before start time %s", s->file_name.c_str(), irec + count, TimeToString(t).c_str(), TimeToString(trec).c_str());
          return HS_FILE_ERROR;
       }
       
       if (tend && (t > tend)) {
-         delete buf;
+         delete[] buf;
          ::close(fd);
          cm_msg(MERROR, "FileHistory::read_data", "Bad history file \'%s\': record %d timestamp %s is after last timestamp %s", s->file_name.c_str(), irec + count, TimeToString(t).c_str(), TimeToString(tend).c_str());
          return HS_FILE_ERROR;
@@ -2358,7 +2358,7 @@ int HsFileSchema::read_data(const time_t start_time,
             continue;
          
          if (t < last_time[i]) { // protect against duplicate and non-monotonous data
-            delete buf;
+            delete[] buf;
             ::close(fd);
 
             cm_msg(MERROR, "FileHistory::read_data", "Bad history file \'%s\': record %d timestamp %s is before timestamp %s of variable %d", s->file_name.c_str(), irec + count, TimeToString(t).c_str(), TimeToString(last_time[i]).c_str(), i);
