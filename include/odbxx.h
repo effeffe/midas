@@ -1194,6 +1194,8 @@ namespace midas {
 
       void set_mode(int mode);
       int get_mode();
+
+      unsigned int get_last_written();
    };
 
    //---- midas::odb friend functions -------------------------------

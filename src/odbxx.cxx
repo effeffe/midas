@@ -1335,10 +1335,27 @@ namespace midas {
       int status = db_get_key(m_hDB, m_hKey, &key);
 
       if (status != DB_SUCCESS && status != DB_INVALID_HANDLE)
-         mthrow("db_get_mode for ODB key \"" + m_name +
+         mthrow("db_get_key for ODB key \"" + m_name +
                 "\" returnd error code " + std::to_string(status));
 
       return key.access_mode;
+   }
+
+   unsigned int odb::get_last_written() {
+      init_hdb();
+
+      // keep the name for debugging
+      m_name = get_full_path();
+
+      // set mode in ODB
+      KEY key;
+      int status = db_get_key(m_hDB, m_hKey, &key);
+
+      if (status != DB_SUCCESS && status != DB_INVALID_HANDLE)
+         mthrow("db_get_key for ODB key \"" + m_name +
+                "\" returnd error code " + std::to_string(status));
+
+      return (unsigned int) (key.last_written);
    }
 
    void odb::watch(std::function<void(midas::odb &)> f) {
