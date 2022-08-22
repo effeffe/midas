@@ -3199,6 +3199,15 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
    //}
 
    for (size_t ss=1; ss<slist.size(); ss++) {
+      if (fDebug) {
+         printf("Check schema %zu/%zu: prev from %s, this from %s to %s, compare %d %d %d\n", ss, slist.size(),
+                TimeToString(slist[ss-1]->time_from).c_str(),
+                TimeToString(slist[ss]->time_to).c_str(),
+                TimeToString(slist[ss]->time_from).c_str(),
+                slist[ss-1]->time_from >= slist[ss]->time_to,
+                slist[ss-1]->time_from > slist[ss]->time_from,
+                (slist[ss-1]->time_from >= slist[ss]->time_to) && (slist[ss-1]->time_from > slist[ss]->time_from));
+      }
       if ((slist[ss-1]->time_from >= slist[ss]->time_to) && (slist[ss-1]->time_from > slist[ss]->time_from)) {
          // good
       } else {
