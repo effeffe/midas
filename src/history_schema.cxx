@@ -3141,6 +3141,36 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
    //   printf("schema %d from %s to %s, filename %s\n", ss, TimeToString(fs->time_from).c_str(),  TimeToString(fs->time_to).c_str(), fs->file_name.c_str());
    //}
 
+   // check that schema are sorted by time
+
+#if 0
+   for (size_t ss=0; ss<fSchema.size(); ss++) {
+      if (fDebug) {
+         //printf("Check schema %zu/%zu: prev from %s, this from %s to %s, compare %d %d %d\n", ss, fSchema.size(),
+         //       TimeToString(fSchema[ss-1]->time_from).c_str(),
+         //       TimeToString(fSchema[ss]->time_from).c_str(),
+         //       TimeToString(fSchema[ss]->time_to).c_str(),
+         //       fSchema[ss-1]->time_from >= fSchema[ss]->time_to,
+         //       fSchema[ss-1]->time_from > fSchema[ss]->time_from,
+         //       (fSchema[ss-1]->time_from >= fSchema[ss]->time_to) && (fSchema[ss-1]->time_from > fSchema[ss]->time_from));
+         printf("Schema %zu/%zu: from %s to %s, name %s\n", ss, fSchema.size(),
+                TimeToString(fSchema[ss]->time_from).c_str(),
+                TimeToString(fSchema[ss]->time_to).c_str(),
+                fSchema[ss]->event_name.c_str());
+      }
+
+      if (ss > 0) {
+         //if ((fSchema[ss-1]->time_from >= fSchema[ss]->time_to) && (fSchema[ss-1]->time_from > fSchema[ss]->time_from)) {
+         if ((fSchema[ss-1]->time_from > fSchema[ss]->time_from)) {
+            // good
+         } else {
+            cm_msg(MERROR, "SchemaHistoryBase::hs_read_buffer", "History internal error, schema is not ordered by time. Please report this error to the midas forum.");
+            return HS_FILE_ERROR;
+         }
+      }
+   }
+#endif
+
    std::vector<HsSchema*> slist;
    std::vector<std::vector<int>> smap;
 
@@ -3198,12 +3228,13 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
    //   printf("\n");
    //}
 
+#if 0
    for (size_t ss=1; ss<slist.size(); ss++) {
       if (fDebug) {
          printf("Check schema %zu/%zu: prev from %s, this from %s to %s, compare %d %d %d\n", ss, slist.size(),
                 TimeToString(slist[ss-1]->time_from).c_str(),
-                TimeToString(slist[ss]->time_to).c_str(),
                 TimeToString(slist[ss]->time_from).c_str(),
+                TimeToString(slist[ss]->time_to).c_str(),
                 slist[ss-1]->time_from >= slist[ss]->time_to,
                 slist[ss-1]->time_from > slist[ss]->time_from,
                 (slist[ss-1]->time_from >= slist[ss]->time_to) && (slist[ss-1]->time_from > slist[ss]->time_from));
@@ -3211,10 +3242,11 @@ int SchemaHistoryBase::hs_read_buffer(time_t start_time, time_t end_time,
       if ((slist[ss-1]->time_from >= slist[ss]->time_to) && (slist[ss-1]->time_from > slist[ss]->time_from)) {
          // good
       } else {
-         cm_msg(MERROR, "SchemaHistoryBase::hs_read_buffer", "History internal error, schema is not ordered by time. Please report this error to the midas forum.");
+         cm_msg(MERROR, "SchemaHistoryBase::hs_read_buffer", "History internal error, selected schema is not ordered by time. Please report this error to the midas forum.");
          return HS_FILE_ERROR;
       }
    }
+#endif
 
    std::vector<time_t> last_time;
 
