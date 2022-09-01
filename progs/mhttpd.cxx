@@ -16130,11 +16130,10 @@ int start_mg(int user_http_port, int user_https_port, int socket_priviledged_por
       mg_set_protocol_http_websocket(nc);
 
       if (http_redirect_to_https) {
-         char hostname[256];
-         ss_gethostname(hostname, sizeof(hostname));
+         std::string hostname = ss_gethostname();
          char str[256];
          sprintf(str, "%d", https_port);
-         std::string s = std::string(hostname) + ":" + std::string(str);
+         std::string s = hostname + ":" + std::string(str);
          nc->user_data = new std::string(s);
          mg_register_http_endpoint(nc, "/", handle_http_redirect);
          printf("mongoose web server is redirecting HTTP port %d to https://%s\n", http_port, s.c_str());

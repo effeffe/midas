@@ -2289,7 +2289,6 @@ Connect to a MIDAS experiment (to the online database) on
 INT cm_connect_experiment1(const char *host_name, const char *exp_name,
                            const char *client_name, void (*func)(char *), INT odb_size, DWORD watchdog_timeout) {
    INT status, size;
-   char local_host_name[HOST_NAME_LENGTH];
    char client_name1[NAME_LENGTH];
    char password[NAME_LENGTH], str[256];
    HNDLE hDB = 0, hKeyClient = 0;
@@ -2453,11 +2452,13 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
              "cannot get ODB /Experiment/Security/Enable non-localhost RPC, status %d", status);
    }
 
+   std::string local_host_name;
+   
    /* now setup client info */
    if (!disable_bind_rpc_to_localhost)
-      strlcpy(local_host_name, "localhost", sizeof(local_host_name));
+      local_host_name = "localhost";
    else
-      ss_gethostname(local_host_name, sizeof(local_host_name));
+      local_host_name = ss_gethostname();
 
    /* check watchdog timeout */
    if (watchdog_timeout == 0)
@@ -2465,7 +2466,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
 
    strcpy(client_name1, client_name);
    password[0] = 0;
-   status = cm_set_client_info(hDB, &hKeyClient, local_host_name, client_name1, rpc_get_hw_type(), password, watchdog_timeout);
+   status = cm_set_client_info(hDB, &hKeyClient, local_host_name.c_str(), client_name1, rpc_get_hw_type(), password, watchdog_timeout);
 
    if (status == CM_WRONG_PASSWORD) {
       if (func == NULL)
@@ -2474,7 +2475,7 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
          func(str);
 
       strcpy(password, ss_crypt(str, "mi"));
-      status = cm_set_client_info(hDB, &hKeyClient, local_host_name, client_name1, rpc_get_hw_type(), password, watchdog_timeout);
+      status = cm_set_client_info(hDB, &hKeyClient, local_host_name.c_str(), client_name1, rpc_get_hw_type(), password, watchdog_timeout);
       if (status != CM_SUCCESS) {
          /* disconnect */
          if (rpc_is_remote())
@@ -2533,15 +2534,15 @@ INT cm_connect_experiment1(const char *host_name, const char *exp_name,
    db_get_value(hDB, 0, str, &watchdog_timeout, &size, TID_INT32, TRUE);
    cm_set_watchdog_params(call_watchdog, watchdog_timeout);
 
-   /* send startup notification */
-   if (strchr(local_host_name, '.'))
-      *strchr(local_host_name, '.') = 0;
+   ///* send startup notification */
+   //if (strchr(local_host_name, '.'))
+   //   *strchr(local_host_name, '.') = 0;
 
    /* get final client name */
    std::string xclient_name = rpc_get_name();
 
    /* startup message is not displayed */
-   cm_msg(MLOG, "cm_connect_experiment", "Program %s on host %s started", xclient_name.c_str(), local_host_name);
+   cm_msg(MLOG, "cm_connect_experiment", "Program %s on host %s started", xclient_name.c_str(), local_host_name.c_str());
 
    /* enable system and user messages to stdout as default */
    cm_set_msg_print(MT_ALL, MT_ALL, puts);
@@ -2877,7 +2878,6 @@ allocated memory. See cm_connect_experiment() for example.
 */
 INT cm_disconnect_experiment(void) {
    HNDLE hDB, hKey;
-   char local_host_name[HOST_NAME_LENGTH];
 
    //cm_msg(MERROR, "cm_disconnect_experiment", "test cm_msg before disconnect from experiment");
    //cm_msg_flush_buffer();
@@ -2896,16 +2896,18 @@ INT cm_disconnect_experiment(void) {
    /* send shutdown notification */
    std::string client_name = rpc_get_name();
 
+   std::string local_host_name;
+   
    if (!disable_bind_rpc_to_localhost)
-      strlcpy(local_host_name, "localhost", sizeof(local_host_name));
+      local_host_name = "localhost";
    else {
-      ss_gethostname(local_host_name, sizeof(local_host_name));
-      if (strchr(local_host_name, '.'))
-         *strchr(local_host_name, '.') = 0;
+      local_host_name = ss_gethostname();
+      //if (strchr(local_host_name, '.'))
+      //   *strchr(local_host_name, '.') = 0;
    }
 
    /* disconnect message not displayed */
-   cm_msg(MLOG, "cm_disconnect_experiment", "Program %s on host %s stopped", client_name.c_str(), local_host_name);
+   cm_msg(MLOG, "cm_disconnect_experiment", "Program %s on host %s stopped", client_name.c_str(), local_host_name.c_str());
    cm_msg_flush_buffer();
 
    if (rpc_is_remote()) {

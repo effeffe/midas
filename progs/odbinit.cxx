@@ -339,13 +339,7 @@ int main(int argc, char *argv[])
          path = join("/", remove_dot_dot(aa));
       }
 
-      std::string hostname;
-
-      {
-         char s[256];
-         gethostname(s, sizeof(s));
-         hostname = s;
-      }
+      std::string hostname = ss_gethostname();
 
       // start writing
 
