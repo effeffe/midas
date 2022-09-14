@@ -123,7 +123,7 @@ INT frontend_init()
    const char *wavedaqpath = getenv("WDBSYS");
    if (wavedaqpath != nullptr) {
       drs_calib_path = wavedaqpath;
-      drs_calib_path += "/software/wds/";
+      drs_calib_path += "/sw/wds/";
    } else {
       cm_msg(MINFO, "frontend_init", "Calibration filepath set to current directory. "\
              "Use WDBSYS environnement variable to point to your wavedaq repository");
@@ -131,7 +131,7 @@ INT frontend_init()
    }
 
    // create WDB object
-   WDB *b = new WDB("wd134");
+   WDB *b = new WDB("wd026");
    try {
       b->SetVerbose(true);                // change for debugging
       b->Connect();                       // connect to board, throws exception if unsuccessful
@@ -156,7 +156,7 @@ INT frontend_init()
 
       //---- board settings
       b->SetDaqClkSrcSel(1);              // select on-board clock oscillator
-      b->SetDrsSampleFreq(2000);          // Sampling speed 2 GSPS
+      b->SetDrsSampleFreq(1000);          // Sampling speed 1 GSPS
       b->SetFeGain(-1, 1);                // set FE gain to 1
       b->SetFePzc(-1, false);             // disable pole-zero cancellation
       b->SetInterPkgDelay(0x753);         // minimum inter-packet delay
@@ -167,10 +167,11 @@ INT frontend_init()
       b->SetTriggerDelay(0);              // minimal inter-packet delay
       b->SetLeadTrailEdgeSel(0);          // trigger on leading edge
       b->SetPatternTriggerEn(true);       // enable internal pattern trigger
-      b->SetDacTriggerLevelV(-1, -0.1);   // set trigger level to -100 mV for all channels
+      b->SetDacTriggerLevelV(-1, -0.02);  // set trigger level to -20 mV for all channels
 
       b->SetTrgSrcPolarity(0xFFFF);       // negative signals
       b->SetTrgPtrnEn(0xFFFF);            // enable 16 trigger patterns
+      // b->SetTrgPtrnEn(0x0001);            // enable first trigger pattern
       for (int i=0 ; i<16 ; i++) {
          b->SetTrgSrcEnPtrn(i, (1<<i));   // set individual channel as only source for pattern
          b->SetTrgStatePtrn(i, (1<<i));   // set trigger coincidence for single channel
@@ -217,6 +218,7 @@ INT frontend_init()
    // instantiate waveform processor
    WD::wp = new WP();
    WD::wp->SetAllCalib(true);
+   WD::wp->SetWDBList(WD::wdb);
    WD::wp->SetRequestedBoard(WD::wdb);
 
    // set destination port after waveform processor has been initialized
