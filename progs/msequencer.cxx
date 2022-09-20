@@ -2064,13 +2064,22 @@ void sequencer() {
          return;
       }
 
-      // store if, else and endif lines
+      // store "if" and "endif" lines
       seq.if_line[seq.if_index] = seq.current_line_number;
       seq.if_endif_line[seq.if_index] = mxml_get_line_number_end(pn);
 
+      // search for "else" line
       seq.if_else_line[seq.if_index] = 0;
       for (j = seq.current_line_number + 1; j < mxml_get_line_number_end(pn) + 1; j++) {
          pe = mxml_get_node_at_line(pnseq, j);
+
+         // skip nested if..endif
+         if (pe && equal_ustring(mxml_get_name(pe), "If")) {
+            j = mxml_get_line_number_end(pe);
+            continue;
+         }
+
+         // store "else" if found
          if (pe && equal_ustring(mxml_get_name(pe), "Else")) {
             seq.if_else_line[seq.if_index] = j;
             break;
