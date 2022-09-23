@@ -1465,7 +1465,7 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
    str1[i] = 0;
 
    char str2[MAX_ODB_PATH];
-   for (i = 0; key->name[i]; i++)
+   for (i = 0; search_name[i] ; i++)
       str2[i] = toupper(search_name[i]);
    str2[i] = 0;
 
