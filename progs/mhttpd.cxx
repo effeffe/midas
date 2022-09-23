@@ -1503,19 +1503,27 @@ INT search_callback(HNDLE hDB, HNDLE hKey, KEY * key, INT level, void *info)
             r->rsprintf("<td class=\"ODBvalue\">%s</td></tr>\n", data_str.c_str());
          } else {
             /* display first value */
-            r->rsprintf("<tr><td rowspan=%d class=\"ODBkey\">", key->num_values);
+            i = key->num_values;
+            if (i > 10)
+               i = 11;
+            r->rsprintf("<tr><td rowspan=%d class=\"ODBkey\">", i);
             r->rsprintf("<a href=\"?cmd=odb&odb_path=/%s\">/%s/%s\n", path, path, key->name);
 
             for (int i = 0; i < key->num_values; i++) {
                size = sizeof(data);
-               db_get_data(hDB, hKey, data, &size, key->type);
+               db_get_data_index(hDB, hKey, data, &size, i, key->type);
 
-               std::string data_str = db_sprintf(data, key->item_size, i, key->type);
+               std::string data_str = db_sprintf(data, key->item_size, 0, key->type);
 
                if (i > 0)
                   r->rsprintf("<tr>");
 
                r->rsprintf("<td class=\"ODBvalue\">[%d] %s</td></tr>\n", i, data_str.c_str());
+
+               if (i > 8) {
+                  r->rsprintf("<tr><td class=\"ODBvalue\">... [%d] values ...</td></tr>\n", key->num_values - i - 1);
+                  break;
+               }
             }
          }
       }
