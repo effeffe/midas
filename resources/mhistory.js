@@ -41,7 +41,7 @@ function mhistory_init() {
 
    let baseURL = window.location.href;
    if (baseURL.indexOf("?cmd") > 0)
-      baseURL = baseURL.substr(0, baseURL.indexOf("?cmd"));
+      baseURL = baseURL.substring(0, baseURL.indexOf("?cmd"));
    baseURL += "?cmd=history";
 
    for (let i = 0; i < mhist.length; i++) {
@@ -53,6 +53,53 @@ function mhistory_init() {
          this.mhg.resize();
       };
    }
+}
+
+function mhistory_dialog(group, panel, width, height, x, y) {
+
+   // default width and height if not defined
+   if (width == undefined)
+      width = 500;
+   if (height === undefined)
+      height = 300;
+
+   let d = document.createElement("div");
+   d.className = "dlgFrame";
+   d.style.zIndex = "30";
+   d.shouldDestroy = true;
+
+   d.innerHTML = `
+            <div class="dlgTitlebar" id="dlgMessageTitle">History ` + panel + `</div>
+            <div class="dlgPanel" style="padding: 3px;">
+               <div class="mjshistory" data-group="` + group + `" data-panel="` + panel + `" 
+               style="width:` + width + `px;height:` + height + `px"></div>
+            </div>
+         `;
+   document.body.appendChild(d);
+
+   dlgShow(d);
+   mhistory_init_single(d.childNodes[3].childNodes[1]);
+
+   if (x !== undefined && y !== undefined)
+      dlgMove(d, x, y);
+
+   return d;
+}
+
+function mhistory_init_single(mhist) {
+
+   let baseURL = window.location.href;
+   if (baseURL.indexOf("?cmd") > 0)
+      baseURL = baseURL.substring(0, baseURL.indexOf("?cmd"));
+   baseURL += "?cmd=history";
+
+   mhist.dataset.baseURL = baseURL;
+   mhist.mhg = new MhistoryGraph(mhist);
+   mhist.mhg.initializePanel(0);
+   mhist.mhg.resize();
+   mhist.resize = function () {
+      this.mhg.resize();
+   };
 }
 
 function mhistory_create(parentElement, baseURL, group, panel, tMin, tMax, index) {
@@ -232,6 +279,7 @@ function MhistoryGraph(divElement) { // Constructor
                   t.x2) - t.intSelector.offsetWidth) + "px";
                t.intSelector.style.top = (t.canvas.getBoundingClientRect().y + window.pageYOffset +
                   this.y1 - 1) + "px";
+               t.intSelector.style.zIndex = "32";
             } else {
                t.intSelector.style.display = "none";
             }
@@ -247,6 +295,7 @@ function MhistoryGraph(divElement) { // Constructor
                   t.x2) - t.downloadSelector.offsetWidth) + "px";
                t.downloadSelector.style.top = (t.canvas.getBoundingClientRect().y + window.pageYOffset +
                   this.y1 - 1) + "px";
+               t.downloadSelector.style.zIndex = "32";
             } else {
                t.downloadSelector.style.display = "none";
             }

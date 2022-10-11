@@ -761,6 +761,11 @@ function dlgShow(dlg, modal, param) {
    window.addEventListener("touchcancel", d.dlgTouchCancel.bind(d), true);
 }
 
+function dlgMove(d, x, y) {
+   d.style.left = x + "px";
+   d.style.top = y + "px";
+}
+
 function dlgClose(div) {
    let dlg = div.parentNode.parentNode;
    if (dlg.shouldDestroy)
