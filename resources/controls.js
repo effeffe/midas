@@ -752,6 +752,17 @@ function dlgShow(dlg, modal, param) {
       }
    };
 
+   d.dlgKeyDown = function (e) {
+      if (d.style.display === "none")
+         return;
+
+      if (e.key === 'Escape') {
+         e.preventDefault();
+         dlgClose(d.childNodes[1].childNodes[0]);
+      }
+   }
+   window.addEventListener("keydown", d.dlgKeyDown.bind(d), true);
+
    window.addEventListener("mousedown", d.dlgMouseDown.bind(d), true);
    window.addEventListener("mousemove", d.dlgMouseMove.bind(d), true);
    window.addEventListener("mouseup", d.dlgMouseUp.bind(d), true);
