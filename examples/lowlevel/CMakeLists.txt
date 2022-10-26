@@ -1,4 +1,4 @@
-set(PROGS produce consume rpc_test rpc_clnt rpc_srvr)
+set(PROGS produce consume rpc_test rpc_clnt rpc_srvr split)
 
 foreach(PROG ${PROGS})
    add_executable(${PROG} ${PROG}.cxx)
