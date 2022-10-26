@@ -320,7 +320,7 @@
                set_if_changed("runStatusStartTime", "Start: " + runinfoJson["start time"]);
             }
 
-            if (experimentItemsJson != null && experimentItemsJson.hasOwnProperty("experiment name")) {
+            if (experimentItemsJson != null) {
 
                // check if lazy active is in the experiment items list
                var experimentItemList = Object.keys(experimentItemsJson);
