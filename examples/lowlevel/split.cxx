@@ -49,8 +49,12 @@ int main(int argc, char *argv[])
          break; // end-of/file
 
       if ((unsigned short) eh.event_id == 0x8000) {
-         printf("Found run number %d\n", eh.serial_number);
+         // BOR event -> write to output file
+         printf("Found run number %d, copied BOR event\n", eh.serial_number);
          read(fh, eb, eh.data_size);
+
+         write(fho, &eh, sizeof(eh));   // copy event header
+         write(fho, eb,  eh.data_size); // copy event
 
       } else if (eh.event_id == 1) {
          // event ID 1 -> write to output file
@@ -59,8 +63,8 @@ int main(int argc, char *argv[])
          write(fho, &eh, sizeof(eh));   // copy event header
          write(fho, eb,  eh.data_size); // copy event
 
-         printf("Copied event #%d\n", eh.serial_number);
-         
+         printf("Copied event ID1 serial #%d\n", eh.serial_number);
+
       } else {
          // all other events -> just skip
          read(fh, eb, eh.data_size);
