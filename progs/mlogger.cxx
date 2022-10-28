@@ -2548,13 +2548,13 @@ void write_runlog_ascii(BOOL bor)
    if (bor) {
       db_find_key(hDB, 0, "/Logger/Runlog/ASCII/Links BOR", &hKeyRoot);
       if (!hKeyRoot) {
-         cm_msg(MERROR, "write_runlog_sql", "Cannot find \"/Logger/Runlog/SQL/Links BOR");
+         cm_msg(MERROR, "write_runlog_ascii", "Cannot find \"/Logger/Runlog/ASCII/Links BOR");
          return;
       }
    } else {
       db_find_key(hDB, 0, "/Logger/Runlog/ASCII/Links EOR", &hKeyRoot);
       if (!hKeyRoot) {
-         cm_msg(MERROR, "write_runlog_sql", "Cannot find \"/Logger/Runlog/SQL/Links EOR");
+         cm_msg(MERROR, "write_runlog_ascii", "Cannot find \"/Logger/Runlog/ASCII/Links EOR");
          return;
       }
    }
