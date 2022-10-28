@@ -332,11 +332,16 @@
                      experimentItem.innerHTML =
                         "<tr><td style=\"text-align:left;\" width=\"30%\" class=\"mtitleCell\">" +
                         experimentItemsJson[experimentItemList[i]] +
-                        ":</td>" +
-                        "<td id=\"experimentLazyBool\"; style=\"text-align:left;\">" +
-                        experimentItemsJson[experimentItemList[i + 2]] +
-                        "</td>" +
-                        "</tr>";
+                        ":</td>";
+
+                     let v = experimentItemsJson[experimentItemList[i + 2]];
+                     if (v === true)
+                        v = '<input type="checkbox" style="pointer-events: none;" checked>';
+                     if (v === false)
+                        v = '<input type="checkbox" style="pointer-events: none;">';
+                     experimentItem.innerHTML +=
+                        "<td id=\"experimentLazyBool\"; style=\"text-align:left;\">" + v + "</td>";
+                     experimentItem.innerHTML += "</tr>";
                      experimentItem.className = "";
 
                      if (document.getElementById(experimentItemList[i + 2] + "ExperimentItem") != null) {
