@@ -2497,7 +2497,7 @@ void create_runlog_ascii_tree()
    
    size = sizeof(filename);
    strcpy(filename, "runlog.log");
-   db_get_value(hDB, 0, "/Logger/Runlog/ASCII/filename", filename, &size, TID_STRING, TRUE);
+   db_get_value(hDB, 0, "/Logger/Runlog/ASCII/Filename", filename, &size, TID_STRING, TRUE);
    
    db_find_key(hDB, 0, "/Logger/Runlog/ASCII/Links BOR", &hKeyRoot);
    if (!hKeyRoot) {
@@ -2570,7 +2570,7 @@ void write_runlog_ascii(BOOL bor)
    if (strchr(filename, DIR_SEPARATOR) == NULL) {
       size = sizeof(dir);
       dir[0] = 0;
-      db_get_value(hDB, 0, "/Logger/Data Dir", dir, &size, TID_STRING, TRUE);
+      db_get_value(hDB, 0, "/Logger/Message Dir", dir, &size, TID_STRING, TRUE);
       if (dir[0] != 0)
          if (dir[strlen(dir) - 1] != DIR_SEPARATOR)
             strcat(dir, DIR_SEPARATOR_STR);
