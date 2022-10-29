@@ -360,7 +360,8 @@ namespace midas {
       AUTO_CREATE,
       AUTO_ENLARGE_ARRAY,
       DIRTY,
-      DELETED
+      DELETED,
+      WRITE_PROTECT
    };
 
    //================================================================
@@ -665,6 +666,10 @@ namespace midas {
       // Overload the Assignment Operators
       template<typename T>
       const T &operator=(const T &v) {
+
+         if (this->is_write_protect())
+            mthrow("Cannot modify write protected key \"" + get_full_path() + "\"");
+
          if (m_num_values == 0) {
             // initialize this
             m_num_values = 1;
@@ -688,6 +693,9 @@ namespace midas {
       // Overload the Assignment Operators for std::vector
       template<typename T>
       const std::vector<T> &operator=(const std::vector<T> &v) {
+
+         if (this->is_write_protect())
+            mthrow("Cannot modify write protected key \"" + get_full_path() + "\"");
 
          if (m_num_values == 0) {
             // initialize this
@@ -731,6 +739,9 @@ namespace midas {
       // Overload the Assignment Operators for std::array
       template<typename T, size_t SIZE>
       const std::array<T, SIZE> &operator=(const std::array<T, SIZE> &arr) {
+
+         if (this->is_write_protect())
+            mthrow("Cannot modify write protected key \"" + get_full_path() + "\"");
 
          if (m_num_values == 0) {
             // initialize this
@@ -818,6 +829,9 @@ namespace midas {
 
       // overload index operator for arrays
       u_odb &operator[](int index) {
+         if (this->is_write_protect())
+            mthrow("Cannot modify write protected key \"" + get_full_path() + "\"");
+
          if (index < 0)
             throw std::out_of_range("Index \"" + std::to_string(index) + "\" out of range for ODB key \"" + get_full_path() + "[0..." + std::to_string(m_num_values - 1) + "]\"");
 
@@ -1151,6 +1165,12 @@ namespace midas {
          set_flags_recursively(get_flags());
       }
 
+      bool is_write_protect() const { return m_flags[odb_flags::WRITE_PROTECT]; }
+      void set_write_protect(bool f) {
+         m_flags[odb_flags::WRITE_PROTECT] = f;
+         set_flags_recursively(get_flags());
+      }
+
       // Static functions
       static void set_debug(bool flag) { m_debug = flag; }
       static bool get_debug() { return m_debug; }
@@ -1158,7 +1178,6 @@ namespace midas {
       static bool exists(const std::string &name);
       static int delete_key(const std::string &name);
 
-      void odb_from_scan(const std::string &s);
       void odb_from_xml(const std::string &str);
       void connect(const std::string &path, const std::string &name, bool write_defaults, bool delete_keys_not_in_defaults = false);
       void connect(std::string str, bool write_defaults = false, bool delete_keys_not_in_defaults = false);

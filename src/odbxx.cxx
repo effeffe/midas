@@ -1281,6 +1281,9 @@ namespace midas {
    void odb::delete_key() {
       init_hdb();
 
+      if (this->is_write_protect())
+         mthrow("Cannot modify write protected key \"" + get_full_path() + "\"");
+
       // keep the name for debugging
       m_name = get_full_path();
 
@@ -1397,6 +1400,9 @@ namespace midas {
 
    void odb::set(std::string s)
    {
+      if (this->is_write_protect())
+         mthrow("Cannot modify write protected key \"" + get_full_path() + "\"");
+
       if (m_tid == TID_BOOL)
          s = (s == "y" || s == "1") ? "1" : "0";
 
@@ -1409,6 +1415,9 @@ namespace midas {
 
    void odb::set(std::string s, int i)
    {
+      if (this->is_write_protect())
+         mthrow("Cannot modify write protected key \"" + get_full_path() + "\"");
+
       if (m_tid == TID_BOOL)
          s = (s == "y" || s == "1") ? "1" : "0";
 
@@ -1421,6 +1430,9 @@ namespace midas {
 
    void odb::set_odb(odb *o, int i)
    {
+      if (this->is_write_protect())
+         mthrow("Cannot modify write protected key \"" + get_full_path() + "\"");
+
       if (m_data == nullptr)
          m_data = new u_odb[m_num_values];
       m_data[i].set_parent(this);
