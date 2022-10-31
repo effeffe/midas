@@ -1011,6 +1011,8 @@ static void seq_start() {
    if (seq.debug)
       seq.paused = TRUE;
    seq_write(seq);
+
+   cm_msg(MTALK, "sequencer", "Sequencer started with script \"%s\".", seq.filename);
 }
 
 /*------------------------------------------------------------------*/
