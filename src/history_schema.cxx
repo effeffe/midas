@@ -3407,7 +3407,9 @@ int HsSchema::match_event_var(const char* event_name, const char* var_name, cons
 
    for (unsigned j=0; j<this->variables.size(); j++) {
       if (MatchTagName(this->variables[j].name.c_str(), this->variables[j].n_data, var_name, var_index)) {
-         if (var_index < this->variables[j].n_data) {
+         // Second clause in if() is case where MatchTagName used the "alternate tag name".
+         // E.g. our variable name is "IM05[3]" (n_data=1), but we're looking for var_name="IM05" and var_index=3.
+         if (var_index < this->variables[j].n_data || (this->variables[j].n_data == 1 && this->variables[j].name.find("[") != std::string::npos)) {
             return j;
          }
       }
