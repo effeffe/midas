@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
    str[0] = 'x';
    str[1] = 'y';
    str[2] = 'y';
-   int fho = open(str, O_WRONLY | O_CREAT | O_TRUNC);
+   int fho = open(str, O_WRONLY | O_CREAT | O_TRUNC, 0644);
    if (fho < 0) {
       printf("Error: Cannot open output file \"%s\"\n", str);
       return 1;
