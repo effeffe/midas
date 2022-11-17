@@ -2334,7 +2334,10 @@ int HsFileSchema::read_data(const time_t start_time,
    }
    
    char* buf = new char[s->record_size];
-   
+
+   int prec = irec;
+   int nread = 0;
+
    while (1) {
       status = ::read(fd, buf, s->record_size);
       if (status == 0) // EOF
@@ -2343,7 +2346,12 @@ int HsFileSchema::read_data(const time_t start_time,
          cm_msg(MERROR, "FileHistory::read_data", "Cannot read \'%s\', read() errno %d (%s)", s->file_name.c_str(), errno, strerror(errno));
          break;
       }
-      
+
+      nread++;
+      prec++;
+
+      bool past_end_of_last_file = (s->time_to == 0) && (prec > nrec);
+
       time_t t = *(DWORD*)buf;
       
       if (debug > 1)
@@ -2356,7 +2364,7 @@ int HsFileSchema::read_data(const time_t start_time,
          return HS_FILE_ERROR;
       }
       
-      if (tend && (t > tend)) {
+      if (tend && (t > tend) && !past_end_of_last_file) {
          delete[] buf;
          ::close(fd);
          cm_msg(MERROR, "FileHistory::read_data", "Bad history file \'%s\': record %d timestamp %s is after last timestamp %s", s->file_name.c_str(), irec + count, TimeToString(t).c_str(), TimeToString(tend).c_str());
