@@ -44,6 +44,10 @@ help:
 	@echo "   make remoteonly      --- minimal build, remote connetion only, results are in linux-remoteonly/{bin,lib}"
 	@echo "   make cleanremoteonly --- remove everything build by make remoteonly"
 	@echo ""
+	@echo "   # see https://daq00.triumf.ca/DaqWiki/index.php/Ubuntu#ARM_cross-compiler"
+	@echo "   make armv7_remoteonly      --- minimal build, remote connetion only, results are in linux-armv7-remoteonly/{bin,lib}"
+	@echo "   make armv7_cleanremoteonly --- remove everything build by make remoteonly"
+	@echo ""
 	@echo "   make linux32   --- minimal x86 -m32 build, results are in linux-m32/{bin,lib}"
 	@echo "   make clean32   --- remove everything built by make linux32"
 	@echo ""
@@ -597,6 +601,14 @@ clean:: cleanremoteonly
 
 cleanremoteonly:
 	$(MAKE) OS_DIR=$(OSTYPE)-$(ARCH)-remoteonly cleanmini
+
+armv7_remoteonly:
+	$(MAKE) mini OS_DIR=$(OSTYPE)-armv7-remoteonly USERFLAGS="-DNO_LOCAL_ROUTINES=1 -march=armv7" CXX=arm-linux-gnueabi-g++
+
+clean:: armv7_cleanremoteonly
+
+armv7_cleanremoteonly:
+	$(MAKE) OS_DIR=$(OSTYPE)-armv7-remoteonly cleanmini
 
 linux32:
 	$(MAKE) mini OS_DIR=linux-m32 USERFLAGS=-m32
